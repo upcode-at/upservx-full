@@ -14,6 +14,12 @@ export function SystemOverview() {
     kernel: "",
   })
 
+  const getUsageColor = (usage: number) => {
+    if (usage >= 90) return "bg-red-500"
+    if (usage >= 80) return "bg-yellow-400"
+    return undefined
+  }
+
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
@@ -55,7 +61,11 @@ export function SystemOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{systemStats.cpu.usage}%</div>
-            <Progress value={systemStats.cpu.usage} className="mt-2" />
+            <Progress
+              value={systemStats.cpu.usage}
+              className="mt-2"
+              indicatorClassName={getUsageColor(systemStats.cpu.usage)}
+            />
             <p className="text-xs text-muted-foreground mt-2">
               {systemStats.cpu.cores} Kerne • {systemStats.cpu.model}
             </p>
@@ -69,7 +79,11 @@ export function SystemOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{systemStats.memory.usage}%</div>
-            <Progress value={systemStats.memory.usage} className="mt-2" />
+            <Progress
+              value={systemStats.memory.usage}
+              className="mt-2"
+              indicatorClassName={getUsageColor(systemStats.memory.usage)}
+            />
             <p className="text-xs text-muted-foreground mt-2">
               {systemStats.memory.used}GB / {systemStats.memory.total}GB
             </p>
@@ -83,7 +97,11 @@ export function SystemOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{systemStats.storage.usage}%</div>
-            <Progress value={systemStats.storage.usage} className="mt-2" />
+            <Progress
+              value={systemStats.storage.usage}
+              className="mt-2"
+              indicatorClassName={getUsageColor(systemStats.storage.usage)}
+            />
             <p className="text-xs text-muted-foreground mt-2">
               {systemStats.storage.used}GB / {systemStats.storage.total}GB
             </p>
