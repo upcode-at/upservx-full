@@ -36,6 +36,7 @@ export function Containers() {
   const [containers, setContainers] = useState<ContainerData[]>([])
   const [name, setName] = useState("")
   const [type, setType] = useState("")
+  const [images, setImages] = useState<string[]>([])
   const [image, setImage] = useState("")
   const [cpu, setCpu] = useState("")
   const [memory, setMemory] = useState("")
@@ -44,6 +45,26 @@ export function Containers() {
   const [error, setError] = useState<string | null>(null)
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
+
+  useEffect(() => {
+    if (!type) {
+      setImages([])
+      setImage("")
+      return
+    }
+    const loadImages = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/images?type=${type}`)
+        if (res.ok) {
+          const data = await res.json()
+          setImages(data.images || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadImages()
+  }, [type])
 
   useEffect(() => {
     if (!error) return
@@ -89,7 +110,16 @@ export function Containers() {
       })
       if (res.ok) {
         const c = await res.json()
-        setContainers((prev) => [...prev, c])
+        if (c.detail) {
+          // creation succeeded but no details, refresh list
+          const listRes = await fetch("http://localhost:8000/containers")
+          if (listRes.ok) {
+            const data = await listRes.json()
+            setContainers(data)
+          }
+        } else {
+          setContainers((prev) => [...prev, c])
+        }
       }
     } catch (e) {
       console.error(e)
@@ -237,12 +267,18 @@ export function Containers() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="container-image">Image</Label>
-                  <Input
-                    id="container-image"
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
-                    placeholder="z.B. nginx:latest"
-                  />
+                  <Select value={image} onValueChange={setImage}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Image auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {images.map((img) => (
+                        <SelectItem key={img} value={img}>
+                          {img}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </TabsContent>
               <TabsContent value="resources" className="space-y-4">

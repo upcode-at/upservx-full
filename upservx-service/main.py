@@ -241,6 +241,41 @@ def get_k8s_pods() -> List[Container]:
     return containers_list
 
 
+def get_docker_images() -> List[str]:
+    """Return available Docker images using the docker CLI."""
+    if shutil.which("docker") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"],
+            text=True,
+        ).strip()
+    except Exception:
+        return []
+    images = [line for line in output.splitlines() if line and not line.startswith("<none>")]
+    return images
+
+
+def get_lxc_images() -> List[str]:
+    """Return available LXC images using the lxc CLI."""
+    if shutil.which("lxc") is None:
+        return []
+    try:
+        output = subprocess.check_output(["lxc", "image", "list", "--format", "json"], text=True).strip()
+        data = json.loads(output)
+    except Exception:
+        return []
+
+    images = []
+    for img in data:
+        aliases = img.get("aliases", [])
+        if aliases:
+            images.append(aliases[0].get("name", ""))
+        else:
+            images.append(img.get("fingerprint", ""))
+    return images
+
+
 def find_container_type(name: str) -> str | None:
     """Detect which container backend knows a container by this name."""
     for c in get_docker_containers():
@@ -324,8 +359,56 @@ def list_containers():
     return [c.dict() for c in all_containers]
 
 
+@app.get("/images")
+def list_images(type: str):
+    """Return available container images for the given type."""
+    type_lower = type.lower()
+    if type_lower == "docker" or type_lower == "kubernetes":
+        return {"images": get_docker_images()}
+    if type_lower == "lxc":
+        return {"images": get_lxc_images()}
+    raise HTTPException(status_code=400, detail="unknown container type")
+
+
 @app.post("/containers")
 def create_container(payload: ContainerCreate):
+    """Create a new container via Docker, LXC or Kubernetes if available."""
+    typ = payload.type.lower()
+    if typ == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        cmd = ["docker", "run", "-d", "--name", payload.name]
+        for p in payload.ports:
+            cmd.extend(["-p", p])
+        for m in payload.mounts:
+            cmd.extend(["-v", m])
+        cmd.append(payload.image)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        # Fetch fresh info about the new container
+        container_list = [c for c in get_docker_containers() if c.name == payload.name]
+        return container_list[0].dict() if container_list else {"detail": "created"}
+
+    if typ == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "launch", payload.image, payload.name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        container_list = [c for c in get_lxc_containers() if c.name == payload.name]
+        return container_list[0].dict() if container_list else {"detail": "created"}
+
+    if typ == "kubernetes":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(["kubectl", "run", payload.name, "--image", payload.image, "--restart=Never"], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        pods = [c for c in get_k8s_pods() if c.name == payload.name]
+        return pods[0].dict() if pods else {"detail": "created"}
+
+    # Fallback to in-memory creation for unknown types
     global next_container_id
     container = Container(
         id=next_container_id,
