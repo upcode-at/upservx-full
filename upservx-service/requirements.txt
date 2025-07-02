@@ -10,3 +10,4 @@ python-dotenv
 bcrypt
 pytest
 pytest-asyncio
+psutil

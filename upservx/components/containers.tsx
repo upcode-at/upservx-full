@@ -82,20 +82,6 @@ export function Containers() {
     }
   }
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "Docker":
-        return "blue"
-      case "LXC":
-        return "green"
-      case "Kubernetes":
-        return "purple"
-      case "Pod":
-        return "orange"
-      default:
-        return "gray"
-    }
-  }
 
   return (
     <div className="space-y-6">

@@ -2,16 +2,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Cpu, HardDrive, MemoryStick, Activity } from "lucide-react"
+import { useEffect, useState } from "react"
 
 export function SystemOverview() {
-  const systemStats = {
-    cpu: { usage: 45, cores: 16, model: "Intel Xeon E5-2680 v4" },
-    memory: { used: 24, total: 64, usage: 37.5 },
-    storage: { used: 850, total: 2000, usage: 42.5 },
-    network: { in: 125.5, out: 89.2 },
-    uptime: "15 Tage, 7 Stunden",
-    kernel: "Linux 6.5.0-14-generic",
-  }
+  const [systemStats, setSystemStats] = useState({
+    cpu: { usage: 0, cores: 0, model: "" },
+    memory: { used: 0, total: 0, usage: 0 },
+    storage: { used: 0, total: 0, usage: 0 },
+    network: { in: 0, out: 0 },
+    uptime: "",
+    kernel: "",
+  })
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/metrics")
+        if (res.ok) {
+          const data = await res.json()
+          setSystemStats(data)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchMetrics()
+    const id = setInterval(fetchMetrics, 4000)
+    return () => clearInterval(id)
+  }, [])
 
   const services = [
     { name: "Docker", status: "running", port: 2376 },
