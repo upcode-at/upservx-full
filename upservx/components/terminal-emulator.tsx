@@ -30,7 +30,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
     return () => {
       ws.close()
     }
-  }, [containerName, onClose])
+  }, [containerName])
 
   useEffect(() => {
     if (scrollAreaRef.current) {

@@ -42,6 +42,7 @@ export function Containers() {
   const [ports, setPorts] = useState<string[]>([""])
   const [mounts, setMounts] = useState<string[]>([""])
   const [error, setError] = useState<string | null>(null)
+  const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
 
   useEffect(() => {
     if (!error) return
@@ -61,10 +62,13 @@ export function Containers() {
         console.error(e)
       }
     }
-    load()
-    const id = setInterval(load, 4000)
-    return () => clearInterval(id)
-  }, [])
+
+    if (!activeTerminal) {
+      load()
+      const id = setInterval(load, 4000)
+      return () => clearInterval(id)
+    }
+  }, [activeTerminal])
 
   const handleCreate = async () => {
     const payload = {
@@ -142,8 +146,6 @@ export function Containers() {
       if (e instanceof Error) setError(e.message)
     }
   }
-
-  const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
 
   const getStatusColor = (status: string) => {
     switch (status) {
