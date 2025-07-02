@@ -46,8 +46,10 @@ export function Containers() {
     { name: "", value: "" },
   ])
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     if (!type) {
@@ -74,6 +76,12 @@ export function Containers() {
     const t = setTimeout(() => setError(null), 3000)
     return () => clearTimeout(t)
   }, [error])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
 
   useEffect(() => {
     const load = async () => {
@@ -117,7 +125,6 @@ export function Containers() {
       if (res.ok) {
         const c = await res.json()
         if (c.detail) {
-          // creation succeeded but no details, refresh list
           const listRes = await fetch("http://localhost:8000/containers")
           if (listRes.ok) {
             const data = await listRes.json()
@@ -126,6 +133,8 @@ export function Containers() {
         } else {
           setContainers((prev) => [...prev, c])
         }
+        setMessage("Container erstellt")
+        setOpen(false)
       }
     } catch (e) {
       console.error(e)
@@ -208,18 +217,8 @@ export function Containers() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "running":
-        return "default"
-      case "stopped":
-        return "secondary"
-      case "paused":
-        return "outline"
-      default:
-        return "secondary"
-    }
-  }
+  const statusClass = (status: string) =>
+    status === "running" ? "bg-green-600 text-white" : "bg-red-600 text-white"
 
 
   return (
@@ -227,6 +226,11 @@ export function Containers() {
       {error && (
         <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
           {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
         </div>
       )}
       <div className="flex justify-between items-center">
@@ -251,9 +255,9 @@ export function Containers() {
               </SelectContent>
             </Select>
           </div>
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Neuen Container erstellen
               </Button>
@@ -436,7 +440,9 @@ export function Containers() {
               </TabsContent>
             </Tabs>
             <div className="flex justify-end space-x-2">
-              <Button variant="outline">Abbrechen</Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Abbrechen
+              </Button>
               <Button onClick={handleCreate}>Container erstellen</Button>
             </div>
           </DialogContent>
@@ -455,7 +461,7 @@ export function Containers() {
                   <CardTitle className="flex items-center gap-2">
                     <Container className="h-5 w-5" />
                     {container.name}
-                    <Badge variant={getStatusColor(container.status)}>
+                    <Badge className={statusClass(container.status)}>
                       {container.status === "running" ? "Läuft" : "Gestoppt"}
                     </Badge>
                     <Badge variant="outline">{container.type}</Badge>
@@ -477,7 +483,7 @@ export function Containers() {
                   </Button>
                   {container.status === "running" ? (
                     <Button
-                      variant="outline"
+                      variant="destructive"
                       size="icon"
                       onClick={() => handleStop(container.name)}
                     >
@@ -486,14 +492,14 @@ export function Containers() {
                   ) : (
                     <>
                       <Button
-                        variant="outline"
+                        className="bg-green-600 text-white hover:bg-green-700"
                         size="icon"
                         onClick={() => handleStart(container.name)}
                       >
                         <Play className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="icon"
                         onClick={() => handleDelete(container.name)}
                       >
