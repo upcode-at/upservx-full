@@ -49,6 +49,37 @@ class ContainerCreate(BaseModel):
     memory: int = 0
 
 
+class SettingsModel(BaseModel):
+    hostname: str
+    timezone: str
+    auto_updates: bool
+    monitoring: bool
+
+
+SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+
+
+def load_settings() -> SettingsModel:
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE) as f:
+                data = json.load(f)
+                return SettingsModel(**data)
+        except Exception:
+            pass
+    return SettingsModel(
+        hostname=platform.node() or "server",
+        timezone="utc",
+        auto_updates=False,
+        monitoring=True,
+    )
+
+
+def save_settings(settings: SettingsModel) -> None:
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings.dict(), f)
+
+
 # Containers that are created via the API are stored here in-memory. Containers
 # discovered from Docker, LXC or Kubernetes are queried on demand and not stored
 # in this list.
@@ -598,6 +629,17 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/metrics")
 def metrics():
     return collect_metrics()
+
+
+@app.get("/settings")
+def get_settings():
+    return load_settings().dict()
+
+
+@app.post("/settings")
+def update_settings(payload: SettingsModel):
+    save_settings(payload)
+    return {"detail": "saved"}
 
 
 if __name__ == "__main__":
