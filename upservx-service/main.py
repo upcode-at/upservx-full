@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import psutil
 import platform
 import subprocess
+import json
 import time
 import os
 import shutil
@@ -44,58 +45,12 @@ class ContainerCreate(BaseModel):
     memory: int = 0
 
 
-containers: List[Container] = [
-    Container(
-        id=1,
-        name="nginx-web",
-        type="Docker",
-        status="running",
-        image="nginx:latest",
-        ports=["80:8080", "443:8443"],
-        mounts=["/data/web:/usr/share/nginx/html"],
-        cpu=0.5,
-        memory=128,
-        created="2024-01-15",
-    ),
-    Container(
-        id=2,
-        name="mysql-db",
-        type="Docker",
-        status="running",
-        image="mysql:8.0",
-        ports=["3306:3306"],
-        mounts=["/data/mysql:/var/lib/mysql"],
-        cpu=1.2,
-        memory=512,
-        created="2024-01-14",
-    ),
-    Container(
-        id=3,
-        name="ubuntu-lxc",
-        type="LXC",
-        status="stopped",
-        image="ubuntu:22.04",
-        ports=[],
-        mounts=["/data/ubuntu:/root"],
-        cpu=0.0,
-        memory=256,
-        created="2024-01-10",
-    ),
-    Container(
-        id=4,
-        name="webapp-pod",
-        type="Kubernetes",
-        status="running",
-        image="webapp:v1.2",
-        ports=["8080:80"],
-        mounts=["/data/app:/app/data"],
-        cpu=0.8,
-        memory=256,
-        created="2024-01-12",
-    ),
-]
+# Containers that are created via the API are stored here in-memory. Containers
+# discovered from Docker, LXC or Kubernetes are queried on demand and not stored
+# in this list.
+containers: List[Container] = []
 
-next_container_id = 5
+next_container_id = 1
 
 
 def format_uptime(seconds: float) -> str:
@@ -172,6 +127,118 @@ def get_service_status(service: str) -> str:
     return "stopped"
 
 
+def _parse_ports(port_str: str) -> List[str]:
+    """Split Docker style port mappings into a list."""
+    if not port_str:
+        return []
+    return [p.strip() for p in port_str.split(',') if p.strip()]
+
+
+def get_docker_containers() -> List[Container]:
+    """Return running Docker containers using the docker CLI."""
+    if shutil.which("docker") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--format",
+                "{{.Names}}||{{.Image}}||{{.Status}}||{{.Ports}}||{{.RunningFor}}",
+            ],
+            text=True,
+        ).strip()
+    except Exception:
+        return []
+
+    containers_list = []
+    for line in output.splitlines():
+        parts = line.split("||")
+        if len(parts) != 5:
+            continue
+        name, image, status, ports, running_for = parts
+        containers_list.append(
+            Container(
+                id=0,
+                name=name,
+                type="Docker",
+                status="running" if status.lower().startswith("up") else "stopped",
+                image=image,
+                ports=_parse_ports(ports),
+                mounts=[],
+                cpu=0.0,
+                memory=0,
+                created=running_for,
+            )
+        )
+    return containers_list
+
+
+def get_lxc_containers() -> List[Container]:
+    """Return LXC/LXD containers using the lxc CLI if available."""
+    if shutil.which("lxc") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            ["lxc", "list", "--format", "json"], text=True
+        ).strip()
+        data = json.loads(output)
+    except Exception:
+        return []
+
+    containers_list = []
+    for item in data:
+        containers_list.append(
+            Container(
+                id=0,
+                name=item.get("name", ""),
+                type="LXC",
+                status=item.get("status", "").lower(),
+                image=item.get("config", {}).get("image.os", ""),
+                ports=[],
+                mounts=[],
+                cpu=0.0,
+                memory=0,
+                created=item.get("created_at", ""),
+            )
+        )
+    return containers_list
+
+
+def get_k8s_pods() -> List[Container]:
+    """Return Kubernetes pods using kubectl if available."""
+    if shutil.which("kubectl") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            ["kubectl", "get", "pods", "-A", "-o", "json"], text=True
+        ).strip()
+        data = json.loads(output)
+    except Exception:
+        return []
+
+    containers_list = []
+    for item in data.get("items", []):
+        metadata = item.get("metadata", {})
+        status = item.get("status", {})
+        containers_list.append(
+            Container(
+                id=0,
+                name=metadata.get("name", ""),
+                type="Kubernetes",
+                status=status.get("phase", "").lower(),
+                image="",
+                ports=[],
+                mounts=[],
+                cpu=0.0,
+                memory=0,
+                created=metadata.get("creationTimestamp", ""),
+            )
+        )
+    return containers_list
+
+
 def collect_metrics() -> dict:
     cpu_percent = psutil.cpu_percent(interval=None)
     cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
@@ -226,7 +293,16 @@ def collect_metrics() -> dict:
 
 @app.get("/containers")
 def list_containers():
-    return [c.dict() for c in containers]
+    all_containers: List[Container] = []
+    all_containers.extend(get_docker_containers())
+    all_containers.extend(get_lxc_containers())
+    all_containers.extend(get_k8s_pods())
+    all_containers.extend(containers)
+
+    # Assign stable sequential ids for the response
+    for idx, c in enumerate(all_containers, start=1):
+        c.id = idx
+    return [c.dict() for c in all_containers]
 
 
 @app.post("/containers")
