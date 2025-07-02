@@ -318,12 +318,15 @@ export function Containers() {
           </DialogContent>
         </Dialog>
         <div className="w-48">
-          <Select value={filter} onValueChange={setFilter}>
+          <Select
+            value={filter}
+            onValueChange={(value) => setFilter(value === "all" ? "" : value)}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Alle Typen" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle</SelectItem>
+              <SelectItem value="all">Alle</SelectItem>
               <SelectItem value="Docker">Docker</SelectItem>
               <SelectItem value="LXC">LXC</SelectItem>
               <SelectItem value="Kubernetes">Kubernetes</SelectItem>
