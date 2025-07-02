@@ -78,6 +78,7 @@ export function ImageManagement() {
   }, [])
 
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadedBytes, setUploadedBytes] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [isoFile, setIsoFile] = useState<File | null>(null)
 
@@ -110,44 +111,51 @@ export function ImageManagement() {
     if (!isoFile) return
     setIsUploading(true)
     setUploadProgress(0)
+    setUploadedBytes(0)
     setError(null)
     setMessage(null)
 
     const data = new FormData()
     data.append("file", isoFile)
 
-    const interval = setInterval(() => {
-      setUploadProgress((p) => Math.min(p + 5, 95))
-    }, 200)
-
-    try {
-      const res = await fetch("http://localhost:8000/isos", {
-        method: "POST",
-        body: data,
-      })
-      if (res.ok) {
-        const info = await res.json()
-        setIsoFiles((prev) => [...prev, info])
-        setMessage("ISO hochgeladen")
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", "http://localhost:8000/isos")
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        setUploadedBytes(e.loaded)
+        setUploadProgress((e.loaded / isoFile.size) * 100)
+      }
+    }
+    xhr.onload = () => {
+      setIsUploading(false)
+      setUploadProgress(100)
+      setUploadedBytes(isoFile.size)
+      setIsoFile(null)
+      setOpenUpload(false)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const info = JSON.parse(xhr.responseText)
+          setIsoFiles((prev) => [...prev, info])
+          setMessage("ISO hochgeladen")
+        } catch {
+          setError("Fehler beim Upload")
+        }
       } else {
         let msg = "Fehler beim Upload"
         try {
-          const d = await res.json()
+          const d = JSON.parse(xhr.responseText)
           msg = d.detail || msg
         } catch {
-          msg = await res.text()
+          // ignore
         }
         setError(msg)
       }
-    } catch (e) {
-      console.error(e)
-      if (e instanceof Error) setError(e.message)
     }
-    clearInterval(interval)
-    setUploadProgress(100)
-    setIsUploading(false)
-    setIsoFile(null)
-    setOpenUpload(false)
+    xhr.onerror = () => {
+      setIsUploading(false)
+      setError("Upload fehlgeschlagen")
+    }
+    xhr.send(data)
   }
 
   const handleDownload = async () => {
@@ -374,7 +382,11 @@ export function ImageManagement() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Upload läuft...</span>
-                      <span>{Math.round(uploadProgress)}%</span>
+                      <span>
+                        {Math.round(uploadedBytes / 1024)} KB /
+                        {" "}
+                        {isoFile ? Math.round(isoFile.size / 1024) : 0} KB
+                      </span>
                     </div>
                     <Progress value={uploadProgress} />
                   </div>
