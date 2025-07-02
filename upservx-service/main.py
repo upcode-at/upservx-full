@@ -32,6 +32,7 @@ class Container(BaseModel):
     image: str
     ports: List[str] = []
     mounts: List[str] = []
+    envs: List[str] = []
     cpu: float
     memory: int
     created: str
@@ -43,6 +44,7 @@ class ContainerCreate(BaseModel):
     image: str
     ports: List[str] = []
     mounts: List[str] = []
+    envs: List[str] = []
     cpu: float = 0.0
     memory: int = 0
 
@@ -169,6 +171,7 @@ def get_docker_containers() -> List[Container]:
                 image=image,
                 ports=_parse_ports(ports),
                 mounts=[],
+                envs=[],
                 cpu=0.0,
                 memory=0,
                 created=running_for,
@@ -200,6 +203,7 @@ def get_lxc_containers() -> List[Container]:
                 image=item.get("config", {}).get("image.os", ""),
                 ports=[],
                 mounts=[],
+                envs=[],
                 cpu=0.0,
                 memory=0,
                 created=item.get("created_at", ""),
@@ -233,6 +237,7 @@ def get_k8s_pods() -> List[Container]:
                 image="",
                 ports=[],
                 mounts=[],
+                envs=[],
                 cpu=0.0,
                 memory=0,
                 created=metadata.get("creationTimestamp", ""),
@@ -382,6 +387,8 @@ def create_container(payload: ContainerCreate):
             cmd.extend(["-p", p])
         for m in payload.mounts:
             cmd.extend(["-v", m])
+        for e in payload.envs:
+            cmd.extend(["-e", e])
         cmd.append(payload.image)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -418,6 +425,7 @@ def create_container(payload: ContainerCreate):
         image=payload.image,
         ports=payload.ports,
         mounts=payload.mounts,
+        envs=payload.envs,
         cpu=payload.cpu,
         memory=payload.memory,
         created=datetime.utcnow().date().isoformat(),

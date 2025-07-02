@@ -42,6 +42,9 @@ export function Containers() {
   const [memory, setMemory] = useState("")
   const [ports, setPorts] = useState<string[]>([""])
   const [mounts, setMounts] = useState<string[]>([""])
+  const [envs, setEnvs] = useState<{ name: string; value: string }[]>([
+    { name: "", value: "" },
+  ])
   const [error, setError] = useState<string | null>(null)
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
@@ -101,6 +104,9 @@ export function Containers() {
       memory: parseInt(memory) || 0,
       ports: ports.filter((p) => p.trim() !== ""),
       mounts: mounts.filter((m) => m.trim() !== ""),
+      envs: envs
+        .filter((e) => e.name.trim() && e.value.trim())
+        .map((e) => `${e.name}=${e.value}`),
     }
     try {
       const res = await fetch("http://localhost:8000/containers", {
@@ -280,6 +286,47 @@ export function Containers() {
                     </SelectContent>
                   </Select>
                 </div>
+                {type === "Docker" && (
+                  <div className="space-y-2">
+                    <Label>Environment Variablen</Label>
+                    {envs.map((env, idx) => (
+                      <div key={idx} className="flex space-x-2">
+                        <Input
+                          placeholder="NAME"
+                          value={env.name}
+                          onChange={(e) => {
+                            const arr = [...envs]
+                            arr[idx].name = e.target.value
+                            setEnvs(arr)
+                          }}
+                        />
+                        <Input
+                          placeholder="Wert"
+                          value={env.value}
+                          onChange={(e) => {
+                            const arr = [...envs]
+                            arr[idx].value = e.target.value
+                            setEnvs(arr)
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setEnvs(envs.filter((_, i) => i !== idx))}
+                        >
+                          -
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEnvs([...envs, { name: "", value: "" }])}
+                    >
+                      Variable hinzufügen
+                    </Button>
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="resources" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
