@@ -320,103 +320,6 @@ export function ImageManagement() {
           <h2 className="text-3xl font-bold tracking-tight">Images & ISOs</h2>
           <p className="text-muted-foreground">ISO-Dateien und Container Images verwalten</p>
         </div>
-        <div className="flex gap-2">
-          <Dialog open={openDownload} onOpenChange={setOpenDownload}>
-            <DialogTrigger asChild>
-              <Button variant="outline" onClick={() => setOpenDownload(true)}>
-                <Download className="mr-2 h-4 w-4" />
-                ISO herunterladen
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>ISO-Datei herunterladen</DialogTitle>
-                <DialogDescription>Laden Sie eine neue ISO-Datei von einer URL herunter</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="iso-url">Download URL</Label>
-                  <Input
-                    id="iso-url"
-                    placeholder="https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso"
-                    value={isoUrl}
-                    onChange={(e) => setIsoUrl(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="iso-name">Dateiname</Label>
-                  <Input
-                    id="iso-name"
-                    placeholder="ubuntu-22.04.3-desktop-amd64.iso"
-                    value={isoDownloadName}
-                    onChange={(e) => setIsoDownloadName(e.target.value)}
-                  />
-                </div>
-                {isDownloading && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Download läuft...</span>
-                      <span>{Math.round(downloadProgress)}%</span>
-                    </div>
-                    <Progress value={downloadProgress} />
-                  </div>
-                )}
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setOpenDownload(false)}>Abbrechen</Button>
-                  <Button onClick={handleDownload} disabled={isDownloading}>
-                    {isDownloading ? "Downloading..." : "Herunterladen"}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={openUpload} onOpenChange={setOpenUpload}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setOpenUpload(true)}>
-                <Upload className="mr-2 h-4 w-4" />
-                ISO hochladen
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>ISO-Datei hochladen</DialogTitle>
-                <DialogDescription>Laden Sie eine ISO-Datei von Ihrem Computer hoch</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-                  <Disc className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Ziehen Sie eine ISO-Datei hierher oder klicken Sie zum Auswählen
-                  </p>
-                  <Input
-                    type="file"
-                    accept=".iso"
-                    onChange={(e) => setIsoFile(e.target.files?.[0] || null)}
-                  />
-                </div>
-                {isUploading && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Upload läuft...</span>
-                      <span>
-                        {Math.round(uploadedBytes / 1024)} KB /
-                        {" "}
-                        {isoFile ? Math.round(isoFile.size / 1024) : 0} KB
-                      </span>
-                    </div>
-                    <Progress value={uploadProgress} />
-                  </div>
-                )}
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setOpenUpload(false)}>Abbrechen</Button>
-                  <Button onClick={handleUpload} disabled={isUploading}>
-                    {isUploading ? "Uploading..." : "Hochladen"}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
       </div>
 
       <Tabs defaultValue="isos" className="w-full">
@@ -428,8 +331,107 @@ export function ImageManagement() {
         <TabsContent value="isos" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>ISO-Dateien</CardTitle>
-              <CardDescription>Verfügbare ISO-Images für VM-Installation</CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>ISO-Dateien</CardTitle>
+                  <CardDescription>Verfügbare ISO-Images für VM-Installation</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Dialog open={openDownload} onOpenChange={setOpenDownload}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" onClick={() => setOpenDownload(true)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        ISO herunterladen
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>ISO-Datei herunterladen</DialogTitle>
+                        <DialogDescription>Laden Sie eine neue ISO-Datei von einer URL herunter</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="iso-url">Download URL</Label>
+                          <Input
+                            id="iso-url"
+                            placeholder="https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso"
+                            value={isoUrl}
+                            onChange={(e) => setIsoUrl(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="iso-name">Dateiname</Label>
+                          <Input
+                            id="iso-name"
+                            placeholder="ubuntu-22.04.3-desktop-amd64.iso"
+                            value={isoDownloadName}
+                            onChange={(e) => setIsoDownloadName(e.target.value)}
+                          />
+                        </div>
+                        {isDownloading && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Download läuft...</span>
+                              <span>{Math.round(downloadProgress)}%</span>
+                            </div>
+                            <Progress value={downloadProgress} />
+                          </div>
+                        )}
+                        <div className="flex justify-end space-x-2">
+                          <Button variant="outline" onClick={() => setOpenDownload(false)}>Abbrechen</Button>
+                          <Button onClick={handleDownload} disabled={isDownloading}>
+                            {isDownloading ? "Downloading..." : "Herunterladen"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={openUpload} onOpenChange={setOpenUpload}>
+                    <DialogTrigger asChild>
+                      <Button onClick={() => setOpenUpload(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        ISO hochladen
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>ISO-Datei hochladen</DialogTitle>
+                        <DialogDescription>Laden Sie eine ISO-Datei von Ihrem Computer hoch</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                          <Disc className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            Ziehen Sie eine ISO-Datei hierher oder klicken Sie zum Auswählen
+                          </p>
+                          <Input
+                            type="file"
+                            accept=".iso"
+                            onChange={(e) => setIsoFile(e.target.files?.[0] || null)}
+                          />
+                        </div>
+                        {isUploading && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Upload läuft...</span>
+                              <span>
+                                {Math.round(uploadedBytes / 1024)} KB / {isoFile ? Math.round(isoFile.size / 1024) : 0} KB
+                              </span>
+                            </div>
+                            <Progress value={uploadProgress} />
+                          </div>
+                        )}
+                        <div className="flex justify-end space-x-2">
+                          <Button variant="outline" onClick={() => setOpenUpload(false)}>Abbrechen</Button>
+                          <Button onClick={handleUpload} disabled={isUploading}>
+                            {isUploading ? "Uploading..." : "Hochladen"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
