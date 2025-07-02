@@ -10,6 +10,7 @@ import os
 import shutil
 from datetime import datetime
 from typing import List
+from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -323,6 +324,28 @@ def create_container(payload: ContainerCreate):
     next_container_id += 1
     containers.append(container)
     return container.dict()
+
+
+@app.post("/containers/{name}/start")
+def start_container(name: str):
+    """Start a Docker container by name."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    result = subprocess.run(["docker", "start", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    return {"detail": "started"}
+
+
+@app.post("/containers/{name}/stop")
+def stop_container(name: str):
+    """Stop a Docker container by name."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    result = subprocess.run(["docker", "stop", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    return {"detail": "stopped"}
 
 
 @app.get("/metrics")

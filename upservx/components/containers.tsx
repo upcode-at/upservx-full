@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Play, Square, Pause, Settings, Plus, Terminal, Container } from "lucide-react"
+import { Play, Square, Settings, Plus, Terminal, Container } from "lucide-react"
 import { TerminalEmulator } from "@/components/terminal-emulator"
 
 export function Containers() {
@@ -55,6 +55,8 @@ export function Containers() {
       }
     }
     load()
+    const id = setInterval(load, 4000)
+    return () => clearInterval(id)
   }, [])
 
   const handleCreate = async () => {
@@ -77,6 +79,22 @@ export function Containers() {
         const c = await res.json()
         setContainers((prev) => [...prev, c])
       }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleStart = async (name: string) => {
+    try {
+      await fetch(`http://localhost:8000/containers/${name}/start`, { method: "POST" })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleStop = async (name: string) => {
+    try {
+      await fetch(`http://localhost:8000/containers/${name}/stop`, { method: "POST" })
     } catch (e) {
       console.error(e)
     }
@@ -275,15 +293,20 @@ export function Containers() {
                   </Button>
                   {container.status === "running" ? (
                     <>
-                      <Button variant="outline" size="icon">
-                        <Pause className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleStop(container.name)}
+                      >
                         <Square className="h-4 w-4" />
                       </Button>
                     </>
                   ) : (
-                    <Button variant="outline" size="icon">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleStart(container.name)}
+                    >
                       <Play className="h-4 w-4" />
                     </Button>
                   )}
