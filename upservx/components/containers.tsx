@@ -43,6 +43,7 @@ export function Containers() {
   const [mounts, setMounts] = useState<string[]>([""])
   const [error, setError] = useState<string | null>(null)
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
+  const [filter, setFilter] = useState("")
 
   useEffect(() => {
     if (!error) return
@@ -316,10 +317,25 @@ export function Containers() {
             </div>
           </DialogContent>
         </Dialog>
+        <div className="w-48">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Alle Typen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Alle</SelectItem>
+              <SelectItem value="Docker">Docker</SelectItem>
+              <SelectItem value="LXC">LXC</SelectItem>
+              <SelectItem value="Kubernetes">Kubernetes</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-4">
-        {containers.map((container) => (
+        {containers
+          .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
+          .map((container) => (
           <Card key={container.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
