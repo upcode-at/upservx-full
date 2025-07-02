@@ -17,14 +17,16 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
   const [history, setHistory] = useState<string[]>([])
   const wsRef = useRef<WebSocket | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const [closed, setClosed] = useState(false)
 
   useEffect(() => {
+    setClosed(false)
     const ws = new WebSocket(`ws://localhost:8000/containers/${containerName}/terminal`)
     wsRef.current = ws
     ws.onmessage = (ev) => {
       setHistory((prev) => [...prev, ev.data])
     }
-    ws.onclose = onClose
+    ws.onclose = () => setClosed(true)
     return () => {
       ws.close()
     }
@@ -59,18 +61,24 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
             ))}
           </div>
         </ScrollArea>
-        <div className="flex border-t p-2 space-x-2">
-          <Input
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                sendCommand()
-              }
-            }}
-          />
-          <Button onClick={sendCommand}>Senden</Button>
-        </div>
+        {!closed ? (
+          <div className="flex border-t p-2 space-x-2">
+            <Input
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  sendCommand()
+                }
+              }}
+            />
+            <Button onClick={sendCommand}>Senden</Button>
+          </div>
+        ) : (
+          <div className="flex border-t p-2 text-sm text-muted-foreground">
+            Verbindung beendet
+          </div>
+        )}
       </CardContent>
     </Card>
   )
