@@ -174,14 +174,31 @@ export function Containers() {
           <h2 className="text-3xl font-bold tracking-tight">Container</h2>
           <p className="text-muted-foreground">Verwalten Sie Docker, LXC, Pods und Kubernetes Container</p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Neuen Container erstellen
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex items-center gap-2">
+          <div className="w-48">
+            <Select
+              value={filter}
+              onValueChange={(value) => setFilter(value === "all" ? "" : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Alle Typen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="Docker">Docker</SelectItem>
+                <SelectItem value="LXC">LXC</SelectItem>
+                <SelectItem value="Kubernetes">Kubernetes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Neuen Container erstellen
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Neuen Container erstellen</DialogTitle>
               <DialogDescription>Konfigurieren Sie Ihren neuen Container</DialogDescription>
@@ -317,21 +334,6 @@ export function Containers() {
             </div>
           </DialogContent>
         </Dialog>
-        <div className="w-48">
-          <Select
-            value={filter}
-            onValueChange={(value) => setFilter(value === "all" ? "" : value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Alle Typen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle</SelectItem>
-              <SelectItem value="Docker">Docker</SelectItem>
-              <SelectItem value="LXC">LXC</SelectItem>
-              <SelectItem value="Kubernetes">Kubernetes</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
