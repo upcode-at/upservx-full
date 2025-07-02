@@ -503,6 +503,40 @@ def stop_container(name: str):
     return {"detail": "stopped"}
 
 
+@app.delete("/containers/{name}")
+def delete_container(name: str):
+    """Delete a container by name if possible."""
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "rm", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "delete", "--force", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(["kubectl", "delete", "pod", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            result = subprocess.run(["kubectl", "delete", "deployment", name], capture_output=True, text=True)
+            if result.returncode != 0:
+                result = subprocess.run(["kubectl", "delete", "statefulset", name], capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    elif ctype == "api":
+        global containers
+        containers = [c for c in containers if c.name != name]
+    else:
+        raise HTTPException(status_code=404, detail="container not found")
+    return {"detail": "deleted"}
+
+
 @app.websocket("/containers/{name}/terminal")
 async def container_terminal(websocket: WebSocket, name: str):
     """Provide interactive shell access to a container via websocket."""

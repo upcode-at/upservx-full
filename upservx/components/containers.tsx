@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Play, Square, Settings, Plus, Terminal, Container } from "lucide-react"
+import { Play, Square, Settings, Plus, Terminal, Container, Trash2 } from "lucide-react"
 import { TerminalEmulator } from "@/components/terminal-emulator"
 
 export function Containers() {
@@ -170,6 +170,30 @@ export function Containers() {
         setError(null)
       } else {
         let message = "Fehler beim Stoppen"
+        try {
+          const data = await res.json()
+          message = data.detail || message
+        } catch {
+          message = await res.text()
+        }
+        setError(message)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handleDelete = async (name: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/containers/${name}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        setContainers((prev) => prev.filter((c) => c.name !== name))
+        setError(null)
+      } else {
+        let message = "Fehler beim Löschen"
         try {
           const data = await res.json()
           message = data.detail || message
@@ -452,23 +476,30 @@ export function Containers() {
                     <Settings className="h-4 w-4" />
                   </Button>
                   {container.status === "running" ? (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleStop(container.name)}
+                    >
+                      <Square className="h-4 w-4" />
+                    </Button>
+                  ) : (
                     <>
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleStop(container.name)}
+                        onClick={() => handleStart(container.name)}
                       >
-                        <Square className="h-4 w-4" />
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleDelete(container.name)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleStart(container.name)}
-                    >
-                      <Play className="h-4 w-4" />
-                    </Button>
                   )}
                 </div>
               </div>
