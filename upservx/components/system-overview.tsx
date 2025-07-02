@@ -13,6 +13,7 @@ export function SystemOverview() {
     uptime: "",
     kernel: "",
     gpu: "",
+    services: [] as { name: string; status: string; port: number | null }[],
   })
 
   const getUsageColor = (usage: number) => {
@@ -38,13 +39,6 @@ export function SystemOverview() {
     return () => clearInterval(id)
   }, [])
 
-  const services = [
-    { name: "Docker", status: "running", port: 2376 },
-    { name: "Kubernetes", status: "running", port: 6443 },
-    { name: "LXC", status: "running", port: null },
-    { name: "SSH", status: "running", port: 22 },
-    { name: "Web Interface", status: "running", port: 8080 },
-  ]
 
   return (
     <div className="space-y-6">
@@ -159,11 +153,11 @@ export function SystemOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {services.map((service) => (
+              {systemStats.services.map((service) => (
                 <div key={service.name} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Badge variant={service.status === "running" ? "default" : "destructive"}>
-                      {service.status === "running" ? "Läuft" : "Gestoppt"}
+                      {service.status === "running" ? "Läuft" : service.status === "not found" ? "Not found" : "Gestoppt"}
                     </Badge>
                     <span className="text-sm font-medium">{service.name}</span>
                   </div>

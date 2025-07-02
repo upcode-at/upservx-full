@@ -4,6 +4,8 @@ import psutil
 import platform
 import subprocess
 import time
+import os
+import shutil
 
 app = FastAPI()
 
@@ -55,6 +57,41 @@ def get_gpu_model() -> str:
         return "none"
 
 
+def get_service_status(service: str) -> str:
+    """Return 'running', 'stopped' or 'not found' for given service."""
+    # Prefer systemctl if available
+    if shutil.which("systemctl"):
+        result = subprocess.run(
+            ["systemctl", "is-active", service],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip() == "active":
+            return "running"
+        if result.returncode == 4 or "could not be found" in result.stderr:
+            return "not found"
+        return "stopped"
+
+    # Fallback: check if binary exists and whether a process is running
+    if shutil.which(service) is None:
+        return "not found"
+    for proc in psutil.process_iter(["name", "exe", "cmdline"]):
+        try:
+            if (
+                proc.info.get("name") == service
+                or (proc.info.get("exe") and os.path.basename(proc.info["exe"]) == service)
+                or (
+                    proc.info.get("cmdline")
+                    and proc.info["cmdline"]
+                    and os.path.basename(proc.info["cmdline"][0]) == service
+                )
+            ):
+                return "running"
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return "stopped"
+
+
 def collect_metrics() -> dict:
     cpu_percent = psutil.cpu_percent(interval=None)
     cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
@@ -62,6 +99,23 @@ def collect_metrics() -> dict:
     disk = psutil.disk_usage("/")
     net = psutil.net_io_counters()
     uptime_seconds = time.time() - psutil.boot_time()
+
+    services_info = [
+        {"name": "Docker", "service": "docker", "port": 2376},
+        {"name": "Kubernetes", "service": "kubelet", "port": 6443},
+        {"name": "LXC", "service": "lxc", "port": None},
+        {"name": "SSH", "service": "ssh", "port": 22},
+        {"name": "Web Interface", "service": "nginx", "port": 8080},
+    ]
+
+    services = [
+        {
+            "name": s["name"],
+            "status": get_service_status(s["service"]),
+            "port": s["port"],
+        }
+        for s in services_info
+    ]
 
     return {
         "cpu": {
@@ -86,6 +140,7 @@ def collect_metrics() -> dict:
         "gpu": get_gpu_model(),
         "uptime": format_uptime(uptime_seconds),
         "kernel": platform.release(),
+        "services": services,
     }
 
 
