@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, WebSocket, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psutil
@@ -10,7 +10,6 @@ import os
 import shutil
 from datetime import datetime
 from typing import List
-from fastapi import HTTPException, WebSocket
 import asyncio
 
 app = FastAPI()
@@ -562,6 +561,35 @@ def list_isos():
     return {"isos": [iso.dict() for iso in get_iso_files()]}
 
 
+@app.post("/isos")
+async def upload_iso(file: UploadFile = File(...)):
+    """Upload a new ISO file."""
+    filename = os.path.basename(file.filename)
+    if not filename.lower().endswith(".iso"):
+        raise HTTPException(status_code=400, detail="invalid iso file")
+    dest = os.path.join(ISO_DIR, filename)
+    with open(dest, "wb") as out:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            out.write(chunk)
+    stat = os.stat(dest)
+    typ, version, arch = guess_iso_info(filename)
+    info = ISOInfo(
+        id=0,
+        name=filename,
+        size=round(stat.st_size / (1024 ** 3), 1),
+        type=typ,
+        version=version,
+        architecture=arch,
+        created=datetime.fromtimestamp(stat.st_mtime).date().isoformat(),
+        used=False,
+        path=dest,
+    )
+    return info.dict()
+
+
 @app.delete("/isos/{name}")
 def delete_iso(name: str):
     path = os.path.join(ISO_DIR, name)
@@ -569,6 +597,25 @@ def delete_iso(name: str):
         raise HTTPException(status_code=404, detail="iso not found")
     os.remove(path)
     return {"detail": "deleted"}
+
+
+class ImagePullRequest(BaseModel):
+    image: str
+    registry: str | None = None
+
+
+@app.post("/images/pull")
+def pull_image(payload: ImagePullRequest):
+    """Pull a docker image via the Docker CLI."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    image = payload.image
+    if payload.registry:
+        image = f"{payload.registry}/{image}"
+    result = subprocess.run(["docker", "pull", image], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
+    return {"detail": "pulled"}
 
 
 @app.delete("/images/{image}")

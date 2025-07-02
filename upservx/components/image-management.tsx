@@ -79,21 +79,41 @@ export function ImageManagement() {
 
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [isoFile, setIsoFile] = useState<File | null>(null)
 
-  const handleUpload = () => {
+  const [pullProgress, setPullProgress] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
+  const [imageName, setImageName] = useState("")
+  const [registry, setRegistry] = useState("")
+
+  const handleUpload = async () => {
+    if (!isoFile) return
     setIsUploading(true)
     setUploadProgress(0)
 
+    const data = new FormData()
+    data.append("file", isoFile)
+
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsUploading(false)
-          return 100
-        }
-        return prev + Math.random() * 15
-      })
+      setUploadProgress((p) => Math.min(p + 5, 95))
     }, 200)
+
+    try {
+      const res = await fetch("http://localhost:8000/isos", {
+        method: "POST",
+        body: data,
+      })
+      if (res.ok) {
+        const info = await res.json()
+        setIsoFiles((prev) => [...prev, info])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    clearInterval(interval)
+    setUploadProgress(100)
+    setIsUploading(false)
+    setIsoFile(null)
   }
 
   const handleDeleteIso = async (name: string) => {
@@ -116,6 +136,38 @@ export function ImageManagement() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  const handlePullImage = async () => {
+    if (!imageName) return
+    setIsPulling(true)
+    setPullProgress(0)
+
+    const interval = setInterval(() => {
+      setPullProgress((p) => Math.min(p + 5, 95))
+    }, 200)
+
+    try {
+      const res = await fetch("http://localhost:8000/images/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageName, registry: registry || null }),
+      })
+      if (res.ok) {
+        const list = await fetch("http://localhost:8000/images?type=docker&full=1")
+        if (list.ok) {
+          const data = await list.json()
+          setContainerImages(data.images || [])
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    clearInterval(interval)
+    setPullProgress(100)
+    setIsPulling(false)
+    setImageName("")
+    setRegistry("")
   }
 
   const formatSize = (sizeInGB: number) => {
@@ -193,9 +245,11 @@ export function ImageManagement() {
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                     Ziehen Sie eine ISO-Datei hierher oder klicken Sie zum Auswählen
                   </p>
-                  <Button variant="outline" size="sm">
-                    Datei auswählen
-                  </Button>
+                  <Input
+                    type="file"
+                    accept=".iso"
+                    onChange={(e) => setIsoFile(e.target.files?.[0] || null)}
+                  />
                 </div>
                 {isUploading && (
                   <div className="space-y-2">
@@ -315,15 +369,36 @@ export function ImageManagement() {
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="image-name">Image Name</Label>
-                        <Input id="image-name" placeholder="nginx:latest" />
+                        <Input
+                          id="image-name"
+                          placeholder="nginx:latest"
+                          value={imageName}
+                          onChange={(e) => setImageName(e.target.value)}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="registry">Registry (optional)</Label>
-                        <Input id="registry" placeholder="docker.io" />
+                        <Input
+                          id="registry"
+                          placeholder="docker.io"
+                          value={registry}
+                          onChange={(e) => setRegistry(e.target.value)}
+                        />
                       </div>
+                      {isPulling && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Download läuft...</span>
+                            <span>{Math.round(pullProgress)}%</span>
+                          </div>
+                          <Progress value={pullProgress} />
+                        </div>
+                      )}
                       <div className="flex justify-end space-x-2">
                         <Button variant="outline">Abbrechen</Button>
-                        <Button>Image pullen</Button>
+                        <Button onClick={handlePullImage} disabled={isPulling}>
+                          {isPulling ? "Pulling..." : "Image pullen"}
+                        </Button>
                       </div>
                     </div>
                   </DialogContent>
