@@ -86,10 +86,26 @@ export function ImageManagement() {
   const [imageName, setImageName] = useState("")
   const [registry, setRegistry] = useState("")
 
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [openUpload, setOpenUpload] = useState(false)
+  const [openPull, setOpenPull] = useState(false)
+
+  useEffect(() => {
+    if (!message && !error) return
+    const t = setTimeout(() => {
+      setMessage(null)
+      setError(null)
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [message, error])
+
   const handleUpload = async () => {
     if (!isoFile) return
     setIsUploading(true)
     setUploadProgress(0)
+    setError(null)
+    setMessage(null)
 
     const data = new FormData()
     data.append("file", isoFile)
@@ -106,14 +122,26 @@ export function ImageManagement() {
       if (res.ok) {
         const info = await res.json()
         setIsoFiles((prev) => [...prev, info])
+        setMessage("ISO hochgeladen")
+      } else {
+        let msg = "Fehler beim Upload"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
     clearInterval(interval)
     setUploadProgress(100)
     setIsUploading(false)
     setIsoFile(null)
+    setOpenUpload(false)
   }
 
   const handleDeleteIso = async (name: string) => {
@@ -142,6 +170,8 @@ export function ImageManagement() {
     if (!imageName) return
     setIsPulling(true)
     setPullProgress(0)
+    setError(null)
+    setMessage(null)
 
     const interval = setInterval(() => {
       setPullProgress((p) => Math.min(p + 5, 95))
@@ -159,15 +189,27 @@ export function ImageManagement() {
           const data = await list.json()
           setContainerImages(data.images || [])
         }
+        setMessage("Image gepullt")
+      } else {
+        let msg = "Fehler beim Pullen"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
     clearInterval(interval)
     setPullProgress(100)
     setIsPulling(false)
     setImageName("")
     setRegistry("")
+    setOpenPull(false)
   }
 
   const formatSize = (sizeInGB: number) => {
@@ -190,6 +232,16 @@ export function ImageManagement() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Images & ISOs</h2>
@@ -227,9 +279,9 @@ export function ImageManagement() {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog>
+          <Dialog open={openUpload} onOpenChange={setOpenUpload}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => setOpenUpload(true)}>
                 <Upload className="mr-2 h-4 w-4" />
                 ISO hochladen
               </Button>
@@ -261,7 +313,7 @@ export function ImageManagement() {
                   </div>
                 )}
                 <div className="flex justify-end space-x-2">
-                  <Button variant="outline">Abbrechen</Button>
+                  <Button variant="outline" onClick={() => setOpenUpload(false)}>Abbrechen</Button>
                   <Button onClick={handleUpload} disabled={isUploading}>
                     {isUploading ? "Uploading..." : "Hochladen"}
                   </Button>
@@ -354,9 +406,9 @@ export function ImageManagement() {
                   <CardTitle>Container Images</CardTitle>
                   <CardDescription>Verfügbare Docker Container Images</CardDescription>
                 </div>
-                <Dialog>
+                <Dialog open={openPull} onOpenChange={setOpenPull}>
                   <DialogTrigger asChild>
-                    <Button>
+                    <Button onClick={() => setOpenPull(true)}>
                       <Plus className="mr-2 h-4 w-4" />
                       Image pullen
                     </Button>
@@ -395,7 +447,7 @@ export function ImageManagement() {
                         </div>
                       )}
                       <div className="flex justify-end space-x-2">
-                        <Button variant="outline">Abbrechen</Button>
+                        <Button variant="outline" onClick={() => setOpenPull(false)}>Abbrechen</Button>
                         <Button onClick={handlePullImage} disabled={isPulling}>
                           {isPulling ? "Pulling..." : "Image pullen"}
                         </Button>

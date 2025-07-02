@@ -609,6 +609,8 @@ def pull_image(payload: ImagePullRequest):
     """Pull a docker image via the Docker CLI."""
     if shutil.which("docker") is None:
         raise HTTPException(status_code=404, detail="docker not installed")
+    if not payload.image:
+        raise HTTPException(status_code=400, detail="image required")
     image = payload.image
     if payload.registry:
         image = f"{payload.registry}/{image}"
