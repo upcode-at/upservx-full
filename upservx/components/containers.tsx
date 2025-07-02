@@ -116,6 +116,7 @@ export function Containers() {
         .filter((e) => e.name.trim() && e.value.trim())
         .map((e) => `${e.name}=${e.value}`),
     }
+    const creating = name
     try {
       const res = await fetch("http://localhost:8000/containers", {
         method: "POST",
@@ -133,7 +134,7 @@ export function Containers() {
         } else {
           setContainers((prev) => [...prev, c])
         }
-        setMessage("Container erstellt")
+        setMessage(`Container ${creating} erstellt`)
         setOpen(false)
       }
     } catch (e) {
@@ -201,6 +202,7 @@ export function Containers() {
       if (res.ok) {
         setContainers((prev) => prev.filter((c) => c.name !== name))
         setError(null)
+        setMessage(`Container ${name} gelöscht`)
       } else {
         let message = "Fehler beim Löschen"
         try {
