@@ -42,7 +42,6 @@ export function ImageManagement() {
       imageId: string
       size: number
       created: string
-      used: boolean
       pulls: number
     }[]
   >([])
@@ -212,14 +211,31 @@ export function ImageManagement() {
     }
   }
 
-  const handleDeleteImage = async (id: string) => {
+  const handleDeleteImage = async (
+    id: string,
+    name: string,
+  ) => {
     try {
-      const res = await fetch(`http://localhost:8000/images/${id}?type=docker`, { method: "DELETE" })
+      const res = await fetch(
+        `http://localhost:8000/images/${id}?type=docker`,
+        { method: "DELETE" },
+      )
       if (res.ok) {
         setContainerImages((prev) => prev.filter((i) => i.imageId !== id))
+        setMessage(`${name} erfolgreich gelöscht`)
+      } else {
+        let msg = "Fehler beim Löschen"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
   }
 
@@ -553,7 +569,6 @@ export function ImageManagement() {
                     <TableHead>Größe</TableHead>
                     <TableHead>Erstellt</TableHead>
                     <TableHead>Pulls</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -574,11 +589,6 @@ export function ImageManagement() {
                       <TableCell>{image.created}</TableCell>
                       <TableCell>{formatPulls(image.pulls)}</TableCell>
                       <TableCell>
-                        <Badge variant={image.used ? "default" : "secondary"}>
-                          {image.used ? "In Verwendung" : "Verfügbar"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
                         <div className="flex gap-1">
                           <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
                             <Download className="h-3 w-3" />
@@ -587,8 +597,7 @@ export function ImageManagement() {
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 bg-transparent"
-                            disabled={image.used}
-                            onClick={() => handleDeleteImage(image.imageId)}
+                            onClick={() => handleDeleteImage(image.imageId, `${image.repository}:${image.tag}`)}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
