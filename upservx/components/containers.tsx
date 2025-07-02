@@ -41,6 +41,7 @@ export function Containers() {
   const [memory, setMemory] = useState("")
   const [ports, setPorts] = useState<string[]>([""])
   const [mounts, setMounts] = useState<string[]>([""])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -93,9 +94,20 @@ export function Containers() {
         setContainers((prev) =>
           prev.map((c) => (c.name === name ? { ...c, status: "running" } : c))
         )
+        setError(null)
+      } else {
+        let message = "Fehler beim Starten"
+        try {
+          const data = await res.json()
+          message = data.detail || message
+        } catch {
+          message = await res.text()
+        }
+        setError(message)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
   }
 
@@ -108,9 +120,20 @@ export function Containers() {
         setContainers((prev) =>
           prev.map((c) => (c.name === name ? { ...c, status: "stopped" } : c))
         )
+        setError(null)
+      } else {
+        let message = "Fehler beim Stoppen"
+        try {
+          const data = await res.json()
+          message = data.detail || message
+        } catch {
+          message = await res.text()
+        }
+        setError(message)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
   }
 
@@ -132,6 +155,11 @@ export function Containers() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="bg-red-100 text-red-800 border border-red-200 p-2 rounded">
+          {error}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Container</h2>
