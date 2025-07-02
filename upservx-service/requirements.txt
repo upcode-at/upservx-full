@@ -11,3 +11,5 @@ bcrypt
 pytest
 pytest-asyncio
 psutil
+uvicorn[standard]
+python-multipart
