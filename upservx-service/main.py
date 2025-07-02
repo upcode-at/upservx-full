@@ -10,7 +10,8 @@ import os
 import shutil
 from datetime import datetime
 from typing import List
-from fastapi import HTTPException
+from fastapi import HTTPException, WebSocket
+import asyncio
 
 app = FastAPI()
 
@@ -409,6 +410,64 @@ def stop_container(name: str):
     else:
         raise HTTPException(status_code=404, detail="container not found")
     return {"detail": "stopped"}
+
+
+@app.websocket("/containers/{name}/terminal")
+async def container_terminal(websocket: WebSocket, name: str):
+    """Provide interactive shell access to a container via websocket."""
+    await websocket.accept()
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            await websocket.send_text("docker not installed")
+            await websocket.close()
+            return
+        cmd = ["docker", "exec", "-i", name, "/bin/sh"]
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            await websocket.send_text("lxc not installed")
+            await websocket.close()
+            return
+        cmd = ["lxc", "exec", name, "--", "/bin/sh"]
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            await websocket.send_text("kubectl not installed")
+            await websocket.close()
+            return
+        cmd = ["kubectl", "exec", "-i", name, "--", "/bin/sh"]
+    else:
+        await websocket.close()
+        return
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+
+    async def read_output():
+        try:
+            while True:
+                data = await process.stdout.readline()
+                if not data:
+                    break
+                await websocket.send_text(data.decode())
+        finally:
+            await websocket.close()
+
+    async def read_input():
+        try:
+            while True:
+                text = await websocket.receive_text()
+                if process.stdin:
+                    process.stdin.write(text.encode())
+                    process.stdin.write(b"\n")
+                    await process.stdin.drain()
+        except Exception:
+            pass
+
+    await asyncio.gather(read_output(), read_input())
 
 
 @app.get("/metrics")
