@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, WebSocket, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psutil
@@ -8,6 +9,8 @@ import json
 import time
 import os
 import shutil
+import urllib.request
+import urllib.parse
 from datetime import datetime
 from typing import List
 import asyncio
@@ -561,6 +564,43 @@ def list_isos():
     return {"isos": [iso.dict() for iso in get_iso_files()]}
 
 
+class ISODownloadRequest(BaseModel):
+    url: str
+    name: str | None = None
+
+
+@app.post("/isos/download")
+def download_iso(payload: ISODownloadRequest):
+    """Download an ISO file from a URL and store it."""
+    if not payload.url:
+        raise HTTPException(status_code=400, detail="url required")
+    filename = payload.name or os.path.basename(urllib.parse.urlparse(payload.url).path) or "download.iso"
+    if not filename.lower().endswith(".iso"):
+        filename += ".iso"
+    dest = os.path.join(ISO_DIR, filename)
+    try:
+        with urllib.request.urlopen(payload.url) as resp, open(dest, "wb") as out:
+            shutil.copyfileobj(resp, out)
+    except Exception as e:
+        if os.path.exists(dest):
+            os.remove(dest)
+        raise HTTPException(status_code=400, detail=str(e))
+    stat = os.stat(dest)
+    typ, version, arch = guess_iso_info(filename)
+    info = ISOInfo(
+        id=0,
+        name=filename,
+        size=round(stat.st_size / (1024 ** 3), 1),
+        type=typ,
+        version=version,
+        architecture=arch,
+        created=datetime.fromtimestamp(stat.st_mtime).date().isoformat(),
+        used=False,
+        path=dest,
+    )
+    return info.dict()
+
+
 @app.post("/isos")
 async def upload_iso(file: UploadFile = File(...)):
     """Upload a new ISO file."""
@@ -597,6 +637,14 @@ def delete_iso(name: str):
         raise HTTPException(status_code=404, detail="iso not found")
     os.remove(path)
     return {"detail": "deleted"}
+
+
+@app.get("/isos/{name}/file")
+def download_iso_file(name: str):
+    path = os.path.join(ISO_DIR, name)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="iso not found")
+    return FileResponse(path, filename=name, media_type="application/octet-stream")
 
 
 class ImagePullRequest(BaseModel):

@@ -81,6 +81,11 @@ export function ImageManagement() {
   const [isUploading, setIsUploading] = useState(false)
   const [isoFile, setIsoFile] = useState<File | null>(null)
 
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isoUrl, setIsoUrl] = useState("")
+  const [isoDownloadName, setIsoDownloadName] = useState("")
+
   const [pullProgress, setPullProgress] = useState(0)
   const [isPulling, setIsPulling] = useState(false)
   const [imageName, setImageName] = useState("")
@@ -90,6 +95,7 @@ export function ImageManagement() {
   const [error, setError] = useState<string | null>(null)
   const [openUpload, setOpenUpload] = useState(false)
   const [openPull, setOpenPull] = useState(false)
+  const [openDownload, setOpenDownload] = useState(false)
 
   useEffect(() => {
     if (!message && !error) return
@@ -142,6 +148,49 @@ export function ImageManagement() {
     setIsUploading(false)
     setIsoFile(null)
     setOpenUpload(false)
+  }
+
+  const handleDownload = async () => {
+    if (!isoUrl) return
+    setIsDownloading(true)
+    setDownloadProgress(0)
+    setError(null)
+    setMessage(null)
+
+    const interval = setInterval(() => {
+      setDownloadProgress((p) => Math.min(p + 5, 95))
+    }, 200)
+
+    try {
+      const res = await fetch("http://localhost:8000/isos/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: isoUrl, name: isoDownloadName || null }),
+      })
+      if (res.ok) {
+        const info = await res.json()
+        setIsoFiles((prev) => [...prev, info])
+        setMessage("ISO heruntergeladen")
+      } else {
+        let msg = "Fehler beim Download"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+    clearInterval(interval)
+    setDownloadProgress(100)
+    setIsDownloading(false)
+    setIsoUrl("")
+    setIsoDownloadName("")
+    setOpenDownload(false)
   }
 
   const handleDeleteIso = async (name: string) => {
@@ -248,9 +297,9 @@ export function ImageManagement() {
           <p className="text-muted-foreground">ISO-Dateien und Container Images verwalten</p>
         </div>
         <div className="flex gap-2">
-          <Dialog>
+          <Dialog open={openDownload} onOpenChange={setOpenDownload}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setOpenDownload(true)}>
                 <Download className="mr-2 h-4 w-4" />
                 ISO herunterladen
               </Button>
@@ -266,15 +315,33 @@ export function ImageManagement() {
                   <Input
                     id="iso-url"
                     placeholder="https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso"
+                    value={isoUrl}
+                    onChange={(e) => setIsoUrl(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="iso-name">Dateiname</Label>
-                  <Input id="iso-name" placeholder="ubuntu-22.04.3-desktop-amd64.iso" />
+                  <Input
+                    id="iso-name"
+                    placeholder="ubuntu-22.04.3-desktop-amd64.iso"
+                    value={isoDownloadName}
+                    onChange={(e) => setIsoDownloadName(e.target.value)}
+                  />
                 </div>
+                {isDownloading && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Download läuft...</span>
+                      <span>{Math.round(downloadProgress)}%</span>
+                    </div>
+                    <Progress value={downloadProgress} />
+                  </div>
+                )}
                 <div className="flex justify-end space-x-2">
-                  <Button variant="outline">Abbrechen</Button>
-                  <Button onClick={handleUpload}>Herunterladen</Button>
+                  <Button variant="outline" onClick={() => setOpenDownload(false)}>Abbrechen</Button>
+                  <Button onClick={handleDownload} disabled={isDownloading}>
+                    {isDownloading ? "Downloading..." : "Herunterladen"}
+                  </Button>
                 </div>
               </div>
             </DialogContent>
@@ -376,8 +443,15 @@ export function ImageManagement() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-                            <Download className="h-3 w-3" />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            asChild
+                          >
+                            <a href={`http://localhost:8000/isos/${iso.name}/file`}>
+                              <Download className="h-3 w-3" />
+                            </a>
                           </Button>
                           <Button
                             variant="outline"
