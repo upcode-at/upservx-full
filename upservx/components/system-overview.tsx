@@ -12,6 +12,7 @@ export function SystemOverview() {
     network: { in: 0, out: 0 },
     uptime: "",
     kernel: "",
+    gpu: "",
   })
 
   const getUsageColor = (usage: number) => {
@@ -135,6 +136,14 @@ export function SystemOverview() {
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Uptime:</span>
               <span className="text-sm font-medium">{systemStats.uptime}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">CPU:</span>
+              <span className="text-sm font-medium">{systemStats.cpu.model}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">GPU:</span>
+              <span className="text-sm font-medium">{systemStats.gpu}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Architektur:</span>

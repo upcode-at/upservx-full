@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import psutil
 import platform
+import subprocess
 import time
 
 app = FastAPI()
@@ -29,6 +30,31 @@ def format_uptime(seconds: float) -> str:
     return " ".join(parts) if parts else "0m"
 
 
+def get_cpu_model() -> str:
+    model = platform.processor()
+    if not model:
+        try:
+            with open("/proc/cpuinfo") as f:
+                for line in f:
+                    if line.lower().startswith("model name"):
+                        model = line.split(":", 1)[1].strip()
+                        break
+        except FileNotFoundError:
+            pass
+    return model or "unknown"
+
+
+def get_gpu_model() -> str:
+    try:
+        output = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        return output.splitlines()[0] if output else "none"
+    except Exception:
+        return "none"
+
+
 def collect_metrics() -> dict:
     cpu_percent = psutil.cpu_percent(interval=None)
     cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
@@ -41,7 +67,7 @@ def collect_metrics() -> dict:
         "cpu": {
             "usage": cpu_percent,
             "cores": cpu_count,
-            "model": platform.processor() or "unknown",
+            "model": get_cpu_model(),
         },
         "memory": {
             "used": round(virt.used / (1024 ** 3), 2),
@@ -57,6 +83,7 @@ def collect_metrics() -> dict:
             "in": round(net.bytes_recv / (1024 ** 2), 2),
             "out": round(net.bytes_sent / (1024 ** 2), 2),
         },
+        "gpu": get_gpu_model(),
         "uptime": format_uptime(uptime_seconds),
         "kernel": platform.release(),
     }
