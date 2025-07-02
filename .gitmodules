@@ -1,6 +1,0 @@
-[submodule "upservx"]
-path = upservx
-url = https://github.com/upcode-at/upservx.git
-[submodule "upservx-service"]
-path = upservx-service
-url = https://github.com/upcode-at/upservx-service.git
