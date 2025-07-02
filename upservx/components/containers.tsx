@@ -86,7 +86,14 @@ export function Containers() {
 
   const handleStart = async (name: string) => {
     try {
-      await fetch(`http://localhost:8000/containers/${name}/start`, { method: "POST" })
+      const res = await fetch(`http://localhost:8000/containers/${name}/start`, {
+        method: "POST",
+      })
+      if (res.ok) {
+        setContainers((prev) =>
+          prev.map((c) => (c.name === name ? { ...c, status: "running" } : c))
+        )
+      }
     } catch (e) {
       console.error(e)
     }
@@ -94,7 +101,14 @@ export function Containers() {
 
   const handleStop = async (name: string) => {
     try {
-      await fetch(`http://localhost:8000/containers/${name}/stop`, { method: "POST" })
+      const res = await fetch(`http://localhost:8000/containers/${name}/stop`, {
+        method: "POST",
+      })
+      if (res.ok) {
+        setContainers((prev) =>
+          prev.map((c) => (c.name === name ? { ...c, status: "stopped" } : c))
+        )
+      }
     } catch (e) {
       console.error(e)
     }

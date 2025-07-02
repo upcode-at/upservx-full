@@ -240,6 +240,23 @@ def get_k8s_pods() -> List[Container]:
     return containers_list
 
 
+def find_container_type(name: str) -> str | None:
+    """Detect which container backend knows a container by this name."""
+    for c in get_docker_containers():
+        if c.name == name:
+            return "docker"
+    for c in get_lxc_containers():
+        if c.name == name:
+            return "lxc"
+    for c in get_k8s_pods():
+        if c.name == name:
+            return "k8s"
+    for c in containers:
+        if c.name == name:
+            return "api"
+    return None
+
+
 def collect_metrics() -> dict:
     cpu_percent = psutil.cpu_percent(interval=None)
     cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
@@ -328,23 +345,69 @@ def create_container(payload: ContainerCreate):
 
 @app.post("/containers/{name}/start")
 def start_container(name: str):
-    """Start a Docker container by name."""
-    if shutil.which("docker") is None:
-        raise HTTPException(status_code=404, detail="docker not installed")
-    result = subprocess.run(["docker", "start", name], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    """Start a container by name if possible."""
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "start", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "start", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(["kubectl", "scale", "--replicas=1", f"deployment/{name}"], capture_output=True, text=True)
+        if result.returncode != 0:
+            result = subprocess.run(["kubectl", "scale", "--replicas=1", f"statefulset/{name}"], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    elif ctype == "api":
+        for c in containers:
+            if c.name == name:
+                c.status = "running"
+                break
+    else:
+        raise HTTPException(status_code=404, detail="container not found")
     return {"detail": "started"}
 
 
 @app.post("/containers/{name}/stop")
 def stop_container(name: str):
-    """Stop a Docker container by name."""
-    if shutil.which("docker") is None:
-        raise HTTPException(status_code=404, detail="docker not installed")
-    result = subprocess.run(["docker", "stop", name], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    """Stop a container by name if possible."""
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "stop", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "stop", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(["kubectl", "scale", "--replicas=0", f"deployment/{name}"], capture_output=True, text=True)
+        if result.returncode != 0:
+            result = subprocess.run(["kubectl", "scale", "--replicas=0", f"statefulset/{name}"], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    elif ctype == "api":
+        for c in containers:
+            if c.name == name:
+                c.status = "stopped"
+                break
+    else:
+        raise HTTPException(status_code=404, detail="container not found")
     return {"detail": "stopped"}
 
 
