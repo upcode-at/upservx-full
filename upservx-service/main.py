@@ -49,6 +49,29 @@ class ContainerCreate(BaseModel):
     memory: int = 0
 
 
+class ISOInfo(BaseModel):
+    id: int
+    name: str
+    size: float
+    type: str
+    version: str
+    architecture: str
+    created: str
+    used: bool
+    path: str
+
+
+class ContainerImageInfo(BaseModel):
+    id: int
+    repository: str
+    tag: str
+    imageId: str
+    size: float
+    created: str
+    used: bool = False
+    pulls: int = 0
+
+
 class SettingsModel(BaseModel):
     hostname: str
     timezone: str
@@ -57,6 +80,8 @@ class SettingsModel(BaseModel):
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
+os.makedirs(ISO_DIR, exist_ok=True)
 
 
 def load_settings() -> SettingsModel:
@@ -292,6 +317,87 @@ def get_docker_images() -> List[str]:
     return images
 
 
+def _parse_docker_size(size: str) -> float:
+    size = size.lower().strip()
+    if size.endswith("gb"):
+        try:
+            return float(size[:-2].strip()) * 1000
+        except ValueError:
+            return 0.0
+    if size.endswith("mb"):
+        try:
+            return float(size[:-2].strip())
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def get_docker_image_details() -> List[ContainerImageInfo]:
+    if shutil.which("docker") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            [
+                "docker",
+                "images",
+                "--format",
+                "{{.Repository}}||{{.Tag}}||{{.ID}}||{{.Size}}||{{.CreatedSince}}",
+            ],
+            text=True,
+        ).strip()
+    except Exception:
+        return []
+    images: List[ContainerImageInfo] = []
+    for idx, line in enumerate(output.splitlines(), start=1):
+        parts = line.split("||")
+        if len(parts) != 5:
+            continue
+        repo, tag, image_id, size, created = parts
+        images.append(
+            ContainerImageInfo(
+                id=idx,
+                repository=repo,
+                tag=tag,
+                imageId=image_id,
+                size=_parse_docker_size(size),
+                created=created,
+                used=True,
+                pulls=0,
+            )
+        )
+    return images
+
+
+def get_lxc_image_details() -> List[ContainerImageInfo]:
+    if shutil.which("lxc") is None:
+        return []
+    try:
+        output = subprocess.check_output(["lxc", "image", "list", "--format", "json"], text=True).strip()
+        data = json.loads(output)
+    except Exception:
+        return []
+    images: List[ContainerImageInfo] = []
+    for idx, img in enumerate(data, start=1):
+        alias = ""
+        aliases = img.get("aliases", [])
+        if aliases:
+            alias = aliases[0].get("name", "")
+        repository, _, tag = alias.partition(":")
+        images.append(
+            ContainerImageInfo(
+                id=idx,
+                repository=repository or alias,
+                tag=tag,
+                imageId=img.get("fingerprint", ""),
+                size=round(img.get("size", 0) / (1024 ** 2), 2),
+                created=img.get("uploaded_at", ""),
+                used=False,
+                pulls=0,
+            )
+        )
+    return images
+
+
 def get_lxc_images() -> List[str]:
     """Return available LXC images using the lxc CLI."""
     if shutil.which("lxc") is None:
@@ -310,6 +416,45 @@ def get_lxc_images() -> List[str]:
         else:
             images.append(img.get("fingerprint", ""))
     return images
+
+
+def guess_iso_info(filename: str) -> tuple[str, str, str]:
+    lower = filename.lower()
+    typ = "Windows" if "win" in lower or "windows" in lower else "Linux"
+    arch = "arm64" if "arm64" in lower or "aarch64" in lower else "x86_64"
+    version = filename.rsplit(".", 1)[0]
+    return typ, version, arch
+
+
+def get_iso_files() -> List[ISOInfo]:
+    files: List[ISOInfo] = []
+    if not os.path.isdir(ISO_DIR):
+        return files
+    for idx, name in enumerate(sorted(os.listdir(ISO_DIR)), start=1):
+        if not name.lower().endswith(".iso"):
+            continue
+        path = os.path.join(ISO_DIR, name)
+        try:
+            stat = os.stat(path)
+        except FileNotFoundError:
+            continue
+        size = round(stat.st_size / (1024 ** 3), 1)
+        created = datetime.fromtimestamp(stat.st_mtime).date().isoformat()
+        typ, version, arch = guess_iso_info(name)
+        files.append(
+            ISOInfo(
+                id=idx,
+                name=name,
+                size=size,
+                type=typ,
+                version=version,
+                architecture=arch,
+                created=created,
+                used=False,
+                path=path,
+            )
+        )
+    return files
 
 
 def find_container_type(name: str) -> str | None:
@@ -396,13 +541,53 @@ def list_containers():
 
 
 @app.get("/images")
-def list_images(type: str):
+def list_images(type: str, full: bool = False):
     """Return available container images for the given type."""
     type_lower = type.lower()
-    if type_lower == "docker" or type_lower == "kubernetes":
-        return {"images": get_docker_images()}
+    if full:
+        if type_lower in {"docker", "kubernetes"}:
+            return {"images": [img.dict() for img in get_docker_image_details()]}
+        if type_lower == "lxc":
+            return {"images": [img.dict() for img in get_lxc_image_details()]}
+    else:
+        if type_lower in {"docker", "kubernetes"}:
+            return {"images": get_docker_images()}
+        if type_lower == "lxc":
+            return {"images": get_lxc_images()}
+    raise HTTPException(status_code=400, detail="unknown container type")
+
+
+@app.get("/isos")
+def list_isos():
+    return {"isos": [iso.dict() for iso in get_iso_files()]}
+
+
+@app.delete("/isos/{name}")
+def delete_iso(name: str):
+    path = os.path.join(ISO_DIR, name)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="iso not found")
+    os.remove(path)
+    return {"detail": "deleted"}
+
+
+@app.delete("/images/{image}")
+def delete_image(image: str, type: str):
+    type_lower = type.lower()
+    if type_lower in {"docker", "kubernetes"}:
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "rmi", image], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+        return {"detail": "deleted"}
     if type_lower == "lxc":
-        return {"images": get_lxc_images()}
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "image", "delete", image], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+        return {"detail": "deleted"}
     raise HTTPException(status_code=400, detail="unknown container type")
 
 

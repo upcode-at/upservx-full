@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,94 +20,62 @@ import {
 import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
 
 export function ImageManagement() {
-  const [isoFiles] = useState([
+  const [isoFiles, setIsoFiles] = useState<
     {
-      id: 1,
-      name: "ubuntu-22.04.3-desktop-amd64.iso",
-      size: 4.7,
-      type: "Linux",
-      version: "Ubuntu 22.04.3 LTS",
-      architecture: "x86_64",
-      created: "2024-01-10",
-      used: true,
-      path: "/var/lib/images/ubuntu-22.04.3-desktop-amd64.iso",
-    },
-    {
-      id: 2,
-      name: "Windows_Server_2022.iso",
-      size: 5.2,
-      type: "Windows",
-      version: "Windows Server 2022",
-      architecture: "x86_64",
-      created: "2024-01-08",
-      used: true,
-      path: "/var/lib/images/Windows_Server_2022.iso",
-    },
-    {
-      id: 3,
-      name: "debian-12.2.0-amd64-netinst.iso",
-      size: 0.4,
-      type: "Linux",
-      version: "Debian 12.2.0",
-      architecture: "x86_64",
-      created: "2024-01-05",
-      used: false,
-      path: "/var/lib/images/debian-12.2.0-amd64-netinst.iso",
-    },
-  ])
+      id: number
+      name: string
+      size: number
+      type: string
+      version: string
+      architecture: string
+      created: string
+      used: boolean
+      path: string
+    }[]
+  >([])
 
-  const [containerImages] = useState([
+  const [containerImages, setContainerImages] = useState<
     {
-      id: 1,
-      repository: "nginx",
-      tag: "latest",
-      imageId: "sha256:a72860cb95fd",
-      size: 187,
-      created: "2024-01-14",
-      used: true,
-      pulls: 1250000000,
-    },
-    {
-      id: 2,
-      repository: "mysql",
-      tag: "8.0",
-      imageId: "sha256:b4a536f7c3b1",
-      size: 564,
-      created: "2024-01-12",
-      used: true,
-      pulls: 850000000,
-    },
-    {
-      id: 3,
-      repository: "redis",
-      tag: "7-alpine",
-      imageId: "sha256:c5355f8853e4",
-      size: 32,
-      created: "2024-01-10",
-      used: false,
-      pulls: 450000000,
-    },
-    {
-      id: 4,
-      repository: "ubuntu",
-      tag: "22.04",
-      imageId: "sha256:2b7cc08dcdbb",
-      size: 77,
-      created: "2024-01-09",
-      used: true,
-      pulls: 2100000000,
-    },
-    {
-      id: 5,
-      repository: "node",
-      tag: "18-alpine",
-      imageId: "sha256:f77a1aef2cec",
-      size: 174,
-      created: "2024-01-07",
-      used: false,
-      pulls: 680000000,
-    },
-  ])
+      id: number
+      repository: string
+      tag: string
+      imageId: string
+      size: number
+      created: string
+      used: boolean
+      pulls: number
+    }[]
+  >([])
+
+  useEffect(() => {
+    const loadIsos = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/isos")
+        if (res.ok) {
+          const data = await res.json()
+          setIsoFiles(data.isos || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadIsos()
+  }, [])
+
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/images?type=docker&full=1")
+        if (res.ok) {
+          const data = await res.json()
+          setContainerImages(data.images || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadImages()
+  }, [])
 
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
@@ -126,6 +94,28 @@ export function ImageManagement() {
         return prev + Math.random() * 15
       })
     }, 200)
+  }
+
+  const handleDeleteIso = async (name: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/isos/${name}`, { method: "DELETE" })
+      if (res.ok) {
+        setIsoFiles((prev) => prev.filter((i) => i.name !== name))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleDeleteImage = async (id: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/images/${id}?type=docker`, { method: "DELETE" })
+      if (res.ok) {
+        setContainerImages((prev) => prev.filter((i) => i.imageId !== id))
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const formatSize = (sizeInGB: number) => {
@@ -283,7 +273,13 @@ export function ImageManagement() {
                           <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
                             <Download className="h-3 w-3" />
                           </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" disabled={iso.used}>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            disabled={iso.used}
+                            onClick={() => handleDeleteIso(iso.name)}
+                          >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -379,6 +375,7 @@ export function ImageManagement() {
                             size="icon"
                             className="h-8 w-8 bg-transparent"
                             disabled={image.used}
+                            onClick={() => handleDeleteImage(image.imageId)}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
