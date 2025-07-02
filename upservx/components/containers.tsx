@@ -333,9 +333,15 @@ export function Containers() {
                   <CardDescription>{container.image}</CardDescription>
                 </div>
                 <div className="flex space-x-2">
-                  <Button variant="outline" size="icon" onClick={() => setActiveTerminal(container.name)}>
-                    <Terminal className="h-4 w-4" />
-                  </Button>
+                  {container.status === "running" && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setActiveTerminal(container.name)}
+                    >
+                      <Terminal className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button variant="outline" size="icon">
                     <Settings className="h-4 w-4" />
                   </Button>
