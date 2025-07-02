@@ -1,11 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import psutil
 import platform
 import subprocess
 import time
 import os
 import shutil
+from datetime import datetime
+from typing import List
 
 app = FastAPI()
 
@@ -16,6 +19,83 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class Container(BaseModel):
+    id: int
+    name: str
+    type: str
+    status: str
+    image: str
+    ports: List[str] = []
+    mounts: List[str] = []
+    cpu: float
+    memory: int
+    created: str
+
+
+class ContainerCreate(BaseModel):
+    name: str
+    type: str
+    image: str
+    ports: List[str] = []
+    mounts: List[str] = []
+    cpu: float = 0.0
+    memory: int = 0
+
+
+containers: List[Container] = [
+    Container(
+        id=1,
+        name="nginx-web",
+        type="Docker",
+        status="running",
+        image="nginx:latest",
+        ports=["80:8080", "443:8443"],
+        mounts=["/data/web:/usr/share/nginx/html"],
+        cpu=0.5,
+        memory=128,
+        created="2024-01-15",
+    ),
+    Container(
+        id=2,
+        name="mysql-db",
+        type="Docker",
+        status="running",
+        image="mysql:8.0",
+        ports=["3306:3306"],
+        mounts=["/data/mysql:/var/lib/mysql"],
+        cpu=1.2,
+        memory=512,
+        created="2024-01-14",
+    ),
+    Container(
+        id=3,
+        name="ubuntu-lxc",
+        type="LXC",
+        status="stopped",
+        image="ubuntu:22.04",
+        ports=[],
+        mounts=["/data/ubuntu:/root"],
+        cpu=0.0,
+        memory=256,
+        created="2024-01-10",
+    ),
+    Container(
+        id=4,
+        name="webapp-pod",
+        type="Kubernetes",
+        status="running",
+        image="webapp:v1.2",
+        ports=["8080:80"],
+        mounts=["/data/app:/app/data"],
+        cpu=0.8,
+        memory=256,
+        created="2024-01-12",
+    ),
+]
+
+next_container_id = 5
 
 
 def format_uptime(seconds: float) -> str:
@@ -142,6 +222,31 @@ def collect_metrics() -> dict:
         "kernel": platform.release(),
         "services": services,
     }
+
+
+@app.get("/containers")
+def list_containers():
+    return [c.dict() for c in containers]
+
+
+@app.post("/containers")
+def create_container(payload: ContainerCreate):
+    global next_container_id
+    container = Container(
+        id=next_container_id,
+        name=payload.name,
+        type=payload.type,
+        status="running",
+        image=payload.image,
+        ports=payload.ports,
+        mounts=payload.mounts,
+        cpu=payload.cpu,
+        memory=payload.memory,
+        created=datetime.utcnow().date().isoformat(),
+    )
+    next_container_id += 1
+    containers.append(container)
+    return container.dict()
 
 
 @app.get("/metrics")

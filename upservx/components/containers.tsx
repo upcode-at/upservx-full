@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,52 +20,67 @@ import { Play, Square, Pause, Settings, Plus, Terminal, Container } from "lucide
 import { TerminalEmulator } from "@/components/terminal-emulator"
 
 export function Containers() {
-  const [containers] = useState([
-    {
-      id: 1,
-      name: "nginx-web",
-      type: "Docker",
-      status: "running",
-      image: "nginx:latest",
-      ports: ["80:8080", "443:8443"],
-      cpu: 0.5,
-      memory: 128,
-      created: "2024-01-15",
-    },
-    {
-      id: 2,
-      name: "mysql-db",
-      type: "Docker",
-      status: "running",
-      image: "mysql:8.0",
-      ports: ["3306:3306"],
-      cpu: 1.2,
-      memory: 512,
-      created: "2024-01-14",
-    },
-    {
-      id: 3,
-      name: "ubuntu-lxc",
-      type: "LXC",
-      status: "stopped",
-      image: "ubuntu:22.04",
-      ports: [],
-      cpu: 0,
-      memory: 256,
-      created: "2024-01-10",
-    },
-    {
-      id: 4,
-      name: "webapp-pod",
-      type: "Kubernetes",
-      status: "running",
-      image: "webapp:v1.2",
-      ports: ["8080:80"],
-      cpu: 0.8,
-      memory: 256,
-      created: "2024-01-12",
-    },
-  ])
+  interface ContainerData {
+    id: number
+    name: string
+    type: string
+    status: string
+    image: string
+    ports: string[]
+    mounts: string[]
+    cpu: number
+    memory: number
+    created: string
+  }
+
+  const [containers, setContainers] = useState<ContainerData[]>([])
+  const [name, setName] = useState("")
+  const [type, setType] = useState("")
+  const [image, setImage] = useState("")
+  const [cpu, setCpu] = useState("")
+  const [memory, setMemory] = useState("")
+  const [ports, setPorts] = useState<string[]>([""])
+  const [mounts, setMounts] = useState<string[]>([""])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/containers")
+        if (res.ok) {
+          const data = await res.json()
+          setContainers(data)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    load()
+  }, [])
+
+  const handleCreate = async () => {
+    const payload = {
+      name,
+      type,
+      image,
+      cpu: parseFloat(cpu) || 0,
+      memory: parseInt(memory) || 0,
+      ports: ports.filter((p) => p.trim() !== ""),
+      mounts: mounts.filter((m) => m.trim() !== ""),
+    }
+    try {
+      const res = await fetch("http://localhost:8000/containers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const c = await res.json()
+        setContainers((prev) => [...prev, c])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
 
@@ -113,55 +128,123 @@ export function Containers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="container-name">Container Name</Label>
-                    <Input id="container-name" placeholder="z.B. my-webapp" />
+                    <Input
+                      id="container-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="z.B. my-webapp"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="container-type">Container Typ</Label>
-                    <Select>
+                    <Select value={type} onValueChange={setType}>
                       <SelectTrigger>
                         <SelectValue placeholder="Typ auswählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="docker">Docker</SelectItem>
-                        <SelectItem value="lxc">LXC</SelectItem>
-                        <SelectItem value="kubernetes">Kubernetes Pod</SelectItem>
+                        <SelectItem value="Docker">Docker</SelectItem>
+                        <SelectItem value="LXC">LXC</SelectItem>
+                        <SelectItem value="Kubernetes">Kubernetes Pod</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="container-image">Image</Label>
-                  <Input id="container-image" placeholder="z.B. nginx:latest" />
+                  <Input
+                    id="container-image"
+                    value={image}
+                    onChange={(e) => setImage(e.target.value)}
+                    placeholder="z.B. nginx:latest"
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="resources" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="container-cpu">CPU Limit</Label>
-                    <Input id="container-cpu" placeholder="z.B. 1.0" />
+                    <Input
+                      id="container-cpu"
+                      value={cpu}
+                      onChange={(e) => setCpu(e.target.value)}
+                      placeholder="z.B. 1.0"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="container-memory">Memory Limit (MB)</Label>
-                    <Input id="container-memory" placeholder="z.B. 512" />
+                    <Input
+                      id="container-memory"
+                      value={memory}
+                      onChange={(e) => setMemory(e.target.value)}
+                      placeholder="z.B. 512"
+                    />
                   </div>
                 </div>
               </TabsContent>
               <TabsContent value="network" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="container-ports">Port Mapping</Label>
-                  <Input id="container-ports" placeholder="z.B. 8080:80" />
-                </div>
+                <Label>Port Mapping</Label>
+                {ports.map((p, idx) => (
+                  <div key={idx} className="flex space-x-2">
+                    <Input
+                      value={p}
+                      onChange={(e) => {
+                        const arr = [...ports]
+                        arr[idx] = e.target.value
+                        setPorts(arr)
+                      }}
+                      placeholder="8080:80"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setPorts(ports.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPorts([...ports, ""])}
+                >
+                  Port hinzufügen
+                </Button>
               </TabsContent>
               <TabsContent value="volumes" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="container-volumes">Volume Mounts</Label>
-                  <Input id="container-volumes" placeholder="z.B. /host/path:/container/path" />
-                </div>
+                <Label>Volume Mounts</Label>
+                {mounts.map((m, idx) => (
+                  <div key={idx} className="flex space-x-2">
+                    <Input
+                      value={m}
+                      onChange={(e) => {
+                        const arr = [...mounts]
+                        arr[idx] = e.target.value
+                        setMounts(arr)
+                      }}
+                      placeholder="/host/path:/container/path"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setMounts(mounts.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMounts([...mounts, ""])}
+                >
+                  Mount hinzufügen
+                </Button>
               </TabsContent>
             </Tabs>
             <div className="flex justify-end space-x-2">
               <Button variant="outline">Abbrechen</Button>
-              <Button>Container erstellen</Button>
+              <Button onClick={handleCreate}>Container erstellen</Button>
             </div>
           </DialogContent>
         </Dialog>
