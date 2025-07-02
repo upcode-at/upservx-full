@@ -1,0 +1,49 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Server, Container, Box, Settings, BarChart3, HardDrive, Network, Shield, Users, Disc } from "lucide-react"
+
+interface SidebarProps {
+  activeSection: string
+  onSectionChange: (section: string) => void
+}
+
+export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+  const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "vms", label: "Virtual Machines", icon: Server },
+    { id: "containers", label: "Container", icon: Container },
+    { id: "services", label: "Services", icon: Box },
+    { id: "images", label: "Images & ISOs", icon: Disc },
+    { id: "network", label: "Netzwerk", icon: Network },
+    { id: "storage", label: "Speicher", icon: HardDrive },
+    { id: "users", label: "Benutzer", icon: Users },
+    { id: "backup", label: "Backup", icon: Shield },
+    { id: "settings", label: "Einstellungen", icon: Settings },
+  ]
+
+  return (
+    <div className="w-64 bg-card border-r border-border flex flex-col">
+      <div className="p-6 border-b border-border">
+        <h1 className="text-xl font-bold">Server Manager</h1>
+      </div>
+      <nav className="flex-1 p-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <Button
+              key={item.id}
+              variant={activeSection === item.id ? "secondary" : "ghost"}
+              className={cn("w-full justify-start", activeSection === item.id && "bg-secondary")}
+              onClick={() => onSectionChange(item.id)}
+            >
+              <Icon className="mr-2 h-4 w-4" />
+              {item.label}
+            </Button>
+          )
+        })}
+      </nav>
+    </div>
+  )
+}

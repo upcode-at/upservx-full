@@ -1,0 +1,12 @@
+sqlalchemy
+fastapi
+uvicorn
+pydantic
+httpx
+psycopg2-binary
+sqlalchemy-utils
+alembic
+python-dotenv
+bcrypt
+pytest
+pytest-asyncio
