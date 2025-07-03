@@ -731,7 +731,7 @@ def collect_metrics() -> dict:
 
     services_info = [
         {"name": "Docker", "service": "docker", "port": 2376},
-        {"name": "Kubernetes", "service": "kubelet", "port": 6443},
+        {"name": "Kubernetes", "service": "k3s", "port": 6443},
         {"name": "LXC", "service": "lxc", "port": None},
         {"name": "SSH", "service": "sshd", "port": 22},
         {"name": "Web Interface", "service": "nginx", "port": 8080},

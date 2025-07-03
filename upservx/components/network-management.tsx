@@ -32,6 +32,7 @@ export function NetworkManagement() {
   const [networkSettings, setNetworkSettings] = useState<NetworkSettings>({
     dns_primary: "8.8.8.8",
     dns_secondary: "8.8.4.4",
+
   })
   const [message, setMessage] = useState<string | null>(null)
 
