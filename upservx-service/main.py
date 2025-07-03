@@ -474,9 +474,15 @@ def get_iso_files() -> List[ISOInfo]:
 
 
 def _drive_type(dev: str) -> str:
+    """Return the type for a device or partition."""
     name = os.path.basename(dev)
-    rotational = f"/sys/block/{name}/queue/rotational"
-    removable = f"/sys/block/{name}/removable"
+    # Resolve base device if this is a partition
+    try:
+        base = os.path.basename(os.path.realpath(os.path.join("/sys/class/block", name, "..")))
+    except Exception:
+        base = name
+    rotational = f"/sys/block/{base}/queue/rotational"
+    removable = f"/sys/block/{base}/removable"
     try:
         with open(removable) as f:
             if f.read().strip() == "1":
@@ -508,6 +514,10 @@ def get_drives() -> List[DriveInfo]:
 
     def add_device(node: dict) -> None:
         if node.get("type") not in {"disk", "part"}:
+            for child in node.get("children", []):
+                add_device(child)
+            return
+        if node.get("type") == "disk" and node.get("children"):
             for child in node.get("children", []):
                 add_device(child)
             return
