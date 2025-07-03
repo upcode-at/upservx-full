@@ -1,6 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+
+interface Drive {
+  device: string
+  name: string
+  type: string
+  size: number
+  used: number
+  available: number
+  filesystem: string
+  mountpoint: string
+  mounted: boolean
+  health: string
+  temperature?: number | null
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,87 +30,107 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
 
 export function StorageManagement() {
-  const [drives] = useState([
-    {
-      device: "/dev/sda",
-      name: "System SSD",
-      type: "SSD",
-      size: 500,
-      used: 180,
-      available: 320,
-      filesystem: "ext4",
-      mountpoint: "/",
-      health: "good",
-      temperature: 42,
-    },
-    {
-      device: "/dev/sdb",
-      name: "Data HDD",
-      type: "HDD",
-      size: 2000,
-      used: 850,
-      available: 1150,
-      filesystem: "ext4",
-      mountpoint: "/var/lib/vms",
-      health: "good",
-      temperature: 38,
-    },
-    {
-      device: "/dev/sdc",
-      name: "Backup USB",
-      type: "USB",
-      size: 1000,
-      used: 450,
-      available: 550,
-      filesystem: "ntfs",
-      mountpoint: "/mnt/backup",
-      health: "good",
-      temperature: 35,
-    },
-    {
-      device: "/dev/mmcblk0",
-      name: "SD Card",
-      type: "SD",
-      size: 64,
-      used: 12,
-      available: 52,
-      filesystem: "fat32",
-      mountpoint: "/mnt/sdcard",
-      health: "warning",
-      temperature: 28,
-    },
-  ])
+  const [drives, setDrives] = useState<Drive[]>([])
+  const loadDrives = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/drives")
+      if (res.ok) {
+        const data = await res.json()
+        setDrives(data.drives || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
-  const [mountedVolumes] = useState([
-    {
-      vm: "Ubuntu-Server-01",
-      device: "/dev/vda1",
-      size: 50,
-      used: 18,
-      mountpoint: "/",
-      filesystem: "ext4",
-    },
-    {
-      vm: "Windows-Dev",
-      device: "/dev/vda1",
-      size: 100,
-      used: 45,
-      mountpoint: "C:",
-      filesystem: "ntfs",
-    },
-    {
-      container: "mysql-db",
-      device: "volume-mysql",
-      size: 20,
-      used: 8,
-      mountpoint: "/var/lib/mysql",
-      filesystem: "ext4",
-    },
-  ])
+  useEffect(() => {
+    loadDrives()
+  }, [])
+
+  const [activeDrive, setActiveDrive] = useState<Drive | null>(null)
+  const [formatFs, setFormatFs] = useState("")
+  const [formatLabel, setFormatLabel] = useState("")
+  const [mountPath, setMountPath] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [mountOpen, setMountOpen] = useState(false)
+  const [formatOpen, setFormatOpen] = useState(false)
+
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 3000)
+    return () => clearTimeout(t)
+  }, [error])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
+
+  const cancelFormat = () => {
+    setActiveDrive(null)
+    setFormatFs("")
+    setFormatLabel("")
+    setFormatOpen(false)
+    setMessage("Formatierung abgebrochen")
+  }
+
+  const cancelMount = () => {
+    setActiveDrive(null)
+    setMountPath("")
+    setMountOpen(false)
+    setMessage("Einhängen abgebrochen")
+  }
+
+  const handleFormat = async () => {
+    if (!activeDrive) return
+    try {
+      const res = await fetch("http://localhost:8000/drives/format", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device: activeDrive.device,
+          filesystem: formatFs,
+          label: formatLabel || null,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setMessage("Formatierung abgeschlossen")
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+      setError("Formatierung fehlgeschlagen")
+    } finally {
+      setActiveDrive(null)
+      setFormatFs("")
+      setFormatLabel("")
+      setFormatOpen(false)
+    }
+  }
+
+  const handleMount = async () => {
+    if (!activeDrive) return
+    try {
+      await fetch("http://localhost:8000/drives/mount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
+      })
+      await loadDrives()
+      setMessage("Laufwerk eingehängt")
+    } catch (e) {
+      console.error(e)
+      setError("Einhängen fehlgeschlagen")
+    }
+    setActiveDrive(null)
+    setMountPath("")
+    setMountOpen(false)
+  }
+
 
   const getDriveIcon = (type: string) => {
     switch (type) {
@@ -154,11 +188,65 @@ export function StorageManagement() {
                     <Badge variant={getHealthColor(drive.health)}>
                       {drive.health === "good" ? "Gut" : drive.health === "warning" ? "Warnung" : "Kritisch"}
                     </Badge>
+                    {!drive.mounted && <Badge variant="destructive">Nicht eingehängt</Badge>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Dialog>
+                    {!drive.mounted && (
+                      <Dialog
+                        open={mountOpen && activeDrive?.device === drive.device}
+                        onOpenChange={(o) => {
+                          setMountOpen(o)
+                          if (!o) setActiveDrive(null)
+                        }}
+                      >
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setActiveDrive(drive)
+                              setMountPath(`/mnt/${drive.name}`)
+                              setMountOpen(true)
+                            }}
+                          >
+                            Einhängen
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Festplatte einhängen</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="mp">Mountpoint</Label>
+                              <Input id="mp" value={mountPath} onChange={(e) => setMountPath(e.target.value)} />
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                              <Button variant="outline" onClick={cancelMount}>Abbrechen</Button>
+                              <Button onClick={handleMount}>Einhängen</Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                    <Dialog
+                      open={formatOpen && activeDrive?.device === drive.device}
+                      onOpenChange={(o) => {
+                        setFormatOpen(o)
+                        if (!o) setActiveDrive(null)
+                      }}
+                    >
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setActiveDrive(drive)
+                            setFormatFs("")
+                            setFormatLabel("")
+                            setFormatOpen(true)
+                          }}
+                        >
                           <AlertTriangle className="h-4 w-4 mr-2" />
                           Formatieren
                         </Button>
@@ -173,7 +261,7 @@ export function StorageManagement() {
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="filesystem">Dateisystem</Label>
-                            <Select>
+                            <Select value={formatFs} onValueChange={setFormatFs}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Dateisystem auswählen" />
                               </SelectTrigger>
@@ -187,11 +275,11 @@ export function StorageManagement() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="label">Volume Label</Label>
-                            <Input id="label" placeholder="z.B. Backup Drive" />
+                            <Input id="label" value={formatLabel} onChange={(e) => setFormatLabel(e.target.value)} placeholder="z.B. Backup Drive" />
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <Button variant="outline">Abbrechen</Button>
-                            <Button variant="destructive">Formatieren</Button>
+                            <Button variant="outline" onClick={cancelFormat}>Abbrechen</Button>
+                            <Button variant="destructive" onClick={handleFormat}>Formatieren</Button>
                           </div>
                         </div>
                       </DialogContent>
@@ -230,55 +318,29 @@ export function StorageManagement() {
                   </div>
                   <Progress value={getUsagePercentage(drive.used, drive.size)} className="h-2" />
                 </div>
-                <div className="mt-2 text-sm text-muted-foreground">Eingehängt unter: {drive.mountpoint}</div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {drive.mounted ? (
+                    <>Eingehängt unter: {drive.mountpoint}</>
+                  ) : (
+                    <>Nicht eingehängt</>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* VM/Container Volumes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>VM und Container Volumes</CardTitle>
-          <CardDescription>Speichernutzung von virtuellen Maschinen und Containern</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>VM/Container</TableHead>
-                <TableHead>Device</TableHead>
-                <TableHead>Größe</TableHead>
-                <TableHead>Belegt</TableHead>
-                <TableHead>Verfügbar</TableHead>
-                <TableHead>Auslastung</TableHead>
-                <TableHead>Dateisystem</TableHead>
-                <TableHead>Mountpoint</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mountedVolumes.map((volume, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{volume.vm || volume.container}</TableCell>
-                  <TableCell className="font-mono text-xs">{volume.device}</TableCell>
-                  <TableCell>{volume.size} GB</TableCell>
-                  <TableCell>{volume.used} GB</TableCell>
-                  <TableCell>{volume.size - volume.used} GB</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Progress value={getUsagePercentage(volume.used, volume.size)} className="h-2 w-16" />
-                      <span className="text-sm">{getUsagePercentage(volume.used, volume.size)}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{volume.filesystem}</TableCell>
-                  <TableCell>{volume.mountpoint}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
     </div>
   )
 }

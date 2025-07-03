@@ -74,6 +74,20 @@ class ContainerImageInfo(BaseModel):
     pulls: int = 0
 
 
+class DriveInfo(BaseModel):
+    device: str
+    name: str
+    type: str
+    size: float
+    used: float
+    available: float
+    filesystem: str
+    mountpoint: str
+    mounted: bool
+    health: str = "good"
+    temperature: int | None = None
+
+
 class SettingsModel(BaseModel):
     hostname: str
     timezone: str
@@ -457,6 +471,99 @@ def get_iso_files() -> List[ISOInfo]:
             )
         )
     return files
+
+
+def _drive_type(dev: str) -> str:
+    """Return the type for a device or partition."""
+    name = os.path.basename(dev)
+    # Resolve base device if this is a partition
+    try:
+        base = os.path.basename(os.path.realpath(os.path.join("/sys/class/block", name, "..")))
+    except Exception:
+        base = name
+    rotational = f"/sys/block/{base}/queue/rotational"
+    removable = f"/sys/block/{base}/removable"
+    try:
+        with open(removable) as f:
+            if f.read().strip() == "1":
+                return "USB"
+    except Exception:
+        pass
+    try:
+        with open(rotational) as f:
+            if f.read().strip() == "0":
+                return "SSD"
+    except Exception:
+        pass
+    if name.startswith("mmc"):
+        return "SD"
+    return "HDD"
+
+
+def get_drives() -> List[DriveInfo]:
+    """Return information for all physical drives including unmounted ones."""
+    drives: List[DriveInfo] = []
+    try:
+        output = subprocess.check_output(
+            ["lsblk", "-b", "-J", "-o", "NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT"],
+            text=True,
+        )
+        data = json.loads(output)
+    except Exception:
+        data = {"blockdevices": []}
+
+    def add_device(node: dict) -> None:
+        if node.get("type") not in {"disk", "part"}:
+            for child in node.get("children", []):
+                add_device(child)
+            return
+        if node.get("type") == "disk" and node.get("children"):
+            for child in node.get("children", []):
+                add_device(child)
+            return
+        name = node.get("name")
+        if not name:
+            return
+        dev = f"/dev/{name}"
+        if dev.startswith("/dev/loop"):
+            return
+        mountpoint = node.get("mountpoint") or ""
+        try:
+            size = int(node.get("size", 0))
+        except Exception:
+            size = 0
+        if size <= 0:
+            return
+        usage = None
+        if mountpoint:
+            try:
+                usage = psutil.disk_usage(mountpoint)
+            except Exception:
+                pass
+        drives.append(
+            DriveInfo(
+                device=dev,
+                name=name,
+                type=_drive_type(dev),
+                size=round(size / (1024 ** 3)),
+                used=round((usage.used if usage else 0) / (1024 ** 3)),
+                available=round((usage.free if usage else 0) / (1024 ** 3)),
+                filesystem=node.get("fstype") or "",
+                mountpoint=mountpoint,
+                mounted=bool(mountpoint),
+            )
+        )
+        for child in node.get("children", []):
+            add_device(child)
+
+    for dev in data.get("blockdevices", []):
+        add_device(dev)
+
+    unique = {}
+    for d in drives:
+        if d.device not in unique:
+            unique[d.device] = d
+    return list(unique.values())
 
 
 def find_container_type(name: str) -> str | None:
@@ -911,6 +1018,59 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/metrics")
 def metrics():
     return collect_metrics()
+
+
+@app.get("/drives")
+def list_drives():
+    return {"drives": [d.dict() for d in get_drives()]}
+
+
+class DriveMountRequest(BaseModel):
+    device: str
+    mountpoint: str
+
+
+class DriveFormatRequest(BaseModel):
+    device: str
+    filesystem: str
+    label: str | None = None
+
+
+@app.post("/drives/mount")
+def mount_drive(req: DriveMountRequest):
+    if not os.path.exists(req.mountpoint):
+        os.makedirs(req.mountpoint, exist_ok=True)
+    result = subprocess.run(["mount", req.device, req.mountpoint], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to mount")
+    return {"detail": "mounted"}
+
+
+@app.post("/drives/format")
+def format_drive(req: DriveFormatRequest):
+    fs = req.filesystem.lower()
+    if fs == "ext4":
+        cmd = ["mkfs.ext4", "-F"]
+    elif fs == "ntfs":
+        cmd = ["mkfs.ntfs", "-F"]
+    elif fs == "fat32":
+        cmd = ["mkfs.vfat", "-F", "32"]
+    elif fs == "exfat":
+        cmd = ["mkfs.exfat"]
+    else:
+        raise HTTPException(status_code=400, detail="unsupported filesystem")
+    if req.label:
+        if fs in {"ext4", "ntfs"}:
+            cmd.extend(["-L", req.label])
+        else:
+            cmd.extend(["-n", req.label])
+    cmd.append(req.device)
+    # Unmount the device first in case it is currently mounted
+    subprocess.run(["umount", req.device], capture_output=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
+    return {"detail": "formatted"}
 
 
 @app.get("/settings")
