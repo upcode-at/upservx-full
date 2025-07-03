@@ -14,6 +14,7 @@ import urllib.parse
 from datetime import datetime
 from typing import List
 import asyncio
+import socket
 
 app = FastAPI()
 
@@ -86,6 +87,19 @@ class DriveInfo(BaseModel):
     mounted: bool
     health: str = "good"
     temperature: int | None = None
+
+
+class NetworkInterfaceInfo(BaseModel):
+    name: str
+    type: str
+    status: str
+    ip: str
+    netmask: str
+    gateway: str
+    mac: str
+    speed: str
+    rx: str
+    tx: str
 
 
 class SettingsModel(BaseModel):
@@ -566,6 +580,84 @@ def get_drives() -> List[DriveInfo]:
     return list(unique.values())
 
 
+def _format_bytes(num: int) -> str:
+    step = 1024.0
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if num < step:
+            return f"{num:.1f} {unit}"
+        num /= step
+    return f"{num:.1f} PB"
+
+
+def _infer_iface_type(name: str) -> str:
+    if name.startswith(("wl", "wifi")):
+        return "WiFi"
+    if name.startswith("br"):
+        return "Bridge"
+    if name.startswith(("docker", "veth")):
+        return "Virtual"
+    return "Ethernet"
+
+
+def _default_gateways() -> dict[str, str]:
+    gateways: dict[str, str] = {}
+    try:
+        output = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        for line in output.splitlines():
+            parts = line.split()
+            if not parts or parts[0] != "default":
+                continue
+            gw = parts[2] if len(parts) >= 3 else "-"
+            if "dev" in parts:
+                idx = parts.index("dev")
+                if idx + 1 < len(parts):
+                    gateways[parts[idx + 1]] = gw
+    except Exception:
+        pass
+    return gateways
+
+
+def get_network_interfaces() -> List[NetworkInterfaceInfo]:
+    addrs = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
+    io_counters = psutil.net_io_counters(pernic=True)
+    gateways = _default_gateways()
+
+    interfaces: List[NetworkInterfaceInfo] = []
+    for name, addr_list in addrs.items():
+        stat = stats.get(name)
+        if not stat:
+            continue
+        ip = "-"
+        netmask = "-"
+        mac = "-"
+        for addr in addr_list:
+            if addr.family == socket.AF_INET:
+                ip = addr.address
+                netmask = addr.netmask or "-"
+            elif addr.family == psutil.AF_LINK or getattr(socket, "AF_PACKET", 17) == addr.family:
+                mac = addr.address
+        io = io_counters.get(name)
+        rx = _format_bytes(io.bytes_recv) if io else "0 B"
+        tx = _format_bytes(io.bytes_sent) if io else "0 B"
+        speed = f"{stat.speed} Mbps" if stat.speed > 0 else "-"
+        interfaces.append(
+            NetworkInterfaceInfo(
+                name=name,
+                type=_infer_iface_type(name),
+                status="up" if stat.isup else "down",
+                ip=ip,
+                netmask=netmask,
+                gateway=gateways.get(name, "-"),
+                mac=mac,
+                speed=speed,
+                rx=rx,
+                tx=tx,
+            )
+        )
+    return interfaces
+
+
 def find_container_type(name: str) -> str | None:
     """Detect which container backend knows a container by this name."""
     for c in get_docker_containers():
@@ -1018,6 +1110,11 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/metrics")
 def metrics():
     return collect_metrics()
+
+
+@app.get("/network/interfaces")
+def list_network_interfaces():
+    return {"interfaces": [i.dict() for i in get_network_interfaces()]}
 
 
 @app.get("/drives")

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,45 +10,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Network, Wifi, Settings } from "lucide-react"
 
+interface NetworkInterface {
+  name: string
+  type: string
+  status: string
+  ip: string
+  netmask: string
+  gateway: string
+  mac: string
+  speed: string
+  rx: string
+  tx: string
+}
+
 export function NetworkManagement() {
-  const [networkInterfaces] = useState([
-    {
-      name: "eth0",
-      type: "Ethernet",
-      status: "up",
-      ip: "192.168.1.10",
-      netmask: "255.255.255.0",
-      gateway: "192.168.1.1",
-      mac: "00:1B:44:11:3A:B7",
-      speed: "1000 Mbps",
-      rx: "2.5 GB",
-      tx: "1.8 GB",
-    },
-    {
-      name: "wlan0",
-      type: "WiFi",
-      status: "down",
-      ip: "-",
-      netmask: "-",
-      gateway: "-",
-      mac: "00:1B:44:11:3A:B8",
-      speed: "-",
-      rx: "0 B",
-      tx: "0 B",
-    },
-    {
-      name: "br0",
-      type: "Bridge",
-      status: "up",
-      ip: "192.168.100.1",
-      netmask: "255.255.255.0",
-      gateway: "-",
-      mac: "00:1B:44:11:3A:B9",
-      speed: "1000 Mbps",
-      rx: "856 MB",
-      tx: "1.2 GB",
-    },
-  ])
+  const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([])
+
+  useEffect(() => {
+    const loadInterfaces = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/network/interfaces")
+        if (res.ok) {
+          const data = await res.json()
+          setNetworkInterfaces(data.interfaces || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadInterfaces()
+  }, [])
 
   const [vmNetworks] = useState([
     {
