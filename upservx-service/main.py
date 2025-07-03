@@ -105,8 +105,6 @@ class NetworkInterfaceInfo(BaseModel):
 class NetworkSettingsModel(BaseModel):
     dns_primary: str = "8.8.8.8"
     dns_secondary: str = "8.8.4.4"
-    bridge_subnet: str = "192.168.100.0/24"
-    docker_subnet: str = "172.17.0.0/16"
 
 
 class SettingsModel(BaseModel):
@@ -143,15 +141,39 @@ def save_settings(settings: SettingsModel) -> None:
         json.dump(settings.dict(), f)
 
 
+def _system_nameservers() -> tuple[str, str]:
+    primary = "8.8.8.8"
+    secondary = "8.8.4.4"
+    try:
+        with open("/etc/resolv.conf") as f:
+            nameservers = [
+                line.split()[1]
+                for line in f
+                if line.strip().startswith("nameserver") and len(line.split()) >= 2
+            ]
+        if nameservers:
+            primary = nameservers[0]
+            if len(nameservers) > 1:
+                secondary = nameservers[1]
+    except Exception:
+        pass
+    return primary, secondary
+
+
 def load_network_settings() -> NetworkSettingsModel:
     if os.path.exists(NETWORK_SETTINGS_FILE):
         try:
             with open(NETWORK_SETTINGS_FILE) as f:
                 data = json.load(f)
-                return NetworkSettingsModel(**data)
+                primary, secondary = _system_nameservers()
+                return NetworkSettingsModel(
+                    dns_primary=data.get("dns_primary", primary),
+                    dns_secondary=data.get("dns_secondary", secondary),
+                )
         except Exception:
             pass
-    return NetworkSettingsModel()
+    primary, secondary = _system_nameservers()
+    return NetworkSettingsModel(dns_primary=primary, dns_secondary=secondary)
 
 
 def save_network_settings(settings: NetworkSettingsModel) -> None:
