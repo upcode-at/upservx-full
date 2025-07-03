@@ -11,6 +11,7 @@ interface Drive {
   available: number
   filesystem: string
   mountpoint: string
+  mounted: boolean
   health: string
   temperature?: number | null
 }
@@ -34,21 +35,63 @@ import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } fr
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
+  const loadDrives = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/drives")
+      if (res.ok) {
+        const data = await res.json()
+        setDrives(data.drives || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
-    const loadDrives = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/drives")
-        if (res.ok) {
-          const data = await res.json()
-          setDrives(data.drives || [])
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
     loadDrives()
   }, [])
+
+  const [activeDrive, setActiveDrive] = useState<Drive | null>(null)
+  const [formatFs, setFormatFs] = useState("")
+  const [formatLabel, setFormatLabel] = useState("")
+  const [mountPath, setMountPath] = useState("")
+
+  const handleFormat = async () => {
+    if (!activeDrive) return
+    try {
+      await fetch("http://localhost:8000/drives/format", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device: activeDrive.device,
+          filesystem: formatFs,
+          label: formatLabel || null,
+        }),
+      })
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+    }
+    setActiveDrive(null)
+    setFormatFs("")
+    setFormatLabel("")
+  }
+
+  const handleMount = async () => {
+    if (!activeDrive) return
+    try {
+      await fetch("http://localhost:8000/drives/mount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
+      })
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+    }
+    setActiveDrive(null)
+    setMountPath("")
+  }
 
   const [mountedVolumes] = useState([
     {
@@ -133,11 +176,36 @@ export function StorageManagement() {
                     <Badge variant={getHealthColor(drive.health)}>
                       {drive.health === "good" ? "Gut" : drive.health === "warning" ? "Warnung" : "Kritisch"}
                     </Badge>
+                    {!drive.mounted && <Badge variant="destructive">Nicht eingehängt</Badge>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Dialog>
+                    {!drive.mounted && (
+                      <Dialog onOpenChange={(o) => !o && setActiveDrive(null)}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" onClick={() => { setActiveDrive(drive); setMountPath(`/mnt/${drive.name}`) }}>
+                            Einhängen
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Festplatte einhängen</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="mp">Mountpoint</Label>
+                              <Input id="mp" value={mountPath} onChange={(e) => setMountPath(e.target.value)} />
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                              <Button variant="outline" onClick={() => setActiveDrive(null)}>Abbrechen</Button>
+                              <Button onClick={handleMount}>Einhängen</Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                    <Dialog onOpenChange={(o) => !o && setActiveDrive(null)}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => setActiveDrive(drive)}>
                           <AlertTriangle className="h-4 w-4 mr-2" />
                           Formatieren
                         </Button>
@@ -152,7 +220,7 @@ export function StorageManagement() {
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="filesystem">Dateisystem</Label>
-                            <Select>
+                            <Select value={formatFs} onValueChange={setFormatFs}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Dateisystem auswählen" />
                               </SelectTrigger>
@@ -166,11 +234,11 @@ export function StorageManagement() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="label">Volume Label</Label>
-                            <Input id="label" placeholder="z.B. Backup Drive" />
+                            <Input id="label" value={formatLabel} onChange={(e) => setFormatLabel(e.target.value)} placeholder="z.B. Backup Drive" />
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <Button variant="outline">Abbrechen</Button>
-                            <Button variant="destructive">Formatieren</Button>
+                            <Button variant="outline" onClick={() => setActiveDrive(null)}>Abbrechen</Button>
+                            <Button variant="destructive" onClick={handleFormat}>Formatieren</Button>
                           </div>
                         </div>
                       </DialogContent>
@@ -209,7 +277,13 @@ export function StorageManagement() {
                   </div>
                   <Progress value={getUsagePercentage(drive.used, drive.size)} className="h-2" />
                 </div>
-                <div className="mt-2 text-sm text-muted-foreground">Eingehängt unter: {drive.mountpoint}</div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {drive.mounted ? (
+                    <>Eingehängt unter: {drive.mountpoint}</>
+                  ) : (
+                    <>Nicht eingehängt</>
+                  )}
+                </div>
               </div>
             ))}
           </div>

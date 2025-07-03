@@ -83,6 +83,7 @@ class DriveInfo(BaseModel):
     available: float
     filesystem: str
     mountpoint: str
+    mounted: bool
     health: str = "good"
     temperature: int | None = None
 
@@ -494,34 +495,63 @@ def _drive_type(dev: str) -> str:
 
 
 def get_drives() -> List[DriveInfo]:
+    """Return information for all physical drives including unmounted ones."""
     drives: List[DriveInfo] = []
-    seen: set[str] = set()
-    for part in psutil.disk_partitions():
-        dev = os.path.realpath(part.device)
-        if not dev.startswith("/dev"):
-            continue
+    try:
+        output = subprocess.check_output(
+            ["lsblk", "-b", "-J", "-o", "NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT"],
+            text=True,
+        )
+        data = json.loads(output)
+    except Exception:
+        data = {"blockdevices": []}
+
+    def add_device(node: dict) -> None:
+        if node.get("type") not in {"disk", "part"}:
+            for child in node.get("children", []):
+                add_device(child)
+            return
+        name = node.get("name")
+        if not name:
+            return
+        dev = f"/dev/{name}"
         if dev.startswith("/dev/loop"):
-            continue
-        if dev in seen:
-            continue
-        seen.add(dev)
+            return
+        mountpoint = node.get("mountpoint") or ""
         try:
-            usage = psutil.disk_usage(part.mountpoint)
-        except PermissionError:
-            continue
+            size = int(node.get("size", 0))
+        except Exception:
+            size = 0
+        usage = None
+        if mountpoint:
+            try:
+                usage = psutil.disk_usage(mountpoint)
+            except Exception:
+                pass
         drives.append(
             DriveInfo(
                 device=dev,
-                name=os.path.basename(dev),
+                name=name,
                 type=_drive_type(dev),
-                size=round(usage.total / (1024 ** 3)),
-                used=round(usage.used / (1024 ** 3)),
-                available=round(usage.free / (1024 ** 3)),
-                filesystem=part.fstype,
-                mountpoint=part.mountpoint,
+                size=round(size / (1024 ** 3)),
+                used=round((usage.used if usage else 0) / (1024 ** 3)),
+                available=round((usage.free if usage else 0) / (1024 ** 3)),
+                filesystem=node.get("fstype") or "",
+                mountpoint=mountpoint,
+                mounted=bool(mountpoint),
             )
         )
-    return drives
+        for child in node.get("children", []):
+            add_device(child)
+
+    for dev in data.get("blockdevices", []):
+        add_device(dev)
+
+    unique = {}
+    for d in drives:
+        if d.device not in unique:
+            unique[d.device] = d
+    return list(unique.values())
 
 
 def find_container_type(name: str) -> str | None:
@@ -981,6 +1011,52 @@ def metrics():
 @app.get("/drives")
 def list_drives():
     return {"drives": [d.dict() for d in get_drives()]}
+
+
+class DriveMountRequest(BaseModel):
+    device: str
+    mountpoint: str
+
+
+class DriveFormatRequest(BaseModel):
+    device: str
+    filesystem: str
+    label: str | None = None
+
+
+@app.post("/drives/mount")
+def mount_drive(req: DriveMountRequest):
+    if not os.path.exists(req.mountpoint):
+        os.makedirs(req.mountpoint, exist_ok=True)
+    result = subprocess.run(["mount", req.device, req.mountpoint], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to mount")
+    return {"detail": "mounted"}
+
+
+@app.post("/drives/format")
+def format_drive(req: DriveFormatRequest):
+    fs = req.filesystem.lower()
+    if fs == "ext4":
+        cmd = ["mkfs.ext4"]
+    elif fs == "ntfs":
+        cmd = ["mkfs.ntfs", "-F"]
+    elif fs == "fat32":
+        cmd = ["mkfs.vfat", "-F", "32"]
+    elif fs == "exfat":
+        cmd = ["mkfs.exfat"]
+    else:
+        raise HTTPException(status_code=400, detail="unsupported filesystem")
+    if req.label:
+        if fs in {"ext4", "ntfs"}:
+            cmd.extend(["-L", req.label])
+        else:
+            cmd.extend(["-n", req.label])
+    cmd.append(req.device)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
+    return {"detail": "formatted"}
 
 
 @app.get("/settings")
