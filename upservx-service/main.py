@@ -1048,7 +1048,7 @@ def mount_drive(req: DriveMountRequest):
 def format_drive(req: DriveFormatRequest):
     fs = req.filesystem.lower()
     if fs == "ext4":
-        cmd = ["mkfs.ext4"]
+        cmd = ["mkfs.ext4", "-F"]
     elif fs == "ntfs":
         cmd = ["mkfs.ntfs", "-F"]
     elif fs == "fat32":
@@ -1063,6 +1063,8 @@ def format_drive(req: DriveFormatRequest):
         else:
             cmd.extend(["-n", req.label])
     cmd.append(req.device)
+    # Unmount the device first in case it is currently mounted
+    subprocess.run(["umount", req.device], capture_output=True)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
