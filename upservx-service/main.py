@@ -496,6 +496,10 @@ def _drive_type(dev: str) -> str:
 def get_drives() -> List[DriveInfo]:
     drives: List[DriveInfo] = []
     for part in psutil.disk_partitions():
+        if not part.device.startswith("/dev"):
+            continue
+        if part.device.startswith("/dev/loop"):
+            continue
         try:
             usage = psutil.disk_usage(part.mountpoint)
         except PermissionError:
