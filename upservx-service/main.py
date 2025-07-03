@@ -102,6 +102,13 @@ class NetworkInterfaceInfo(BaseModel):
     tx: str
 
 
+class NetworkSettingsModel(BaseModel):
+    dns_primary: str = "8.8.8.8"
+    dns_secondary: str = "8.8.4.4"
+    bridge_subnet: str = "192.168.100.0/24"
+    docker_subnet: str = "172.17.0.0/16"
+
+
 class SettingsModel(BaseModel):
     hostname: str
     timezone: str
@@ -110,6 +117,7 @@ class SettingsModel(BaseModel):
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
 ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
 os.makedirs(ISO_DIR, exist_ok=True)
 
@@ -132,6 +140,22 @@ def load_settings() -> SettingsModel:
 
 def save_settings(settings: SettingsModel) -> None:
     with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings.dict(), f)
+
+
+def load_network_settings() -> NetworkSettingsModel:
+    if os.path.exists(NETWORK_SETTINGS_FILE):
+        try:
+            with open(NETWORK_SETTINGS_FILE) as f:
+                data = json.load(f)
+                return NetworkSettingsModel(**data)
+        except Exception:
+            pass
+    return NetworkSettingsModel()
+
+
+def save_network_settings(settings: NetworkSettingsModel) -> None:
+    with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
 
 
@@ -1115,6 +1139,17 @@ def metrics():
 @app.get("/network/interfaces")
 def list_network_interfaces():
     return {"interfaces": [i.dict() for i in get_network_interfaces()]}
+
+
+@app.get("/network/settings")
+def get_network_settings():
+    return load_network_settings().dict()
+
+
+@app.post("/network/settings")
+def update_network_settings(payload: NetworkSettingsModel):
+    save_network_settings(payload)
+    return {"detail": "saved"}
 
 
 @app.get("/drives")

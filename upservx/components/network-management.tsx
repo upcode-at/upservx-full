@@ -23,8 +23,22 @@ interface NetworkInterface {
   tx: string
 }
 
+interface NetworkSettings {
+  dns_primary: string
+  dns_secondary: string
+  bridge_subnet: string
+  docker_subnet: string
+}
+
 export function NetworkManagement() {
   const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([])
+  const [networkSettings, setNetworkSettings] = useState<NetworkSettings>({
+    dns_primary: "8.8.8.8",
+    dns_secondary: "8.8.4.4",
+    bridge_subnet: "192.168.100.0/24",
+    docker_subnet: "172.17.0.0/16",
+  })
+  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const loadInterfaces = async () => {
@@ -39,7 +53,26 @@ export function NetworkManagement() {
       }
     }
     loadInterfaces()
+
+    const loadSettings = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/network/settings")
+        if (res.ok) {
+          const data = await res.json()
+          setNetworkSettings(data)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadSettings()
   }, [])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
 
   const [vmNetworks] = useState([
     {
@@ -221,30 +254,74 @@ export function NetworkManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="dns-primary">Primärer DNS</Label>
-                  <Input id="dns-primary" defaultValue="8.8.8.8" />
+                  <Input
+                    id="dns-primary"
+                    value={networkSettings.dns_primary}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, dns_primary: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dns-secondary">Sekundärer DNS</Label>
-                  <Input id="dns-secondary" defaultValue="8.8.4.4" />
+                  <Input
+                    id="dns-secondary"
+                    value={networkSettings.dns_secondary}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, dns_secondary: e.target.value })
+                    }
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="bridge-subnet">Bridge Subnet</Label>
-                  <Input id="bridge-subnet" defaultValue="192.168.100.0/24" />
+                  <Input
+                    id="bridge-subnet"
+                    value={networkSettings.bridge_subnet}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, bridge_subnet: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="docker-subnet">Docker Subnet</Label>
-                  <Input id="docker-subnet" defaultValue="172.17.0.0/16" />
+                  <Input
+                    id="docker-subnet"
+                    value={networkSettings.docker_subnet}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, docker_subnet: e.target.value })
+                    }
+                  />
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button>Konfiguration speichern</Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("http://localhost:8000/network/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(networkSettings),
+                      })
+                      if (res.ok) setMessage("Gespeichert")
+                    } catch (e) {
+                      console.error(e)
+                    }
+                  }}
+                >
+                  Konfiguration speichern
+                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
     </div>
   )
 }
