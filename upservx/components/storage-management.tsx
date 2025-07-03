@@ -1,6 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+
+interface Drive {
+  device: string
+  name: string
+  type: string
+  size: number
+  used: number
+  available: number
+  filesystem: string
+  mountpoint: string
+  health: string
+  temperature?: number | null
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,56 +33,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
 
 export function StorageManagement() {
-  const [drives] = useState([
-    {
-      device: "/dev/sda",
-      name: "System SSD",
-      type: "SSD",
-      size: 500,
-      used: 180,
-      available: 320,
-      filesystem: "ext4",
-      mountpoint: "/",
-      health: "good",
-      temperature: 42,
-    },
-    {
-      device: "/dev/sdb",
-      name: "Data HDD",
-      type: "HDD",
-      size: 2000,
-      used: 850,
-      available: 1150,
-      filesystem: "ext4",
-      mountpoint: "/var/lib/vms",
-      health: "good",
-      temperature: 38,
-    },
-    {
-      device: "/dev/sdc",
-      name: "Backup USB",
-      type: "USB",
-      size: 1000,
-      used: 450,
-      available: 550,
-      filesystem: "ntfs",
-      mountpoint: "/mnt/backup",
-      health: "good",
-      temperature: 35,
-    },
-    {
-      device: "/dev/mmcblk0",
-      name: "SD Card",
-      type: "SD",
-      size: 64,
-      used: 12,
-      available: 52,
-      filesystem: "fat32",
-      mountpoint: "/mnt/sdcard",
-      health: "warning",
-      temperature: 28,
-    },
-  ])
+  const [drives, setDrives] = useState<Drive[]>([])
+
+  useEffect(() => {
+    const loadDrives = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/drives")
+        if (res.ok) {
+          const data = await res.json()
+          setDrives(data.drives || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadDrives()
+  }, [])
 
   const [mountedVolumes] = useState([
     {

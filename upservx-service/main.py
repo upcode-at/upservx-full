@@ -74,6 +74,19 @@ class ContainerImageInfo(BaseModel):
     pulls: int = 0
 
 
+class DriveInfo(BaseModel):
+    device: str
+    name: str
+    type: str
+    size: float
+    used: float
+    available: float
+    filesystem: str
+    mountpoint: str
+    health: str = "good"
+    temperature: int | None = None
+
+
 class SettingsModel(BaseModel):
     hostname: str
     timezone: str
@@ -457,6 +470,49 @@ def get_iso_files() -> List[ISOInfo]:
             )
         )
     return files
+
+
+def _drive_type(dev: str) -> str:
+    name = os.path.basename(dev)
+    rotational = f"/sys/block/{name}/queue/rotational"
+    removable = f"/sys/block/{name}/removable"
+    try:
+        with open(removable) as f:
+            if f.read().strip() == "1":
+                return "USB"
+    except Exception:
+        pass
+    try:
+        with open(rotational) as f:
+            if f.read().strip() == "0":
+                return "SSD"
+    except Exception:
+        pass
+    if name.startswith("mmc"):
+        return "SD"
+    return "HDD"
+
+
+def get_drives() -> List[DriveInfo]:
+    drives: List[DriveInfo] = []
+    for part in psutil.disk_partitions():
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+        except PermissionError:
+            continue
+        drives.append(
+            DriveInfo(
+                device=part.device,
+                name=os.path.basename(part.device),
+                type=_drive_type(part.device),
+                size=round(usage.total / (1024 ** 3)),
+                used=round(usage.used / (1024 ** 3)),
+                available=round(usage.free / (1024 ** 3)),
+                filesystem=part.fstype,
+                mountpoint=part.mountpoint,
+            )
+        )
+    return drives
 
 
 def find_container_type(name: str) -> str | None:
@@ -911,6 +967,11 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/metrics")
 def metrics():
     return collect_metrics()
+
+
+@app.get("/drives")
+def list_drives():
+    return {"drives": [d.dict() for d in get_drives()]}
 
 
 @app.get("/settings")
