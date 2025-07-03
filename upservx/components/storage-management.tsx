@@ -30,7 +30,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
 
 export function StorageManagement() {
@@ -132,32 +131,6 @@ export function StorageManagement() {
     setMountOpen(false)
   }
 
-  const [mountedVolumes] = useState([
-    {
-      vm: "Ubuntu-Server-01",
-      device: "/dev/vda1",
-      size: 50,
-      used: 18,
-      mountpoint: "/",
-      filesystem: "ext4",
-    },
-    {
-      vm: "Windows-Dev",
-      device: "/dev/vda1",
-      size: 100,
-      used: 45,
-      mountpoint: "C:",
-      filesystem: "ntfs",
-    },
-    {
-      container: "mysql-db",
-      device: "volume-mysql",
-      size: 20,
-      used: 8,
-      mountpoint: "/var/lib/mysql",
-      filesystem: "ext4",
-    },
-  ])
 
   const getDriveIcon = (type: string) => {
     switch (type) {
@@ -358,48 +331,6 @@ export function StorageManagement() {
         </CardContent>
       </Card>
 
-      {/* VM/Container Volumes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>VM und Container Volumes</CardTitle>
-          <CardDescription>Speichernutzung von virtuellen Maschinen und Containern</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>VM/Container</TableHead>
-                <TableHead>Device</TableHead>
-                <TableHead>Größe</TableHead>
-                <TableHead>Belegt</TableHead>
-                <TableHead>Verfügbar</TableHead>
-                <TableHead>Auslastung</TableHead>
-                <TableHead>Dateisystem</TableHead>
-                <TableHead>Mountpoint</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mountedVolumes.map((volume, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{volume.vm || volume.container}</TableCell>
-                  <TableCell className="font-mono text-xs">{volume.device}</TableCell>
-                  <TableCell>{volume.size} GB</TableCell>
-                  <TableCell>{volume.used} GB</TableCell>
-                  <TableCell>{volume.size - volume.used} GB</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Progress value={getUsagePercentage(volume.used, volume.size)} className="h-2 w-16" />
-                      <span className="text-sm">{getUsagePercentage(volume.used, volume.size)}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{volume.filesystem}</TableCell>
-                  <TableCell>{volume.mountpoint}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
       {error && (
         <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
           {error}
