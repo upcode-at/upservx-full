@@ -14,6 +14,7 @@ import urllib.parse
 from datetime import datetime
 from typing import List
 import asyncio
+import socket
 
 app = FastAPI()
 
@@ -88,6 +89,24 @@ class DriveInfo(BaseModel):
     temperature: int | None = None
 
 
+class NetworkInterfaceInfo(BaseModel):
+    name: str
+    type: str
+    status: str
+    ip: str
+    netmask: str
+    gateway: str
+    mac: str
+    speed: str
+    rx: str
+    tx: str
+
+
+class NetworkSettingsModel(BaseModel):
+    dns_primary: str = "8.8.8.8"
+    dns_secondary: str = "8.8.4.4"
+
+
 class SettingsModel(BaseModel):
     hostname: str
     timezone: str
@@ -96,6 +115,7 @@ class SettingsModel(BaseModel):
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
 ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
 os.makedirs(ISO_DIR, exist_ok=True)
 
@@ -118,6 +138,46 @@ def load_settings() -> SettingsModel:
 
 def save_settings(settings: SettingsModel) -> None:
     with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings.dict(), f)
+
+
+def _system_nameservers() -> tuple[str, str]:
+    primary = "8.8.8.8"
+    secondary = "8.8.4.4"
+    try:
+        with open("/etc/resolv.conf") as f:
+            nameservers = [
+                line.split()[1]
+                for line in f
+                if line.strip().startswith("nameserver") and len(line.split()) >= 2
+            ]
+        if nameservers:
+            primary = nameservers[0]
+            if len(nameservers) > 1:
+                secondary = nameservers[1]
+    except Exception:
+        pass
+    return primary, secondary
+
+
+def load_network_settings() -> NetworkSettingsModel:
+    if os.path.exists(NETWORK_SETTINGS_FILE):
+        try:
+            with open(NETWORK_SETTINGS_FILE) as f:
+                data = json.load(f)
+                primary, secondary = _system_nameservers()
+                return NetworkSettingsModel(
+                    dns_primary=data.get("dns_primary", primary),
+                    dns_secondary=data.get("dns_secondary", secondary),
+                )
+        except Exception:
+            pass
+    primary, secondary = _system_nameservers()
+    return NetworkSettingsModel(dns_primary=primary, dns_secondary=secondary)
+
+
+def save_network_settings(settings: NetworkSettingsModel) -> None:
+    with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
 
 
@@ -564,6 +624,84 @@ def get_drives() -> List[DriveInfo]:
         if d.device not in unique:
             unique[d.device] = d
     return list(unique.values())
+
+
+def _format_bytes(num: int) -> str:
+    step = 1024.0
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if num < step:
+            return f"{num:.1f} {unit}"
+        num /= step
+    return f"{num:.1f} PB"
+
+
+def _infer_iface_type(name: str) -> str:
+    if name.startswith(("wl", "wifi")):
+        return "WiFi"
+    if name.startswith("br"):
+        return "Bridge"
+    if name.startswith(("docker", "veth")):
+        return "Virtual"
+    return "Ethernet"
+
+
+def _default_gateways() -> dict[str, str]:
+    gateways: dict[str, str] = {}
+    try:
+        output = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+        for line in output.splitlines():
+            parts = line.split()
+            if not parts or parts[0] != "default":
+                continue
+            gw = parts[2] if len(parts) >= 3 else "-"
+            if "dev" in parts:
+                idx = parts.index("dev")
+                if idx + 1 < len(parts):
+                    gateways[parts[idx + 1]] = gw
+    except Exception:
+        pass
+    return gateways
+
+
+def get_network_interfaces() -> List[NetworkInterfaceInfo]:
+    addrs = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
+    io_counters = psutil.net_io_counters(pernic=True)
+    gateways = _default_gateways()
+
+    interfaces: List[NetworkInterfaceInfo] = []
+    for name, addr_list in addrs.items():
+        stat = stats.get(name)
+        if not stat:
+            continue
+        ip = "-"
+        netmask = "-"
+        mac = "-"
+        for addr in addr_list:
+            if addr.family == socket.AF_INET:
+                ip = addr.address
+                netmask = addr.netmask or "-"
+            elif addr.family == psutil.AF_LINK or getattr(socket, "AF_PACKET", 17) == addr.family:
+                mac = addr.address
+        io = io_counters.get(name)
+        rx = _format_bytes(io.bytes_recv) if io else "0 B"
+        tx = _format_bytes(io.bytes_sent) if io else "0 B"
+        speed = f"{stat.speed} Mbps" if stat.speed > 0 else "-"
+        interfaces.append(
+            NetworkInterfaceInfo(
+                name=name,
+                type=_infer_iface_type(name),
+                status="up" if stat.isup else "down",
+                ip=ip,
+                netmask=netmask,
+                gateway=gateways.get(name, "-"),
+                mac=mac,
+                speed=speed,
+                rx=rx,
+                tx=tx,
+            )
+        )
+    return interfaces
 
 
 def find_container_type(name: str) -> str | None:
@@ -1018,6 +1156,22 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/metrics")
 def metrics():
     return collect_metrics()
+
+
+@app.get("/network/interfaces")
+def list_network_interfaces():
+    return {"interfaces": [i.dict() for i in get_network_interfaces()]}
+
+
+@app.get("/network/settings")
+def get_network_settings():
+    return load_network_settings().dict()
+
+
+@app.post("/network/settings")
+def update_network_settings(payload: NetworkSettingsModel):
+    save_network_settings(payload)
+    return {"detail": "saved"}
 
 
 @app.get("/drives")

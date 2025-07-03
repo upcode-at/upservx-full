@@ -1,97 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Network, Wifi, Settings } from "lucide-react"
 
-export function NetworkManagement() {
-  const [networkInterfaces] = useState([
-    {
-      name: "eth0",
-      type: "Ethernet",
-      status: "up",
-      ip: "192.168.1.10",
-      netmask: "255.255.255.0",
-      gateway: "192.168.1.1",
-      mac: "00:1B:44:11:3A:B7",
-      speed: "1000 Mbps",
-      rx: "2.5 GB",
-      tx: "1.8 GB",
-    },
-    {
-      name: "wlan0",
-      type: "WiFi",
-      status: "down",
-      ip: "-",
-      netmask: "-",
-      gateway: "-",
-      mac: "00:1B:44:11:3A:B8",
-      speed: "-",
-      rx: "0 B",
-      tx: "0 B",
-    },
-    {
-      name: "br0",
-      type: "Bridge",
-      status: "up",
-      ip: "192.168.100.1",
-      netmask: "255.255.255.0",
-      gateway: "-",
-      mac: "00:1B:44:11:3A:B9",
-      speed: "1000 Mbps",
-      rx: "856 MB",
-      tx: "1.2 GB",
-    },
-  ])
+interface NetworkInterface {
+  name: string
+  type: string
+  status: string
+  ip: string
+  netmask: string
+  gateway: string
+  mac: string
+  speed: string
+  rx: string
+  tx: string
+}
 
-  const [vmNetworks] = useState([
-    {
-      name: "Ubuntu-Server-01",
-      type: "VM",
-      interface: "veth0",
-      ip: "192.168.100.10",
-      mac: "52:54:00:12:34:56",
-      bridge: "br0",
-      status: "connected",
-      bandwidth: "125 Mbps",
-    },
-    {
-      name: "Windows-Dev",
-      type: "VM",
-      interface: "veth1",
-      ip: "192.168.100.11",
-      mac: "52:54:00:12:34:57",
-      bridge: "br0",
-      status: "disconnected",
-      bandwidth: "0 Mbps",
-    },
-    {
-      name: "nginx-web",
-      type: "Container",
-      interface: "docker0",
-      ip: "172.17.0.2",
-      mac: "02:42:ac:11:00:02",
-      bridge: "docker0",
-      status: "connected",
-      bandwidth: "89 Mbps",
-    },
-    {
-      name: "mysql-db",
-      type: "Container",
-      interface: "docker0",
-      ip: "172.17.0.3",
-      mac: "02:42:ac:11:00:03",
-      bridge: "docker0",
-      status: "connected",
-      bandwidth: "45 Mbps",
-    },
-  ])
+interface NetworkSettings {
+  dns_primary: string
+  dns_secondary: string
+}
+
+export function NetworkManagement() {
+  const [networkInterfaces, setNetworkInterfaces] = useState<NetworkInterface[]>([])
+  const [networkSettings, setNetworkSettings] = useState<NetworkSettings>({
+    dns_primary: "8.8.8.8",
+    dns_secondary: "8.8.4.4",
+  })
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadInterfaces = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/network/interfaces")
+        if (res.ok) {
+          const data = await res.json()
+          setNetworkInterfaces(data.interfaces || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadInterfaces()
+
+    const loadSettings = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/network/settings")
+        if (res.ok) {
+          const data = await res.json()
+          setNetworkSettings(data)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadSettings()
+  }, [])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -110,13 +87,12 @@ export function NetworkManagement() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Netzwerk Management</h2>
-        <p className="text-muted-foreground">Netzwerkschnittstellen und VM/Container-Verbindungen verwalten</p>
+        <p className="text-muted-foreground">Netzwerkschnittstellen verwalten</p>
       </div>
 
       <Tabs defaultValue="interfaces" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="interfaces">Netzwerkschnittstellen</TabsTrigger>
-          <TabsTrigger value="vm-networks">VM/Container Netzwerke</TabsTrigger>
           <TabsTrigger value="configuration">Konfiguration</TabsTrigger>
         </TabsList>
 
@@ -177,48 +153,6 @@ export function NetworkManagement() {
           </div>
         </TabsContent>
 
-        <TabsContent value="vm-networks" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>VM und Container Netzwerke</CardTitle>
-              <CardDescription>Netzwerkverbindungen von virtuellen Maschinen und Containern</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Typ</TableHead>
-                    <TableHead>IP-Adresse</TableHead>
-                    <TableHead>MAC-Adresse</TableHead>
-                    <TableHead>Bridge</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Bandbreite</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {vmNetworks.map((network) => (
-                    <TableRow key={network.name}>
-                      <TableCell className="font-medium">{network.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{network.type}</Badge>
-                      </TableCell>
-                      <TableCell>{network.ip}</TableCell>
-                      <TableCell className="font-mono text-xs">{network.mac}</TableCell>
-                      <TableCell>{network.bridge}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(network.status)}>
-                          {network.status === "connected" ? "Verbunden" : "Getrennt"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{network.bandwidth}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="configuration" className="space-y-4">
           <Card>
@@ -230,30 +164,52 @@ export function NetworkManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="dns-primary">Primärer DNS</Label>
-                  <Input id="dns-primary" defaultValue="8.8.8.8" />
+                  <Input
+                    id="dns-primary"
+                    value={networkSettings.dns_primary}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, dns_primary: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dns-secondary">Sekundärer DNS</Label>
-                  <Input id="dns-secondary" defaultValue="8.8.4.4" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bridge-subnet">Bridge Subnet</Label>
-                  <Input id="bridge-subnet" defaultValue="192.168.100.0/24" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="docker-subnet">Docker Subnet</Label>
-                  <Input id="docker-subnet" defaultValue="172.17.0.0/16" />
+                  <Input
+                    id="dns-secondary"
+                    value={networkSettings.dns_secondary}
+                    onChange={(e) =>
+                      setNetworkSettings({ ...networkSettings, dns_secondary: e.target.value })
+                    }
+                  />
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button>Konfiguration speichern</Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("http://localhost:8000/network/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(networkSettings),
+                      })
+                      if (res.ok) setMessage("Gespeichert")
+                    } catch (e) {
+                      console.error(e)
+                    }
+                  }}
+                >
+                  Konfiguration speichern
+                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
     </div>
   )
 }
