@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
@@ -56,29 +55,36 @@ export function StorageManagement() {
   const [formatFs, setFormatFs] = useState("")
   const [formatLabel, setFormatLabel] = useState("")
   const [mountPath, setMountPath] = useState("")
-  const [statusMessage, setStatusMessage] = useState("")
-  const [statusOpen, setStatusOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [mountOpen, setMountOpen] = useState(false)
+  const [formatOpen, setFormatOpen] = useState(false)
 
   useEffect(() => {
-    if (statusOpen) {
-      const t = setTimeout(() => setStatusOpen(false), 3000)
-      return () => clearTimeout(t)
-    }
-  }, [statusOpen])
+    if (!error) return
+    const t = setTimeout(() => setError(null), 3000)
+    return () => clearTimeout(t)
+  }, [error])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
 
   const cancelFormat = () => {
     setActiveDrive(null)
     setFormatFs("")
     setFormatLabel("")
-    setStatusMessage("Formatierung abgebrochen")
-    setStatusOpen(true)
+    setFormatOpen(false)
+    setMessage("Formatierung abgebrochen")
   }
 
   const cancelMount = () => {
     setActiveDrive(null)
     setMountPath("")
-    setStatusMessage("Einhängen abgebrochen")
-    setStatusOpen(true)
+    setMountOpen(false)
+    setMessage("Einhängen abgebrochen")
   }
 
   const handleFormat = async () => {
@@ -94,16 +100,16 @@ export function StorageManagement() {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setStatusMessage("Formatierung abgeschlossen")
+      setMessage("Formatierung abgeschlossen")
       await loadDrives()
     } catch (e) {
       console.error(e)
-      setStatusMessage("Formatierung fehlgeschlagen")
+      setError("Formatierung fehlgeschlagen")
     } finally {
-      setStatusOpen(true)
       setActiveDrive(null)
       setFormatFs("")
       setFormatLabel("")
+      setFormatOpen(false)
     }
   }
 
@@ -116,14 +122,14 @@ export function StorageManagement() {
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
       await loadDrives()
-      setStatusMessage("Laufwerk eingehängt")
+      setMessage("Laufwerk eingehängt")
     } catch (e) {
       console.error(e)
-      setStatusMessage("Einhängen fehlgeschlagen")
+      setError("Einhängen fehlgeschlagen")
     }
-    setStatusOpen(true)
     setActiveDrive(null)
     setMountPath("")
+    setMountOpen(false)
   }
 
   const [mountedVolumes] = useState([
@@ -213,9 +219,23 @@ export function StorageManagement() {
                   </div>
                   <div className="flex items-center gap-2">
                     {!drive.mounted && (
-                      <Dialog onOpenChange={(o) => !o && setActiveDrive(null)}>
+                      <Dialog
+                        open={mountOpen && activeDrive?.device === drive.device}
+                        onOpenChange={(o) => {
+                          setMountOpen(o)
+                          if (!o) setActiveDrive(null)
+                        }}
+                      >
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" onClick={() => { setActiveDrive(drive); setMountPath(`/mnt/${drive.name}`) }}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setActiveDrive(drive)
+                              setMountPath(`/mnt/${drive.name}`)
+                              setMountOpen(true)
+                            }}
+                          >
                             Einhängen
                           </Button>
                         </DialogTrigger>
@@ -236,9 +256,24 @@ export function StorageManagement() {
                         </DialogContent>
                       </Dialog>
                     )}
-                    <Dialog onOpenChange={(o) => !o && setActiveDrive(null)}>
+                    <Dialog
+                      open={formatOpen && activeDrive?.device === drive.device}
+                      onOpenChange={(o) => {
+                        setFormatOpen(o)
+                        if (!o) setActiveDrive(null)
+                      }}
+                    >
                       <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => setActiveDrive(drive)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setActiveDrive(drive)
+                            setFormatFs("")
+                            setFormatLabel("")
+                            setFormatOpen(true)
+                          }}
+                        >
                           <AlertTriangle className="h-4 w-4 mr-2" />
                           Formatieren
                         </Button>
@@ -365,14 +400,16 @@ export function StorageManagement() {
           </Table>
         </CardContent>
       </Card>
-      <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-        <PopoverTrigger asChild>
-          <div className="fixed top-4 right-4" />
-        </PopoverTrigger>
-        <PopoverContent className="text-sm">
-          {statusMessage}
-        </PopoverContent>
-      </Popover>
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
     </div>
   )
 }

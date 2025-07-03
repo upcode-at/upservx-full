@@ -532,6 +532,8 @@ def get_drives() -> List[DriveInfo]:
             size = int(node.get("size", 0))
         except Exception:
             size = 0
+        if size <= 0:
+            return
         usage = None
         if mountpoint:
             try:
