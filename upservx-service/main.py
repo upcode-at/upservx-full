@@ -495,20 +495,25 @@ def _drive_type(dev: str) -> str:
 
 def get_drives() -> List[DriveInfo]:
     drives: List[DriveInfo] = []
+    seen: set[str] = set()
     for part in psutil.disk_partitions():
-        if not part.device.startswith("/dev"):
+        dev = os.path.realpath(part.device)
+        if not dev.startswith("/dev"):
             continue
-        if part.device.startswith("/dev/loop"):
+        if dev.startswith("/dev/loop"):
             continue
+        if dev in seen:
+            continue
+        seen.add(dev)
         try:
             usage = psutil.disk_usage(part.mountpoint)
         except PermissionError:
             continue
         drives.append(
             DriveInfo(
-                device=part.device,
-                name=os.path.basename(part.device),
-                type=_drive_type(part.device),
+                device=dev,
+                name=os.path.basename(dev),
+                type=_drive_type(dev),
                 size=round(usage.total / (1024 ** 3)),
                 used=round(usage.used / (1024 ** 3)),
                 available=round(usage.free / (1024 ** 3)),
