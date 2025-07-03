@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
@@ -55,11 +56,35 @@ export function StorageManagement() {
   const [formatFs, setFormatFs] = useState("")
   const [formatLabel, setFormatLabel] = useState("")
   const [mountPath, setMountPath] = useState("")
+  const [statusMessage, setStatusMessage] = useState("")
+  const [statusOpen, setStatusOpen] = useState(false)
+
+  useEffect(() => {
+    if (statusOpen) {
+      const t = setTimeout(() => setStatusOpen(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [statusOpen])
+
+  const cancelFormat = () => {
+    setActiveDrive(null)
+    setFormatFs("")
+    setFormatLabel("")
+    setStatusMessage("Formatierung abgebrochen")
+    setStatusOpen(true)
+  }
+
+  const cancelMount = () => {
+    setActiveDrive(null)
+    setMountPath("")
+    setStatusMessage("Einhängen abgebrochen")
+    setStatusOpen(true)
+  }
 
   const handleFormat = async () => {
     if (!activeDrive) return
     try {
-      await fetch("http://localhost:8000/drives/format", {
+      const res = await fetch("http://localhost:8000/drives/format", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,13 +93,18 @@ export function StorageManagement() {
           label: formatLabel || null,
         }),
       })
+      if (!res.ok) throw new Error(await res.text())
+      setStatusMessage("Formatierung abgeschlossen")
       await loadDrives()
     } catch (e) {
       console.error(e)
+      setStatusMessage("Formatierung fehlgeschlagen")
+    } finally {
+      setStatusOpen(true)
+      setActiveDrive(null)
+      setFormatFs("")
+      setFormatLabel("")
     }
-    setActiveDrive(null)
-    setFormatFs("")
-    setFormatLabel("")
   }
 
   const handleMount = async () => {
@@ -86,9 +116,12 @@ export function StorageManagement() {
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
       await loadDrives()
+      setStatusMessage("Laufwerk eingehängt")
     } catch (e) {
       console.error(e)
+      setStatusMessage("Einhängen fehlgeschlagen")
     }
+    setStatusOpen(true)
     setActiveDrive(null)
     setMountPath("")
   }
@@ -196,7 +229,7 @@ export function StorageManagement() {
                               <Input id="mp" value={mountPath} onChange={(e) => setMountPath(e.target.value)} />
                             </div>
                             <div className="flex justify-end space-x-2">
-                              <Button variant="outline" onClick={() => setActiveDrive(null)}>Abbrechen</Button>
+                              <Button variant="outline" onClick={cancelMount}>Abbrechen</Button>
                               <Button onClick={handleMount}>Einhängen</Button>
                             </div>
                           </div>
@@ -237,7 +270,7 @@ export function StorageManagement() {
                             <Input id="label" value={formatLabel} onChange={(e) => setFormatLabel(e.target.value)} placeholder="z.B. Backup Drive" />
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <Button variant="outline" onClick={() => setActiveDrive(null)}>Abbrechen</Button>
+                            <Button variant="outline" onClick={cancelFormat}>Abbrechen</Button>
                             <Button variant="destructive" onClick={handleFormat}>Formatieren</Button>
                           </div>
                         </div>
@@ -332,6 +365,14 @@ export function StorageManagement() {
           </Table>
         </CardContent>
       </Card>
+      <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+        <PopoverTrigger asChild>
+          <div className="fixed top-4 right-4" />
+        </PopoverTrigger>
+        <PopoverContent className="text-sm">
+          {statusMessage}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
