@@ -895,22 +895,44 @@ def download_iso_file(name: str):
 class ImagePullRequest(BaseModel):
     image: str
     registry: str | None = None
+    type: str = "docker"
 
 
 @app.post("/images/pull")
 def pull_image(payload: ImagePullRequest):
-    """Pull a docker image via the Docker CLI."""
-    if shutil.which("docker") is None:
-        raise HTTPException(status_code=404, detail="docker not installed")
+    """Pull a container image via Docker or LXC."""
     if not payload.image:
         raise HTTPException(status_code=400, detail="image required")
-    image = payload.image
-    if payload.registry:
-        image = f"{payload.registry}/{image}"
-    result = subprocess.run(["docker", "pull", image], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
-    return {"detail": "pulled"}
+
+    typ = (payload.type or "docker").lower()
+    if typ in {"docker", "kubernetes"}:
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        image = payload.image
+        if payload.registry:
+            image = f"{payload.registry}/{image}"
+        result = subprocess.run(["docker", "pull", image], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
+        return {"detail": "pulled"}
+    if typ == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        remote = payload.registry or "images"
+        alias = payload.image.split("/")[-1]
+        result = subprocess.run([
+            "lxc",
+            "image",
+            "copy",
+            f"{remote}:{payload.image}",
+            "local:",
+            "--alias",
+            alias,
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
+        return {"detail": "pulled"}
+    raise HTTPException(status_code=400, detail="unknown container type")
 
 
 @app.delete("/images/{image}")

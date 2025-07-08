@@ -46,6 +46,18 @@ export function ImageManagement() {
     }[]
   >([])
 
+  const [lxcImages, setLxcImages] = useState<
+    {
+      id: number
+      repository: string
+      tag: string
+      imageId: string
+      size: number
+      created: string
+      pulls: number
+    }[]
+  >([])
+
   useEffect(() => {
     const loadIsos = async () => {
       try {
@@ -76,6 +88,21 @@ export function ImageManagement() {
     loadImages()
   }, [])
 
+  useEffect(() => {
+    const loadLxcImages = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/images?type=lxc&full=1")
+        if (res.ok) {
+          const data = await res.json()
+          setLxcImages(data.images || [])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadLxcImages()
+  }, [])
+
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadedBytes, setUploadedBytes] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
@@ -91,10 +118,16 @@ export function ImageManagement() {
   const [imageName, setImageName] = useState("")
   const [registry, setRegistry] = useState("")
 
+  const [pullProgressLxc, setPullProgressLxc] = useState(0)
+  const [isPullingLxc, setIsPullingLxc] = useState(false)
+  const [lxcImageName, setLxcImageName] = useState("")
+  const [lxcRemote, setLxcRemote] = useState("")
+
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openUpload, setOpenUpload] = useState(false)
   const [openPull, setOpenPull] = useState(false)
+  const [openPullLxc, setOpenPullLxc] = useState(false)
   const [openDownload, setOpenDownload] = useState(false)
 
   useEffect(() => {
@@ -285,6 +318,80 @@ export function ImageManagement() {
     setOpenPull(false)
   }
 
+  const handleDeleteLxcImage = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/images/${id}?type=lxc`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        setLxcImages((prev) => prev.filter((i) => i.imageId !== id))
+        setMessage(`${name} erfolgreich gelöscht`)
+      } else {
+        let msg = "Fehler beim Löschen"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handlePullLxcImage = async () => {
+    if (!lxcImageName) return
+    setIsPullingLxc(true)
+    setPullProgressLxc(0)
+    setError(null)
+    setMessage(null)
+
+    const interval = setInterval(() => {
+      setPullProgressLxc((p) => Math.min(p + 5, 95))
+    }, 200)
+
+    try {
+      const res = await fetch("http://localhost:8000/images/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: lxcImageName,
+          registry: lxcRemote || null,
+          type: "lxc",
+        }),
+      })
+      if (res.ok) {
+        const list = await fetch("http://localhost:8000/images?type=lxc&full=1")
+        if (list.ok) {
+          const data = await list.json()
+          setLxcImages(data.images || [])
+        }
+        setMessage("Image gepullt")
+      } else {
+        let msg = "Fehler beim Pullen"
+        try {
+          const d = await res.json()
+          msg = d.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+    clearInterval(interval)
+    setPullProgressLxc(100)
+    setIsPullingLxc(false)
+    setLxcImageName("")
+    setLxcRemote("")
+    setOpenPullLxc(false)
+  }
+
   const formatSize = (sizeInGB: number) => {
     if (sizeInGB < 1) {
       return `${Math.round(sizeInGB * 1024)} MB`
@@ -323,9 +430,10 @@ export function ImageManagement() {
       </div>
 
       <Tabs defaultValue="isos" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="isos">ISO-Dateien</TabsTrigger>
           <TabsTrigger value="containers">Container Images</TabsTrigger>
+          <TabsTrigger value="lxc">LXC Images</TabsTrigger>
         </TabsList>
 
         <TabsContent value="isos" className="space-y-4">
@@ -489,6 +597,117 @@ export function ImageManagement() {
                             className="h-8 w-8 bg-transparent"
                             disabled={iso.used}
                             onClick={() => handleDeleteIso(iso.name)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="lxc" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>LXC Images</CardTitle>
+                  <CardDescription>Verfügbare LXC Container Images</CardDescription>
+                </div>
+                <Dialog open={openPullLxc} onOpenChange={setOpenPullLxc}>
+                  <DialogTrigger asChild>
+                    <Button onClick={() => setOpenPullLxc(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Image pullen
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>LXC Image pullen</DialogTitle>
+                      <DialogDescription>Laden Sie ein neues LXC Image herunter</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="lxc-image-name">Image Name</Label>
+                        <Input
+                          id="lxc-image-name"
+                          placeholder="ubuntu:22.04"
+                          value={lxcImageName}
+                          onChange={(e) => setLxcImageName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lxc-remote">Remote (optional)</Label>
+                        <Input
+                          id="lxc-remote"
+                          placeholder="images"
+                          value={lxcRemote}
+                          onChange={(e) => setLxcRemote(e.target.value)}
+                        />
+                      </div>
+                      {isPullingLxc && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Download läuft...</span>
+                            <span>{Math.round(pullProgressLxc)}%</span>
+                          </div>
+                          <Progress value={pullProgressLxc} />
+                        </div>
+                      )}
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setOpenPullLxc(false)}>Abbrechen</Button>
+                        <Button onClick={handlePullLxcImage} disabled={isPullingLxc}>
+                          {isPullingLxc ? "Pulling..." : "Image pullen"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Repository</TableHead>
+                    <TableHead>Tag</TableHead>
+                    <TableHead>Image ID</TableHead>
+                    <TableHead>Größe</TableHead>
+                    <TableHead>Erstellt</TableHead>
+                    <TableHead>Pulls</TableHead>
+                    <TableHead>Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lxcImages.map((image) => (
+                    <TableRow key={image.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Container className="h-4 w-4" />
+                          <span className="font-medium">{image.repository}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{image.tag}</Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{image.imageId}</TableCell>
+                      <TableCell>{formatSize(image.size / 1000)}</TableCell>
+                      <TableCell>{image.created}</TableCell>
+                      <TableCell>{formatPulls(image.pulls)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                            <Download className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            onClick={() => handleDeleteLxcImage(image.imageId, `${image.repository}:${image.tag}`)}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
