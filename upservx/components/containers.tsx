@@ -40,6 +40,8 @@ export function Containers() {
   const [image, setImage] = useState("")
   const [cpu, setCpu] = useState(1)
   const [memory, setMemory] = useState(512)
+  const [maxCpu, setMaxCpu] = useState(16)
+  const [maxMemory, setMaxMemory] = useState(16384)
   const [ports, setPorts] = useState<{ host: string; container: string }[]>([
     { host: "", container: "" },
   ])
@@ -54,6 +56,20 @@ export function Containers() {
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
   const [open, setOpen] = useState(false)
+
+  const loadMetrics = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/metrics")
+      if (res.ok) {
+        const data = await res.json()
+        if (data.cpu?.cores) setMaxCpu(data.cpu.cores)
+        if (data.memory?.total)
+          setMaxMemory(Math.round(data.memory.total * 1024))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     if (!type) {
@@ -74,6 +90,24 @@ export function Containers() {
     }
     loadImages()
   }, [type])
+
+  useEffect(() => {
+    loadMetrics()
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      loadMetrics()
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (cpu > maxCpu) setCpu(maxCpu)
+  }, [maxCpu])
+
+  useEffect(() => {
+    if (memory > maxMemory) setMemory(maxMemory)
+  }, [maxMemory])
 
   useEffect(() => {
     if (!error) return
@@ -374,7 +408,7 @@ export function Containers() {
                       id="container-cpu"
                       type="range"
                       min={1}
-                      max={16}
+                      max={maxCpu}
                       step={1}
                       className="w-full"
                       value={cpu}
@@ -387,7 +421,7 @@ export function Containers() {
                       id="container-memory"
                       type="range"
                       min={256}
-                      max={16384}
+                      max={maxMemory}
                       step={256}
                       className="w-full"
                       value={memory}
