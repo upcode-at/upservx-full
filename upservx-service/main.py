@@ -732,7 +732,7 @@ def collect_metrics() -> dict:
     services_info = [
         {"name": "Docker", "service": "docker", "port": 2376},
         {"name": "Kubernetes", "service": "k3s", "port": 6443},
-        {"name": "LXC", "service": "lxc", "port": None},
+        {"name": "LXC", "service": "lxd", "port": None},
         {"name": "SSH", "service": "sshd", "port": 22},
         {"name": "Web Interface", "service": "nginx", "port": 8080},
     ]
@@ -919,7 +919,7 @@ def pull_image(payload: ImagePullRequest):
         if shutil.which("lxc") is None:
             raise HTTPException(status_code=404, detail="lxc not installed")
         remote = payload.registry or "images"
-        alias = payload.image.split("/")[-1]
+        alias = payload.image.split("/")[0]
         result = subprocess.run([
             "lxc",
             "image",

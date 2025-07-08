@@ -10,7 +10,7 @@ apt install -y \
     python3 python3-pip python3-venv git \
     nodejs npm \
     docker.io kubeadm kubectl kubelet \
-    lxc qemu-kvm libvirt-daemon-system libvirt-clients \
+    lxd qemu-kvm libvirt-daemon-system libvirt-clients \
     sshfs vsftpd postgresql ftp
 
 # Configure PostgreSQL credentials
