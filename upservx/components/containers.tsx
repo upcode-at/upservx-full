@@ -38,10 +38,16 @@ export function Containers() {
   const [type, setType] = useState("")
   const [images, setImages] = useState<string[]>([])
   const [image, setImage] = useState("")
-  const [cpu, setCpu] = useState("")
-  const [memory, setMemory] = useState("")
-  const [ports, setPorts] = useState<string[]>([""])
-  const [mounts, setMounts] = useState<string[]>([""])
+  const [cpu, setCpu] = useState(1)
+  const [memory, setMemory] = useState(512)
+  const [maxCpu, setMaxCpu] = useState(16)
+  const [maxMemory, setMaxMemory] = useState(16384)
+  const [ports, setPorts] = useState<{ host: string; container: string }[]>([
+    { host: "", container: "" },
+  ])
+  const [mounts, setMounts] = useState<{ host: string; container: string }[]>([
+    { host: "", container: "" },
+  ])
   const [envs, setEnvs] = useState<{ name: string; value: string }[]>([
     { name: "", value: "" },
   ])
@@ -50,6 +56,20 @@ export function Containers() {
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
   const [open, setOpen] = useState(false)
+
+  const loadMetrics = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/metrics")
+      if (res.ok) {
+        const data = await res.json()
+        if (data.cpu?.cores) setMaxCpu(data.cpu.cores)
+        if (data.memory?.total)
+          setMaxMemory(Math.round(data.memory.total * 1024))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     if (!type) {
@@ -70,6 +90,24 @@ export function Containers() {
     }
     loadImages()
   }, [type])
+
+  useEffect(() => {
+    loadMetrics()
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      loadMetrics()
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (cpu > maxCpu) setCpu(maxCpu)
+  }, [maxCpu])
+
+  useEffect(() => {
+    if (memory > maxMemory) setMemory(maxMemory)
+  }, [maxMemory])
 
   useEffect(() => {
     if (!error) return
@@ -108,10 +146,14 @@ export function Containers() {
       name,
       type,
       image,
-      cpu: parseFloat(cpu) || 0,
-      memory: parseInt(memory) || 0,
-      ports: ports.filter((p) => p.trim() !== ""),
-      mounts: mounts.filter((m) => m.trim() !== ""),
+      cpu,
+      memory,
+      ports: ports
+        .filter((p) => p.host.trim() && p.container.trim())
+        .map((p) => `${p.host}:${p.container}`),
+      mounts: mounts
+        .filter((m) => m.host.trim() && m.container.trim())
+        .map((m) => `${m.host}:${m.container}`),
       envs: envs
         .filter((e) => e.name.trim() && e.value.trim())
         .map((e) => `${e.name}=${e.value}`),
@@ -361,21 +403,29 @@ export function Containers() {
               <TabsContent value="resources" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="container-cpu">CPU Limit</Label>
-                    <Input
+                    <Label htmlFor="container-cpu">CPU Kerne: {cpu}</Label>
+                    <input
                       id="container-cpu"
+                      type="range"
+                      min={1}
+                      max={maxCpu}
+                      step={1}
+                      className="w-full"
                       value={cpu}
-                      onChange={(e) => setCpu(e.target.value)}
-                      placeholder="z.B. 1.0"
+                      onChange={(e) => setCpu(parseInt(e.target.value))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="container-memory">Memory Limit (MB)</Label>
-                    <Input
+                    <Label htmlFor="container-memory">RAM (MB): {memory}</Label>
+                    <input
                       id="container-memory"
+                      type="range"
+                      min={256}
+                      max={maxMemory}
+                      step={256}
+                      className="w-full"
                       value={memory}
-                      onChange={(e) => setMemory(e.target.value)}
-                      placeholder="z.B. 512"
+                      onChange={(e) => setMemory(parseInt(e.target.value))}
                     />
                   </div>
                 </div>
@@ -385,13 +435,24 @@ export function Containers() {
                 {ports.map((p, idx) => (
                   <div key={idx} className="flex space-x-2">
                     <Input
-                      value={p}
+                      type="number"
+                      value={p.host}
                       onChange={(e) => {
                         const arr = [...ports]
-                        arr[idx] = e.target.value
+                        arr[idx].host = e.target.value
                         setPorts(arr)
                       }}
-                      placeholder="8080:80"
+                      placeholder="Host"
+                    />
+                    <Input
+                      type="number"
+                      value={p.container}
+                      onChange={(e) => {
+                        const arr = [...ports]
+                        arr[idx].container = e.target.value
+                        setPorts(arr)
+                      }}
+                      placeholder="Container"
                     />
                     <Button
                       variant="outline"
@@ -405,7 +466,7 @@ export function Containers() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPorts([...ports, ""])}
+                  onClick={() => setPorts([...ports, { host: "", container: "" }])}
                 >
                   Port hinzufügen
                 </Button>
@@ -415,13 +476,22 @@ export function Containers() {
                 {mounts.map((m, idx) => (
                   <div key={idx} className="flex space-x-2">
                     <Input
-                      value={m}
+                      value={m.host}
                       onChange={(e) => {
                         const arr = [...mounts]
-                        arr[idx] = e.target.value
+                        arr[idx].host = e.target.value
                         setMounts(arr)
                       }}
-                      placeholder="/host/path:/container/path"
+                      placeholder="Host Pfad"
+                    />
+                    <Input
+                      value={m.container}
+                      onChange={(e) => {
+                        const arr = [...mounts]
+                        arr[idx].container = e.target.value
+                        setMounts(arr)
+                      }}
+                      placeholder="Container Pfad"
                     />
                     <Button
                       variant="outline"
@@ -435,7 +505,7 @@ export function Containers() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setMounts([...mounts, ""])}
+                  onClick={() => setMounts([...mounts, { host: "", container: "" }])}
                 >
                   Mount hinzufügen
                 </Button>
