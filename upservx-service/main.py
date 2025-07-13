@@ -943,6 +943,7 @@ def collect_metrics() -> dict:
         "gpu": get_gpu_model(),
         "uptime": format_uptime(uptime_seconds),
         "kernel": platform.release(),
+        "architecture": platform.machine(),
         "services": services,
     }
 
