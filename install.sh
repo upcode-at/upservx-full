@@ -8,7 +8,7 @@ apt update
 # Install required packages
 apt install -y \
     python3 python3-pip python3-venv git \
-    nodejs npm \
+    nodejs npm lshw \
     docker.io kubeadm kubectl kubelet \
     lxd qemu-kvm libvirt-daemon-system libvirt-clients \
     sshfs vsftpd postgresql ftp
