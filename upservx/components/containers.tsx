@@ -49,6 +49,7 @@ export function Containers() {
     cpu: number
     memory: number
     created: string
+    running_for: string
   }
 
   const [containers, setContainers] = useState<ContainerData[]>([])
@@ -593,6 +594,10 @@ export function Containers() {
                       </div>
                     </div>
                     <div className="col-span-2">
+                      <span className="text-muted-foreground">Laufzeit</span>
+                      <div className="font-medium">{container.running_for}</div>
+                    </div>
+                    <div className="col-span-2">
                       <span className="text-muted-foreground">Erstellt</span>
                       <div className="font-medium">{container.created}</div>
                     </div>
@@ -656,6 +661,7 @@ export function Containers() {
                   <TableHead>CPU</TableHead>
                   <TableHead>Memory</TableHead>
                   <TableHead>Ports</TableHead>
+                  <TableHead>Laufzeit</TableHead>
                   <TableHead>Erstellt</TableHead>
                   <TableHead>Aktionen</TableHead>
                 </TableRow>
@@ -663,7 +669,7 @@ export function Containers() {
               <TableBody>
                 {filteredContainers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center">
+                    <TableCell colSpan={10} className="text-center">
                       Keine Container gefunden
                     </TableCell>
                   </TableRow>
@@ -687,6 +693,7 @@ export function Containers() {
                       <TableCell className="text-sm">
                         {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
                       </TableCell>
+                      <TableCell className="text-sm">{container.running_for}</TableCell>
                       <TableCell className="text-sm">{container.created}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">

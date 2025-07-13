@@ -71,6 +71,7 @@ class Container(BaseModel):
     cpu: float
     memory: int
     created: str
+    running_for: str = ""
 
 
 class ContainerCreate(BaseModel):
@@ -352,6 +353,19 @@ def format_uptime(seconds: float) -> str:
     return " ".join(parts) if parts else "0m"
 
 
+def calc_running_for(created_str: str) -> str:
+    """Return uptime string from an ISO datetime string."""
+    if not created_str:
+        return ""
+    try:
+        ts = created_str.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(ts)
+        diff = datetime.utcnow() - dt.replace(tzinfo=None)
+        return format_uptime(diff.total_seconds())
+    except Exception:
+        return ""
+
+
 def get_cpu_model() -> str:
     model = platform.processor()
     if not model:
@@ -481,6 +495,7 @@ def get_docker_containers() -> List[Container]:
                 cpu=0.0,
                 memory=0,
                 created=running_for,
+                running_for=running_for,
             )
         )
     return containers_list
@@ -500,6 +515,7 @@ def get_lxc_containers() -> List[Container]:
 
     containers_list = []
     for item in data:
+        created_at = item.get("created_at", "")
         containers_list.append(
             Container(
                 id=0,
@@ -512,7 +528,8 @@ def get_lxc_containers() -> List[Container]:
                 envs=[],
                 cpu=0.0,
                 memory=0,
-                created=item.get("created_at", ""),
+                created=created_at,
+                running_for=calc_running_for(created_at),
             )
         )
     return containers_list
@@ -534,6 +551,7 @@ def get_k8s_pods() -> List[Container]:
     for item in data.get("items", []):
         metadata = item.get("metadata", {})
         status = item.get("status", {})
+        created_at = metadata.get("creationTimestamp", "")
         containers_list.append(
             Container(
                 id=0,
@@ -546,7 +564,8 @@ def get_k8s_pods() -> List[Container]:
                 envs=[],
                 cpu=0.0,
                 memory=0,
-                created=metadata.get("creationTimestamp", ""),
+                created=created_at,
+                running_for=calc_running_for(created_at),
             )
         )
     return containers_list
@@ -1182,7 +1201,8 @@ def create_container(payload: ContainerCreate):
         envs=payload.envs,
         cpu=payload.cpu,
         memory=payload.memory,
-        created=datetime.utcnow().date().isoformat(),
+        created=datetime.utcnow().isoformat(),
+        running_for="0m",
     )
     next_container_id += 1
     containers.append(container)
