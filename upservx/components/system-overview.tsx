@@ -230,9 +230,9 @@ export function SystemOverview() {
       <Card>
         <CardHeader>
           <CardTitle>Festplatten</CardTitle>
-          <CardDescription>Vorhandene Laufwerke (keine Partitionen)</CardDescription>
+          <CardDescription>Vorhandene Laufwerke</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="pl-6 pr-0">
           <Table>
             <TableHeader>
               <TableRow>
