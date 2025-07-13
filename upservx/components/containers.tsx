@@ -16,7 +16,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Play, Square, Settings, Plus, Terminal, Container, Trash2 } from "lucide-react"
+import {
+  Play,
+  Square,
+  Settings,
+  Plus,
+  Terminal,
+  Container,
+  Trash2,
+  LayoutGrid,
+  List as ListIcon,
+} from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { TerminalEmulator } from "@/components/terminal-emulator"
 
 export function Containers() {
@@ -56,6 +74,7 @@ export function Containers() {
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<"grid" | "list">("grid")
 
   const loadMetrics = async () => {
     try {
@@ -299,6 +318,22 @@ export function Containers() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex gap-1">
+            <Button
+              variant={view === "grid" ? "secondary" : "outline"}
+              size="icon"
+              onClick={() => setView("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={view === "list" ? "secondary" : "outline"}
+              size="icon"
+              onClick={() => setView("list")}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+          </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setOpen(true)}>
@@ -522,89 +557,179 @@ export function Containers() {
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {containers
-          .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
-          .map((container) => (
-          <Card key={container.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Container className="h-5 w-5" />
-                    {container.name}
-                    <Badge className={statusClass(container.status)}>
-                      {container.status === "running" ? "Läuft" : "Gestoppt"}
-                    </Badge>
-                    <Badge variant="outline">{container.type}</Badge>
-                  </CardTitle>
-                  <CardDescription>{container.image}</CardDescription>
-                </div>
-                <div className="flex space-x-2">
-                  {container.status === "running" && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setActiveTerminal(container.name)}
-                    >
-                      <Terminal className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button variant="outline" size="icon">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                  {container.status === "running" ? (
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => handleStop(container.name)}
-                    >
-                      <Square className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <>
-                      <Button
-                        className="bg-green-600 text-white hover:bg-green-700"
-                        size="icon"
-                        onClick={() => handleStart(container.name)}
-                      >
-                        <Play className="h-4 w-4" />
+      {view === "grid" ? (
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {containers
+            .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
+            .map((container) => (
+              <Card key={container.id} className="aspect-square rounded-lg">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Container className="h-5 w-5" />
+                        {container.name}
+                        <Badge className={statusClass(container.status)}>
+                          {container.status === "running" ? "Läuft" : "Gestoppt"}
+                        </Badge>
+                        <Badge variant="outline">{container.type}</Badge>
+                      </CardTitle>
+                      <CardDescription>{container.image}</CardDescription>
+                    </div>
+                    <div className="flex space-x-2">
+                      {container.status === "running" && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setActiveTerminal(container.name)}
+                        >
+                          <Terminal className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button variant="outline" size="icon">
+                        <Settings className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleDelete(container.name)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">CPU:</span>
-                  <div className="font-medium">{container.cpu} Kerne</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Memory:</span>
-                  <div className="font-medium">{container.memory} MB</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Ports:</span>
-                  <div className="font-medium">{container.ports.length > 0 ? container.ports.join(", ") : "Keine"}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Erstellt:</span>
-                  <div className="font-medium">{container.created}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                      {container.status === "running" ? (
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleStop(container.name)}
+                        >
+                          <Square className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            size="icon"
+                            onClick={() => handleStart(container.name)}
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDelete(container.name)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">CPU:</span>
+                      <div className="font-medium">{container.cpu} Kerne</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Memory:</span>
+                      <div className="font-medium">{container.memory} MB</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Ports:</span>
+                      <div className="font-medium">{container.ports.length > 0 ? container.ports.join(", ") : "Keine"}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Erstellt:</span>
+                      <div className="font-medium">{container.created}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Typ</TableHead>
+                  <TableHead>Image</TableHead>
+                  <TableHead>CPU</TableHead>
+                  <TableHead>Memory</TableHead>
+                  <TableHead>Ports</TableHead>
+                  <TableHead>Erstellt</TableHead>
+                  <TableHead>Aktionen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {containers
+                  .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
+                  .map((container) => (
+                    <TableRow key={container.id}>
+                      <TableCell className="font-medium flex items-center gap-2">
+                        <Container className="h-4 w-4" /> {container.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusClass(container.status)}>
+                          {container.status === "running" ? "Läuft" : "Gestoppt"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{container.type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{container.image}</TableCell>
+                      <TableCell>{container.cpu}</TableCell>
+                      <TableCell>{container.memory}</TableCell>
+                      <TableCell className="text-xs">
+                        {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
+                      </TableCell>
+                      <TableCell className="text-xs">{container.created}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {container.status === "running" && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setActiveTerminal(container.name)}
+                            >
+                              <Terminal className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="outline" size="icon">
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                          {container.status === "running" ? (
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleStop(container.name)}
+                            >
+                              <Square className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                className="bg-green-600 text-white hover:bg-green-700"
+                                size="icon"
+                                onClick={() => handleStart(container.name)}
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => handleDelete(container.name)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
       {activeTerminal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <TerminalEmulator containerName={activeTerminal} onClose={() => setActiveTerminal(null)} />
