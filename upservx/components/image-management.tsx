@@ -168,12 +168,12 @@ export function ImageManagement() {
         try {
           const info = JSON.parse(xhr.responseText)
           setIsoFiles((prev) => [...prev, info])
-          setMessage("ISO hochgeladen")
+          setMessage("ISO uploaded")
         } catch {
-          setError("Fehler beim Upload")
+          setError("Upload error")
         }
       } else {
-        let msg = "Fehler beim Upload"
+        let msg = "Upload error"
         try {
           const d = JSON.parse(xhr.responseText)
           msg = d.detail || msg
@@ -185,7 +185,7 @@ export function ImageManagement() {
     }
     xhr.onerror = () => {
       setIsUploading(false)
-      setError("Upload fehlgeschlagen")
+      setError("Upload failed")
     }
     xhr.send(data)
   }
@@ -210,9 +210,9 @@ export function ImageManagement() {
       if (res.ok) {
         const info = await res.json()
         setIsoFiles((prev) => [...prev, info])
-        setMessage("ISO heruntergeladen")
+        setMessage("ISO downloaded")
       } else {
-        let msg = "Fehler beim Download"
+        let msg = "Download error"
         try {
           const d = await res.json()
           msg = d.detail || msg
@@ -255,9 +255,9 @@ export function ImageManagement() {
       )
       if (res.ok) {
         setContainerImages((prev) => prev.filter((i) => i.imageId !== id))
-        setMessage(`${name} erfolgreich gelöscht`)
+        setMessage(`${name} deleted`)
       } else {
-        let msg = "Fehler beim Löschen"
+        let msg = "Error deleting"
         try {
           const d = await res.json()
           msg = d.detail || msg
@@ -295,9 +295,9 @@ export function ImageManagement() {
           const data = await list.json()
           setContainerImages(data.images || [])
         }
-        setMessage("Image gepullt")
+        setMessage("Image pulled")
       } else {
-        let msg = "Fehler beim Pullen"
+        let msg = "Error pulling"
         try {
           const d = await res.json()
           msg = d.detail || msg
@@ -325,9 +325,9 @@ export function ImageManagement() {
       })
       if (res.ok) {
         setLxcImages((prev) => prev.filter((i) => i.imageId !== id))
-        setMessage(`${name} erfolgreich gelöscht`)
+        setMessage(`${name} deleted`)
       } else {
-        let msg = "Fehler beim Löschen"
+        let msg = "Error deleting"
         try {
           const d = await res.json()
           msg = d.detail || msg
@@ -369,9 +369,9 @@ export function ImageManagement() {
           const data = await list.json()
           setLxcImages(data.images || [])
         }
-        setMessage("Image gepullt")
+        setMessage("Image pulled")
       } else {
-        let msg = "Fehler beim Pullen"
+        let msg = "Error pulling"
         try {
           const d = await res.json()
           msg = d.detail || msg
@@ -425,13 +425,13 @@ export function ImageManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Images & ISOs</h2>
-          <p className="text-muted-foreground">ISO-Dateien und Container Images verwalten</p>
+          <p className="text-muted-foreground">Manage ISO files and container images</p>
         </div>
       </div>
 
       <Tabs defaultValue="isos" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="isos">ISO-Dateien</TabsTrigger>
+          <TabsTrigger value="isos">ISO Files</TabsTrigger>
           <TabsTrigger value="containers">Container Images</TabsTrigger>
           <TabsTrigger value="lxc">LXC Images</TabsTrigger>
         </TabsList>
@@ -441,21 +441,21 @@ export function ImageManagement() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>ISO-Dateien</CardTitle>
-                  <CardDescription>Verfügbare ISO-Images für VM-Installation</CardDescription>
+                  <CardTitle>ISO Files</CardTitle>
+                  <CardDescription>Available ISO images for VM installation</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Dialog open={openDownload} onOpenChange={setOpenDownload}>
                     <DialogTrigger asChild>
                       <Button variant="outline" onClick={() => setOpenDownload(true)}>
                         <Download className="mr-2 h-4 w-4" />
-                        ISO herunterladen
+                        Download ISO
                       </Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>ISO-Datei herunterladen</DialogTitle>
-                        <DialogDescription>Laden Sie eine neue ISO-Datei von einer URL herunter</DialogDescription>
+                        <DialogTitle>Download ISO File</DialogTitle>
+                        <DialogDescription>Download a new ISO file from a URL</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="space-y-2">
@@ -468,7 +468,7 @@ export function ImageManagement() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="iso-name">Dateiname</Label>
+                          <Label htmlFor="iso-name">File name</Label>
                           <Input
                             id="iso-name"
                             placeholder="ubuntu-22.04.3-desktop-amd64.iso"
@@ -479,16 +479,16 @@ export function ImageManagement() {
                         {isDownloading && (
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                              <span>Download läuft...</span>
+                              <span>Downloading...</span>
                               <span>{Math.round(downloadProgress)}%</span>
                             </div>
                             <Progress value={downloadProgress} />
                           </div>
                         )}
                         <div className="flex justify-end space-x-2">
-                          <Button variant="outline" onClick={() => setOpenDownload(false)}>Abbrechen</Button>
+                          <Button variant="outline" onClick={() => setOpenDownload(false)}>Cancel</Button>
                           <Button onClick={handleDownload} disabled={isDownloading}>
-                            {isDownloading ? "Downloading..." : "Herunterladen"}
+                            {isDownloading ? "Downloading..." : "Download"}
                           </Button>
                         </div>
                       </div>
@@ -498,19 +498,19 @@ export function ImageManagement() {
                     <DialogTrigger asChild>
                       <Button onClick={() => setOpenUpload(true)}>
                         <Upload className="mr-2 h-4 w-4" />
-                        ISO hochladen
+                        Upload ISO
                       </Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>ISO-Datei hochladen</DialogTitle>
-                        <DialogDescription>Laden Sie eine ISO-Datei von Ihrem Computer hoch</DialogDescription>
+                        <DialogTitle>Upload ISO File</DialogTitle>
+                        <DialogDescription>Upload an ISO file from your computer</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
                           <Disc className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            Ziehen Sie eine ISO-Datei hierher oder klicken Sie zum Auswählen
+                            Drag an ISO file here or click to select
                           </p>
                           <Input
                             type="file"
@@ -521,7 +521,7 @@ export function ImageManagement() {
                         {isUploading && (
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                              <span>Upload läuft...</span>
+                              <span>Uploading...</span>
                               <span>
                                 {Math.round(uploadedBytes / 1024)} KB / {isoFile ? Math.round(isoFile.size / 1024) : 0} KB
                               </span>
@@ -530,9 +530,9 @@ export function ImageManagement() {
                           </div>
                         )}
                         <div className="flex justify-end space-x-2">
-                          <Button variant="outline" onClick={() => setOpenUpload(false)}>Abbrechen</Button>
+                          <Button variant="outline" onClick={() => setOpenUpload(false)}>Cancel</Button>
                           <Button onClick={handleUpload} disabled={isUploading}>
-                            {isUploading ? "Uploading..." : "Hochladen"}
+                            {isUploading ? "Uploading..." : "Upload"}
                           </Button>
                         </div>
                       </div>
@@ -549,10 +549,10 @@ export function ImageManagement() {
                     <TableHead>Typ</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Architektur</TableHead>
-                    <TableHead>Größe</TableHead>
-                    <TableHead>Erstellt</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Aktionen</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -576,7 +576,7 @@ export function ImageManagement() {
                       <TableCell>{iso.created}</TableCell>
                       <TableCell>
                         <Badge variant={iso.used ? "default" : "secondary"}>
-                          {iso.used ? "In Verwendung" : "Verfügbar"}
+                          {iso.used ? "In use" : "Available"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -616,19 +616,19 @@ export function ImageManagement() {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>LXC Images</CardTitle>
-                  <CardDescription>Verfügbare LXC Container Images</CardDescription>
+                  <CardDescription>Available LXC container images</CardDescription>
                 </div>
                 <Dialog open={openPullLxc} onOpenChange={setOpenPullLxc}>
                   <DialogTrigger asChild>
                     <Button onClick={() => setOpenPullLxc(true)}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Image pullen
+                      Pull Image
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>LXC Image pullen</DialogTitle>
-                      <DialogDescription>Laden Sie ein neues LXC Image herunter</DialogDescription>
+                      <DialogTitle>Pull LXC Image</DialogTitle>
+                      <DialogDescription>Download a new LXC image</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -652,16 +652,16 @@ export function ImageManagement() {
                       {isPullingLxc && (
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span>Download läuft...</span>
+                            <span>Downloading...</span>
                             <span>{Math.round(pullProgressLxc)}%</span>
                           </div>
                           <Progress value={pullProgressLxc} />
                         </div>
                       )}
                       <div className="flex justify-end space-x-2">
-                        <Button variant="outline" onClick={() => setOpenPullLxc(false)}>Abbrechen</Button>
+                        <Button variant="outline" onClick={() => setOpenPullLxc(false)}>Cancel</Button>
                         <Button onClick={handlePullLxcImage} disabled={isPullingLxc}>
-                          {isPullingLxc ? "Pulling..." : "Image pullen"}
+                          {isPullingLxc ? "Pulling..." : "Pull Image"}
                         </Button>
                       </div>
                     </div>
@@ -676,10 +676,10 @@ export function ImageManagement() {
                     <TableHead>Repository</TableHead>
                     <TableHead>Tag</TableHead>
                     <TableHead>Image ID</TableHead>
-                    <TableHead>Größe</TableHead>
-                    <TableHead>Erstellt</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead>Pulls</TableHead>
-                    <TableHead>Aktionen</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -727,19 +727,19 @@ export function ImageManagement() {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Container Images</CardTitle>
-                  <CardDescription>Verfügbare Docker Container Images</CardDescription>
+                  <CardDescription>Available Docker container images</CardDescription>
                 </div>
                 <Dialog open={openPull} onOpenChange={setOpenPull}>
                   <DialogTrigger asChild>
                     <Button onClick={() => setOpenPull(true)}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Image pullen
+                      Pull Image
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Container Image pullen</DialogTitle>
-                      <DialogDescription>Laden Sie ein neues Container Image herunter</DialogDescription>
+                      <DialogTitle>Pull Container Image</DialogTitle>
+                      <DialogDescription>Download a new container image</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -763,16 +763,16 @@ export function ImageManagement() {
                       {isPulling && (
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span>Download läuft...</span>
+                            <span>Downloading...</span>
                             <span>{Math.round(pullProgress)}%</span>
                           </div>
                           <Progress value={pullProgress} />
                         </div>
                       )}
                       <div className="flex justify-end space-x-2">
-                        <Button variant="outline" onClick={() => setOpenPull(false)}>Abbrechen</Button>
+                        <Button variant="outline" onClick={() => setOpenPull(false)}>Cancel</Button>
                         <Button onClick={handlePullImage} disabled={isPulling}>
-                          {isPulling ? "Pulling..." : "Image pullen"}
+                          {isPulling ? "Pulling..." : "Pull Image"}
                         </Button>
                       </div>
                     </div>
@@ -787,10 +787,10 @@ export function ImageManagement() {
                     <TableHead>Repository</TableHead>
                     <TableHead>Tag</TableHead>
                     <TableHead>Image ID</TableHead>
-                    <TableHead>Größe</TableHead>
-                    <TableHead>Erstellt</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead>Pulls</TableHead>
-                    <TableHead>Aktionen</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

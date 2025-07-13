@@ -100,15 +100,15 @@ export function SystemOverview() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">System Übersicht</h2>
-        <p className="text-muted-foreground">Aktuelle Systemauslastung und Status</p>
+        <h2 className="text-3xl font-bold tracking-tight">System Overview</h2>
+        <p className="text-muted-foreground">Current system load and status</p>
       </div>
 
       {/* System Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">CPU Auslastung</CardTitle>
+            <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
             <Cpu className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -119,14 +119,14 @@ export function SystemOverview() {
               indicatorClassName={getUsageColor(systemStats.cpu.usage)}
             />
             <p className="text-xs text-muted-foreground mt-2">
-              {systemStats.cpu.cores} Kerne • {systemStats.cpu.model}
+              {systemStats.cpu.cores} cores • {systemStats.cpu.model}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">RAM Auslastung</CardTitle>
+            <CardTitle className="text-sm font-medium">RAM Usage</CardTitle>
             <MemoryStick className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -144,7 +144,7 @@ export function SystemOverview() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Festplatte</CardTitle>
+            <CardTitle className="text-sm font-medium">Disk Usage</CardTitle>
             <HardDrive className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -162,13 +162,13 @@ export function SystemOverview() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Netzwerk</CardTitle>
+            <CardTitle className="text-sm font-medium">Network</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">↓{systemStats.network.in}MB/s</div>
             <div className="text-sm text-muted-foreground">↑{systemStats.network.out}MB/s</div>
-            <p className="text-xs text-muted-foreground mt-2">Aktuelle Übertragung</p>
+            <p className="text-xs text-muted-foreground mt-2">Current throughput</p>
           </CardContent>
         </Card>
       </div>
@@ -206,7 +206,7 @@ export function SystemOverview() {
         <Card>
           <CardHeader>
             <CardTitle>Services Status</CardTitle>
-            <CardDescription>Aktuelle Service-Status</CardDescription>
+            <CardDescription>Current service status</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -214,7 +214,7 @@ export function SystemOverview() {
                 <div key={service.name} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Badge variant={service.status === "running" ? "default" : "destructive"}>
-                      {service.status === "running" ? "Läuft" : service.status === "not found" ? "Not found" : "Gestoppt"}
+                      {service.status === "running" ? "Running" : service.status === "not found" ? "Not found" : "Stopped"}
                     </Badge>
                     <span className="text-sm font-medium">{service.name}</span>
                   </div>
@@ -229,18 +229,18 @@ export function SystemOverview() {
       {/* Drives Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Festplatten</CardTitle>
-          <CardDescription>Vorhandene Laufwerke</CardDescription>
+          <CardTitle>Disks</CardTitle>
+          <CardDescription>Available drives</CardDescription>
         </CardHeader>
         <CardContent className="pl-6 pr-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Gerät</TableHead>
-                <TableHead>Typ</TableHead>
-                <TableHead>Größe</TableHead>
-                <TableHead>Belegt</TableHead>
-                <TableHead>Verfügbar</TableHead>
+                <TableHead>Device</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Used</TableHead>
+                <TableHead>Available</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

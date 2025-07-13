@@ -87,14 +87,14 @@ export function NetworkManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Netzwerk Management</h2>
-        <p className="text-muted-foreground">Netzwerkschnittstellen verwalten</p>
+        <h2 className="text-3xl font-bold tracking-tight">Network Management</h2>
+        <p className="text-muted-foreground">Manage network interfaces</p>
       </div>
 
       <Tabs defaultValue="interfaces" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="interfaces">Netzwerkschnittstellen</TabsTrigger>
-          <TabsTrigger value="configuration">Konfiguration</TabsTrigger>
+          <TabsTrigger value="interfaces">Network Interfaces</TabsTrigger>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="interfaces" className="space-y-4">
@@ -108,7 +108,7 @@ export function NetworkManagement() {
                         {iface.type === "WiFi" ? <Wifi className="h-5 w-5" /> : <Network className="h-5 w-5" />}
                         {iface.name}
                         <Badge variant={getStatusColor(iface.status)}>
-                          {iface.status === "up" ? "Aktiv" : "Inaktiv"}
+                          {iface.status === "up" ? "Active" : "Inactive"}
                         </Badge>
                         <Badge variant="outline">{iface.type}</Badge>
                       </CardTitle>
@@ -122,11 +122,11 @@ export function NetworkManagement() {
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">IP-Adresse:</span>
+                      <span className="text-muted-foreground">IP Address:</span>
                       <div className="font-medium">{iface.ip}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Netzmaske:</span>
+                      <span className="text-muted-foreground">Netmask:</span>
                       <div className="font-medium">{iface.netmask}</div>
                     </div>
                     <div>
@@ -134,17 +134,17 @@ export function NetworkManagement() {
                       <div className="font-medium">{iface.gateway}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Geschwindigkeit:</span>
+                      <span className="text-muted-foreground">Speed:</span>
                       <div className="font-medium">{iface.speed}</div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm mt-4">
                     <div>
-                      <span className="text-muted-foreground">Empfangen:</span>
+                      <span className="text-muted-foreground">Received:</span>
                       <div className="font-medium">{iface.rx}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Gesendet:</span>
+                      <span className="text-muted-foreground">Sent:</span>
                       <div className="font-medium">{iface.tx}</div>
                     </div>
                   </div>
@@ -158,13 +158,13 @@ export function NetworkManagement() {
         <TabsContent value="configuration" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Netzwerk Konfiguration</CardTitle>
-              <CardDescription>Globale Netzwerkeinstellungen</CardDescription>
+              <CardTitle>Network Configuration</CardTitle>
+              <CardDescription>Global network settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dns-primary">Primärer DNS</Label>
+                  <Label htmlFor="dns-primary">Primary DNS</Label>
                   <Input
                     id="dns-primary"
                     value={networkSettings.dns_primary}
@@ -174,7 +174,7 @@ export function NetworkManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dns-secondary">Sekundärer DNS</Label>
+                  <Label htmlFor="dns-secondary">Secondary DNS</Label>
                   <Input
                     id="dns-secondary"
                     value={networkSettings.dns_secondary}
@@ -193,13 +193,13 @@ export function NetworkManagement() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(networkSettings),
                       })
-                      if (res.ok) setMessage("Gespeichert")
+                      if (res.ok) setMessage("Saved")
                     } catch (e) {
                       console.error(e)
                     }
                   }}
                 >
-                  Konfiguration speichern
+                  Save configuration
                 </Button>
               </div>
             </CardContent>
