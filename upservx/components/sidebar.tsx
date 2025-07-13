@@ -2,7 +2,18 @@
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Server, Container, Settings, BarChart3, HardDrive, Network, Shield, Users, Disc } from "lucide-react"
+import {
+  Server,
+  Container,
+  Settings,
+  BarChart3,
+  HardDrive,
+  Network,
+  Shield,
+  Users,
+  Disc,
+} from "lucide-react"
+import { useEffect, useState } from "react"
 
 interface SidebarProps {
   activeSection: string
@@ -10,6 +21,23 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+  const [hostname, setHostname] = useState("")
+
+  useEffect(() => {
+    const loadHostname = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/settings")
+        if (res.ok) {
+          const data = await res.json()
+          setHostname(data.hostname)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadHostname()
+  }, [])
+
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "vms", label: "Virtual Machines", icon: Server },
@@ -25,7 +53,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   return (
     <div className="w-64 bg-card border-r border-border flex flex-col">
       <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-bold">Server Manager</h1>
+        <h1 className="text-xl font-bold">UpServX</h1>
+        <p className="text-sm text-muted-foreground">{hostname}</p>
       </div>
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => {
