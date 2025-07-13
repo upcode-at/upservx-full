@@ -577,7 +577,7 @@ export function Containers() {
                   <CardDescription>{container.image}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-3 pt-0 flex-grow">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">CPU</span>
                       <div className="font-medium">{container.cpu}</div>
@@ -681,13 +681,13 @@ export function Containers() {
                       <TableCell>
                         <Badge variant="outline">{container.type}</Badge>
                       </TableCell>
-                      <TableCell className="text-xs">{container.image}</TableCell>
+                      <TableCell className="text-sm">{container.image}</TableCell>
                       <TableCell>{container.cpu}</TableCell>
                       <TableCell>{container.memory}</TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="text-sm">
                         {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
                       </TableCell>
-                      <TableCell className="text-xs">{container.created}</TableCell>
+                      <TableCell className="text-sm">{container.created}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           {container.status === "running" && (
