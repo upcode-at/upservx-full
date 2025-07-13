@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
+import { apiUrl } from "@/lib/api"
 
 export function ImageManagement() {
   const [isoFiles, setIsoFiles] = useState<
@@ -61,7 +62,7 @@ export function ImageManagement() {
   useEffect(() => {
     const loadIsos = async () => {
       try {
-        const res = await fetch("http://localhost:8000/isos")
+        const res = await fetch(apiUrl("/isos"))
         if (res.ok) {
           const data = await res.json()
           setIsoFiles(data.isos || [])
@@ -76,7 +77,7 @@ export function ImageManagement() {
   useEffect(() => {
     const loadImages = async () => {
       try {
-        const res = await fetch("http://localhost:8000/images?type=docker&full=1")
+        const res = await fetch(apiUrl("/images?type=docker&full=1"))
         if (res.ok) {
           const data = await res.json()
           setContainerImages(data.images || [])
@@ -91,7 +92,7 @@ export function ImageManagement() {
   useEffect(() => {
     const loadLxcImages = async () => {
       try {
-        const res = await fetch("http://localhost:8000/images?type=lxc&full=1")
+        const res = await fetch(apiUrl("/images?type=lxc&full=1"))
         if (res.ok) {
           const data = await res.json()
           setLxcImages(data.images || [])
@@ -151,7 +152,7 @@ export function ImageManagement() {
     data.append("file", isoFile)
 
     const xhr = new XMLHttpRequest()
-    xhr.open("POST", "http://localhost:8000/isos")
+    xhr.open("POST", apiUrl("/isos"))
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         setUploadedBytes(e.loaded)
@@ -202,7 +203,7 @@ export function ImageManagement() {
     }, 200)
 
     try {
-      const res = await fetch("http://localhost:8000/isos/download", {
+      const res = await fetch(apiUrl("/isos/download"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: isoUrl, name: isoDownloadName || null }),
@@ -235,7 +236,7 @@ export function ImageManagement() {
 
   const handleDeleteIso = async (name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/isos/${name}`, { method: "DELETE" })
+      const res = await fetch(apiUrl(`/isos/${name}`), { method: "DELETE" })
       if (res.ok) {
         setIsoFiles((prev) => prev.filter((i) => i.name !== name))
       }
@@ -250,7 +251,7 @@ export function ImageManagement() {
   ) => {
     try {
       const res = await fetch(
-        `http://localhost:8000/images/${id}?type=docker`,
+        apiUrl(`/images/${id}?type=docker`),
         { method: "DELETE" },
       )
       if (res.ok) {
@@ -284,13 +285,13 @@ export function ImageManagement() {
     }, 200)
 
     try {
-      const res = await fetch("http://localhost:8000/images/pull", {
+      const res = await fetch(apiUrl("/images/pull"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: imageName, registry: registry || null }),
       })
       if (res.ok) {
-        const list = await fetch("http://localhost:8000/images?type=docker&full=1")
+        const list = await fetch(apiUrl("/images?type=docker&full=1"))
         if (list.ok) {
           const data = await list.json()
           setContainerImages(data.images || [])
@@ -320,7 +321,7 @@ export function ImageManagement() {
 
   const handleDeleteLxcImage = async (id: string, name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/images/${id}?type=lxc`, {
+      const res = await fetch(apiUrl(`/images/${id}?type=lxc`), {
         method: "DELETE",
       })
       if (res.ok) {
@@ -354,7 +355,7 @@ export function ImageManagement() {
     }, 200)
 
     try {
-      const res = await fetch("http://localhost:8000/images/pull", {
+      const res = await fetch(apiUrl("/images/pull"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -364,7 +365,7 @@ export function ImageManagement() {
         }),
       })
       if (res.ok) {
-        const list = await fetch("http://localhost:8000/images?type=lxc&full=1")
+        const list = await fetch(apiUrl("/images?type=lxc&full=1"))
         if (list.ok) {
           const data = await list.json()
           setLxcImages(data.images || [])
@@ -587,7 +588,7 @@ export function ImageManagement() {
                             className="h-8 w-8 bg-transparent"
                             asChild
                           >
-                            <a href={`http://localhost:8000/isos/${iso.name}/file`}>
+                            <a href={apiUrl(`/isos/${iso.name}/file`)}>
                               <Download className="h-3 w-3" />
                             </a>
                           </Button>

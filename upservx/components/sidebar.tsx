@@ -14,6 +14,7 @@ import {
   Disc,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { apiUrl } from "@/lib/api"
 
 interface SidebarProps {
   activeSection: string
@@ -26,7 +27,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   useEffect(() => {
     const loadHostname = async () => {
       try {
-        const res = await fetch("http://localhost:8000/settings")
+        const res = await fetch(apiUrl("/settings"))
         if (res.ok) {
           const data = await res.json()
           setHostname(data.hostname)

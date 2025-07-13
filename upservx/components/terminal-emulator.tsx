@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { X } from "lucide-react"
+import { wsUrl } from "@/lib/api"
 
 interface TerminalEmulatorProps {
   containerName: string
@@ -21,7 +22,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
 
   useEffect(() => {
     setClosed(false)
-    const ws = new WebSocket(`ws://localhost:8000/containers/${containerName}/terminal`)
+    const ws = new WebSocket(wsUrl(`/containers/${containerName}/terminal`))
     wsRef.current = ws
     ws.onmessage = (ev) => {
       setHistory((prev) => [...prev, ev.data])

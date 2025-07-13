@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table"
 import { Cpu, HardDrive, MemoryStick, Activity } from "lucide-react"
 import { useEffect, useState } from "react"
+import { apiUrl } from "@/lib/api"
 
 export function SystemOverview() {
   const [systemStats, setSystemStats] = useState({
@@ -49,7 +50,7 @@ export function SystemOverview() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const res = await fetch("http://localhost:8000/metrics")
+        const res = await fetch(apiUrl("/metrics"))
         if (res.ok) {
           const data = await res.json()
           setSystemStats(data)
@@ -84,7 +85,7 @@ export function SystemOverview() {
   useEffect(() => {
     const loadDrives = async () => {
       try {
-        const res = await fetch("http://localhost:8000/drives")
+        const res = await fetch(apiUrl("/drives"))
         if (res.ok) {
           const data = await res.json()
           setDrives(data.drives || [])

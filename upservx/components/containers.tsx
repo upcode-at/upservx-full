@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { TerminalEmulator } from "@/components/terminal-emulator"
+import { apiUrl } from "@/lib/api"
 
 export function Containers() {
   interface ContainerData {
@@ -78,7 +79,7 @@ export function Containers() {
 
   const loadMetrics = async () => {
     try {
-      const res = await fetch("http://localhost:8000/metrics")
+      const res = await fetch(apiUrl("/metrics"))
       if (res.ok) {
         const data = await res.json()
         if (data.cpu?.cores) setMaxCpu(data.cpu.cores)
@@ -98,7 +99,7 @@ export function Containers() {
     }
     const loadImages = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/images?type=${type}`)
+        const res = await fetch(apiUrl(`/images?type=${type}`))
         if (res.ok) {
           const data = await res.json()
           setImages(data.images || [])
@@ -143,7 +144,7 @@ export function Containers() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("http://localhost:8000/containers")
+        const res = await fetch(apiUrl("/containers"))
         if (res.ok) {
           const data = await res.json()
           setContainers(data)
@@ -179,7 +180,7 @@ export function Containers() {
     }
     const creating = name
     try {
-      const res = await fetch("http://localhost:8000/containers", {
+      const res = await fetch(apiUrl("/containers"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -187,7 +188,7 @@ export function Containers() {
       if (res.ok) {
         const c = await res.json()
         if (c.detail) {
-          const listRes = await fetch("http://localhost:8000/containers")
+          const listRes = await fetch(apiUrl("/containers"))
           if (listRes.ok) {
             const data = await listRes.json()
             setContainers(data)
@@ -205,7 +206,7 @@ export function Containers() {
 
   const handleStart = async (name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/containers/${name}/start`, {
+      const res = await fetch(apiUrl(`/containers/${name}/start`), {
         method: "POST",
       })
       if (res.ok) {
@@ -231,7 +232,7 @@ export function Containers() {
 
   const handleStop = async (name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/containers/${name}/stop`, {
+      const res = await fetch(apiUrl(`/containers/${name}/stop`), {
         method: "POST",
       })
       if (res.ok) {
@@ -257,7 +258,7 @@ export function Containers() {
 
   const handleDelete = async (name: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/containers/${name}`, {
+      const res = await fetch(apiUrl(`/containers/${name}`), {
         method: "DELETE",
       })
       if (res.ok) {
