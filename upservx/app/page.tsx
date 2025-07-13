@@ -1,5 +1,10 @@
 import { Dashboard } from "@/components/dashboard"
+import ProtectedPage from "@/components/protected-page"
 
 export default function Home() {
-  return <Dashboard />
+  return (
+    <ProtectedPage>
+      <Dashboard />
+    </ProtectedPage>
+  )
 }
