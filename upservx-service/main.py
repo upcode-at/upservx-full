@@ -367,14 +367,39 @@ def get_cpu_model() -> str:
 
 
 def get_gpu_model() -> str:
+    """Return the GPU model if available.
+
+    The function first attempts to query NVIDIA GPUs using ``nvidia-smi``.  If no
+    NVIDIA GPU is present or the command fails, it falls back to parsing the
+    output of ``lshw -C display`` which works for a broader range of hardware
+    including Intel and AMD GPUs.
+    """
+
+    # Try NVIDIA GPUs via nvidia-smi
     try:
         output = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
             stderr=subprocess.DEVNULL,
         ).decode().strip()
-        return output.splitlines()[0] if output else "none"
+        if output:
+            return output.splitlines()[0]
     except Exception:
-        return "none"
+        pass
+
+    # Fall back to lshw which lists all display adapters
+    try:
+        output = subprocess.check_output(
+            ["lshw", "-C", "display"],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+        for line in output.splitlines():
+            line = line.strip()
+            if line.lower().startswith("product:"):
+                return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+
+    return "none"
 
 
 def get_service_status(service: str) -> str:
