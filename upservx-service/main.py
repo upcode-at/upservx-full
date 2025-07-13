@@ -326,6 +326,10 @@ class GroupUpdateModel(BaseModel):
     members: List[str] | None = None
 
 
+class SSHKeyListModel(BaseModel):
+    keys: List[str] = []
+
+
 # Containers that are created via the API are stored here in-memory. Containers
 # discovered from Docker, LXC or Kubernetes are queried on demand and not stored
 # in this list.
@@ -1436,6 +1440,54 @@ def api_delete_user(username: str):
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
     return {"detail": "deleted"}
+
+
+def _authorized_keys_path(username: str) -> str:
+    info = pwd.getpwnam(username)
+    return os.path.join(info.pw_dir, ".ssh", "authorized_keys")
+
+
+def read_authorized_keys(username: str) -> List[str]:
+    path = _authorized_keys_path(username)
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                return [line.strip() for line in f if line.strip()]
+        except Exception:
+            return []
+    return []
+
+
+def write_authorized_keys(username: str, keys: List[str]) -> None:
+    info = pwd.getpwnam(username)
+    ssh_dir = os.path.join(info.pw_dir, ".ssh")
+    os.makedirs(ssh_dir, exist_ok=True)
+    path = os.path.join(ssh_dir, "authorized_keys")
+    with open(path, "w") as f:
+        for key in keys:
+            if key.strip():
+                f.write(key.strip() + "\n")
+    try:
+        os.chown(ssh_dir, info.pw_uid, info.pw_gid)
+        os.chmod(ssh_dir, 0o700)
+        os.chown(path, info.pw_uid, info.pw_gid)
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+
+
+@app.get("/users/{username}/keys")
+def api_get_user_keys(username: str):
+    return {"keys": read_authorized_keys(username)}
+
+
+@app.put("/users/{username}/keys")
+def api_update_user_keys(username: str, payload: SSHKeyListModel):
+    keys = [k.strip() for k in payload.keys if k.strip()]
+    if len(keys) > 3:
+        raise HTTPException(status_code=400, detail="maximum 3 keys allowed")
+    write_authorized_keys(username, keys)
+    return {"detail": "saved"}
 
 
 @app.get("/groups")

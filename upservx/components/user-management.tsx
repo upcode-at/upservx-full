@@ -57,6 +57,8 @@ export function UserManagement() {
   const [newGroupMembers, setNewGroupMembers] = useState<string[]>([])
   const [editUser, setEditUser] = useState<SysUser | null>(null)
   const [editGroup, setEditGroup] = useState<SysGroup | null>(null)
+  const [keyUser, setKeyUser] = useState<SysUser | null>(null)
+  const [userKeys, setUserKeys] = useState<string[]>([])
   const [createUserOpen, setCreateUserOpen] = useState(false)
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -116,6 +118,21 @@ export function UserManagement() {
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const loadUserKeys = async (user: SysUser) => {
+    try {
+      const res = await fetch(`http://localhost:8000/users/${user.username}/keys`)
+      if (res.ok) {
+        const data = await res.json()
+        setUserKeys(data.keys || [])
+      } else {
+        setUserKeys([])
+      }
+    } catch (e) {
+      console.error(e)
+      setUserKeys([])
     }
   }
 
@@ -204,6 +221,33 @@ export function UserManagement() {
         loadAllUsers()
       } else {
         let msg = "Fehler beim Erstellen"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handleSaveKeys = async () => {
+    if (!keyUser) return
+    try {
+      const res = await fetch(`http://localhost:8000/users/${keyUser.username}/keys`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: userKeys.filter((k) => k.trim() !== "") }),
+      })
+      if (res.ok) {
+        setMessage("SSH Keys gespeichert")
+        setKeyUser(null)
+      } else {
+        let msg = "Fehler beim Speichern"
         try {
           const data = await res.json()
           msg = data.detail || msg
@@ -414,6 +458,52 @@ export function UserManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!keyUser} onOpenChange={(o) => !o && setKeyUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>SSH Keys verwalten</DialogTitle>
+          </DialogHeader>
+          {keyUser && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {userKeys.map((k, idx) => (
+                  <div key={idx} className="flex space-x-2 items-start">
+                    <textarea
+                      className="border rounded-md p-2 flex-1 bg-transparent text-sm"
+                      rows={2}
+                      value={k}
+                      onChange={(e) => {
+                        const arr = [...userKeys]
+                        arr[idx] = e.target.value
+                        setUserKeys(arr)
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setUserKeys(userKeys.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                {userKeys.length < 3 && (
+                  <Button variant="outline" size="sm" onClick={() => setUserKeys([...userKeys, ""]) }>
+                    Key hinzufügen
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setKeyUser(null)}>
+                  Abbrechen
+                </Button>
+                <Button onClick={handleSaveKeys}>Speichern</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
 
       <Tabs defaultValue="users" className="w-full">
@@ -472,7 +562,15 @@ export function UserManagement() {
                           >
                             <Settings className="h-3 w-3" />
                           </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            onClick={() => {
+                              setKeyUser(user)
+                              loadUserKeys(user)
+                            }}
+                          >
                             <Key className="h-3 w-3" />
                           </Button>
                         </div>
