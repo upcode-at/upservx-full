@@ -6,7 +6,6 @@ import { Header } from "@/components/header"
 import { SystemOverview } from "@/components/system-overview"
 import { VirtualMachines } from "@/components/virtual-machines"
 import { Containers } from "@/components/containers"
-import { Services } from "@/components/services"
 import { Settings } from "@/components/settings"
 import { NetworkManagement } from "@/components/network-management"
 import { StorageManagement } from "@/components/storage-management"
@@ -25,8 +24,6 @@ export function Dashboard() {
         return <VirtualMachines />
       case "containers":
         return <Containers />
-      case "services":
-        return <Services />
       case "network":
         return <NetworkManagement />
       case "storage":

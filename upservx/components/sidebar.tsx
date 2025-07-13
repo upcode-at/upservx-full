@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Server, Container, Box, Settings, BarChart3, HardDrive, Network, Shield, Users, Disc } from "lucide-react"
+import { Server, Container, Settings, BarChart3, HardDrive, Network, Shield, Users, Disc } from "lucide-react"
 
 interface SidebarProps {
   activeSection: string
@@ -14,7 +14,6 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "vms", label: "Virtual Machines", icon: Server },
     { id: "containers", label: "Container", icon: Container },
-    { id: "services", label: "Services", icon: Box },
     { id: "images", label: "Images & ISOs", icon: Disc },
     { id: "network", label: "Netzwerk", icon: Network },
     { id: "storage", label: "Speicher", icon: HardDrive },
