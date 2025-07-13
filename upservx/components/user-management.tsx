@@ -57,6 +57,10 @@ export function UserManagement() {
   const [newGroupMembers, setNewGroupMembers] = useState<string[]>([])
   const [editUser, setEditUser] = useState<SysUser | null>(null)
   const [editGroup, setEditGroup] = useState<SysGroup | null>(null)
+  const [createUserOpen, setCreateUserOpen] = useState(false)
+  const [createGroupOpen, setCreateGroupOpen] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const loadUsers = async (page = userPage, size = userPageSize) => {
     try {
       const params = new URLSearchParams({
@@ -128,6 +132,15 @@ export function UserManagement() {
     loadAllUsers()
   }, [])
 
+  useEffect(() => {
+    if (!message && !error) return
+    const t = setTimeout(() => {
+      setMessage(null)
+      setError(null)
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [message, error])
+
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
@@ -147,15 +160,25 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
-        const data = await res.json()
-        console.log(data)
+        setMessage("Benutzer erstellt")
         setNewUser({ username: "", password: "", shell: "/bin/bash" })
         setNewUserGroups([])
+        setCreateUserOpen(false)
         loadUsers()
         loadAllUsers()
+      } else {
+        let msg = "Fehler beim Erstellen"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
   }
 
@@ -172,28 +195,50 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
+        setMessage("Gruppe erstellt")
         setNewGroup({ name: "" })
         setNewGroupMembers([])
+        setCreateGroupOpen(false)
         loadGroups()
         loadAllGroups()
         loadAllUsers()
+      } else {
+        let msg = "Fehler beim Erstellen"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
       }
     } catch (e) {
       console.error(e)
+      if (e instanceof Error) setError(e.message)
     }
   }
 
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Benutzer Management</h2>
           <p className="text-muted-foreground">Systembenutzer, Gruppen und Berechtigungen verwalten</p>
         </div>
-        <Dialog>
+        <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setCreateUserOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Neuen Benutzer erstellen
             </Button>
@@ -270,6 +315,7 @@ export function UserManagement() {
                   onClick={() => {
                     setNewUser({ username: "", password: "", shell: "/bin/bash" })
                     setNewUserGroups([])
+                    setCreateUserOpen(false)
                   }}
                 >
                   Abbrechen
@@ -339,14 +385,26 @@ export function UserManagement() {
                 </Button>
                 <Button
                   onClick={async () => {
-                    await fetch(`http://localhost:8000/users/${editUser.username}`, {
+                    const res = await fetch(`http://localhost:8000/users/${editUser.username}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ shell: editUser.shell, groups: editUser.groups.filter(Boolean) }),
                     })
-                    setEditUser(null)
-                    loadUsers()
-                    loadAllGroups()
+                    if (res.ok) {
+                      setMessage("Benutzer gespeichert")
+                      setEditUser(null)
+                      loadUsers()
+                      loadAllGroups()
+                    } else {
+                      let msg = "Fehler beim Speichern"
+                      try {
+                        const data = await res.json()
+                        msg = data.detail || msg
+                      } catch {
+                        msg = await res.text()
+                      }
+                      setError(msg)
+                    }
                   }}
                 >
                   Speichern
@@ -473,9 +531,9 @@ export function UserManagement() {
                 <CardTitle>Benutzergruppen</CardTitle>
                 <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
               </div>
-              <Dialog>
+              <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => setCreateGroupOpen(true)}>
                     <Plus className="h-4 w-4 mr-1" /> Gruppe erstellen
                   </Button>
                 </DialogTrigger>
@@ -531,6 +589,7 @@ export function UserManagement() {
                         onClick={() => {
                           setNewGroup({ name: "" })
                           setNewGroupMembers([])
+                          setCreateGroupOpen(false)
                         }}
                       >
                         Abbrechen
@@ -596,14 +655,26 @@ export function UserManagement() {
                         </Button>
                         <Button
                           onClick={async () => {
-                            await fetch(`http://localhost:8000/groups/${editGroup.name}`, {
+                            const res = await fetch(`http://localhost:8000/groups/${editGroup.name}`, {
                               method: "PUT",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ members: editGroup.members.filter(Boolean) }),
                             })
-                            setEditGroup(null)
-                            loadGroups()
-                            loadAllUsers()
+                            if (res.ok) {
+                              setMessage("Gruppe gespeichert")
+                              setEditGroup(null)
+                              loadGroups()
+                              loadAllUsers()
+                            } else {
+                              let msg = "Fehler beim Speichern"
+                              try {
+                                const data = await res.json()
+                                msg = data.detail || msg
+                              } catch {
+                                msg = await res.text()
+                              }
+                              setError(msg)
+                            }
                           }}
                         >
                           Speichern
