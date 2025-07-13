@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -564,63 +564,19 @@ export function Containers() {
       {view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {filteredContainers.map((container) => (
-            <Card key={container.id} className="rounded-lg aspect-[4/3]">
+            <Card key={container.id} className="rounded-lg aspect-[4/3] flex flex-col">
                 <CardHeader className="p-3 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Container className="h-5 w-5" />
-                        {container.name}
-                        <Badge className={statusClass(container.status)}>
-                          {container.status === "running" ? "Läuft" : "Gestoppt"}
-                        </Badge>
-                        <Badge variant="outline">{container.type}</Badge>
-                      </CardTitle>
-                      <CardDescription>{container.image}</CardDescription>
-                    </div>
-                    <div className="flex space-x-2">
-                      {container.status === "running" && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setActiveTerminal(container.name)}
-                        >
-                          <Terminal className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button variant="outline" size="icon">
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                      {container.status === "running" ? (
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => handleStop(container.name)}
-                        >
-                          <Square className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            className="bg-green-600 text-white hover:bg-green-700"
-                            size="icon"
-                            onClick={() => handleStart(container.name)}
-                          >
-                            <Play className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDelete(container.name)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Container className="h-5 w-5" />
+                    {container.name}
+                    <Badge className={statusClass(container.status)}>
+                      {container.status === "running" ? "Läuft" : "Gestoppt"}
+                    </Badge>
+                    <Badge variant="outline">{container.type}</Badge>
+                  </CardTitle>
+                  <CardDescription>{container.image}</CardDescription>
                 </CardHeader>
-                <CardContent className="p-3 pt-0">
+                <CardContent className="p-3 pt-0 flex-grow">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-muted-foreground">CPU</span>
@@ -642,6 +598,48 @@ export function Containers() {
                     </div>
                   </div>
                 </CardContent>
+                <CardFooter className="p-3 pt-0 mt-auto justify-end">
+                  <div className="flex space-x-2">
+                    {container.status === "running" && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setActiveTerminal(container.name)}
+                      >
+                        <Terminal className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button variant="outline" size="icon">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                    {container.status === "running" ? (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleStop(container.name)}
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          size="icon"
+                          onClick={() => handleStart(container.name)}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDelete(container.name)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardFooter>
               </Card>
             ))}
         </div>
