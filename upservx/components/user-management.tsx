@@ -177,7 +177,7 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
-        setMessage("Benutzer erstellt")
+        setMessage("User created")
         setNewUser({ username: "", password: "", shell: "/bin/bash" })
         setNewUserGroups([])
         setCreateUserOpen(false)
@@ -212,7 +212,7 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
-        setMessage("Gruppe erstellt")
+        setMessage("Group created")
         setNewGroup({ name: "" })
         setNewGroupMembers([])
         setCreateGroupOpen(false)
@@ -244,10 +244,10 @@ export function UserManagement() {
         body: JSON.stringify({ keys: userKeys.filter((k) => k.trim() !== "") }),
       })
       if (res.ok) {
-        setMessage("SSH Keys gespeichert")
+        setMessage("SSH keys saved")
         setKeyUser(null)
       } else {
-        let msg = "Fehler beim Speichern"
+        let msg = "Error saving"
         try {
           const data = await res.json()
           msg = data.detail || msg
@@ -277,25 +277,25 @@ export function UserManagement() {
       )}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Benutzer Management</h2>
-          <p className="text-muted-foreground">Systembenutzer, Gruppen und Berechtigungen verwalten</p>
+          <h2 className="text-3xl font-bold tracking-tight">User Management</h2>
+          <p className="text-muted-foreground">Manage system users, groups and permissions</p>
         </div>
         <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setCreateUserOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Neuen Benutzer erstellen
+              Create New User
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Neuen Benutzer erstellen</DialogTitle>
-              <DialogDescription>Erstellen Sie einen neuen Systembenutzer</DialogDescription>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>Create a new system user</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Benutzername</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
                     id="username"
                     value={newUser.username}
@@ -303,7 +303,7 @@ export function UserManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Passwort</Label>
+                  <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
@@ -321,7 +321,7 @@ export function UserManagement() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Gruppen</Label>
+                <Label>Groups</Label>
                 {newUserGroups.map((g, idx) => (
                   <div key={idx} className="flex space-x-2">
                     <select
@@ -350,7 +350,7 @@ export function UserManagement() {
                   </div>
                 ))}
                 <Button variant="outline" size="sm" onClick={() => setNewUserGroups([...newUserGroups, ""]) }>
-                  Gruppe hinzufügen
+                  Add group
                 </Button>
               </div>
               <div className="flex justify-end space-x-2">
@@ -362,9 +362,9 @@ export function UserManagement() {
                     setCreateUserOpen(false)
                   }}
                 >
-                  Abbrechen
+                  Cancel
                 </Button>
-              <Button onClick={handleCreateUser}>Benutzer erstellen</Button>
+              <Button onClick={handleCreateUser}>Create User</Button>
               </div>
             </div>
         </DialogContent>
@@ -373,7 +373,7 @@ export function UserManagement() {
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Benutzer bearbeiten</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
           {editUser && (
             <div className="space-y-4">
@@ -385,7 +385,7 @@ export function UserManagement() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Gruppen</Label>
+                <Label>Groups</Label>
                 {editUser.groups.map((g, idx) => (
                   <div key={idx} className="flex space-x-2">
                     <select
@@ -420,12 +420,12 @@ export function UserManagement() {
                   size="sm"
                   onClick={() => setEditUser({ ...editUser, groups: [...editUser.groups, ""] })}
                 >
-                  Gruppe hinzufügen
+                  Add group
                 </Button>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setEditUser(null)}>
-                  Abbrechen
+                  Cancel
                 </Button>
                 <Button
                   onClick={async () => {
@@ -435,12 +435,12 @@ export function UserManagement() {
                       body: JSON.stringify({ shell: editUser.shell, groups: editUser.groups.filter(Boolean) }),
                     })
                     if (res.ok) {
-                      setMessage("Benutzer gespeichert")
+                      setMessage("User saved")
                       setEditUser(null)
                       loadUsers()
                       loadAllGroups()
                     } else {
-                      let msg = "Fehler beim Speichern"
+                      let msg = "Error saving"
                       try {
                         const data = await res.json()
                         msg = data.detail || msg
@@ -490,15 +490,15 @@ export function UserManagement() {
                 ))}
                 {userKeys.length < 3 && (
                   <Button variant="outline" size="sm" onClick={() => setUserKeys([...userKeys, ""]) }>
-                    Key hinzufügen
+                    Add key
                   </Button>
                 )}
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setKeyUser(null)}>
-                  Abbrechen
+                  Cancel
                 </Button>
-                <Button onClick={handleSaveKeys}>Speichern</Button>
+                <Button onClick={handleSaveKeys}>Save</Button>
               </div>
             </div>
           )}
@@ -587,7 +587,7 @@ export function UserManagement() {
                     disabled={userPage === 1}
                     onClick={() => setUserPage(userPage - 1)}
                   >
-                    Zurück
+                    Back
                   </Button>
                   <span className="text-sm">
                     Seite {userPage} / {Math.max(1, Math.ceil(userTotal / userPageSize))}
@@ -598,7 +598,7 @@ export function UserManagement() {
                     disabled={userPage >= Math.ceil(userTotal / userPageSize)}
                     onClick={() => setUserPage(userPage + 1)}
                   >
-                    Weiter
+                    Next
                   </Button>
                 </div>
                 <Select
@@ -626,18 +626,18 @@ export function UserManagement() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Benutzergruppen</CardTitle>
-                <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
+                <CardTitle>User Groups</CardTitle>
+                <CardDescription>System groups and their members</CardDescription>
               </div>
               <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline" onClick={() => setCreateGroupOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Gruppe erstellen
+                    <Plus className="h-4 w-4 mr-1" /> Create Group
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>Neue Gruppe erstellen</DialogTitle>
+                    <DialogTitle>Create New Group</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -649,7 +649,7 @@ export function UserManagement() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Mitglieder</Label>
+                      <Label>Members</Label>
                       {newGroupMembers.map((m, idx) => (
                         <div key={idx} className="flex space-x-2">
                           <select
@@ -678,7 +678,7 @@ export function UserManagement() {
                         </div>
                       ))}
                       <Button variant="outline" size="sm" onClick={() => setNewGroupMembers([...newGroupMembers, ""]) }>
-                        Mitglied hinzufügen
+                        Add member
                       </Button>
                     </div>
                     <div className="flex justify-end space-x-2">
@@ -690,9 +690,9 @@ export function UserManagement() {
                           setCreateGroupOpen(false)
                         }}
                       >
-                        Abbrechen
+                        Cancel
                       </Button>
-                      <Button onClick={handleCreateGroup}>Gruppe erstellen</Button>
+                      <Button onClick={handleCreateGroup}>Create Group</Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -701,12 +701,12 @@ export function UserManagement() {
               <Dialog open={!!editGroup} onOpenChange={(o) => !o && setEditGroup(null)}>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>Gruppe bearbeiten</DialogTitle>
+                    <DialogTitle>Edit Group</DialogTitle>
                   </DialogHeader>
                   {editGroup && (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>Mitglieder</Label>
+                        <Label>Members</Label>
                         {editGroup.members.map((m, idx) => (
                           <div key={idx} className="flex space-x-2">
                             <select
@@ -744,12 +744,12 @@ export function UserManagement() {
                           size="sm"
                           onClick={() => setEditGroup({ ...editGroup, members: [...editGroup.members, ""] })}
                         >
-                          Mitglied hinzufügen
+                          Add member
                         </Button>
                       </div>
                       <div className="flex justify-end space-x-2">
                         <Button variant="outline" onClick={() => setEditGroup(null)}>
-                          Abbrechen
+                          Cancel
                         </Button>
                         <Button
                           onClick={async () => {
@@ -759,12 +759,12 @@ export function UserManagement() {
                               body: JSON.stringify({ members: editGroup.members.filter(Boolean) }),
                             })
                             if (res.ok) {
-                              setMessage("Gruppe gespeichert")
+                              setMessage("Group saved")
                               setEditGroup(null)
                               loadGroups()
                               loadAllUsers()
                             } else {
-                              let msg = "Fehler beim Speichern"
+                              let msg = "Error saving"
                               try {
                                 const data = await res.json()
                                 msg = data.detail || msg
@@ -775,7 +775,7 @@ export function UserManagement() {
                             }
                           }}
                         >
-                          Speichern
+                          Save
                         </Button>
                       </div>
                     </div>
@@ -787,9 +787,9 @@ export function UserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Gruppe</TableHead>
+                    <TableHead>Group</TableHead>
                     <TableHead>GID</TableHead>
-                    <TableHead>Mitglieder</TableHead>
+                    <TableHead>Members</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -834,7 +834,7 @@ export function UserManagement() {
                     disabled={groupPage === 1}
                     onClick={() => setGroupPage(groupPage - 1)}
                   >
-                    Zurück
+                    Back
                   </Button>
                   <span className="text-sm">
                     Seite {groupPage} / {Math.max(1, Math.ceil(groupTotal / groupPageSize))}
@@ -845,7 +845,7 @@ export function UserManagement() {
                     disabled={groupPage >= Math.ceil(groupTotal / groupPageSize)}
                     onClick={() => setGroupPage(groupPage + 1)}
                   >
-                    Weiter
+                    Next
                   </Button>
                 </div>
                 <Select

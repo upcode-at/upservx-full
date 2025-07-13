@@ -76,14 +76,14 @@ export function StorageManagement() {
     setFormatFs("")
     setFormatLabel("")
     setFormatOpen(false)
-    setMessage("Formatierung abgebrochen")
+    setMessage("Formatting cancelled")
   }
 
   const cancelMount = () => {
     setActiveDrive(null)
     setMountPath("")
     setMountOpen(false)
-    setMessage("Einhängen abgebrochen")
+    setMessage("Mount cancelled")
   }
 
   const handleFormat = async () => {
@@ -99,11 +99,11 @@ export function StorageManagement() {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setMessage("Formatierung abgeschlossen")
+      setMessage("Formatting complete")
       await loadDrives()
     } catch (e) {
       console.error(e)
-      setError("Formatierung fehlgeschlagen")
+      setError("Formatting failed")
     } finally {
       setActiveDrive(null)
       setFormatFs("")
@@ -121,10 +121,10 @@ export function StorageManagement() {
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
       await loadDrives()
-      setMessage("Laufwerk eingehängt")
+      setMessage("Drive mounted")
     } catch (e) {
       console.error(e)
-      setError("Einhängen fehlgeschlagen")
+      setError("Mount failed")
     }
     setActiveDrive(null)
     setMountPath("")
@@ -163,15 +163,15 @@ export function StorageManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Speicher Management</h2>
-        <p className="text-muted-foreground">Festplatten, Volumes und Speichernutzung verwalten</p>
+        <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
+        <p className="text-muted-foreground">Manage disks, volumes and usage</p>
       </div>
 
       {/* Physical Drives */}
       <Card>
         <CardHeader>
-          <CardTitle>Physische Laufwerke</CardTitle>
-          <CardDescription>Alle eingehängten Festplatten und Speichergeräte</CardDescription>
+          <CardTitle>Physical Drives</CardTitle>
+          <CardDescription>All mounted disks and storage devices</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -186,9 +186,9 @@ export function StorageManagement() {
                     </div>
                     <Badge variant="outline">{drive.type}</Badge>
                     <Badge variant={getHealthColor(drive.health)}>
-                      {drive.health === "good" ? "Gut" : drive.health === "warning" ? "Warnung" : "Kritisch"}
+                      {drive.health === "good" ? "Good" : drive.health === "warning" ? "Warning" : "Critical"}
                     </Badge>
-                    {!drive.mounted && <Badge variant="destructive">Nicht eingehängt</Badge>}
+                    {!drive.mounted && <Badge variant="destructive">Not mounted</Badge>}
                   </div>
                   <div className="flex items-center gap-2">
                     {!drive.mounted && (
@@ -209,12 +209,12 @@ export function StorageManagement() {
                               setMountOpen(true)
                             }}
                           >
-                            Einhängen
+                            Mount
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle>Festplatte einhängen</DialogTitle>
+                            <DialogTitle>Mount Drive</DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4">
                             <div className="space-y-2">
@@ -222,8 +222,8 @@ export function StorageManagement() {
                               <Input id="mp" value={mountPath} onChange={(e) => setMountPath(e.target.value)} />
                             </div>
                             <div className="flex justify-end space-x-2">
-                              <Button variant="outline" onClick={cancelMount}>Abbrechen</Button>
-                              <Button onClick={handleMount}>Einhängen</Button>
+                              <Button variant="outline" onClick={cancelMount}>Cancel</Button>
+                              <Button onClick={handleMount}>Mount</Button>
                             </div>
                           </div>
                         </DialogContent>
@@ -248,22 +248,22 @@ export function StorageManagement() {
                           }}
                         >
                           <AlertTriangle className="h-4 w-4 mr-2" />
-                          Formatieren
+                          Format
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Laufwerk formatieren</DialogTitle>
+                          <DialogTitle>Format Drive</DialogTitle>
                           <DialogDescription>
-                            Warnung: Alle Daten auf {drive.name} ({drive.device}) werden unwiderruflich gelöscht!
+                            Warning: All data on {drive.name} ({drive.device}) will be permanently erased!
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="filesystem">Dateisystem</Label>
+                            <Label htmlFor="filesystem">Filesystem</Label>
                             <Select value={formatFs} onValueChange={setFormatFs}>
                               <SelectTrigger>
-                                <SelectValue placeholder="Dateisystem auswählen" />
+                                <SelectValue placeholder="Select filesystem" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="ext4">ext4 (Linux)</SelectItem>
@@ -278,8 +278,8 @@ export function StorageManagement() {
                             <Input id="label" value={formatLabel} onChange={(e) => setFormatLabel(e.target.value)} placeholder="z.B. Backup Drive" />
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <Button variant="outline" onClick={cancelFormat}>Abbrechen</Button>
-                            <Button variant="destructive" onClick={handleFormat}>Formatieren</Button>
+                            <Button variant="outline" onClick={cancelFormat}>Cancel</Button>
+                            <Button variant="destructive" onClick={handleFormat}>Format</Button>
                           </div>
                         </div>
                       </DialogContent>
@@ -291,38 +291,38 @@ export function StorageManagement() {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Größe:</span>
+                    <span className="text-muted-foreground">Size:</span>
                     <div className="font-medium">{drive.size} GB</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Belegt:</span>
+                    <span className="text-muted-foreground">Used:</span>
                     <div className="font-medium">{drive.used} GB</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Verfügbar:</span>
+                    <span className="text-muted-foreground">Available:</span>
                     <div className="font-medium">{drive.available} GB</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Dateisystem:</span>
+                    <span className="text-muted-foreground">Filesystem:</span>
                     <div className="font-medium">{drive.filesystem}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Temperatur:</span>
+                    <span className="text-muted-foreground">Temperature:</span>
                     <div className="font-medium">{drive.temperature}°C</div>
                   </div>
                 </div>
                 <div className="mt-4">
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Speichernutzung</span>
+                    <span>Storage usage</span>
                     <span>{getUsagePercentage(drive.used, drive.size)}%</span>
                   </div>
                   <Progress value={getUsagePercentage(drive.used, drive.size)} className="h-2" />
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
                   {drive.mounted ? (
-                    <>Eingehängt unter: {drive.mountpoint}</>
+                    <>Mounted at: {drive.mountpoint}</>
                   ) : (
-                    <>Nicht eingehängt</>
+                    <>Not mounted</>
                   )}
                 </div>
               </div>

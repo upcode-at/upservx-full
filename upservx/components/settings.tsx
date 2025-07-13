@@ -59,7 +59,7 @@ export function Settings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       })
-      if (res.ok) setMessage("Gespeichert")
+      if (res.ok) setMessage("Saved")
     } catch (e) {
       console.error(e)
     }
@@ -73,14 +73,14 @@ export function Settings() {
         </div>
       )}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Einstellungen</h2>
-        <p className="text-muted-foreground">Konfigurieren Sie Ihr Server Management System</p>
+        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+        <p className="text-muted-foreground">Configure your server management system</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>System Einstellungen</CardTitle>
-          <CardDescription>Grundlegende Konfiguration des Systems</CardDescription>
+          <CardTitle>System Settings</CardTitle>
+          <CardDescription>Basic system configuration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -93,7 +93,7 @@ export function Settings() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timezone">Zeitzone</Label>
+              <Label htmlFor="timezone">Timezone</Label>
               <Select
                 value={settings.timezone}
                 onValueChange={(v) => setSettings({ ...settings, timezone: v })}
@@ -126,7 +126,7 @@ export function Settings() {
               checked={settings.auto_updates}
               onCheckedChange={(v) => setSettings({ ...settings, auto_updates: v })}
             />
-            <Label htmlFor="auto-updates">Automatische Updates aktivieren</Label>
+            <Label htmlFor="auto-updates">Enable automatic updates</Label>
           </div>
           <div className="flex items-center space-x-2">
             <Switch
@@ -134,16 +134,16 @@ export function Settings() {
               checked={settings.monitoring}
               onCheckedChange={(v) => setSettings({ ...settings, monitoring: v })}
             />
-            <Label htmlFor="monitoring">System Monitoring aktivieren</Label>
+            <Label htmlFor="monitoring">Enable system monitoring</Label>
           </div>
         </CardContent>
       </Card>
 
       <div className="flex justify-end space-x-2">
         <Button variant="outline" onClick={loadSettings}>
-          Zurücksetzen
+          Reset
         </Button>
-        <Button onClick={handleSave}>Einstellungen speichern</Button>
+        <Button onClick={handleSave}>Save settings</Button>
       </div>
     </div>
   )

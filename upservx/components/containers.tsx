@@ -214,7 +214,7 @@ export function Containers() {
         )
         setError(null)
       } else {
-        let message = "Fehler beim Starten"
+        let message = "Error starting"
         try {
           const data = await res.json()
           message = data.detail || message
@@ -240,7 +240,7 @@ export function Containers() {
         )
         setError(null)
       } else {
-        let message = "Fehler beim Stoppen"
+        let message = "Error stopping"
         try {
           const data = await res.json()
           message = data.detail || message
@@ -263,9 +263,9 @@ export function Containers() {
       if (res.ok) {
         setContainers((prev) => prev.filter((c) => c.name !== name))
         setError(null)
-        setMessage(`Container ${name} gelöscht`)
+        setMessage(`Container ${name} deleted`)
       } else {
-        let message = "Fehler beim Löschen"
+        let message = "Error deleting"
         try {
           const data = await res.json()
           message = data.detail || message
@@ -342,19 +342,19 @@ export function Containers() {
             <DialogTrigger asChild>
               <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Neuen Container erstellen
+                Create New Container
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Neuen Container erstellen</DialogTitle>
-              <DialogDescription>Konfigurieren Sie Ihren neuen Container</DialogDescription>
+              <DialogTitle>Create New Container</DialogTitle>
+              <DialogDescription>Configure your new container</DialogDescription>
             </DialogHeader>
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="basic">Grundlagen</TabsTrigger>
-                <TabsTrigger value="resources">Ressourcen</TabsTrigger>
-                <TabsTrigger value="network">Netzwerk</TabsTrigger>
+                <TabsTrigger value="basic">Basics</TabsTrigger>
+                <TabsTrigger value="resources">Resources</TabsTrigger>
+                <TabsTrigger value="network">Network</TabsTrigger>
                 <TabsTrigger value="volumes">Volumes</TabsTrigger>
               </TabsList>
               <TabsContent value="basic" className="space-y-4">
@@ -372,7 +372,7 @@ export function Containers() {
                     <Label htmlFor="container-type">Container Typ</Label>
                     <Select value={type} onValueChange={setType}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Typ auswählen" />
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Docker">Docker</SelectItem>
@@ -386,7 +386,7 @@ export function Containers() {
                   <Label htmlFor="container-image">Image</Label>
                   <Select value={image} onValueChange={setImage}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Image auswählen" />
+                      <SelectValue placeholder="Select image" />
                     </SelectTrigger>
                     <SelectContent>
                       {images.map((img) => (
@@ -399,7 +399,7 @@ export function Containers() {
                 </div>
                 {type === "Docker" && (
                   <div className="space-y-2">
-                    <Label>Environment Variablen</Label>
+                    <Label>Environment Variables</Label>
                     {envs.map((env, idx) => (
                       <div key={idx} className="flex space-x-2">
                         <Input
@@ -412,7 +412,7 @@ export function Containers() {
                           }}
                         />
                         <Input
-                          placeholder="Wert"
+                          placeholder="VALUE"
                           value={env.value}
                           onChange={(e) => {
                             const arr = [...envs]
@@ -434,7 +434,7 @@ export function Containers() {
                       size="sm"
                       onClick={() => setEnvs([...envs, { name: "", value: "" }])}
                     >
-                      Variable hinzufügen
+                      Add variable
                     </Button>
                   </div>
                 )}
@@ -442,7 +442,7 @@ export function Containers() {
               <TabsContent value="resources" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="container-cpu">CPU Kerne: {cpu}</Label>
+                    <Label htmlFor="container-cpu">CPU Cores: {cpu}</Label>
                     <input
                       id="container-cpu"
                       type="range"
@@ -507,7 +507,7 @@ export function Containers() {
                   size="sm"
                   onClick={() => setPorts([...ports, { host: "", container: "" }])}
                 >
-                  Port hinzufügen
+                  Add port
                 </Button>
               </TabsContent>
               <TabsContent value="volumes" className="space-y-4">
@@ -521,7 +521,7 @@ export function Containers() {
                         arr[idx].host = e.target.value
                         setMounts(arr)
                       }}
-                      placeholder="Host Pfad"
+                      placeholder="Host path"
                     />
                     <Input
                       value={m.container}
@@ -530,7 +530,7 @@ export function Containers() {
                         arr[idx].container = e.target.value
                         setMounts(arr)
                       }}
-                      placeholder="Container Pfad"
+                      placeholder="Container path"
                     />
                     <Button
                       variant="outline"
@@ -546,15 +546,15 @@ export function Containers() {
                   size="sm"
                   onClick={() => setMounts([...mounts, { host: "", container: "" }])}
                 >
-                  Mount hinzufügen
+                  Add mount
                 </Button>
               </TabsContent>
             </Tabs>
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setOpen(false)}>
-                Abbrechen
+                Cancel
               </Button>
-              <Button onClick={handleCreate}>Container erstellen</Button>
+              <Button onClick={handleCreate}>Create Container</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -570,7 +570,7 @@ export function Containers() {
                     <Container className="h-5 w-5" />
                     {container.name}
                     <Badge className={statusClass(container.status)}>
-                      {container.status === "running" ? "Läuft" : "Gestoppt"}
+                      {container.status === "running" ? "Running" : "Stopped"}
                     </Badge>
                     <Badge variant="outline">{container.type}</Badge>
                   </CardTitle>
@@ -589,11 +589,11 @@ export function Containers() {
                     <div className="col-span-2">
                       <span className="text-muted-foreground">Ports</span>
                       <div className="font-medium truncate">
-                        {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
+                        {container.ports.length > 0 ? container.ports.join(", ") : "None"}
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-muted-foreground">Erstellt</span>
+                      <span className="text-muted-foreground">Created</span>
                       <div className="font-medium">{container.created}</div>
                     </div>
                   </div>
@@ -651,20 +651,20 @@ export function Containers() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Typ</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Image</TableHead>
                   <TableHead>CPU</TableHead>
                   <TableHead>Memory</TableHead>
                   <TableHead>Ports</TableHead>
-                  <TableHead>Erstellt</TableHead>
-                  <TableHead>Aktionen</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredContainers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center">
-                      Keine Container gefunden
+                      No containers found
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -675,7 +675,7 @@ export function Containers() {
                       </TableCell>
                       <TableCell>
                         <Badge className={statusClass(container.status)}>
-                          {container.status === "running" ? "Läuft" : "Gestoppt"}
+                          {container.status === "running" ? "Running" : "Stopped"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -685,7 +685,7 @@ export function Containers() {
                       <TableCell>{container.cpu}</TableCell>
                       <TableCell>{container.memory}</TableCell>
                       <TableCell className="text-sm">
-                        {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
+                        {container.ports.length > 0 ? container.ports.join(", ") : "None"}
                       </TableCell>
                       <TableCell className="text-sm">{container.created}</TableCell>
                       <TableCell>
