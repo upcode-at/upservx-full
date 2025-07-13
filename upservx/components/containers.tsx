@@ -643,7 +643,7 @@ export function Containers() {
         </div>
       ) : (
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="py-0 pl-6 pr-0">
             <Table>
               <TableHeader>
                 <TableRow>
