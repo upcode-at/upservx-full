@@ -284,6 +284,10 @@ export function Containers() {
     status === "running" ? "bg-green-600 text-white" : "bg-red-600 text-white"
 
 
+  const filteredContainers = containers.filter(
+    (c) => !filter || c.type.toLowerCase() === filter.toLowerCase()
+  )
+
   return (
     <div className="space-y-6">
       {error && (
@@ -559,10 +563,8 @@ export function Containers() {
 
       {view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {containers
-            .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
-            .map((container) => (
-              <Card key={container.id} className="aspect-square rounded-lg">
+          {filteredContainers.map((container) => (
+            <Card key={container.id} className="aspect-square rounded-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -659,9 +661,14 @@ export function Containers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {containers
-                  .filter((c) => !filter || c.type.toLowerCase() === filter.toLowerCase())
-                  .map((container) => (
+                {filteredContainers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center">
+                      Keine Container gefunden
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredContainers.map((container) => (
                     <TableRow key={container.id}>
                       <TableCell className="font-medium flex items-center gap-2">
                         <Container className="h-4 w-4" /> {container.name}
@@ -724,7 +731,7 @@ export function Containers() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )))}
               </TableBody>
             </Table>
           </CardContent>
