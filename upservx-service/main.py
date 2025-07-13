@@ -1275,6 +1275,11 @@ def update_settings(payload: SettingsModel):
             f.truncate()
     except Exception:
         pass
+    try:
+        with open("/etc/hostname", "w") as f:
+            f.write(payload.hostname + "\n")
+    except Exception:
+        pass
     return {"detail": "saved"}
 
 
