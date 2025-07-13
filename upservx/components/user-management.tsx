@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { User, Users, Plus, Settings, Key } from "lucide-react"
+import { apiUrl } from "@/lib/api"
 
 interface SysUser {
   username: string
@@ -69,7 +70,7 @@ export function UserManagement() {
         limit: size.toString(),
         offset: ((page - 1) * size).toString(),
       })
-      const res = await fetch(`http://localhost:8000/users?${params}`)
+      const res = await fetch(apiUrl(`/users?${params}`))
       if (res.ok) {
         const data = await res.json()
         setUsers(data.users || [])
@@ -86,7 +87,7 @@ export function UserManagement() {
         limit: size.toString(),
         offset: ((page - 1) * size).toString(),
       })
-      const res = await fetch(`http://localhost:8000/groups?${params}`)
+      const res = await fetch(apiUrl(`/groups?${params}`))
       if (res.ok) {
         const data = await res.json()
         setGroups(data.groups || [])
@@ -99,7 +100,7 @@ export function UserManagement() {
 
   const loadAllGroups = async () => {
     try {
-      const res = await fetch("http://localhost:8000/groups?limit=1000")
+      const res = await fetch(apiUrl("/groups?limit=1000"))
       if (res.ok) {
         const data = await res.json()
         setAllGroups(data.groups || [])
@@ -111,7 +112,7 @@ export function UserManagement() {
 
   const loadAllUsers = async () => {
     try {
-      const res = await fetch("http://localhost:8000/users?limit=1000")
+      const res = await fetch(apiUrl("/users?limit=1000"))
       if (res.ok) {
         const data = await res.json()
         setAllUsers(data.users || [])
@@ -123,7 +124,7 @@ export function UserManagement() {
 
   const loadUserKeys = async (user: SysUser) => {
     try {
-      const res = await fetch(`http://localhost:8000/users/${user.username}/keys`)
+      const res = await fetch(apiUrl(`/users/${user.username}/keys`))
       if (res.ok) {
         const data = await res.json()
         setUserKeys(data.keys || [])
@@ -166,7 +167,7 @@ export function UserManagement() {
 
   const handleCreateUser = async () => {
     try {
-      const res = await fetch("http://localhost:8000/users", {
+      const res = await fetch(apiUrl("/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -203,7 +204,7 @@ export function UserManagement() {
 
   const handleCreateGroup = async () => {
     try {
-      const res = await fetch("http://localhost:8000/groups", {
+      const res = await fetch(apiUrl("/groups"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -238,7 +239,7 @@ export function UserManagement() {
   const handleSaveKeys = async () => {
     if (!keyUser) return
     try {
-      const res = await fetch(`http://localhost:8000/users/${keyUser.username}/keys`, {
+      const res = await fetch(apiUrl(`/users/${keyUser.username}/keys`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keys: userKeys.filter((k) => k.trim() !== "") }),
@@ -429,7 +430,7 @@ export function UserManagement() {
                 </Button>
                 <Button
                   onClick={async () => {
-                    const res = await fetch(`http://localhost:8000/users/${editUser.username}`, {
+                    const res = await fetch(apiUrl(`/users/${editUser.username}`), {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ shell: editUser.shell, groups: editUser.groups.filter(Boolean) }),
@@ -753,7 +754,7 @@ export function UserManagement() {
                         </Button>
                         <Button
                           onClick={async () => {
-                            const res = await fetch(`http://localhost:8000/groups/${editGroup.name}`, {
+                            const res = await fetch(apiUrl(`/groups/${editGroup.name}`), {
                               method: "PUT",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ members: editGroup.members.filter(Boolean) }),

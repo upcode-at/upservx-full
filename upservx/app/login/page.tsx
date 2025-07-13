@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { apiUrl } from "@/lib/api"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -14,7 +15,7 @@ export default function LoginPage() {
     e.preventDefault()
     const token = btoa(`${username}:${password}`)
     try {
-      const res = await fetch("http://localhost:8000/", {
+      const res = await fetch(apiUrl("/"), {
         headers: { Authorization: `Basic ${token}` },
       })
       if (res.ok) {

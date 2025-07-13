@@ -31,12 +31,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
+import { apiUrl } from "@/lib/api"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
   const loadDrives = async () => {
     try {
-      const res = await fetch("http://localhost:8000/drives")
+      const res = await fetch(apiUrl("/drives"))
       if (res.ok) {
         const data = await res.json()
         setDrives(data.drives || [])
@@ -89,7 +90,7 @@ export function StorageManagement() {
   const handleFormat = async () => {
     if (!activeDrive) return
     try {
-      const res = await fetch("http://localhost:8000/drives/format", {
+      const res = await fetch(apiUrl("/drives/format"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -115,7 +116,7 @@ export function StorageManagement() {
   const handleMount = async () => {
     if (!activeDrive) return
     try {
-      await fetch("http://localhost:8000/drives/mount", {
+      await fetch(apiUrl("/drives/mount"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),

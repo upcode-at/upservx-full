@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Network, Wifi, Settings } from "lucide-react"
+import { apiUrl } from "@/lib/api"
 
 interface NetworkInterface {
   name: string
@@ -39,7 +40,7 @@ export function NetworkManagement() {
   useEffect(() => {
     const loadInterfaces = async () => {
       try {
-        const res = await fetch("http://localhost:8000/network/interfaces")
+        const res = await fetch(apiUrl("/network/interfaces"))
         if (res.ok) {
           const data = await res.json()
           setNetworkInterfaces(data.interfaces || [])
@@ -52,7 +53,7 @@ export function NetworkManagement() {
 
     const loadSettings = async () => {
       try {
-        const res = await fetch("http://localhost:8000/network/settings")
+        const res = await fetch(apiUrl("/network/settings"))
         if (res.ok) {
           const data = await res.json()
           setNetworkSettings(data)
@@ -188,7 +189,7 @@ export function NetworkManagement() {
                 <Button
                   onClick={async () => {
                     try {
-                      const res = await fetch("http://localhost:8000/network/settings", {
+                      const res = await fetch(apiUrl("/network/settings"), {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(networkSettings),

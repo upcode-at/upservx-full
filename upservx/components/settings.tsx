@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiUrl } from "@/lib/api"
 
 export function Settings() {
   interface SettingsData {
@@ -26,7 +27,7 @@ export function Settings() {
 
   const loadSettings = async () => {
     try {
-      const res = await fetch("http://localhost:8000/settings")
+      const res = await fetch(apiUrl("/settings"))
       if (res.ok) {
         const data = await res.json()
         setSettings({
@@ -54,7 +55,7 @@ export function Settings() {
 
   const handleSave = async () => {
     try {
-      const res = await fetch("http://localhost:8000/settings", {
+      const res = await fetch(apiUrl("/settings"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
