@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,139 +18,108 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { User, Users, Shield, Plus, Settings, Key } from "lucide-react"
+import { User, Users, Plus, Settings, Key } from "lucide-react"
+
+interface SysUser {
+  username: string
+  uid: number
+  gid: number
+  groups: string[]
+  shell: string
+  home: string
+  description?: string
+}
+
+interface SysGroup {
+  name: string
+  gid: number
+  members: string[]
+  description?: string
+}
 
 export function UserManagement() {
-  const [users] = useState([
-    {
-      username: "root",
-      uid: 0,
-      gid: 0,
-      groups: ["root"],
-      shell: "/bin/bash",
-      home: "/root",
-      status: "active",
-      lastLogin: "2024-01-15 14:30",
-      permissions: ["sudo", "admin", "docker"],
-      description: "System Administrator",
-    },
-    {
-      username: "admin",
-      uid: 1000,
-      gid: 1000,
-      groups: ["admin", "sudo", "docker"],
-      shell: "/bin/bash",
-      home: "/home/admin",
-      status: "active",
-      lastLogin: "2024-01-15 16:45",
-      permissions: ["sudo", "docker", "lxc"],
-      description: "Server Administrator",
-    },
-    {
-      username: "operator",
-      uid: 1001,
-      gid: 1001,
-      groups: ["operator", "docker"],
-      shell: "/bin/bash",
-      home: "/home/operator",
-      status: "active",
-      lastLogin: "2024-01-14 09:15",
-      permissions: ["docker"],
-      description: "System Operator",
-    },
-    {
-      username: "backup",
-      uid: 1002,
-      gid: 1002,
-      groups: ["backup"],
-      shell: "/bin/false",
-      home: "/var/backups",
-      status: "service",
-      lastLogin: "Never",
-      permissions: ["backup"],
-      description: "Backup Service Account",
-    },
-    {
-      username: "www-data",
-      uid: 33,
-      gid: 33,
-      groups: ["www-data"],
-      shell: "/usr/sbin/nologin",
-      home: "/var/www",
-      status: "service",
-      lastLogin: "Never",
-      permissions: ["web"],
-      description: "Web Server Service Account",
-    },
-  ])
-
-  const [groups] = useState([
-    {
-      name: "root",
-      gid: 0,
-      members: ["root"],
-      description: "Root group",
-      permissions: ["all"],
-    },
-    {
-      name: "admin",
-      gid: 1000,
-      members: ["admin"],
-      description: "System administrators",
-      permissions: ["sudo", "admin", "docker", "lxc"],
-    },
-    {
-      name: "sudo",
-      gid: 27,
-      members: ["admin", "root"],
-      description: "Sudo access group",
-      permissions: ["sudo"],
-    },
-    {
-      name: "docker",
-      gid: 999,
-      members: ["admin", "operator"],
-      description: "Docker access group",
-      permissions: ["docker"],
-    },
-    {
-      name: "operator",
-      gid: 1001,
-      members: ["operator"],
-      description: "System operators",
-      permissions: ["monitoring", "logs"],
-    },
-  ])
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "default"
-      case "inactive":
-        return "secondary"
-      case "service":
-        return "outline"
-      case "locked":
-        return "destructive"
-      default:
-        return "secondary"
+  const [users, setUsers] = useState<SysUser[]>([])
+  const [groups, setGroups] = useState<SysGroup[]>([])
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/users")
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users || [])
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "active":
-        return "Aktiv"
-      case "inactive":
-        return "Inaktiv"
-      case "service":
-        return "Service"
-      case "locked":
-        return "Gesperrt"
-      default:
-        return status
+  const loadGroups = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/groups")
+      if (res.ok) {
+        const data = await res.json()
+        setGroups(data.groups || [])
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
+
+  useEffect(() => {
+    loadUsers()
+    loadGroups()
+  }, [])
+
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    shell: "/bin/bash",
+    groups: "",
+  })
+
+  const handleCreateUser = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: newUser.username,
+          password: newUser.password,
+          shell: newUser.shell,
+          groups: newUser.groups.split(",").map((g) => g.trim()).filter(Boolean),
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        console.log(data)
+        setNewUser({ username: "", password: "", shell: "/bin/bash", groups: "" })
+        loadUsers()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const [newGroup, setNewGroup] = useState({ name: "", members: "" })
+
+  const handleCreateGroup = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newGroup.name,
+          members: newGroup.members.split(",").map((m) => m.trim()).filter(Boolean),
+        }),
+      })
+      if (res.ok) {
+        setNewGroup({ name: "", members: "" })
+        loadGroups()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -175,44 +144,43 @@ export function UserManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Benutzername</Label>
-                  <Input id="username" placeholder="z.B. newuser" />
+                  <Input
+                    id="username"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fullname">Vollständiger Name</Label>
-                  <Input id="fullname" placeholder="z.B. Max Mustermann" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Passwort</Label>
-                  <Input id="password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Passwort bestätigen</Label>
-                  <Input id="confirm-password" type="password" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="groups">Gruppen</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Gruppen auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="users">users</SelectItem>
-                    <SelectItem value="operator">operator</SelectItem>
-                    <SelectItem value="docker">docker</SelectItem>
-                    <SelectItem value="sudo">sudo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="shell">Shell</Label>
+                <Input
+                  id="shell"
+                  value={newUser.shell}
+                  onChange={(e) => setNewUser({ ...newUser, shell: e.target.value })}
+                />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="sudo-access" />
-                <Label htmlFor="sudo-access">Sudo-Berechtigung gewähren</Label>
+              <div className="space-y-2">
+                <Label htmlFor="groups">Gruppen (kommagetrennt)</Label>
+                <Input
+                  id="groups"
+                  value={newUser.groups}
+                  onChange={(e) => setNewUser({ ...newUser, groups: e.target.value })}
+                />
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline">Abbrechen</Button>
-                <Button>Benutzer erstellen</Button>
+                <Button variant="outline" onClick={() => setNewUser({ username: "", password: "", shell: "/bin/bash", groups: "" })}>
+                  Abbrechen
+                </Button>
+                <Button onClick={handleCreateUser}>Benutzer erstellen</Button>
               </div>
             </div>
           </DialogContent>
@@ -239,9 +207,6 @@ export function UserManagement() {
                     <TableHead>UID</TableHead>
                     <TableHead>Gruppen</TableHead>
                     <TableHead>Shell</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Letzter Login</TableHead>
-                    <TableHead>Berechtigungen</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -269,19 +234,6 @@ export function UserManagement() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{user.shell}</TableCell>
                       <TableCell>
-                        <Badge variant={getStatusColor(user.status)}>{getStatusText(user.status)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">{user.lastLogin}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {user.permissions.map((perm) => (
-                            <Badge key={perm} variant="secondary" className="text-xs">
-                              {perm}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <div className="flex gap-1">
                           <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
                             <Settings className="h-3 w-3" />
@@ -301,9 +253,47 @@ export function UserManagement() {
 
         <TabsContent value="groups" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Benutzergruppen</CardTitle>
-              <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Benutzergruppen</CardTitle>
+                <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <Plus className="h-4 w-4 mr-1" /> Gruppe erstellen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Neue Gruppe erstellen</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="group-name">Name</Label>
+                      <Input
+                        id="group-name"
+                        value={newGroup.name}
+                        onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="group-members">Mitglieder (kommagetrennt)</Label>
+                      <Input
+                        id="group-members"
+                        value={newGroup.members}
+                        onChange={(e) => setNewGroup({ ...newGroup, members: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setNewGroup({ name: "", members: "" })}>
+                        Abbrechen
+                      </Button>
+                      <Button onClick={handleCreateGroup}>Gruppe erstellen</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <Table>
@@ -312,8 +302,6 @@ export function UserManagement() {
                     <TableHead>Gruppe</TableHead>
                     <TableHead>GID</TableHead>
                     <TableHead>Mitglieder</TableHead>
-                    <TableHead>Berechtigungen</TableHead>
-                    <TableHead>Beschreibung</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -336,17 +324,6 @@ export function UserManagement() {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {group.permissions.map((perm) => (
-                            <Badge key={perm} variant="secondary" className="text-xs">
-                              <Shield className="h-3 w-3 mr-1" />
-                              {perm}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{group.description}</TableCell>
                       <TableCell>
                         <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
                           <Settings className="h-3 w-3" />
