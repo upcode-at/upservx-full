@@ -1257,6 +1257,24 @@ def get_settings():
 @app.post("/settings")
 def update_settings(payload: SettingsModel):
     save_settings(payload)
+    try:
+        with open("/etc/hosts", "r+") as f:
+            lines = f.readlines()
+            updated = False
+            for i, line in enumerate(lines):
+                if line.startswith("127.0.1.1"):
+                    parts = line.split()
+                    if len(parts) >= 1:
+                        lines[i] = f"127.0.1.1\t{payload.hostname}\n"
+                        updated = True
+                        break
+            if not updated:
+                lines.append(f"127.0.1.1\t{payload.hostname}\n")
+            f.seek(0)
+            f.writelines(lines)
+            f.truncate()
+    except Exception:
+        pass
     return {"detail": "saved"}
 
 
