@@ -562,10 +562,10 @@ export function Containers() {
       </div>
 
       {view === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {filteredContainers.map((container) => (
-            <Card key={container.id} className="aspect-square rounded-lg">
-                <CardHeader>
+            <Card key={container.id} className="rounded-lg aspect-[4/3]">
+                <CardHeader className="p-3 pb-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
@@ -620,22 +620,24 @@ export function Containers() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <CardContent className="p-3 pt-0">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-muted-foreground">CPU:</span>
-                      <div className="font-medium">{container.cpu} Kerne</div>
+                      <span className="text-muted-foreground">CPU</span>
+                      <div className="font-medium">{container.cpu}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Memory:</span>
+                      <span className="text-muted-foreground">RAM</span>
                       <div className="font-medium">{container.memory} MB</div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Ports:</span>
-                      <div className="font-medium">{container.ports.length > 0 ? container.ports.join(", ") : "Keine"}</div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Ports</span>
+                      <div className="font-medium truncate">
+                        {container.ports.length > 0 ? container.ports.join(", ") : "Keine"}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Erstellt:</span>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Erstellt</span>
                       <div className="font-medium">{container.created}</div>
                     </div>
                   </div>
