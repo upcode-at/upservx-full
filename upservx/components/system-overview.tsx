@@ -22,6 +22,7 @@ export function SystemOverview() {
     uptime: "",
     kernel: "",
     gpu: "",
+    architecture: "",
     services: [] as { name: string; status: string; port: number | null }[],
   })
 
@@ -199,7 +200,7 @@ export function SystemOverview() {
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Architektur:</span>
-              <span className="text-sm font-medium">x86_64</span>
+              <span className="text-sm font-medium">{systemStats.architecture}</span>
             </div>
           </CardContent>
         </Card>
