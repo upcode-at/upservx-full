@@ -242,6 +242,18 @@ def save_network_settings(settings: NetworkSettingsModel) -> None:
         json.dump(settings.dict(), f)
 
 
+LOGIN_SHELLS = {
+    "/bin/bash",
+    "/bin/sh",
+    "/bin/fish",
+    "/bin/zsh",
+    "/usr/bin/bash",
+    "/usr/bin/sh",
+    "/usr/bin/fish",
+    "/usr/bin/zsh",
+}
+
+
 class SystemUserModel(BaseModel):
     username: str
     uid: int
@@ -263,6 +275,8 @@ def list_system_users() -> List[SystemUserModel]:
     users: List[SystemUserModel] = []
     all_groups = grp.getgrall()
     for entry in pwd.getpwall():
+        if entry.pw_shell not in LOGIN_SHELLS:
+            continue
         groups = [g.gr_name for g in all_groups if entry.pw_name in g.gr_mem or g.gr_gid == entry.pw_gid]
         users.append(
             SystemUserModel(
