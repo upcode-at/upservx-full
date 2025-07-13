@@ -112,6 +112,7 @@ class SettingsModel(BaseModel):
     timezone: str
     auto_updates: bool
     monitoring: bool
+    ssh_port: int = 22
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
@@ -132,6 +133,21 @@ def _system_hostname() -> str:
     return platform.node() or "server"
 
 
+def _system_ssh_port() -> int:
+    """Return the SSH port from /etc/ssh/sshd_config or 22."""
+    try:
+        with open("/etc/ssh/sshd_config") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and line.lower().startswith("port"):
+                    parts = line.split()
+                    if len(parts) > 1 and parts[1].isdigit():
+                        return int(parts[1])
+    except Exception:
+        pass
+    return 22
+
+
 def load_settings() -> SettingsModel:
     data: dict[str, Any] = {}
     if os.path.exists(SETTINGS_FILE):
@@ -145,6 +161,7 @@ def load_settings() -> SettingsModel:
         timezone=data.get("timezone", "utc"),
         auto_updates=data.get("auto_updates", False),
         monitoring=data.get("monitoring", True),
+        ssh_port=data.get("ssh_port", _system_ssh_port()),
     )
 
 
@@ -745,7 +762,7 @@ def collect_metrics() -> dict:
         {"name": "Docker", "service": "docker", "port": 2376},
         {"name": "Kubernetes", "service": "k3s", "port": 6443},
         {"name": "LXC", "service": "lxd", "port": None},
-        {"name": "SSH", "service": "sshd", "port": 22},
+        {"name": "SSH", "service": "sshd", "port": _system_ssh_port()},
         {"name": "Web Interface", "service": "nginx", "port": 8080},
     ]
 
@@ -1291,6 +1308,26 @@ def update_settings(payload: SettingsModel):
         with open("/etc/hostname", "w") as f:
             f.write(payload.hostname.strip() + "\n")
         subprocess.run(["hostnamectl", "set-hostname", payload.hostname.strip()], capture_output=True)
+    except Exception:
+        pass
+    try:
+        config_path = "/etc/ssh/sshd_config"
+        lines = []
+        if os.path.exists(config_path):
+            with open(config_path) as f:
+                lines = f.readlines()
+        found = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and stripped.lower().startswith("port"):
+                lines[i] = f"Port {payload.ssh_port}\n"
+                found = True
+                break
+        if not found:
+            lines.append(f"Port {payload.ssh_port}\n")
+        with open(config_path, "w") as f:
+            f.writelines(lines)
+        subprocess.run(["systemctl", "reload", "sshd"], capture_output=True)
     except Exception:
         pass
     return {"detail": "saved"}
