@@ -32,6 +32,8 @@ pam_auth = pam.pam()
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
