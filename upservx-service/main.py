@@ -1327,7 +1327,7 @@ def update_settings(payload: SettingsModel):
             lines.append(f"Port {payload.ssh_port}\n")
         with open(config_path, "w") as f:
             f.writelines(lines)
-        subprocess.run(["systemctl", "reload", "sshd"], capture_output=True)
+        subprocess.run(["systemctl", "restart", "sshd"], capture_output=True)
     except Exception:
         pass
     return {"detail": "saved"}
