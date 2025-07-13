@@ -28,12 +28,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return
     const origFetch = window.fetch
     window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const headers =
+        init.headers instanceof Headers
+          ? new Headers(init.headers)
+          : { ...(init.headers as Record<string, string>) }
+
       if (token) {
-        init.headers = {
-          ...(init.headers || {}),
-          Authorization: `Basic ${token}`,
+        const hasAuth =
+          headers instanceof Headers
+            ? headers.has("Authorization")
+            : Object.keys(headers).some(
+                (h) => h.toLowerCase() === "authorization",
+              )
+
+        if (!hasAuth) {
+          if (headers instanceof Headers) {
+            headers.set("Authorization", `Basic ${token}`)
+          } else {
+            ;(headers as Record<string, string>)["Authorization"] = `Basic ${token}`
+          }
         }
       }
+
+      init.headers = headers
       return origFetch(input, init)
     }
     return () => {
