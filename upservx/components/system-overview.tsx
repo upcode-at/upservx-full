@@ -1,6 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Cpu, HardDrive, MemoryStick, Activity } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -15,6 +23,22 @@ export function SystemOverview() {
     gpu: "",
     services: [] as { name: string; status: string; port: number | null }[],
   })
+
+  interface Drive {
+    device: string
+    name: string
+    type: string
+    size: number
+    used: number
+    available: number
+    filesystem: string
+    mountpoint: string
+    mounted: boolean
+    health: string
+    temperature?: number | null
+  }
+
+  const [drives, setDrives] = useState<Drive[]>([])
 
   const getUsageColor = (usage: number) => {
     if (usage >= 90) return "bg-red-500"
@@ -37,6 +61,39 @@ export function SystemOverview() {
     fetchMetrics()
     const id = setInterval(fetchMetrics, 4000)
     return () => clearInterval(id)
+  }, [])
+
+  const physicalDrives = drives.reduce((acc, d) => {
+    const base = d.device.replace(/^\/dev\//, "").replace(/p?\d+$/, "")
+    const entry = acc.get(base) || {
+      device: `/dev/${base}`,
+      type: d.type,
+      size: 0,
+      used: 0,
+      available: 0,
+    }
+    entry.size += d.size
+    entry.used += d.used
+    entry.available += d.available
+    acc.set(base, entry)
+    return acc
+  }, new Map<string, { device: string; type: string; size: number; used: number; available: number }>())
+  const physicalDriveList = Array.from(physicalDrives.values())
+
+
+  useEffect(() => {
+    const loadDrives = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/drives")
+        if (res.ok) {
+          const data = await res.json()
+          setDrives(data.drives || [])
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadDrives()
   }, [])
 
 
@@ -168,6 +225,38 @@ export function SystemOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Drives Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Festplatten</CardTitle>
+          <CardDescription>Vorhandene Laufwerke</CardDescription>
+        </CardHeader>
+        <CardContent className="pl-6 pr-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Gerät</TableHead>
+                <TableHead>Typ</TableHead>
+                <TableHead>Größe</TableHead>
+                <TableHead>Belegt</TableHead>
+                <TableHead>Verfügbar</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {physicalDriveList.map((d) => (
+                <TableRow key={d.device}>
+                  <TableCell className="font-mono">{d.device}</TableCell>
+                  <TableCell>{d.type}</TableCell>
+                  <TableCell>{d.size} GB</TableCell>
+                  <TableCell>{d.used} GB</TableCell>
+                  <TableCell>{d.available} GB</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
