@@ -184,7 +184,7 @@ export function UserManagement() {
         loadUsers()
         loadAllUsers()
       } else {
-        let msg = "Fehler beim Erstellen"
+        let msg = "Error creating"
         try {
           const data = await res.json()
           msg = data.detail || msg
@@ -220,7 +220,7 @@ export function UserManagement() {
         loadAllGroups()
         loadAllUsers()
       } else {
-        let msg = "Fehler beim Erstellen"
+        let msg = "Error creating"
         try {
           const data = await res.json()
           msg = data.detail || msg
@@ -508,25 +508,25 @@ export function UserManagement() {
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="users">Benutzer</TabsTrigger>
-          <TabsTrigger value="groups">Gruppen</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="groups">Groups</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Systembenutzer</CardTitle>
-              <CardDescription>Alle Benutzerkonten auf dem System</CardDescription>
+              <CardTitle>System Users</CardTitle>
+              <CardDescription>All user accounts on the system</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Benutzer</TableHead>
+                    <TableHead>User</TableHead>
                     <TableHead>UID</TableHead>
-                    <TableHead>Gruppen</TableHead>
+                    <TableHead>Groups</TableHead>
                     <TableHead>Shell</TableHead>
-                    <TableHead>Aktionen</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -590,7 +590,7 @@ export function UserManagement() {
                     Back
                   </Button>
                   <span className="text-sm">
-                    Seite {userPage} / {Math.max(1, Math.ceil(userTotal / userPageSize))}
+                    Page {userPage} / {Math.max(1, Math.ceil(userTotal / userPageSize))}
                   </span>
                   <Button
                     size="sm"
@@ -790,7 +790,7 @@ export function UserManagement() {
                     <TableHead>Group</TableHead>
                     <TableHead>GID</TableHead>
                     <TableHead>Members</TableHead>
-                    <TableHead>Aktionen</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -837,7 +837,7 @@ export function UserManagement() {
                     Back
                   </Button>
                   <span className="text-sm">
-                    Seite {groupPage} / {Math.max(1, Math.ceil(groupTotal / groupPageSize))}
+                    Page {groupPage} / {Math.max(1, Math.ceil(groupTotal / groupPageSize))}
                   </span>
                   <Button
                     size="sm"
