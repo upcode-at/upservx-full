@@ -16,6 +16,13 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { User, Users, Plus, Settings, Key } from "lucide-react"
 
 interface SysUser {
@@ -38,24 +45,40 @@ interface SysGroup {
 export function UserManagement() {
   const [users, setUsers] = useState<SysUser[]>([])
   const [groups, setGroups] = useState<SysGroup[]>([])
-  const loadUsers = async () => {
+  const [userTotal, setUserTotal] = useState(0)
+  const [groupTotal, setGroupTotal] = useState(0)
+  const [userPageSize, setUserPageSize] = useState(10)
+  const [groupPageSize, setGroupPageSize] = useState(10)
+  const [userPage, setUserPage] = useState(1)
+  const [groupPage, setGroupPage] = useState(1)
+  const loadUsers = async (page = userPage, size = userPageSize) => {
     try {
-      const res = await fetch("http://localhost:8000/users")
+      const params = new URLSearchParams({
+        limit: size.toString(),
+        offset: ((page - 1) * size).toString(),
+      })
+      const res = await fetch(`http://localhost:8000/users?${params}`)
       if (res.ok) {
         const data = await res.json()
         setUsers(data.users || [])
+        setUserTotal(data.total || 0)
       }
     } catch (e) {
       console.error(e)
     }
   }
 
-  const loadGroups = async () => {
+  const loadGroups = async (page = groupPage, size = groupPageSize) => {
     try {
-      const res = await fetch("http://localhost:8000/groups")
+      const params = new URLSearchParams({
+        limit: size.toString(),
+        offset: ((page - 1) * size).toString(),
+      })
+      const res = await fetch(`http://localhost:8000/groups?${params}`)
       if (res.ok) {
         const data = await res.json()
         setGroups(data.groups || [])
+        setGroupTotal(data.total || 0)
       }
     } catch (e) {
       console.error(e)
@@ -64,8 +87,11 @@ export function UserManagement() {
 
   useEffect(() => {
     loadUsers()
+  }, [userPage, userPageSize])
+
+  useEffect(() => {
     loadGroups()
-  }, [])
+  }, [groupPage, groupPageSize])
 
   const [newUser, setNewUser] = useState({
     username: "",
@@ -245,6 +271,45 @@ export function UserManagement() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={userPage === 1}
+                    onClick={() => setUserPage(userPage - 1)}
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm">
+                    Seite {userPage} / {Math.max(1, Math.ceil(userTotal / userPageSize))}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={userPage >= Math.ceil(userTotal / userPageSize)}
+                    onClick={() => setUserPage(userPage + 1)}
+                  >
+                    Weiter
+                  </Button>
+                </div>
+                <Select
+                  value={String(userPageSize)}
+                  onValueChange={(v) => {
+                    setUserPageSize(Number(v))
+                    setUserPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -331,6 +396,45 @@ export function UserManagement() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={groupPage === 1}
+                    onClick={() => setGroupPage(groupPage - 1)}
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm">
+                    Seite {groupPage} / {Math.max(1, Math.ceil(groupTotal / groupPageSize))}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={groupPage >= Math.ceil(groupTotal / groupPageSize)}
+                    onClick={() => setGroupPage(groupPage + 1)}
+                  >
+                    Weiter
+                  </Button>
+                </div>
+                <Select
+                  value={String(groupPageSize)}
+                  onValueChange={(v) => {
+                    setGroupPageSize(Number(v))
+                    setGroupPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

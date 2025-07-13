@@ -1395,8 +1395,12 @@ def format_drive(req: DriveFormatRequest):
 
 
 @app.get("/users")
-def api_list_users():
-    return {"users": [u.dict() for u in list_system_users()]}
+def api_list_users(limit: int = 20, offset: int = 0):
+    """Return a paginated list of system users."""
+    all_users = list_system_users()
+    total = len(all_users)
+    paginated = all_users[offset : offset + limit]
+    return {"total": total, "users": [u.dict() for u in paginated]}
 
 
 @app.post("/users")
@@ -1435,8 +1439,12 @@ def api_delete_user(username: str):
 
 
 @app.get("/groups")
-def api_list_groups():
-    return {"groups": [g.dict() for g in list_system_groups()]}
+def api_list_groups(limit: int = 20, offset: int = 0):
+    """Return a paginated list of system groups."""
+    all_groups = list_system_groups()
+    total = len(all_groups)
+    paginated = all_groups[offset : offset + limit]
+    return {"total": total, "groups": [g.dict() for g in paginated]}
 
 
 @app.post("/groups")
