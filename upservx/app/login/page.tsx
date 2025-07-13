@@ -32,11 +32,14 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <form onSubmit={handleSubmit} className="space-y-4 p-6 border rounded">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 p-6 border rounded-xl"
+      >
         <div>
           <label className="block mb-1">Benutzername</label>
           <input
-            className="border p-2 w-64"
+            className="border p-2 w-64 rounded-md"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
@@ -45,7 +48,7 @@ export default function LoginPage() {
           <label className="block mb-1">Passwort</label>
           <input
             type="password"
-            className="border p-2 w-64"
+            className="border p-2 w-64 rounded-md"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
