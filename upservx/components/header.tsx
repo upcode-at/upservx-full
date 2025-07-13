@@ -28,7 +28,7 @@ export function Header() {
       <div className="flex items-center space-x-4">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Suchen..." className="pl-8 w-64" />
+          <Input placeholder="Search..." className="pl-8 w-64" />
         </div>
       </div>
       <div className="flex items-center space-x-4">

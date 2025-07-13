@@ -22,11 +22,11 @@ export default function LoginPage() {
         router.push("/")
       } else {
         setToken(null)
-        setError("Login fehlgeschlagen")
+        setError("Login failed")
       }
     } catch {
       setToken(null)
-      setError("Login fehlgeschlagen")
+      setError("Login failed")
     }
   }
 
@@ -37,7 +37,7 @@ export default function LoginPage() {
         className="space-y-4 p-6 border rounded-xl"
       >
         <div>
-          <label className="block mb-1">Benutzername</label>
+          <label className="block mb-1">Username</label>
           <input
             className="border p-2 w-64 rounded-md"
             value={username}
@@ -45,7 +45,7 @@ export default function LoginPage() {
           />
         </div>
         <div>
-          <label className="block mb-1">Passwort</label>
+          <label className="block mb-1">Password</label>
           <input
             type="password"
             className="border p-2 w-64 rounded-md"

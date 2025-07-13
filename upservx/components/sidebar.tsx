@@ -43,11 +43,11 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     { id: "vms", label: "Virtual Machines", icon: Server },
     { id: "containers", label: "Container", icon: Container },
     { id: "images", label: "Images & ISOs", icon: Disc },
-    { id: "network", label: "Netzwerk", icon: Network },
-    { id: "storage", label: "Speicher", icon: HardDrive },
-    { id: "users", label: "Benutzer", icon: Users },
+    { id: "network", label: "Network", icon: Network },
+    { id: "storage", label: "Storage", icon: HardDrive },
+    { id: "users", label: "Users", icon: Users },
     { id: "backup", label: "Backup", icon: Shield },
-    { id: "settings", label: "Einstellungen", icon: Settings },
+    { id: "settings", label: "Settings", icon: Settings },
   ]
 
   return (
