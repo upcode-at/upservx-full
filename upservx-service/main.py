@@ -1,6 +1,8 @@
-from fastapi import FastAPI, HTTPException, WebSocket, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, WebSocket, UploadFile, File, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+import base64
+import pam
 from pydantic import BaseModel
 import psutil
 import platform
@@ -25,6 +27,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+pam_auth = pam.pam()
+
+
+@app.middleware("http")
+async def pam_auth_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+    try:
+        scheme, credentials = auth_header.split(" ", 1)
+        if scheme.lower() != "basic":
+            raise ValueError
+        decoded = base64.b64decode(credentials).decode()
+        username, password = decoded.split(":", 1)
+    except Exception:
+        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+    if not pam_auth.authenticate(username, password):
+        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+    request.state.user = username
+    response = await call_next(request)
+    return response
+
+
+@app.get("/")
+def read_root():
+    return {"detail": "ok"}
 
 
 class Container(BaseModel):

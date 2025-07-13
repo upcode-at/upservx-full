@@ -13,3 +13,4 @@ pytest-asyncio
 psutil
 uvicorn[standard]
 python-multipart
+python-pam
