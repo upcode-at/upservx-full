@@ -12,6 +12,7 @@ export function Settings() {
     timezone: string
     auto_updates: boolean
     monitoring: boolean
+    ssh_port: number
   }
 
   const [settings, setSettings] = useState<SettingsData>({
@@ -19,6 +20,7 @@ export function Settings() {
     timezone: "utc",
     auto_updates: false,
     monitoring: false,
+    ssh_port: 22,
   })
   const [message, setMessage] = useState<string | null>(null)
 
@@ -27,7 +29,13 @@ export function Settings() {
       const res = await fetch("http://localhost:8000/settings")
       if (res.ok) {
         const data = await res.json()
-        setSettings(data)
+        setSettings({
+          hostname: data.hostname,
+          timezone: data.timezone,
+          auto_updates: data.auto_updates,
+          monitoring: data.monitoring,
+          ssh_port: data.ssh_port,
+        })
       }
     } catch (e) {
       console.error(e)
@@ -75,7 +83,7 @@ export function Settings() {
           <CardDescription>Grundlegende Konfiguration des Systems</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="hostname">Hostname</Label>
               <Input
@@ -99,6 +107,17 @@ export function Settings() {
                   <SelectItem value="america/new_york">America/New_York</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ssh-port">SSH Port</Label>
+              <Input
+                id="ssh-port"
+                type="number"
+                value={settings.ssh_port}
+                onChange={(e) =>
+                  setSettings({ ...settings, ssh_port: parseInt(e.target.value || "0") })
+                }
+              />
             </div>
           </div>
           <div className="flex items-center space-x-2">
