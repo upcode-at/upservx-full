@@ -2,11 +2,26 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Bell, Search, User, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/components/auth-provider"
+import { useRouter } from "next/navigation"
 
 export function Header() {
   const { setTheme, theme } = useTheme()
+  const { setToken } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    setToken(null)
+    router.push("/login")
+  }
 
   return (
     <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
@@ -25,9 +40,16 @@ export function Header() {
         <Button variant="ghost" size="icon">
           <Bell className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon">
-          <User className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <User className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )
