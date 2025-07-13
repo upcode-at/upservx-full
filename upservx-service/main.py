@@ -12,7 +12,7 @@ import shutil
 import urllib.request
 import urllib.parse
 from datetime import datetime
-from typing import List
+from typing import List, Any
 import asyncio
 import socket
 
@@ -120,19 +120,31 @@ ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
 os.makedirs(ISO_DIR, exist_ok=True)
 
 
+def _system_hostname() -> str:
+    """Return the system hostname from /etc/hostname or platform.node()."""
+    try:
+        with open("/etc/hostname") as f:
+            hostname = f.read().strip()
+            if hostname:
+                return hostname
+    except Exception:
+        pass
+    return platform.node() or "server"
+
+
 def load_settings() -> SettingsModel:
+    data: dict[str, Any] = {}
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE) as f:
                 data = json.load(f)
-                return SettingsModel(**data)
         except Exception:
-            pass
+            data = {}
     return SettingsModel(
-        hostname=platform.node() or "server",
-        timezone="utc",
-        auto_updates=False,
-        monitoring=True,
+        hostname=_system_hostname(),
+        timezone=data.get("timezone", "utc"),
+        auto_updates=data.get("auto_updates", False),
+        monitoring=data.get("monitoring", True),
     )
 
 
@@ -1277,7 +1289,8 @@ def update_settings(payload: SettingsModel):
         pass
     try:
         with open("/etc/hostname", "w") as f:
-            f.write(payload.hostname + "\n")
+            f.write(payload.hostname.strip() + "\n")
+        subprocess.run(["hostnamectl", "set-hostname", payload.hostname.strip()], capture_output=True)
     except Exception:
         pass
     return {"detail": "saved"}
