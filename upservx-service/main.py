@@ -15,6 +15,8 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 from typing import List, Any
+import pwd
+import grp
 import asyncio
 import socket
 
@@ -238,6 +240,94 @@ def load_network_settings() -> NetworkSettingsModel:
 def save_network_settings(settings: NetworkSettingsModel) -> None:
     with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
+
+
+LOGIN_SHELLS = {
+    "/bin/bash",
+    "/bin/sh",
+    "/bin/fish",
+    "/bin/zsh",
+    "/usr/bin/bash",
+    "/usr/bin/sh",
+    "/usr/bin/fish",
+    "/usr/bin/zsh",
+}
+
+
+class SystemUserModel(BaseModel):
+    username: str
+    uid: int
+    gid: int
+    groups: List[str]
+    shell: str
+    home: str
+    description: str | None = ""
+
+
+class SystemGroupModel(BaseModel):
+    name: str
+    gid: int
+    members: List[str]
+    description: str | None = ""
+
+
+def list_system_users() -> List[SystemUserModel]:
+    users: List[SystemUserModel] = []
+    all_groups = grp.getgrall()
+    for entry in pwd.getpwall():
+        if entry.pw_shell not in LOGIN_SHELLS:
+            continue
+        groups = [g.gr_name for g in all_groups if entry.pw_name in g.gr_mem or g.gr_gid == entry.pw_gid]
+        users.append(
+            SystemUserModel(
+                username=entry.pw_name,
+                uid=entry.pw_uid,
+                gid=entry.pw_gid,
+                groups=groups,
+                shell=entry.pw_shell,
+                home=entry.pw_dir,
+                description=entry.pw_gecos.split(',')[0] if entry.pw_gecos else "",
+            )
+        )
+    return users
+
+
+def list_system_groups() -> List[SystemGroupModel]:
+    groups: List[SystemGroupModel] = []
+    for entry in grp.getgrall():
+        groups.append(
+            SystemGroupModel(
+                name=entry.gr_name,
+                gid=entry.gr_gid,
+                members=list(entry.gr_mem),
+            )
+        )
+    return groups
+
+
+class UserCreateModel(BaseModel):
+    username: str
+    password: str
+    groups: List[str] = []
+    shell: str = "/bin/bash"
+
+
+class UserUpdateModel(BaseModel):
+    groups: List[str] | None = None
+    shell: str | None = None
+
+
+class GroupCreateModel(BaseModel):
+    name: str
+    members: List[str] = []
+
+
+class GroupUpdateModel(BaseModel):
+    members: List[str] | None = None
+
+
+class SSHKeyListModel(BaseModel):
+    keys: List[str] = []
 
 
 # Containers that are created via the API are stored here in-memory. Containers
@@ -1306,6 +1396,134 @@ def format_drive(req: DriveFormatRequest):
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
     return {"detail": "formatted"}
+
+
+@app.get("/users")
+def api_list_users(limit: int = 20, offset: int = 0):
+    """Return a paginated list of system users."""
+    all_users = list_system_users()
+    total = len(all_users)
+    paginated = all_users[offset : offset + limit]
+    return {"total": total, "users": [u.dict() for u in paginated]}
+
+
+@app.post("/users")
+def api_create_user(payload: UserCreateModel):
+    cmd = ["useradd", "-m", "-s", payload.shell]
+    if payload.groups:
+        cmd.extend(["-G", ",".join(payload.groups)])
+    cmd.append(payload.username)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+    if payload.password:
+        subprocess.run(["chpasswd"], input=f"{payload.username}:{payload.password}", text=True)
+    return {"detail": "created"}
+
+
+@app.put("/users/{username}")
+def api_update_user(username: str, payload: UserUpdateModel):
+    if payload.shell:
+        result = subprocess.run(["usermod", "-s", payload.shell, username], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to modify")
+    if payload.groups is not None:
+        result = subprocess.run(["usermod", "-G", ",".join(payload.groups), username], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to modify")
+    return {"detail": "updated"}
+
+
+@app.delete("/users/{username}")
+def api_delete_user(username: str):
+    result = subprocess.run(["userdel", "-r", username], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    return {"detail": "deleted"}
+
+
+def _authorized_keys_path(username: str) -> str:
+    info = pwd.getpwnam(username)
+    return os.path.join(info.pw_dir, ".ssh", "authorized_keys")
+
+
+def read_authorized_keys(username: str) -> List[str]:
+    path = _authorized_keys_path(username)
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                return [line.strip() for line in f if line.strip()]
+        except Exception:
+            return []
+    return []
+
+
+def write_authorized_keys(username: str, keys: List[str]) -> None:
+    info = pwd.getpwnam(username)
+    ssh_dir = os.path.join(info.pw_dir, ".ssh")
+    os.makedirs(ssh_dir, exist_ok=True)
+    path = os.path.join(ssh_dir, "authorized_keys")
+    with open(path, "w") as f:
+        for key in keys:
+            if key.strip():
+                f.write(key.strip() + "\n")
+    try:
+        os.chown(ssh_dir, info.pw_uid, info.pw_gid)
+        os.chmod(ssh_dir, 0o700)
+        os.chown(path, info.pw_uid, info.pw_gid)
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+
+
+@app.get("/users/{username}/keys")
+def api_get_user_keys(username: str):
+    return {"keys": read_authorized_keys(username)}
+
+
+@app.put("/users/{username}/keys")
+def api_update_user_keys(username: str, payload: SSHKeyListModel):
+    keys = [k.strip() for k in payload.keys if k.strip()]
+    if len(keys) > 3:
+        raise HTTPException(status_code=400, detail="maximum 3 keys allowed")
+    write_authorized_keys(username, keys)
+    return {"detail": "saved"}
+
+
+@app.get("/groups")
+def api_list_groups(limit: int = 20, offset: int = 0):
+    """Return a paginated list of system groups."""
+    all_groups = list_system_groups()
+    total = len(all_groups)
+    paginated = all_groups[offset : offset + limit]
+    return {"total": total, "groups": [g.dict() for g in paginated]}
+
+
+@app.post("/groups")
+def api_create_group(payload: GroupCreateModel):
+    result = subprocess.run(["groupadd", payload.name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+    if payload.members:
+        subprocess.run(["gpasswd", "-M", ",".join(payload.members), payload.name], capture_output=True)
+    return {"detail": "created"}
+
+
+@app.put("/groups/{name}")
+def api_update_group(name: str, payload: GroupUpdateModel):
+    if payload.members is not None:
+        result = subprocess.run(["gpasswd", "-M", ",".join(payload.members), name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to modify")
+    return {"detail": "updated"}
+
+
+@app.delete("/groups/{name}")
+def api_delete_group(name: str):
+    result = subprocess.run(["groupdel", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    return {"detail": "deleted"}
 
 
 @app.get("/settings")

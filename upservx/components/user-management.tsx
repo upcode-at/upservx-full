@@ -1,12 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -17,151 +16,273 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { User, Users, Shield, Plus, Settings, Key } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { User, Users, Plus, Settings, Key } from "lucide-react"
+
+interface SysUser {
+  username: string
+  uid: number
+  gid: number
+  groups: string[]
+  shell: string
+  home: string
+  description?: string
+}
+
+interface SysGroup {
+  name: string
+  gid: number
+  members: string[]
+  description?: string
+}
 
 export function UserManagement() {
-  const [users] = useState([
-    {
-      username: "root",
-      uid: 0,
-      gid: 0,
-      groups: ["root"],
-      shell: "/bin/bash",
-      home: "/root",
-      status: "active",
-      lastLogin: "2024-01-15 14:30",
-      permissions: ["sudo", "admin", "docker"],
-      description: "System Administrator",
-    },
-    {
-      username: "admin",
-      uid: 1000,
-      gid: 1000,
-      groups: ["admin", "sudo", "docker"],
-      shell: "/bin/bash",
-      home: "/home/admin",
-      status: "active",
-      lastLogin: "2024-01-15 16:45",
-      permissions: ["sudo", "docker", "lxc"],
-      description: "Server Administrator",
-    },
-    {
-      username: "operator",
-      uid: 1001,
-      gid: 1001,
-      groups: ["operator", "docker"],
-      shell: "/bin/bash",
-      home: "/home/operator",
-      status: "active",
-      lastLogin: "2024-01-14 09:15",
-      permissions: ["docker"],
-      description: "System Operator",
-    },
-    {
-      username: "backup",
-      uid: 1002,
-      gid: 1002,
-      groups: ["backup"],
-      shell: "/bin/false",
-      home: "/var/backups",
-      status: "service",
-      lastLogin: "Never",
-      permissions: ["backup"],
-      description: "Backup Service Account",
-    },
-    {
-      username: "www-data",
-      uid: 33,
-      gid: 33,
-      groups: ["www-data"],
-      shell: "/usr/sbin/nologin",
-      home: "/var/www",
-      status: "service",
-      lastLogin: "Never",
-      permissions: ["web"],
-      description: "Web Server Service Account",
-    },
-  ])
-
-  const [groups] = useState([
-    {
-      name: "root",
-      gid: 0,
-      members: ["root"],
-      description: "Root group",
-      permissions: ["all"],
-    },
-    {
-      name: "admin",
-      gid: 1000,
-      members: ["admin"],
-      description: "System administrators",
-      permissions: ["sudo", "admin", "docker", "lxc"],
-    },
-    {
-      name: "sudo",
-      gid: 27,
-      members: ["admin", "root"],
-      description: "Sudo access group",
-      permissions: ["sudo"],
-    },
-    {
-      name: "docker",
-      gid: 999,
-      members: ["admin", "operator"],
-      description: "Docker access group",
-      permissions: ["docker"],
-    },
-    {
-      name: "operator",
-      gid: 1001,
-      members: ["operator"],
-      description: "System operators",
-      permissions: ["monitoring", "logs"],
-    },
-  ])
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "default"
-      case "inactive":
-        return "secondary"
-      case "service":
-        return "outline"
-      case "locked":
-        return "destructive"
-      default:
-        return "secondary"
+  const [users, setUsers] = useState<SysUser[]>([])
+  const [groups, setGroups] = useState<SysGroup[]>([])
+  const [userTotal, setUserTotal] = useState(0)
+  const [groupTotal, setGroupTotal] = useState(0)
+  const [userPageSize, setUserPageSize] = useState(10)
+  const [groupPageSize, setGroupPageSize] = useState(10)
+  const [userPage, setUserPage] = useState(1)
+  const [groupPage, setGroupPage] = useState(1)
+  const [allGroups, setAllGroups] = useState<SysGroup[]>([])
+  const [allUsers, setAllUsers] = useState<SysUser[]>([])
+  const [newUserGroups, setNewUserGroups] = useState<string[]>([])
+  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([])
+  const [editUser, setEditUser] = useState<SysUser | null>(null)
+  const [editGroup, setEditGroup] = useState<SysGroup | null>(null)
+  const [keyUser, setKeyUser] = useState<SysUser | null>(null)
+  const [userKeys, setUserKeys] = useState<string[]>([])
+  const [createUserOpen, setCreateUserOpen] = useState(false)
+  const [createGroupOpen, setCreateGroupOpen] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const loadUsers = async (page = userPage, size = userPageSize) => {
+    try {
+      const params = new URLSearchParams({
+        limit: size.toString(),
+        offset: ((page - 1) * size).toString(),
+      })
+      const res = await fetch(`http://localhost:8000/users?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users || [])
+        setUserTotal(data.total || 0)
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "active":
-        return "Aktiv"
-      case "inactive":
-        return "Inaktiv"
-      case "service":
-        return "Service"
-      case "locked":
-        return "Gesperrt"
-      default:
-        return status
+  const loadGroups = async (page = groupPage, size = groupPageSize) => {
+    try {
+      const params = new URLSearchParams({
+        limit: size.toString(),
+        offset: ((page - 1) * size).toString(),
+      })
+      const res = await fetch(`http://localhost:8000/groups?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGroups(data.groups || [])
+        setGroupTotal(data.total || 0)
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
+
+  const loadAllGroups = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/groups?limit=1000")
+      if (res.ok) {
+        const data = await res.json()
+        setAllGroups(data.groups || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const loadAllUsers = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/users?limit=1000")
+      if (res.ok) {
+        const data = await res.json()
+        setAllUsers(data.users || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const loadUserKeys = async (user: SysUser) => {
+    try {
+      const res = await fetch(`http://localhost:8000/users/${user.username}/keys`)
+      if (res.ok) {
+        const data = await res.json()
+        setUserKeys(data.keys || [])
+      } else {
+        setUserKeys([])
+      }
+    } catch (e) {
+      console.error(e)
+      setUserKeys([])
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [userPage, userPageSize])
+
+  useEffect(() => {
+    loadGroups()
+  }, [groupPage, groupPageSize])
+
+  useEffect(() => {
+    loadAllGroups()
+    loadAllUsers()
+  }, [])
+
+  useEffect(() => {
+    if (!message && !error) return
+    const t = setTimeout(() => {
+      setMessage(null)
+      setError(null)
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [message, error])
+
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    shell: "/bin/bash",
+  })
+
+  const handleCreateUser = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: newUser.username,
+          password: newUser.password,
+          shell: newUser.shell,
+          groups: newUserGroups.filter(Boolean),
+        }),
+      })
+      if (res.ok) {
+        setMessage("Benutzer erstellt")
+        setNewUser({ username: "", password: "", shell: "/bin/bash" })
+        setNewUserGroups([])
+        setCreateUserOpen(false)
+        loadUsers()
+        loadAllUsers()
+      } else {
+        let msg = "Fehler beim Erstellen"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const [newGroup, setNewGroup] = useState({ name: "" })
+
+  const handleCreateGroup = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newGroup.name,
+          members: newGroupMembers.filter(Boolean),
+        }),
+      })
+      if (res.ok) {
+        setMessage("Gruppe erstellt")
+        setNewGroup({ name: "" })
+        setNewGroupMembers([])
+        setCreateGroupOpen(false)
+        loadGroups()
+        loadAllGroups()
+        loadAllUsers()
+      } else {
+        let msg = "Fehler beim Erstellen"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handleSaveKeys = async () => {
+    if (!keyUser) return
+    try {
+      const res = await fetch(`http://localhost:8000/users/${keyUser.username}/keys`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys: userKeys.filter((k) => k.trim() !== "") }),
+      })
+      if (res.ok) {
+        setMessage("SSH Keys gespeichert")
+        setKeyUser(null)
+      } else {
+        let msg = "Fehler beim Speichern"
+        try {
+          const data = await res.json()
+          msg = data.detail || msg
+        } catch {
+          msg = await res.text()
+        }
+        setError(msg)
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Benutzer Management</h2>
           <p className="text-muted-foreground">Systembenutzer, Gruppen und Berechtigungen verwalten</p>
         </div>
-        <Dialog>
+        <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setCreateUserOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Neuen Benutzer erstellen
             </Button>
@@ -175,48 +296,214 @@ export function UserManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Benutzername</Label>
-                  <Input id="username" placeholder="z.B. newuser" />
+                  <Input
+                    id="username"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fullname">Vollständiger Name</Label>
-                  <Input id="fullname" placeholder="z.B. Max Mustermann" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Passwort</Label>
-                  <Input id="password" type="password" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Passwort bestätigen</Label>
-                  <Input id="confirm-password" type="password" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="groups">Gruppen</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Gruppen auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="users">users</SelectItem>
-                    <SelectItem value="operator">operator</SelectItem>
-                    <SelectItem value="docker">docker</SelectItem>
-                    <SelectItem value="sudo">sudo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="shell">Shell</Label>
+                <Input
+                  id="shell"
+                  value={newUser.shell}
+                  onChange={(e) => setNewUser({ ...newUser, shell: e.target.value })}
+                />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="sudo-access" />
-                <Label htmlFor="sudo-access">Sudo-Berechtigung gewähren</Label>
+              <div className="space-y-2">
+                <Label>Gruppen</Label>
+                {newUserGroups.map((g, idx) => (
+                  <div key={idx} className="flex space-x-2">
+                    <select
+                      className="border rounded-md px-2 py-1 flex-1 bg-transparent"
+                      value={g}
+                      onChange={(e) => {
+                        const arr = [...newUserGroups]
+                        arr[idx] = e.target.value
+                        setNewUserGroups(arr)
+                      }}
+                    >
+                      <option value="">--</option>
+                      {allGroups.map((gr) => (
+                        <option key={gr.name} value={gr.name}>
+                          {gr.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setNewUserGroups(newUserGroups.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setNewUserGroups([...newUserGroups, ""]) }>
+                  Gruppe hinzufügen
+                </Button>
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline">Abbrechen</Button>
-                <Button>Benutzer erstellen</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setNewUser({ username: "", password: "", shell: "/bin/bash" })
+                    setNewUserGroups([])
+                    setCreateUserOpen(false)
+                  }}
+                >
+                  Abbrechen
+                </Button>
+              <Button onClick={handleCreateUser}>Benutzer erstellen</Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Benutzer bearbeiten</DialogTitle>
+          </DialogHeader>
+          {editUser && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Shell</Label>
+                <Input
+                  value={editUser.shell}
+                  onChange={(e) => setEditUser({ ...editUser, shell: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Gruppen</Label>
+                {editUser.groups.map((g, idx) => (
+                  <div key={idx} className="flex space-x-2">
+                    <select
+                      className="border rounded-md px-2 py-1 flex-1 bg-transparent"
+                      value={g}
+                      onChange={(e) => {
+                        const arr = [...editUser.groups]
+                        arr[idx] = e.target.value
+                        setEditUser({ ...editUser, groups: arr })
+                      }}
+                    >
+                      <option value="">--</option>
+                      {allGroups.map((gr) => (
+                        <option key={gr.name} value={gr.name}>
+                          {gr.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        setEditUser({ ...editUser, groups: editUser.groups.filter((_, i) => i !== idx) })
+                      }
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditUser({ ...editUser, groups: [...editUser.groups, ""] })}
+                >
+                  Gruppe hinzufügen
+                </Button>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setEditUser(null)}>
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const res = await fetch(`http://localhost:8000/users/${editUser.username}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ shell: editUser.shell, groups: editUser.groups.filter(Boolean) }),
+                    })
+                    if (res.ok) {
+                      setMessage("Benutzer gespeichert")
+                      setEditUser(null)
+                      loadUsers()
+                      loadAllGroups()
+                    } else {
+                      let msg = "Fehler beim Speichern"
+                      try {
+                        const data = await res.json()
+                        msg = data.detail || msg
+                      } catch {
+                        msg = await res.text()
+                      }
+                      setError(msg)
+                    }
+                  }}
+                >
+                  Speichern
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!keyUser} onOpenChange={(o) => !o && setKeyUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>SSH Keys verwalten</DialogTitle>
+          </DialogHeader>
+          {keyUser && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {userKeys.map((k, idx) => (
+                  <div key={idx} className="flex space-x-2 items-start">
+                    <textarea
+                      className="border rounded-md p-2 flex-1 bg-transparent text-sm"
+                      rows={2}
+                      value={k}
+                      onChange={(e) => {
+                        const arr = [...userKeys]
+                        arr[idx] = e.target.value
+                        setUserKeys(arr)
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setUserKeys(userKeys.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                {userKeys.length < 3 && (
+                  <Button variant="outline" size="sm" onClick={() => setUserKeys([...userKeys, ""]) }>
+                    Key hinzufügen
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setKeyUser(null)}>
+                  Abbrechen
+                </Button>
+                <Button onClick={handleSaveKeys}>Speichern</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
 
       <Tabs defaultValue="users" className="w-full">
@@ -239,9 +526,6 @@ export function UserManagement() {
                     <TableHead>UID</TableHead>
                     <TableHead>Gruppen</TableHead>
                     <TableHead>Shell</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Letzter Login</TableHead>
-                    <TableHead>Berechtigungen</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -269,24 +553,24 @@ export function UserManagement() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{user.shell}</TableCell>
                       <TableCell>
-                        <Badge variant={getStatusColor(user.status)}>{getStatusText(user.status)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">{user.lastLogin}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {user.permissions.map((perm) => (
-                            <Badge key={perm} variant="secondary" className="text-xs">
-                              {perm}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            onClick={() => setEditUser(user)}
+                          >
                             <Settings className="h-3 w-3" />
                           </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 bg-transparent"
+                            onClick={() => {
+                              setKeyUser(user)
+                              loadUserKeys(user)
+                            }}
+                          >
                             <Key className="h-3 w-3" />
                           </Button>
                         </div>
@@ -295,15 +579,209 @@ export function UserManagement() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={userPage === 1}
+                    onClick={() => setUserPage(userPage - 1)}
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm">
+                    Seite {userPage} / {Math.max(1, Math.ceil(userTotal / userPageSize))}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={userPage >= Math.ceil(userTotal / userPageSize)}
+                    onClick={() => setUserPage(userPage + 1)}
+                  >
+                    Weiter
+                  </Button>
+                </div>
+                <Select
+                  value={String(userPageSize)}
+                  onValueChange={(v) => {
+                    setUserPageSize(Number(v))
+                    setUserPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="groups" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Benutzergruppen</CardTitle>
-              <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Benutzergruppen</CardTitle>
+                <CardDescription>Systemgruppen und deren Mitglieder</CardDescription>
+              </div>
+              <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" onClick={() => setCreateGroupOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Gruppe erstellen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Neue Gruppe erstellen</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="group-name">Name</Label>
+                      <Input
+                        id="group-name"
+                        value={newGroup.name}
+                        onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mitglieder</Label>
+                      {newGroupMembers.map((m, idx) => (
+                        <div key={idx} className="flex space-x-2">
+                          <select
+                            className="border rounded-md px-2 py-1 flex-1 bg-transparent"
+                            value={m}
+                            onChange={(e) => {
+                              const arr = [...newGroupMembers]
+                              arr[idx] = e.target.value
+                              setNewGroupMembers(arr)
+                            }}
+                          >
+                            <option value="">--</option>
+                            {allUsers.map((u) => (
+                              <option key={u.username} value={u.username}>
+                                {u.username}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setNewGroupMembers(newGroupMembers.filter((_, i) => i !== idx))}
+                          >
+                            -
+                          </Button>
+                        </div>
+                      ))}
+                      <Button variant="outline" size="sm" onClick={() => setNewGroupMembers([...newGroupMembers, ""]) }>
+                        Mitglied hinzufügen
+                      </Button>
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setNewGroup({ name: "" })
+                          setNewGroupMembers([])
+                          setCreateGroupOpen(false)
+                        }}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button onClick={handleCreateGroup}>Gruppe erstellen</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={!!editGroup} onOpenChange={(o) => !o && setEditGroup(null)}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Gruppe bearbeiten</DialogTitle>
+                  </DialogHeader>
+                  {editGroup && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Mitglieder</Label>
+                        {editGroup.members.map((m, idx) => (
+                          <div key={idx} className="flex space-x-2">
+                            <select
+                              className="border rounded-md px-2 py-1 flex-1 bg-transparent"
+                              value={m}
+                              onChange={(e) => {
+                                const arr = [...editGroup.members]
+                                arr[idx] = e.target.value
+                                setEditGroup({ ...editGroup, members: arr })
+                              }}
+                            >
+                              <option value="">--</option>
+                              {allUsers.map((u) => (
+                                <option key={u.username} value={u.username}>
+                                  {u.username}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() =>
+                                setEditGroup({
+                                  ...editGroup,
+                                  members: editGroup.members.filter((_, i) => i !== idx),
+                                })
+                              }
+                            >
+                              -
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditGroup({ ...editGroup, members: [...editGroup.members, ""] })}
+                        >
+                          Mitglied hinzufügen
+                        </Button>
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="outline" onClick={() => setEditGroup(null)}>
+                          Abbrechen
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            const res = await fetch(`http://localhost:8000/groups/${editGroup.name}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ members: editGroup.members.filter(Boolean) }),
+                            })
+                            if (res.ok) {
+                              setMessage("Gruppe gespeichert")
+                              setEditGroup(null)
+                              loadGroups()
+                              loadAllUsers()
+                            } else {
+                              let msg = "Fehler beim Speichern"
+                              try {
+                                const data = await res.json()
+                                msg = data.detail || msg
+                              } catch {
+                                msg = await res.text()
+                              }
+                              setError(msg)
+                            }
+                          }}
+                        >
+                          Speichern
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <Table>
@@ -312,8 +790,6 @@ export function UserManagement() {
                     <TableHead>Gruppe</TableHead>
                     <TableHead>GID</TableHead>
                     <TableHead>Mitglieder</TableHead>
-                    <TableHead>Berechtigungen</TableHead>
-                    <TableHead>Beschreibung</TableHead>
                     <TableHead>Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -337,18 +813,12 @@ export function UserManagement() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {group.permissions.map((perm) => (
-                            <Badge key={perm} variant="secondary" className="text-xs">
-                              <Shield className="h-3 w-3 mr-1" />
-                              {perm}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{group.description}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 bg-transparent"
+                          onClick={() => setEditGroup(group)}
+                        >
                           <Settings className="h-3 w-3" />
                         </Button>
                       </TableCell>
@@ -356,6 +826,45 @@ export function UserManagement() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={groupPage === 1}
+                    onClick={() => setGroupPage(groupPage - 1)}
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm">
+                    Seite {groupPage} / {Math.max(1, Math.ceil(groupTotal / groupPageSize))}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={groupPage >= Math.ceil(groupTotal / groupPageSize)}
+                    onClick={() => setGroupPage(groupPage + 1)}
+                  >
+                    Weiter
+                  </Button>
+                </div>
+                <Select
+                  value={String(groupPageSize)}
+                  onValueChange={(v) => {
+                    setGroupPageSize(Number(v))
+                    setGroupPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
