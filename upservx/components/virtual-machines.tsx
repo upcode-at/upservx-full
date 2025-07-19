@@ -37,11 +37,26 @@ export function VirtualMachines() {
   const [os, setOs] = useState("")
   const [cpu, setCpu] = useState(1)
   const [memory, setMemory] = useState(2048)
+  const [maxCpu, setMaxCpu] = useState(8)
+  const [maxMemory, setMaxMemory] = useState(16384)
   const [storage, setStorage] = useState(20)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [activeRDP, setActiveRDP] = useState<{ name: string; ip: string } | null>(null)
+
+  const loadMetrics = async () => {
+    try {
+      const res = await fetch(apiUrl("/metrics"))
+      if (res.ok) {
+        const data = await res.json()
+        if (data.cpu?.cores) setMaxCpu(data.cpu.cores)
+        if (data.memory?.total) setMaxMemory(Math.round(data.memory.total * 1024))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -59,6 +74,24 @@ export function VirtualMachines() {
     const id = setInterval(load, 4000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    loadMetrics()
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      loadMetrics()
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (cpu > maxCpu) setCpu(maxCpu)
+  }, [maxCpu])
+
+  useEffect(() => {
+    if (memory > maxMemory) setMemory(maxMemory)
+  }, [maxMemory])
 
   useEffect(() => {
     if (!error) return
@@ -213,32 +246,30 @@ export function VirtualMachines() {
               <TabsContent value="hardware" className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="vm-cpu">CPU Kerne</Label>
-                    <Select value={cpu.toString()} onValueChange={(v) => setCpu(parseInt(v))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Kerne auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Kern</SelectItem>
-                        <SelectItem value="2">2 Kerne</SelectItem>
-                        <SelectItem value="4">4 Kerne</SelectItem>
-                        <SelectItem value="8">8 Kerne</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="vm-cpu">CPU Kerne: {cpu}</Label>
+                    <input
+                      id="vm-cpu"
+                      type="range"
+                      min={1}
+                      max={maxCpu}
+                      step={1}
+                      className="w-full"
+                      value={cpu}
+                      onChange={(e) => setCpu(parseInt(e.target.value))}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="vm-memory">RAM (MB)</Label>
-                    <Select value={memory.toString()} onValueChange={(v) => setMemory(parseInt(v))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="RAM auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="2048">2 GB</SelectItem>
-                        <SelectItem value="4096">4 GB</SelectItem>
-                        <SelectItem value="8192">8 GB</SelectItem>
-                        <SelectItem value="16384">16 GB</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="vm-memory">RAM (MB): {memory}</Label>
+                    <input
+                      id="vm-memory"
+                      type="range"
+                      min={256}
+                      max={maxMemory}
+                      step={256}
+                      className="w-full"
+                      value={memory}
+                      onChange={(e) => setMemory(parseInt(e.target.value))}
+                    />
                   </div>
                 </div>
               </TabsContent>
