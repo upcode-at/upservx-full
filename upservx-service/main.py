@@ -362,7 +362,6 @@ os.makedirs(VM_DIR, exist_ok=True)
 
 vms: List[VM] = []
 next_vm_id = 1
-vm_processes: dict[str, subprocess.Popen] = {}
 vm_disks: dict[str, List[str]] = {}
 
 
@@ -1420,36 +1419,36 @@ def create_vm(payload: VMCreate):
 def start_vm(name: str):
     for vm in vms:
         if vm.name == name:
-            if name in vm_processes:
+            if vm.status == "running":
                 raise HTTPException(status_code=400, detail="vm already running")
             iso_path = os.path.join(ISO_DIR, vm.os)
             disk_files = vm_disks.get(name, [])
             cmd = [
-                "qemu-system-x86_64",
-                "-m",
+                "sudo",
+                "virt-install",
+                "--name",
+                name,
+                "--ram",
                 str(vm.memory),
-                "-smp",
+                "--vcpus",
                 str(vm.cpu),
-                "-boot",
-                "d",
-                "-enable-kvm",
-                "-nographic",
-                "-net",
-                "nic",
-                "-net",
-                "user",
-                "-vga",
-                "virtio",
+                "--network",
+                "bridge=virbr0",
+                "--graphics",
+                "none",
+                "--hvm",
+                "--noautoconsole",
+                "--wait",
+                "0",
             ]
             if os.path.isfile(iso_path):
-                cmd.extend(["-cdrom", iso_path])
-            for disk in disk_files:
-                cmd.extend(["-drive", f"file={disk},format=qcow2,if=virtio"])
+                cmd.extend(["--cdrom", iso_path])
+            for disk, size in zip(disk_files, vm.disks):
+                cmd.extend(["--disk", f"path={disk},size={size}"])
             try:
-                process = subprocess.Popen(cmd)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            vm_processes[name] = process
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                raise HTTPException(status_code=400, detail=e.stderr or str(e))
             vm.status = "running"
             return {"detail": "started"}
     raise HTTPException(status_code=404, detail="vm not found")
@@ -1459,13 +1458,10 @@ def start_vm(name: str):
 def stop_vm(name: str):
     for vm in vms:
         if vm.name == name:
-            proc = vm_processes.pop(name, None)
-            if proc:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=10)
-                except Exception:
-                    proc.kill()
+            try:
+                subprocess.run(["sudo", "virsh", "destroy", name], check=True)
+            except subprocess.CalledProcessError as e:
+                raise HTTPException(status_code=400, detail=e.stderr or str(e))
             vm.status = "stopped"
             return {"detail": "stopped"}
     raise HTTPException(status_code=404, detail="vm not found")
@@ -1476,13 +1472,10 @@ def delete_vm(name: str):
     global vms
     for vm in vms:
         if vm.name == name:
-            proc = vm_processes.pop(name, None)
-            if proc:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=10)
-                except Exception:
-                    proc.kill()
+            try:
+                subprocess.run(["sudo", "virsh", "undefine", name], check=True)
+            except subprocess.CalledProcessError:
+                pass
             vm_dir = os.path.join(VM_DIR, name)
             shutil.rmtree(vm_dir, ignore_errors=True)
             vm_disks.pop(name, None)
