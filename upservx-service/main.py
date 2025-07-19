@@ -357,8 +357,13 @@ containers: List[Container] = []
 next_container_id = 1
 
 # Virtual machines created via the API are stored here in-memory.
+VM_DIR = os.path.join(os.path.dirname(__file__), "vms")
+os.makedirs(VM_DIR, exist_ok=True)
+
 vms: List[VM] = []
 next_vm_id = 1
+vm_processes: dict[str, subprocess.Popen] = {}
+vm_disks: dict[str, List[str]] = {}
 
 
 def format_uptime(seconds: float) -> str:
@@ -1381,6 +1386,20 @@ def list_vms():
 @app.post("/vms")
 def create_vm(payload: VMCreate):
     global next_vm_id
+    vm_dir = os.path.join(VM_DIR, payload.name)
+    os.makedirs(vm_dir, exist_ok=True)
+    disk_files: List[str] = []
+    for idx, size in enumerate(payload.disks, start=1):
+        disk_path = os.path.join(vm_dir, f"disk{idx}.qcow2")
+        try:
+            subprocess.run(
+                ["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"],
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        disk_files.append(disk_path)
+
     vm = VM(
         id=next_vm_id,
         name=payload.name,
@@ -1393,6 +1412,7 @@ def create_vm(payload: VMCreate):
     )
     next_vm_id += 1
     vms.append(vm)
+    vm_disks[payload.name] = disk_files
     return vm.dict()
 
 
@@ -1400,6 +1420,36 @@ def create_vm(payload: VMCreate):
 def start_vm(name: str):
     for vm in vms:
         if vm.name == name:
+            if name in vm_processes:
+                raise HTTPException(status_code=400, detail="vm already running")
+            iso_path = os.path.join(ISO_DIR, vm.os)
+            disk_files = vm_disks.get(name, [])
+            cmd = [
+                "qemu-system-x86_64",
+                "-m",
+                str(vm.memory),
+                "-smp",
+                str(vm.cpu),
+                "-boot",
+                "d",
+                "-enable-kvm",
+                "-nographic",
+                "-net",
+                "nic",
+                "-net",
+                "user",
+                "-vga",
+                "virtio",
+            ]
+            if os.path.isfile(iso_path):
+                cmd.extend(["-cdrom", iso_path])
+            for disk in disk_files:
+                cmd.extend(["-drive", f"file={disk},format=qcow2,if=virtio"])
+            try:
+                process = subprocess.Popen(cmd)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            vm_processes[name] = process
             vm.status = "running"
             return {"detail": "started"}
     raise HTTPException(status_code=404, detail="vm not found")
@@ -1409,6 +1459,13 @@ def start_vm(name: str):
 def stop_vm(name: str):
     for vm in vms:
         if vm.name == name:
+            proc = vm_processes.pop(name, None)
+            if proc:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except Exception:
+                    proc.kill()
             vm.status = "stopped"
             return {"detail": "stopped"}
     raise HTTPException(status_code=404, detail="vm not found")
@@ -1419,6 +1476,16 @@ def delete_vm(name: str):
     global vms
     for vm in vms:
         if vm.name == name:
+            proc = vm_processes.pop(name, None)
+            if proc:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except Exception:
+                    proc.kill()
+            vm_dir = os.path.join(VM_DIR, name)
+            shutil.rmtree(vm_dir, ignore_errors=True)
+            vm_disks.pop(name, None)
             vms = [v for v in vms if v.name != name]
             return {"detail": "deleted"}
     raise HTTPException(status_code=404, detail="vm not found")

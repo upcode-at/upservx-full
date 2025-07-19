@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Play, Square, Settings, Plus, Monitor, Terminal } from "lucide-react"
+import { Play, Square, Settings, Plus, Monitor, Terminal, Trash2 } from "lucide-react"
 import { RDPClient } from "@/components/rdp-client"
 import { apiUrl } from "@/lib/api"
 
@@ -209,6 +209,21 @@ export function VirtualMachines() {
     }
   }
 
+  const handleDelete = async (vmName: string) => {
+    try {
+      const res = await fetch(apiUrl(`/vms/${vmName}`), { method: "DELETE" })
+      if (res.ok) {
+        setVms((prev) => prev.filter((v) => v.name !== vmName))
+        setMessage(`VM ${vmName} gelöscht`)
+      } else {
+        setError("Error deleting")
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -392,6 +407,9 @@ export function VirtualMachines() {
                       <Play className="h-4 w-4" />
                     </Button>
                   )}
+                  <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
