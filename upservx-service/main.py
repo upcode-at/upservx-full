@@ -1407,7 +1407,7 @@ async def container_terminal(websocket: WebSocket, name: str):
         return
 
     env = dict(os.environ)
-    env["PS1"] = "\\u@\\h:\\w$ "
+    env["PS1"] = r"\\u@\\h:\\w$ "
     env["TERM"] = "xterm"
 
     process = await asyncio.create_subprocess_exec(
