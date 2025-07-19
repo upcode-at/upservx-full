@@ -172,8 +172,11 @@ class SettingsModel(BaseModel):
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
-ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
+DEFAULT_VM_BASE = "/var/lib/libvirt/images"
+ISO_DIR = os.path.join(DEFAULT_VM_BASE, "isos")
+VM_DIR = os.path.join(DEFAULT_VM_BASE, "vms")
 os.makedirs(ISO_DIR, exist_ok=True)
+os.makedirs(VM_DIR, exist_ok=True)
 
 
 def _system_hostname() -> str:
@@ -222,7 +225,7 @@ def load_settings() -> SettingsModel:
 
 def save_settings(settings: SettingsModel) -> None:
     with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings.dict(), f)
+        json.dump(settings.model_dump(), f)
 
 
 def _system_nameservers() -> tuple[str, str]:
@@ -262,7 +265,7 @@ def load_network_settings() -> NetworkSettingsModel:
 
 def save_network_settings(settings: NetworkSettingsModel) -> None:
     with open(NETWORK_SETTINGS_FILE, "w") as f:
-        json.dump(settings.dict(), f)
+        json.dump(settings.model_dump(), f)
 
 
 LOGIN_SHELLS = {
@@ -361,8 +364,8 @@ containers: List[Container] = []
 next_container_id = 1
 
 # Virtual machines created via the API are stored here in-memory.
-VM_DIR = os.path.join(os.path.dirname(__file__), "vms")
-os.makedirs(VM_DIR, exist_ok=True)
+# Disk and ISO images are placed under /var/lib/libvirt/images so the hypervisor
+# can access them without permission issues.
 
 vms: List[VM] = []
 next_vm_id = 1
@@ -990,7 +993,7 @@ def list_containers():
     # Assign stable sequential ids for the response
     for idx, c in enumerate(all_containers, start=1):
         c.id = idx
-    return [c.dict() for c in all_containers]
+    return [c.model_dump() for c in all_containers]
 
 
 @app.get("/images")
@@ -999,9 +1002,9 @@ def list_images(type: str, full: bool = False):
     type_lower = type.lower()
     if full:
         if type_lower in {"docker", "kubernetes"}:
-            return {"images": [img.dict() for img in get_docker_image_details()]}
+            return {"images": [img.model_dump() for img in get_docker_image_details()]}
         if type_lower == "lxc":
-            return {"images": [img.dict() for img in get_lxc_image_details()]}
+            return {"images": [img.model_dump() for img in get_lxc_image_details()]}
     else:
         if type_lower in {"docker", "kubernetes"}:
             return {"images": get_docker_images()}
@@ -1012,7 +1015,7 @@ def list_images(type: str, full: bool = False):
 
 @app.get("/isos")
 def list_isos():
-    return {"isos": [iso.dict() for iso in get_iso_files()]}
+    return {"isos": [iso.model_dump() for iso in get_iso_files()]}
 
 
 class ISODownloadRequest(BaseModel):
@@ -1049,7 +1052,7 @@ def download_iso(payload: ISODownloadRequest):
         used=False,
         path=dest,
     )
-    return info.dict()
+    return info.model_dump()
 
 
 @app.post("/isos")
@@ -1078,7 +1081,7 @@ async def upload_iso(file: UploadFile = File(...)):
         used=False,
         path=dest,
     )
-    return info.dict()
+    return info.model_dump()
 
 
 @app.delete("/isos/{name}")
@@ -1181,7 +1184,7 @@ def create_container(payload: ContainerCreate):
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         # Fetch fresh info about the new container
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
-        return container_list[0].dict() if container_list else {"detail": "created"}
+        return container_list[0].model_dump() if container_list else {"detail": "created"}
 
     if typ == "lxc":
         if shutil.which("lxc") is None:
@@ -1189,8 +1192,6 @@ def create_container(payload: ContainerCreate):
         result = subprocess.run(["lxc", "launch", payload.image, payload.name], capture_output=True, text=True)
         if result.returncode != 0:
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
-        container_list = [c for c in get_lxc_containers() if c.name == payload.name]
-        return container_list[0].dict() if container_list else {"detail": "created"}
 
     if typ == "kubernetes":
         if shutil.which("kubectl") is None:
@@ -1199,7 +1200,7 @@ def create_container(payload: ContainerCreate):
         if result.returncode != 0:
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         pods = [c for c in get_k8s_pods() if c.name == payload.name]
-        return pods[0].dict() if pods else {"detail": "created"}
+        return pods[0].model_dump() if pods else {"detail": "created"}
 
     # Fallback to in-memory creation for unknown types
     global next_container_id
@@ -1218,7 +1219,7 @@ def create_container(payload: ContainerCreate):
     )
     next_container_id += 1
     containers.append(container)
-    return container.dict()
+    return container.model_dump()
 
 
 @app.post("/containers/{name}/start")
@@ -1384,7 +1385,7 @@ async def container_terminal(websocket: WebSocket, name: str):
 @app.get("/vms")
 def list_vms():
     logger.info("Listing VMs")
-    return [vm.dict() for vm in vms]
+    return [vm.model_dump() for vm in vms]
 
 
 @app.post("/vms")
@@ -1420,7 +1421,7 @@ def create_vm(payload: VMCreate):
     vms.append(vm)
     vm_disks[payload.name] = disk_files
     logger.info("VM %s created with ID %s", payload.name, vm.id)
-    return vm.dict()
+    return vm.model_dump()
 
 
 @app.post("/vms/{name}/start")
@@ -1454,8 +1455,8 @@ def start_vm(name: str):
             ]
             if os.path.isfile(iso_path):
                 cmd.extend(["--cdrom", iso_path])
-            for disk, size in zip(disk_files, vm.disks):
-                cmd.extend(["--disk", f"path={disk},size={size}"])
+            for disk in disk_files:
+                cmd.extend(["--disk", f"path={disk}"])
             try:
                 subprocess.run(cmd, check=True)
             except subprocess.CalledProcessError as e:
@@ -1507,12 +1508,12 @@ def metrics():
 
 @app.get("/network/interfaces")
 def list_network_interfaces():
-    return {"interfaces": [i.dict() for i in get_network_interfaces()]}
+    return {"interfaces": [i.model_dump() for i in get_network_interfaces()]}
 
 
 @app.get("/network/settings")
 def get_network_settings():
-    return load_network_settings().dict()
+    return load_network_settings().model_dump()
 
 
 @app.post("/network/settings")
@@ -1523,7 +1524,7 @@ def update_network_settings(payload: NetworkSettingsModel):
 
 @app.get("/drives")
 def list_drives():
-    return {"drives": [d.dict() for d in get_drives()]}
+    return {"drives": [d.model_dump() for d in get_drives()]}
 
 
 class DriveMountRequest(BaseModel):
@@ -1580,7 +1581,7 @@ def api_list_users(limit: int = 20, offset: int = 0):
     all_users = list_system_users()
     total = len(all_users)
     paginated = all_users[offset : offset + limit]
-    return {"total": total, "users": [u.dict() for u in paginated]}
+    return {"total": total, "users": [u.model_dump() for u in paginated]}
 
 
 @app.post("/users")
@@ -1672,7 +1673,7 @@ def api_list_groups(limit: int = 20, offset: int = 0):
     all_groups = list_system_groups()
     total = len(all_groups)
     paginated = all_groups[offset : offset + limit]
-    return {"total": total, "groups": [g.dict() for g in paginated]}
+    return {"total": total, "groups": [g.model_dump() for g in paginated]}
 
 
 @app.post("/groups")
@@ -1704,7 +1705,7 @@ def api_delete_group(name: str):
 
 @app.get("/settings")
 def get_settings():
-    return load_settings().dict()
+    return load_settings().model_dump()
 
 
 @app.post("/settings")
