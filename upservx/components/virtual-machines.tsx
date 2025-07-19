@@ -78,13 +78,9 @@ export function VirtualMachines() {
   }, [error, message])
 
   const handleSave = async () => {
-    const payload = {
-      name,
-      cpu,
-      memory,
-      iso,
-      disks
-    }
+    const payload = editing
+      ? { cpu, memory, iso, add_disks: disks }
+      : { name, cpu, memory, iso, disks }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = name
@@ -153,7 +149,7 @@ export function VirtualMachines() {
     setCpu(vm.cpu)
     setMemory(vm.memory)
     setIso(vm.iso)
-    setDisks(vm.disks.map(() => 20))
+    setDisks([])
     setOpen(true)
   }
 
@@ -201,7 +197,7 @@ export function VirtualMachines() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-iso">ISO Image</Label>
-                    <Select value={iso} onValueChange={setIso} disabled={!!editing}>
+                    <Select value={iso} onValueChange={setIso}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select ISO" />
                       </SelectTrigger>
@@ -229,11 +225,11 @@ export function VirtualMachines() {
                   <Label>Disks (GB)</Label>
                   {disks.map((d, idx) => (
                     <div key={idx} className="flex space-x-2 items-center">
-                      <Input type="number" value={d} disabled={!!editing} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />
-                      <Button variant="outline" size="icon" disabled={!!editing} onClick={() => setDisks(disks.filter((_, i) => i !== idx))}>-</Button>
+                      <Input type="number" value={d} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />
+                      <Button variant="outline" size="icon" onClick={() => setDisks(disks.filter((_, i) => i !== idx))}>-</Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" disabled={!!editing} onClick={() => setDisks([...disks, 20])}>Add disk</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDisks([...disks, 20])}>Add disk</Button>
                 </TabsContent>
               </Tabs>
               <div className="flex justify-end space-x-2">

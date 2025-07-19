@@ -359,6 +359,8 @@ class VirtualMachineCreate(BaseModel):
 class VirtualMachineUpdate(BaseModel):
     cpu: Optional[int] = None
     memory: Optional[int] = None
+    iso: Optional[str] = None
+    add_disks: List[int] = []
 
 
 VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
@@ -1487,6 +1489,29 @@ def update_vm(name: str, payload: VirtualMachineUpdate):
     if payload.memory is not None:
         subprocess.run(["virsh", "setmem", name, str(payload.memory * 1024), "--config"], capture_output=True)
         vm.memory = payload.memory
+    if payload.iso is not None:
+        iso_path = os.path.join(ISO_DIR, payload.iso)
+        if not os.path.isfile(iso_path):
+            raise HTTPException(status_code=404, detail="iso not found")
+        subprocess.run([
+            "virsh",
+            "change-media",
+            name,
+            "--path",
+            iso_path,
+            "--device",
+            "cdrom",
+            "--config",
+            "--update",
+        ], capture_output=True)
+        vm.iso = payload.iso
+    if payload.add_disks:
+        for size in payload.add_disks:
+            idx = len(vm.disks) + 1
+            disk_path = f"/var/lib/libvirt/images/{vm.name}_{idx}.qcow2"
+            subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True)
+            subprocess.run(["virsh", "attach-disk", name, disk_path, f"vd{chr(96+idx)}", "--config"], capture_output=True)
+            vm.disks.append(disk_path)
     save_vms(vms)
     return vm.dict()
 
