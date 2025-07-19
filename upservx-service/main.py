@@ -173,10 +173,24 @@ class SettingsModel(BaseModel):
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
 DEFAULT_VM_BASE = "/var/lib/libvirt/images"
-ISO_DIR = os.path.join(DEFAULT_VM_BASE, "isos")
-VM_DIR = os.path.join(DEFAULT_VM_BASE, "vms")
-os.makedirs(ISO_DIR, exist_ok=True)
-os.makedirs(VM_DIR, exist_ok=True)
+FALLBACK_VM_BASE = os.path.join(os.path.dirname(__file__), "images")
+
+
+def _init_vm_dirs(base: str) -> tuple[str, str, str]:
+    iso_dir = os.path.join(base, "isos")
+    vm_dir = os.path.join(base, "vms")
+    os.makedirs(iso_dir, exist_ok=True)
+    os.makedirs(vm_dir, exist_ok=True)
+    return base, iso_dir, vm_dir
+
+
+try:
+    DEFAULT_VM_BASE, ISO_DIR, VM_DIR = _init_vm_dirs(DEFAULT_VM_BASE)
+except PermissionError:
+    logger.warning(
+        "Fallback to %s for VM storage due to permission issues", FALLBACK_VM_BASE
+    )
+    DEFAULT_VM_BASE, ISO_DIR, VM_DIR = _init_vm_dirs(FALLBACK_VM_BASE)
 
 
 def _system_hostname() -> str:
