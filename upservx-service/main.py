@@ -1367,7 +1367,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             name,
             "/bin/sh",
             "-c",
-            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
         ]
     elif ctype == "lxc":
         if shutil.which("lxc") is None:
@@ -1381,7 +1381,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             "--",
             "/bin/sh",
             "-c",
-            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
         ]
     elif ctype == "k8s":
         if shutil.which("kubectl") is None:
@@ -1396,17 +1396,22 @@ async def container_terminal(websocket: WebSocket, name: str):
             "--",
             "/bin/sh",
             "-c",
-            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
         ]
     else:
         await websocket.close()
         return
+
+    env = dict(os.environ)
+    env["PS1"] = "\u@\h:\w$ "
+    env["TERM"] = "xterm"
 
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        env=env,
     )
 
     async def read_output():
