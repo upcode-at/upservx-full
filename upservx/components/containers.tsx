@@ -196,7 +196,7 @@ export function Containers() {
         } else {
           setContainers((prev) => [...prev, c])
         }
-        setMessage(`Container ${creating} erstellt`)
+        setMessage(`Container ${creating} created`)
         setOpen(false)
       }
     } catch (e) {
@@ -304,7 +304,7 @@ export function Containers() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Container</h2>
-          <p className="text-muted-foreground">Verwalten Sie Docker, LXC, Pods und Kubernetes Container</p>
+          <p className="text-muted-foreground">Manage Docker, LXC, Pods and Kubernetes containers</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-48">
@@ -313,10 +313,10 @@ export function Containers() {
               onValueChange={(value) => setFilter(value === "all" ? "" : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Alle Typen" />
+                <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="Docker">Docker</SelectItem>
                 <SelectItem value="LXC">LXC</SelectItem>
                 <SelectItem value="Kubernetes">Kubernetes</SelectItem>
@@ -366,11 +366,11 @@ export function Containers() {
                       id="container-name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="z.B. my-webapp"
+                      placeholder="e.g. my-webapp"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="container-type">Container Typ</Label>
+                    <Label htmlFor="container-type">Container Type</Label>
                     <Select value={type} onValueChange={setType}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
