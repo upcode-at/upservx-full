@@ -114,7 +114,7 @@ class VM(BaseModel):
     status: str
     cpu: int
     memory: int
-    storage: int
+    disks: List[int]
     ip: str
 
 
@@ -123,7 +123,7 @@ class VMCreate(BaseModel):
     os: str
     cpu: int
     memory: int
-    storage: int
+    disks: List[int]
 
 
 class DriveInfo(BaseModel):
@@ -1388,7 +1388,7 @@ def create_vm(payload: VMCreate):
         status="stopped",
         cpu=payload.cpu,
         memory=payload.memory,
-        storage=payload.storage,
+        disks=payload.disks,
         ip=f"192.168.122.{100 + next_vm_id}",
     )
     next_vm_id += 1

@@ -28,7 +28,7 @@ export function VirtualMachines() {
     status: string
     cpu: number
     memory: number
-    storage: number
+    disks: number[]
     ip: string
   }
 
@@ -52,7 +52,7 @@ export function VirtualMachines() {
   const [memory, setMemory] = useState(2048)
   const [maxCpu, setMaxCpu] = useState(8)
   const [maxMemory, setMaxMemory] = useState(16384)
-  const [storage, setStorage] = useState(20)
+  const [disks, setDisks] = useState<number[]>([20])
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -162,7 +162,7 @@ export function VirtualMachines() {
   }
 
   const handleCreate = async () => {
-    const payload = { name, os, cpu, memory, storage }
+    const payload = { name, os, cpu, memory, disks }
     const creating = name
     try {
       const res = await fetch(apiUrl("/vms"), {
@@ -320,16 +320,35 @@ export function VirtualMachines() {
                 </div>
               </TabsContent>
               <TabsContent value="storage" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vm-storage">Festplattengröße (GB)</Label>
-                  <Input
-                    id="vm-storage"
-                    type="number"
-                    value={storage}
-                    onChange={(e) => setStorage(parseInt(e.target.value))}
-                    placeholder="50"
-                  />
-                </div>
+                <Label>Festplatten (GB)</Label>
+                {disks.map((d, idx) => (
+                  <div key={idx} className="flex space-x-2 items-center">
+                    <Input
+                      type="number"
+                      value={d}
+                      onChange={(e) => {
+                        const arr = [...disks]
+                        arr[idx] = parseInt(e.target.value)
+                        setDisks(arr)
+                      }}
+                      placeholder="50"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDisks(disks.filter((_, i) => i !== idx))}
+                    >
+                      -
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDisks([...disks, 20])}
+                >
+                  Festplatte hinzufügen
+                </Button>
               </TabsContent>
             </Tabs>
             <div className="flex justify-end space-x-2">
@@ -388,7 +407,9 @@ export function VirtualMachines() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Speicher:</span>
-                  <div className="font-medium">{vm.storage} GB</div>
+                  <div className="font-medium">
+                    {vm.disks.map((d) => `${d} GB`).join(', ')}
+                  </div>
                 </div>
                 <div>
                   <span className="text-muted-foreground">IP:</span>
