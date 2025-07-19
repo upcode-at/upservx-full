@@ -11,6 +11,7 @@ import json
 import time
 import os
 import shutil
+import pty
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -1408,35 +1409,33 @@ async def container_terminal(websocket: WebSocket, name: str):
     env["PS1"] = r"\\u@\\h:\\w$ "
     env["TERM"] = "xterm"
 
+    master_fd, slave_fd = pty.openpty()
     process = await asyncio.create_subprocess_exec(
         *cmd,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
         env=env,
     )
+    os.close(slave_fd)
+
+    loop = asyncio.get_running_loop()
 
     async def read_output():
         try:
             while True:
-                data = await process.stdout.readline()
+                data = await loop.run_in_executor(None, os.read, master_fd, 1024)
                 if not data:
                     break
-                text = data.decode()
-                if text.endswith("\n"):
-                    text = text[:-1] + "\r\n"
-                await websocket.send_text(text)
+                await websocket.send_text(data.decode(errors="ignore"))
         finally:
-            pass
+            os.close(master_fd)
 
     async def read_input():
         try:
             while True:
                 text = await websocket.receive_text()
-                if process.stdin:
-                    process.stdin.write(text.encode())
-                    process.stdin.write(b"\n")
-                    await process.stdin.drain()
+                os.write(master_fd, text.encode() + b"\n")
         except Exception:
             pass
 
