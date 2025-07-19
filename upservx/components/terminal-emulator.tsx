@@ -17,6 +17,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  const inputRef = useRef<string>("")
 
   useEffect(() => {
     const term = new Terminal()
@@ -35,9 +36,22 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
       term.write("\r\n[Verbindung beendet]")
     }
 
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
+    term.onKey(({ key, domEvent }) => {
+      domEvent.preventDefault()
+      if (domEvent.key === "Enter") {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(inputRef.current)
+        }
+        inputRef.current = ""
+        term.write("\r\n")
+      } else if (domEvent.key === "Backspace") {
+        if (inputRef.current.length > 0) {
+          inputRef.current = inputRef.current.slice(0, -1)
+          term.write("\b \b")
+        }
+      } else if (domEvent.key.length === 1) {
+        inputRef.current += key
+        term.write(key)
       }
     })
 
