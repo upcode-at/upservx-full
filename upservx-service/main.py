@@ -1364,6 +1364,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             "docker",
             "exec",
             "-i",
+            "-t",
             name,
             "/bin/sh",
             "-c",
@@ -1378,6 +1379,8 @@ async def container_terminal(websocket: WebSocket, name: str):
             "lxc",
             "exec",
             name,
+            "--mode",
+            "interactive",
             "--",
             "/bin/sh",
             "-c",
@@ -1392,6 +1395,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             "kubectl",
             "exec",
             "-i",
+            "-t",
             name,
             "--",
             "/bin/sh",
@@ -1403,7 +1407,7 @@ async def container_terminal(websocket: WebSocket, name: str):
         return
 
     env = dict(os.environ)
-    env["PS1"] = "\u@\h:\w$ "
+    env["PS1"] = "\\u@\\h:\\w$ "
     env["TERM"] = "xterm"
 
     process = await asyncio.create_subprocess_exec(
