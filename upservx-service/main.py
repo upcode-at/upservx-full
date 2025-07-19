@@ -1360,28 +1360,58 @@ async def container_terminal(websocket: WebSocket, name: str):
             await websocket.send_text("docker not installed")
             await websocket.close()
             return
-        cmd = ["docker", "exec", "-i", name, "/bin/sh"]
+        cmd = [
+            "docker",
+            "exec",
+            "-i",
+            name,
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
+        ]
     elif ctype == "lxc":
         if shutil.which("lxc") is None:
             await websocket.send_text("lxc not installed")
             await websocket.close()
             return
-        cmd = ["lxc", "exec", name, "--", "/bin/sh"]
+        cmd = [
+            "lxc",
+            "exec",
+            name,
+            "--",
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
+        ]
     elif ctype == "k8s":
         if shutil.which("kubectl") is None:
             await websocket.send_text("kubectl not installed")
             await websocket.close()
             return
-        cmd = ["kubectl", "exec", "-i", name, "--", "/bin/sh"]
+        cmd = [
+            "kubectl",
+            "exec",
+            "-i",
+            name,
+            "--",
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash -i; else exec /bin/sh -i; fi",
+        ]
     else:
         await websocket.close()
         return
+
+    env = dict(os.environ)
+    env["PS1"] = "\u@\h:\w$ "
+    env["TERM"] = "xterm"
 
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        env=env,
     )
 
     async def read_output():
@@ -1390,9 +1420,12 @@ async def container_terminal(websocket: WebSocket, name: str):
                 data = await process.stdout.readline()
                 if not data:
                     break
-                await websocket.send_text(data.decode())
+                text = data.decode()
+                if text.endswith("\n"):
+                    text = text[:-1] + "\r\n"
+                await websocket.send_text(text)
         finally:
-            await websocket.close()
+            pass
 
     async def read_input():
         try:
@@ -1406,6 +1439,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             pass
 
     await asyncio.gather(read_output(), read_input())
+    await websocket.close()
 
 
 @app.get("/vms")
