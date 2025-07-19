@@ -35,6 +35,19 @@ export function VirtualMachines() {
   const [vms, setVms] = useState<VMData[]>([])
   const [name, setName] = useState("")
   const [os, setOs] = useState("")
+  const [isoFiles, setIsoFiles] = useState<
+    {
+      id: number
+      name: string
+      size: number
+      type: string
+      version: string
+      architecture: string
+      created: string
+      used: boolean
+      path: string
+    }[]
+  >([])
   const [cpu, setCpu] = useState(1)
   const [memory, setMemory] = useState(2048)
   const [maxCpu, setMaxCpu] = useState(8)
@@ -52,6 +65,18 @@ export function VirtualMachines() {
         const data = await res.json()
         if (data.cpu?.cores) setMaxCpu(data.cpu.cores)
         if (data.memory?.total) setMaxMemory(Math.round(data.memory.total * 1024))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const loadIsos = async () => {
+    try {
+      const res = await fetch(apiUrl("/isos"))
+      if (res.ok) {
+        const data = await res.json()
+        setIsoFiles(data.isos || [])
       }
     } catch (e) {
       console.error(e)
@@ -76,12 +101,17 @@ export function VirtualMachines() {
   }, [])
 
   useEffect(() => {
+    loadIsos()
+  }, [])
+
+  useEffect(() => {
     loadMetrics()
   }, [])
 
   useEffect(() => {
     if (open) {
       loadMetrics()
+      loadIsos()
     }
   }, [open])
 
@@ -231,13 +261,14 @@ export function VirtualMachines() {
                     <Label htmlFor="vm-os">Betriebssystem</Label>
                     <Select value={os} onValueChange={setOs}>
                       <SelectTrigger>
-                        <SelectValue placeholder="OS auswählen" />
+                        <SelectValue placeholder="ISO auswählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Ubuntu 22.04 LTS">Ubuntu 22.04 LTS</SelectItem>
-                        <SelectItem value="CentOS 8">CentOS 8</SelectItem>
-                        <SelectItem value="Debian 11">Debian 11</SelectItem>
-                        <SelectItem value="Windows Server 2022">Windows Server 2022</SelectItem>
+                        {isoFiles.map((iso) => (
+                          <SelectItem key={iso.name} value={iso.name}>
+                            {iso.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
