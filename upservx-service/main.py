@@ -19,8 +19,12 @@ import pwd
 import grp
 import asyncio
 import socket
+import logging
 
 app = FastAPI()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("upservx-service")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1379,12 +1383,14 @@ async def container_terminal(websocket: WebSocket, name: str):
 
 @app.get("/vms")
 def list_vms():
+    logger.info("Listing VMs")
     return [vm.dict() for vm in vms]
 
 
 @app.post("/vms")
 def create_vm(payload: VMCreate):
     global next_vm_id
+    logger.info("Creating VM %s", payload.name)
     vm_dir = os.path.join(VM_DIR, payload.name)
     os.makedirs(vm_dir, exist_ok=True)
     disk_files: List[str] = []
@@ -1395,6 +1401,7 @@ def create_vm(payload: VMCreate):
                 ["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"],
                 check=True,
             )
+            logger.info("Created disk %s of size %sG for VM %s", disk_path, size, payload.name)
         except subprocess.CalledProcessError as e:
             raise HTTPException(status_code=400, detail=str(e))
         disk_files.append(disk_path)
@@ -1412,6 +1419,7 @@ def create_vm(payload: VMCreate):
     next_vm_id += 1
     vms.append(vm)
     vm_disks[payload.name] = disk_files
+    logger.info("VM %s created with ID %s", payload.name, vm.id)
     return vm.dict()
 
 
@@ -1421,6 +1429,7 @@ def start_vm(name: str):
         if vm.name == name:
             if vm.status == "running":
                 raise HTTPException(status_code=400, detail="vm already running")
+            logger.info("Starting VM %s", name)
             iso_path = os.path.join(ISO_DIR, vm.os)
             disk_files = vm_disks.get(name, [])
             cmd = [
@@ -1452,6 +1461,7 @@ def start_vm(name: str):
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=400, detail=e.stderr or str(e))
             vm.status = "running"
+            logger.info("VM %s started", name)
             return {"detail": "started"}
     raise HTTPException(status_code=404, detail="vm not found")
 
@@ -1460,11 +1470,13 @@ def start_vm(name: str):
 def stop_vm(name: str):
     for vm in vms:
         if vm.name == name:
+            logger.info("Stopping VM %s", name)
             try:
                 subprocess.run(["sudo", "virsh", "destroy", name], check=True)
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=400, detail=e.stderr or str(e))
             vm.status = "stopped"
+            logger.info("VM %s stopped", name)
             return {"detail": "stopped"}
     raise HTTPException(status_code=404, detail="vm not found")
 
@@ -1474,6 +1486,7 @@ def delete_vm(name: str):
     global vms
     for vm in vms:
         if vm.name == name:
+            logger.info("Deleting VM %s", name)
             try:
                 subprocess.run(["sudo", "virsh", "undefine", name], check=True)
             except subprocess.CalledProcessError:
@@ -1482,6 +1495,7 @@ def delete_vm(name: str):
             shutil.rmtree(vm_dir, ignore_errors=True)
             vm_disks.pop(name, None)
             vms = [v for v in vms if v.name != name]
+            logger.info("VM %s deleted", name)
             return {"detail": "deleted"}
     raise HTTPException(status_code=404, detail="vm not found")
 
