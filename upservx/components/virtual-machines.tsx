@@ -29,8 +29,8 @@ export function VirtualMachines() {
   const [name, setName] = useState("")
   const [cpu, setCpu] = useState(1)
   const [memory, setMemory] = useState(2048)
-  const [maxCpu, setMaxCpu] = useState(16)
-  const [maxMemory, setMaxMemory] = useState(32768)
+  const maxCpu = 16
+  const maxMemory = 32768
   const [iso, setIso] = useState("")
   const [disks, setDisks] = useState<number[]>([20])
   const [open, setOpen] = useState(false)
@@ -62,7 +62,7 @@ export function VirtualMachines() {
         const res = await fetch(apiUrl("/isos"))
         if (res.ok) {
           const data = await res.json()
-          setIsos(data.isos.map((i: any) => i.name))
+          setIsos(data.isos.map((i: { name: string }) => i.name))
         }
       } catch (e) {
         console.error(e)

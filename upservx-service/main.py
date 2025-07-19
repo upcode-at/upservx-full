@@ -1392,7 +1392,7 @@ async def container_terminal(websocket: WebSocket, name: str):
                     break
                 await websocket.send_text(data.decode())
         finally:
-            await websocket.close()
+            pass
 
     async def read_input():
         try:
@@ -1406,6 +1406,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             pass
 
     await asyncio.gather(read_output(), read_input())
+    await websocket.close()
 
 
 @app.get("/vms")

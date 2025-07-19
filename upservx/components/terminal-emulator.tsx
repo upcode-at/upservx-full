@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { wsUrl } from "@/lib/api"
-import { Terminal } from "xterm"
-import "xterm/css/xterm.css"
+import { Terminal } from "@xterm/xterm"
+import "@xterm/xterm/css/xterm.css"
 
 interface TerminalEmulatorProps {
   containerName: string
