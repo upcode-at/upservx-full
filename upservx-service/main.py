@@ -14,7 +14,7 @@ import shutil
 import urllib.request
 import urllib.parse
 from datetime import datetime
-from typing import List, Any
+from typing import List, Any, Optional
 import pwd
 import grp
 import asyncio
@@ -337,6 +337,34 @@ containers: List[Container] = []
 
 next_container_id = 1
 
+class VirtualMachine(BaseModel):
+    id: int
+    name: str
+    status: str
+    cpu: int
+    memory: int
+    iso: str
+    disks: List[str]
+    created: str
+
+
+class VirtualMachineCreate(BaseModel):
+    name: str
+    cpu: int
+    memory: int
+    iso: str
+    disks: List[int] = []
+
+
+class VirtualMachineUpdate(BaseModel):
+    cpu: Optional[int] = None
+    memory: Optional[int] = None
+    iso: Optional[str] = None
+    add_disks: List[int] = []
+
+
+VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
+
 
 def format_uptime(seconds: float) -> str:
     minutes, _ = divmod(int(seconds), 60)
@@ -435,6 +463,36 @@ def get_service_status(service: str) -> str:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return "stopped"
+
+
+def load_vms() -> List[VirtualMachine]:
+    if os.path.exists(VM_FILE):
+        try:
+            with open(VM_FILE) as f:
+                data = json.load(f)
+            return [VirtualMachine(**vm) for vm in data]
+        except Exception:
+            return []
+    return []
+
+
+def save_vms(vms: List[VirtualMachine]) -> None:
+    with open(VM_FILE, "w") as f:
+        json.dump([vm.dict() for vm in vms], f)
+
+
+def parse_virsh_list() -> dict[str, str]:
+    statuses: dict[str, str] = {}
+    if shutil.which("virsh") is None:
+        return statuses
+    result = subprocess.run(["virsh", "list", "--all"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return statuses
+    for line in result.stdout.splitlines()[2:]:
+        parts = line.split()
+        if len(parts) >= 3:
+            statuses[parts[1]] = parts[2]
+    return statuses
 
 
 def _parse_ports(port_str: str) -> List[str]:
@@ -1348,6 +1406,147 @@ async def container_terminal(websocket: WebSocket, name: str):
             pass
 
     await asyncio.gather(read_output(), read_input())
+
+
+@app.get("/vms")
+def list_vms():
+    existing = load_vms()
+    statuses = parse_virsh_list()
+    for vm in existing:
+        vm.status = statuses.get(vm.name, vm.status)
+    for idx, vm in enumerate(existing, start=1):
+        vm.id = idx
+    return [vm.dict() for vm in existing]
+
+
+@app.post("/vms")
+def create_vm(payload: VirtualMachineCreate):
+    if shutil.which("virt-install") is None:
+        raise HTTPException(status_code=404, detail="virt-install not installed")
+    iso_path = os.path.join(ISO_DIR, payload.iso)
+    if not os.path.isfile(iso_path):
+        raise HTTPException(status_code=404, detail="iso not found")
+
+    disk_args = []
+    disk_paths = []
+    for idx, size in enumerate(payload.disks or [20], start=1):
+        disk_path = f"/var/lib/libvirt/images/{payload.name}_{idx}.qcow2"
+        disk_paths.append(disk_path)
+        subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True)
+        disk_args.extend(["--disk", f"path={disk_path},size={size}"])
+
+    cmd = [
+        "virt-install",
+        "--name",
+        payload.name,
+        "--ram",
+        str(payload.memory),
+        "--vcpus",
+        str(payload.cpu),
+        *disk_args,
+        "--cdrom",
+        iso_path,
+        "--os-variant",
+        "generic",
+        "--network",
+        "bridge=virbr0",
+        "--graphics",
+        "vnc",
+        "--hvm",
+        "--noautoconsole",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+
+    vms = load_vms()
+    vm = VirtualMachine(
+        id=len(vms) + 1,
+        name=payload.name,
+        status="running",
+        cpu=payload.cpu,
+        memory=payload.memory,
+        iso=payload.iso,
+        disks=disk_paths,
+        created=datetime.utcnow().date().isoformat(),
+    )
+    vms.append(vm)
+    save_vms(vms)
+    return vm.dict()
+
+
+@app.patch("/vms/{name}")
+def update_vm(name: str, payload: VirtualMachineUpdate):
+    if shutil.which("virsh") is None:
+        raise HTTPException(status_code=404, detail="virsh not installed")
+    vms = load_vms()
+    vm = next((v for v in vms if v.name == name), None)
+    if not vm:
+        raise HTTPException(status_code=404, detail="vm not found")
+    if payload.cpu is not None:
+        subprocess.run(["virsh", "setvcpus", name, str(payload.cpu), "--config"], capture_output=True)
+        vm.cpu = payload.cpu
+    if payload.memory is not None:
+        subprocess.run(["virsh", "setmem", name, str(payload.memory * 1024), "--config"], capture_output=True)
+        vm.memory = payload.memory
+    if payload.iso is not None:
+        iso_path = os.path.join(ISO_DIR, payload.iso)
+        if not os.path.isfile(iso_path):
+            raise HTTPException(status_code=404, detail="iso not found")
+        subprocess.run([
+            "virsh",
+            "change-media",
+            name,
+            "--path",
+            iso_path,
+            "--device",
+            "cdrom",
+            "--config",
+            "--update",
+        ], capture_output=True)
+        vm.iso = payload.iso
+    if payload.add_disks:
+        for size in payload.add_disks:
+            idx = len(vm.disks) + 1
+            disk_path = f"/var/lib/libvirt/images/{vm.name}_{idx}.qcow2"
+            subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True)
+            subprocess.run(["virsh", "attach-disk", name, disk_path, f"vd{chr(96+idx)}", "--config"], capture_output=True)
+            vm.disks.append(disk_path)
+    save_vms(vms)
+    return vm.dict()
+
+
+@app.post("/vms/{name}/start")
+def start_vm(name: str):
+    if shutil.which("virsh") is None:
+        raise HTTPException(status_code=404, detail="virsh not installed")
+    result = subprocess.run(["virsh", "start", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    return {"detail": "started"}
+
+
+@app.post("/vms/{name}/shutdown")
+def shutdown_vm(name: str):
+    if shutil.which("virsh") is None:
+        raise HTTPException(status_code=404, detail="virsh not installed")
+    result = subprocess.run(["virsh", "shutdown", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to shutdown")
+    return {"detail": "shutting down"}
+
+
+@app.delete("/vms/{name}")
+def delete_vm(name: str):
+    if shutil.which("virsh") is None:
+        raise HTTPException(status_code=404, detail="virsh not installed")
+    subprocess.run(["virsh", "destroy", name], capture_output=True)
+    result = subprocess.run(["virsh", "undefine", name, "--remove-all-storage"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
+    vms = [vm for vm in load_vms() if vm.name != name]
+    save_vms(vms)
+    return {"detail": "deleted"}
 
 
 @app.get("/metrics")
