@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,44 +16,61 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Play, Square, Pause, Settings, Plus, Monitor, Terminal } from "lucide-react"
+import { Play, Square, Settings, Plus, Monitor, Terminal } from "lucide-react"
 import { RDPClient } from "@/components/rdp-client"
+import { apiUrl } from "@/lib/api"
 
 export function VirtualMachines() {
-  const [vms] = useState([
-    {
-      id: 1,
-      name: "Ubuntu-Server-01",
-      status: "running",
-      os: "Ubuntu 22.04 LTS",
-      cpu: 4,
-      memory: 8192,
-      storage: 100,
-      ip: "192.168.1.100",
-    },
-    {
-      id: 2,
-      name: "Windows-Dev",
-      status: "stopped",
-      os: "Windows Server 2022",
-      cpu: 8,
-      memory: 16384,
-      storage: 250,
-      ip: "192.168.1.101",
-    },
-    {
-      id: 3,
-      name: "CentOS-Web",
-      status: "running",
-      os: "CentOS 8",
-      cpu: 2,
-      memory: 4096,
-      storage: 50,
-      ip: "192.168.1.102",
-    },
-  ])
+  interface VMData {
+    id: number
+    name: string
+    os: string
+    status: string
+    cpu: number
+    memory: number
+    storage: number
+    ip: string
+  }
 
+  const [vms, setVms] = useState<VMData[]>([])
+  const [name, setName] = useState("")
+  const [os, setOs] = useState("")
+  const [cpu, setCpu] = useState(1)
+  const [memory, setMemory] = useState(2048)
+  const [storage, setStorage] = useState(20)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [activeRDP, setActiveRDP] = useState<{ name: string; ip: string } | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(apiUrl("/vms"))
+        if (res.ok) {
+          const data = await res.json()
+          setVms(data)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    load()
+    const id = setInterval(load, 4000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 3000)
+    return () => clearTimeout(t)
+  }, [error])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 3000)
+    return () => clearTimeout(t)
+  }, [message])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -81,16 +98,75 @@ export function VirtualMachines() {
     }
   }
 
+  const handleCreate = async () => {
+    const payload = { name, os, cpu, memory, storage }
+    const creating = name
+    try {
+      const res = await fetch(apiUrl("/vms"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const vm = await res.json()
+        setVms((prev) => [...prev, vm])
+        setMessage(`VM ${creating} erstellt`)
+        setOpen(false)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleStart = async (vmName: string) => {
+    try {
+      const res = await fetch(apiUrl(`/vms/${vmName}/start`), { method: "POST" })
+      if (res.ok) {
+        setVms((prev) => prev.map((v) => (v.name === vmName ? { ...v, status: "running" } : v)))
+      } else {
+        setError("Error starting")
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handleStop = async (vmName: string) => {
+    try {
+      const res = await fetch(apiUrl(`/vms/${vmName}/stop`), { method: "POST" })
+      if (res.ok) {
+        setVms((prev) => prev.map((v) => (v.name === vmName ? { ...v, status: "stopped" } : v)))
+      } else {
+        setError("Error stopping")
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+    }
+  }
+
+
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
+          {message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Virtual Machines</h2>
           <p className="text-muted-foreground">Verwalten Sie Ihre virtuellen Maschinen</p>
         </div>
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Neue VM erstellen
             </Button>
@@ -111,19 +187,24 @@ export function VirtualMachines() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vm-name">VM Name</Label>
-                    <Input id="vm-name" placeholder="z.B. Ubuntu-Server-02" />
+                    <Input
+                      id="vm-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="z.B. Ubuntu-Server-02"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-os">Betriebssystem</Label>
-                    <Select>
+                    <Select value={os} onValueChange={setOs}>
                       <SelectTrigger>
                         <SelectValue placeholder="OS auswählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ubuntu">Ubuntu 22.04 LTS</SelectItem>
-                        <SelectItem value="centos">CentOS 8</SelectItem>
-                        <SelectItem value="debian">Debian 11</SelectItem>
-                        <SelectItem value="windows">Windows Server 2022</SelectItem>
+                        <SelectItem value="Ubuntu 22.04 LTS">Ubuntu 22.04 LTS</SelectItem>
+                        <SelectItem value="CentOS 8">CentOS 8</SelectItem>
+                        <SelectItem value="Debian 11">Debian 11</SelectItem>
+                        <SelectItem value="Windows Server 2022">Windows Server 2022</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -133,7 +214,7 @@ export function VirtualMachines() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vm-cpu">CPU Kerne</Label>
-                    <Select>
+                    <Select value={cpu.toString()} onValueChange={(v) => setCpu(parseInt(v))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Kerne auswählen" />
                       </SelectTrigger>
@@ -147,7 +228,7 @@ export function VirtualMachines() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-memory">RAM (MB)</Label>
-                    <Select>
+                    <Select value={memory.toString()} onValueChange={(v) => setMemory(parseInt(v))}>
                       <SelectTrigger>
                         <SelectValue placeholder="RAM auswählen" />
                       </SelectTrigger>
@@ -179,13 +260,21 @@ export function VirtualMachines() {
               <TabsContent value="storage" className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="vm-storage">Festplattengröße (GB)</Label>
-                  <Input id="vm-storage" type="number" placeholder="50" />
+                  <Input
+                    id="vm-storage"
+                    type="number"
+                    value={storage}
+                    onChange={(e) => setStorage(parseInt(e.target.value))}
+                    placeholder="50"
+                  />
                 </div>
               </TabsContent>
             </Tabs>
             <div className="flex justify-end space-x-2">
-              <Button variant="outline">Abbrechen</Button>
-              <Button>VM erstellen</Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button onClick={handleCreate}>VM erstellen</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -214,16 +303,11 @@ export function VirtualMachines() {
                     <Settings className="h-4 w-4" />
                   </Button>
                   {vm.status === "running" ? (
-                    <>
-                      <Button variant="outline" size="icon">
-                        <Pause className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon">
-                        <Square className="h-4 w-4" />
-                      </Button>
-                    </>
+                    <Button variant="outline" size="icon" onClick={() => handleStop(vm.name)}>
+                      <Square className="h-4 w-4" />
+                    </Button>
                   ) : (
-                    <Button variant="outline" size="icon">
+                    <Button variant="outline" size="icon" onClick={() => handleStart(vm.name)}>
                       <Play className="h-4 w-4" />
                     </Button>
                   )}

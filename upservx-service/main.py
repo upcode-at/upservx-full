@@ -107,6 +107,25 @@ class ContainerImageInfo(BaseModel):
     pulls: int = 0
 
 
+class VM(BaseModel):
+    id: int
+    name: str
+    os: str
+    status: str
+    cpu: int
+    memory: int
+    storage: int
+    ip: str
+
+
+class VMCreate(BaseModel):
+    name: str
+    os: str
+    cpu: int
+    memory: int
+    storage: int
+
+
 class DriveInfo(BaseModel):
     device: str
     name: str
@@ -336,6 +355,10 @@ class SSHKeyListModel(BaseModel):
 containers: List[Container] = []
 
 next_container_id = 1
+
+# Virtual machines created via the API are stored here in-memory.
+vms: List[VM] = []
+next_vm_id = 1
 
 
 def format_uptime(seconds: float) -> str:
@@ -1348,6 +1371,57 @@ async def container_terminal(websocket: WebSocket, name: str):
             pass
 
     await asyncio.gather(read_output(), read_input())
+
+
+@app.get("/vms")
+def list_vms():
+    return [vm.dict() for vm in vms]
+
+
+@app.post("/vms")
+def create_vm(payload: VMCreate):
+    global next_vm_id
+    vm = VM(
+        id=next_vm_id,
+        name=payload.name,
+        os=payload.os,
+        status="stopped",
+        cpu=payload.cpu,
+        memory=payload.memory,
+        storage=payload.storage,
+        ip=f"192.168.122.{100 + next_vm_id}",
+    )
+    next_vm_id += 1
+    vms.append(vm)
+    return vm.dict()
+
+
+@app.post("/vms/{name}/start")
+def start_vm(name: str):
+    for vm in vms:
+        if vm.name == name:
+            vm.status = "running"
+            return {"detail": "started"}
+    raise HTTPException(status_code=404, detail="vm not found")
+
+
+@app.post("/vms/{name}/stop")
+def stop_vm(name: str):
+    for vm in vms:
+        if vm.name == name:
+            vm.status = "stopped"
+            return {"detail": "stopped"}
+    raise HTTPException(status_code=404, detail="vm not found")
+
+
+@app.delete("/vms/{name}")
+def delete_vm(name: str):
+    global vms
+    for vm in vms:
+        if vm.name == name:
+            vms = [v for v in vms if v.name != name]
+            return {"detail": "deleted"}
+    raise HTTPException(status_code=404, detail="vm not found")
 
 
 @app.get("/metrics")
