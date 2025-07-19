@@ -1415,7 +1415,10 @@ async def container_terminal(websocket: WebSocket, name: str):
                 data = await process.stdout.readline()
                 if not data:
                     break
-                await websocket.send_text(data.decode())
+                text = data.decode()
+                if text.endswith("\n"):
+                    text = text[:-1] + "\r\n"
+                await websocket.send_text(text)
         finally:
             pass
 

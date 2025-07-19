@@ -30,7 +30,8 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
     const ws = new WebSocket(wsUrl(`/containers/${containerName}/terminal`))
     wsRef.current = ws
     ws.onmessage = (ev) => {
-      term.write(ev.data)
+      const text = (typeof ev.data === "string" ? ev.data : "").replace(/\n/g, "\r\n")
+      term.write(text)
     }
     ws.onclose = () => {
       term.write("\r\n[Verbindung beendet]")
