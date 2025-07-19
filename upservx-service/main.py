@@ -1440,6 +1440,8 @@ def start_vm(name: str):
                 "--noautoconsole",
                 "--wait",
                 "0",
+                "--osinfo",
+                "detect=on,require=off",
             ]
             if os.path.isfile(iso_path):
                 cmd.extend(["--cdrom", iso_path])
