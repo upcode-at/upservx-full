@@ -1437,6 +1437,7 @@ async def container_terminal(websocket: WebSocket, name: str):
             while True:
                 data = await websocket.receive_text()
                 os.write(master_fd, data.encode())
+
         except Exception:
             pass
 
