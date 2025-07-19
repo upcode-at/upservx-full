@@ -17,7 +17,6 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const inputRef = useRef<string>("")
 
   useEffect(() => {
     const term = new Terminal()
@@ -37,22 +36,9 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
       term.write("\r\n[Verbindung beendet]")
     }
 
-    term.onKey(({ key, domEvent }) => {
-      domEvent.preventDefault()
-      if (domEvent.key === "Enter") {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(inputRef.current)
-        }
-        inputRef.current = ""
-        term.write("\r\n")
-      } else if (domEvent.key === "Backspace") {
-        if (inputRef.current.length > 0) {
-          inputRef.current = inputRef.current.slice(0, -1)
-          term.write("\b \b")
-        }
-      } else if (domEvent.key.length === 1) {
-        inputRef.current += key
-        term.write(key)
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data)
       }
     })
 
@@ -63,15 +49,15 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
   }, [containerName])
 
   return (
-    <Card className="w-full max-w-5xl">
+    <Card className="w-full max-w-5xl h-[80vh] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
         <CardTitle className="text-sm font-medium">Terminal - {containerName}</CardTitle>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
           <X className="h-3 w-3" />
         </Button>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="h-[40rem] bg-black text-white" ref={containerRef}></div>
+      <CardContent className="flex-1 p-0 overflow-hidden">
+        <div className="h-full w-full bg-black text-white" ref={containerRef}></div>
       </CardContent>
     </Card>
   )
