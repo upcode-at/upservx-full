@@ -63,7 +63,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
   }, [containerName])
 
   return (
-    <Card className="w-full max-w-3xl">
+    <Card className="w-full max-w-5xl">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
         <CardTitle className="text-sm font-medium">Terminal - {containerName}</CardTitle>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
@@ -71,7 +71,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="h-96 bg-black text-white" ref={containerRef}></div>
+        <div className="h-[40rem] bg-black text-white" ref={containerRef}></div>
       </CardContent>
     </Card>
   )
