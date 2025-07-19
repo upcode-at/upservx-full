@@ -1360,19 +1360,44 @@ async def container_terminal(websocket: WebSocket, name: str):
             await websocket.send_text("docker not installed")
             await websocket.close()
             return
-        cmd = ["docker", "exec", "-i", name, "/bin/bash"]
+        cmd = [
+            "docker",
+            "exec",
+            "-i",
+            name,
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+        ]
     elif ctype == "lxc":
         if shutil.which("lxc") is None:
             await websocket.send_text("lxc not installed")
             await websocket.close()
             return
-        cmd = ["lxc", "exec", name, "--", "/bin/bash"]
+        cmd = [
+            "lxc",
+            "exec",
+            name,
+            "--",
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+        ]
     elif ctype == "k8s":
         if shutil.which("kubectl") is None:
             await websocket.send_text("kubectl not installed")
             await websocket.close()
             return
-        cmd = ["kubectl", "exec", "-i", name, "--", "/bin/bash"]
+        cmd = [
+            "kubectl",
+            "exec",
+            "-i",
+            name,
+            "--",
+            "/bin/sh",
+            "-c",
+            "if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi",
+        ]
     else:
         await websocket.close()
         return
