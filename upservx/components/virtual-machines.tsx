@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2 } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 
 export function VirtualMachines() {
@@ -34,6 +34,7 @@ export function VirtualMachines() {
   const [iso, setIso] = useState("")
   const [disks, setDisks] = useState<number[]>([20])
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("grid")
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -76,7 +77,7 @@ export function VirtualMachines() {
     return () => clearTimeout(t)
   }, [error, message])
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     const payload = {
       name,
       cpu,
@@ -84,21 +85,28 @@ export function VirtualMachines() {
       iso,
       disks
     }
-    const creating = name
+    const target = editing ? `/vms/${editing.name}` : "/vms"
+    const method = editing ? "PATCH" : "POST"
+    const vmName = name
     try {
-      const res = await fetch(apiUrl("/vms"), {
-        method: "POST",
+      const res = await fetch(apiUrl(target), {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
       if (res.ok) {
         const vm = await res.json()
-        setVms(prev => [...prev, vm])
+        if (editing) {
+          setVms(prev => prev.map(v => v.name === editing.name ? vm : v))
+        } else {
+          setVms(prev => [...prev, vm])
+        }
         setOpen(false)
-        setMessage(`VM ${creating} created`)
+        setEditing(null)
+        setMessage(`VM ${vmName} ${editing ? "updated" : "created"}`)
       } else {
         const data = await res.json().catch(() => null)
-        setError(data?.detail || "Error creating")
+        setError(data?.detail || "Error saving")
       }
     } catch (e) {
       console.error(e)
@@ -139,6 +147,16 @@ export function VirtualMachines() {
     }
   }
 
+  const openEdit = (vm: VMData) => {
+    setEditing(vm)
+    setName(vm.name)
+    setCpu(vm.cpu)
+    setMemory(vm.memory)
+    setIso(vm.iso)
+    setDisks(vm.disks.map(() => 20))
+    setOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       {error && (
@@ -161,14 +179,14 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setOpen(true)}>
+              <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create New VM</DialogTitle>
-                <DialogDescription>Configure your new virtual machine</DialogDescription>
+                <DialogTitle>{editing ? `Edit ${editing.name}` : "Create New VM"}</DialogTitle>
+                <DialogDescription>{editing ? "Update virtual machine settings" : "Configure your new virtual machine"}</DialogDescription>
               </DialogHeader>
               <Tabs defaultValue="basic" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
@@ -179,11 +197,11 @@ export function VirtualMachines() {
                 <TabsContent value="basic" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="vm-name">VM Name</Label>
-                    <Input id="vm-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. ubuntu-vm" />
+                    <Input id="vm-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. ubuntu-vm" disabled={!!editing} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-iso">ISO Image</Label>
-                    <Select value={iso} onValueChange={setIso}>
+                    <Select value={iso} onValueChange={setIso} disabled={!!editing}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select ISO" />
                       </SelectTrigger>
@@ -211,16 +229,16 @@ export function VirtualMachines() {
                   <Label>Disks (GB)</Label>
                   {disks.map((d, idx) => (
                     <div key={idx} className="flex space-x-2 items-center">
-                      <Input type="number" value={d} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />
-                      <Button variant="outline" size="icon" onClick={() => setDisks(disks.filter((_, i) => i !== idx))}>-</Button>
+                      <Input type="number" value={d} disabled={!!editing} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />
+                      <Button variant="outline" size="icon" disabled={!!editing} onClick={() => setDisks(disks.filter((_, i) => i !== idx))}>-</Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => setDisks([...disks, 20])}>Add disk</Button>
+                  <Button variant="outline" size="sm" disabled={!!editing} onClick={() => setDisks([...disks, 20])}>Add disk</Button>
                 </TabsContent>
               </Tabs>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreate}>Create VM</Button>
+                <Button variant="outline" onClick={() => { setOpen(false); setEditing(null) }}>Cancel</Button>
+                <Button onClick={handleSave}>{editing ? "Save" : "Create VM"}</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -264,6 +282,9 @@ export function VirtualMachines() {
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
+                <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
                 <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -306,6 +327,9 @@ export function VirtualMachines() {
                             <Play className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>

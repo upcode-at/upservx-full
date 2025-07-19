@@ -14,7 +14,7 @@ import shutil
 import urllib.request
 import urllib.parse
 from datetime import datetime
-from typing import List, Any
+from typing import List, Any, Optional
 import pwd
 import grp
 import asyncio
@@ -354,6 +354,11 @@ class VirtualMachineCreate(BaseModel):
     memory: int
     iso: str
     disks: List[int] = []
+
+
+class VirtualMachineUpdate(BaseModel):
+    cpu: Optional[int] = None
+    memory: Optional[int] = None
 
 
 VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
@@ -1464,6 +1469,24 @@ def create_vm(payload: VirtualMachineCreate):
         created=datetime.utcnow().date().isoformat(),
     )
     vms.append(vm)
+    save_vms(vms)
+    return vm.dict()
+
+
+@app.patch("/vms/{name}")
+def update_vm(name: str, payload: VirtualMachineUpdate):
+    if shutil.which("virsh") is None:
+        raise HTTPException(status_code=404, detail="virsh not installed")
+    vms = load_vms()
+    vm = next((v for v in vms if v.name == name), None)
+    if not vm:
+        raise HTTPException(status_code=404, detail="vm not found")
+    if payload.cpu is not None:
+        subprocess.run(["virsh", "setvcpus", name, str(payload.cpu), "--config"], capture_output=True)
+        vm.cpu = payload.cpu
+    if payload.memory is not None:
+        subprocess.run(["virsh", "setmem", name, str(payload.memory * 1024), "--config"], capture_output=True)
+        vm.memory = payload.memory
     save_vms(vms)
     return vm.dict()
 
