@@ -1363,7 +1363,7 @@ async def container_terminal(websocket: WebSocket, name: str):
         cmd = [
             "docker",
             "exec",
-            "-i",
+            "-it",
             name,
             "/bin/sh",
             "-c",
@@ -1378,6 +1378,8 @@ async def container_terminal(websocket: WebSocket, name: str):
             "lxc",
             "exec",
             name,
+            "--mode",
+            "interactive",
             "--",
             "/bin/sh",
             "-c",
@@ -1391,7 +1393,7 @@ async def container_terminal(websocket: WebSocket, name: str):
         cmd = [
             "kubectl",
             "exec",
-            "-i",
+            "-it",
             name,
             "--",
             "/bin/sh",
