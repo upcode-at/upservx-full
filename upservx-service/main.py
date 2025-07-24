@@ -21,6 +21,16 @@ import grp
 import asyncio
 import socket
 
+
+def run_subprocess(cmd: list[str]) -> subprocess.CompletedProcess:
+    """Run a subprocess and raise HTTPException with output on failure."""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        msg = result.stderr.strip() or result.stdout.strip() or "failed"
+        raise HTTPException(status_code=400, detail=msg)
+    return result
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -1204,9 +1214,7 @@ def create_container(payload: ContainerCreate):
         for e in payload.envs:
             cmd.extend(["-e", e])
         cmd.append(payload.image)
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        run_subprocess(cmd)
         # Fetch fresh info about the new container
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -1214,18 +1222,14 @@ def create_container(payload: ContainerCreate):
     if typ == "lxc":
         if shutil.which("lxc") is None:
             raise HTTPException(status_code=404, detail="lxc not installed")
-        result = subprocess.run(["lxc", "launch", payload.image, payload.name], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        run_subprocess(["lxc", "launch", payload.image, payload.name])
         container_list = [c for c in get_lxc_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
 
     if typ == "kubernetes":
         if shutil.which("kubectl") is None:
             raise HTTPException(status_code=404, detail="kubectl not installed")
-        result = subprocess.run(["kubectl", "run", payload.name, "--image", payload.image, "--restart=Never"], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
+        run_subprocess(["kubectl", "run", payload.name, "--image", payload.image, "--restart=Never"])
         pods = [c for c in get_k8s_pods() if c.name == payload.name]
         return pods[0].dict() if pods else {"detail": "created"}
 
