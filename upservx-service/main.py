@@ -466,6 +466,34 @@ def get_service_status(service: str) -> str:
     return "stopped"
 
 
+def list_systemd_services() -> list[dict[str, any]]:
+    """Return a list of systemd services with status and enabled state."""
+    services: list[dict[str, any]] = []
+    if shutil.which("systemctl") is None:
+        return services
+    try:
+        result = subprocess.run(
+            ["systemctl", "list-unit-files", "--type=service", "--no-legend"],
+            capture_output=True,
+            text=True,
+        )
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                name = parts[0]
+                enabled = parts[1].lower().startswith("enabled")
+                services.append(
+                    {
+                        "name": name,
+                        "status": get_service_status(name),
+                        "enabled": enabled,
+                    }
+                )
+    except Exception:
+        pass
+    return services
+
+
 def load_vms() -> List[VirtualMachine]:
     if os.path.exists(VM_FILE):
         try:
@@ -1786,6 +1814,51 @@ def api_delete_group(name: str):
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
     return {"detail": "deleted"}
+
+
+@app.get("/services")
+def api_list_services():
+    return {"services": list_systemd_services()}
+
+
+@app.post("/services/{name}/start")
+def api_start_service(name: str):
+    if shutil.which("systemctl") is None:
+        raise HTTPException(status_code=404, detail="systemctl not installed")
+    result = subprocess.run(["systemctl", "start", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start")
+    return {"detail": "started"}
+
+
+@app.post("/services/{name}/stop")
+def api_stop_service(name: str):
+    if shutil.which("systemctl") is None:
+        raise HTTPException(status_code=404, detail="systemctl not installed")
+    result = subprocess.run(["systemctl", "stop", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop")
+    return {"detail": "stopped"}
+
+
+@app.post("/services/{name}/enable")
+def api_enable_service(name: str):
+    if shutil.which("systemctl") is None:
+        raise HTTPException(status_code=404, detail="systemctl not installed")
+    result = subprocess.run(["systemctl", "enable", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to enable")
+    return {"detail": "enabled"}
+
+
+@app.post("/services/{name}/disable")
+def api_disable_service(name: str):
+    if shutil.which("systemctl") is None:
+        raise HTTPException(status_code=404, detail="systemctl not installed")
+    result = subprocess.run(["systemctl", "disable", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to disable")
+    return {"detail": "disabled"}
 
 
 @app.get("/settings")
