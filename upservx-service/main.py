@@ -120,6 +120,11 @@ class ContainerImageInfo(BaseModel):
     pulls: int = 0
 
 
+class LogInfo(BaseModel):
+    name: str
+    size: int
+
+
 class DriveInfo(BaseModel):
     device: str
     name: str
@@ -1880,6 +1885,46 @@ def api_disable_service(name: str):
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to disable")
     return {"detail": "disabled"}
+
+
+LOG_DIR = "/var/log"
+
+
+@app.get("/logs")
+def api_list_logs():
+    logs = []
+    try:
+        for name in os.listdir(LOG_DIR):
+            path = os.path.join(LOG_DIR, name)
+            if os.path.isfile(path):
+                try:
+                    size = os.path.getsize(path)
+                except Exception:
+                    size = 0
+                logs.append({"name": name, "size": size})
+    except Exception:
+        pass
+    return {"logs": logs}
+
+
+@app.get("/logs/{name}")
+def api_get_log(name: str, lines: int = 100):
+    safe_name = os.path.basename(name)
+    path = os.path.join(LOG_DIR, safe_name)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="log not found")
+    try:
+        if lines > 0:
+            result = run_subprocess(["tail", "-n", str(lines), path])
+            content = result.stdout
+        else:
+            with open(path) as f:
+                content = f.read()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="failed to read")
+    return Response(content, media_type="text/plain")
 
 
 @app.get("/settings")

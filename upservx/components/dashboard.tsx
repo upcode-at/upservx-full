@@ -13,6 +13,7 @@ import { StorageManagement } from "@/components/storage-management"
 import { UserManagement } from "@/components/user-management"
 import { BackupManagement } from "@/components/backup-management"
 import { ImageManagement } from "@/components/image-management"
+import { Logs } from "@/components/logs"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -35,6 +36,8 @@ export function Dashboard() {
         return <UserManagement />
       case "backup":
         return <BackupManagement />
+      case "logs":
+        return <Logs />
       case "settings":
         return <Settings />
       case "images":
