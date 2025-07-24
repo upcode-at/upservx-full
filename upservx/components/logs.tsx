@@ -52,16 +52,16 @@ export function Logs() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Logs</h2>
-        <p className="text-muted-foreground">System log files anzeigen</p>
+        <p className="text-muted-foreground">View system log files</p>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Log Datei wählen</CardTitle>
+          <CardTitle>Select Log File</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Select value={selected} onValueChange={setSelected}>
             <SelectTrigger className="w-64">
-              <SelectValue placeholder="Log Datei" />
+              <SelectValue placeholder="Log File" />
             </SelectTrigger>
             <SelectContent>
               {logs.map((log) => (
