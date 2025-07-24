@@ -571,13 +571,17 @@ def get_lxc_containers() -> List[Container]:
 
     containers_list = []
     for item in data:
+        config = item.get("config", {})
+        os_name = config.get("image.os", "")
+        release = config.get("image.release", "")
+        image = f"{os_name} {release}".strip()
         containers_list.append(
             Container(
                 id=0,
                 name=item.get("name", ""),
                 type="LXC",
                 status=item.get("status", "").lower(),
-                image=item.get("config", {}).get("image.os", ""),
+                image=image,
                 ports=[],
                 mounts=[],
                 envs=[],
@@ -703,11 +707,14 @@ def get_lxc_image_details() -> List[ContainerImageInfo]:
         aliases = img.get("aliases", [])
         if aliases:
             alias = aliases[0].get("name", "")
-        repository, _, tag = alias.partition(":")
+        repository = alias
+        tag = ""
+        if "/" in alias:
+            repository, tag = alias.split("/", 1)
         images.append(
             ContainerImageInfo(
                 id=idx,
-                repository=repository or alias,
+                repository=repository,
                 tag=tag,
                 imageId=img.get("fingerprint", ""),
                 size=round(img.get("size", 0) / (1024 ** 2), 2),
