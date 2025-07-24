@@ -1231,7 +1231,15 @@ def create_container(payload: ContainerCreate):
     if typ == "lxc":
         if shutil.which("lxc") is None:
             raise HTTPException(status_code=404, detail="lxc not installed")
-        run_subprocess(["lxc", "launch", payload.image, payload.name])
+        try:
+            run_subprocess(["lxc", "launch", payload.image, payload.name])
+        except HTTPException as exc:
+            if "Failed getting root disk" in str(exc.detail):
+                raise HTTPException(
+                    status_code=400,
+                    detail="LXD storage not configured. Run 'lxd init' to set up a default storage pool.",
+                ) from exc
+            raise
         container_list = [c for c in get_lxc_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
 
