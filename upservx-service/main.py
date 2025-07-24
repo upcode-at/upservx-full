@@ -23,11 +23,13 @@ import socket
 
 
 def run_subprocess(cmd: list[str]) -> subprocess.CompletedProcess:
-    """Run a subprocess and raise HTTPException with output on failure."""
+    """Run a subprocess, logging the command and raising HTTPException on failure."""
+    cmd_str = " ".join(cmd)
+    print("Running command:", cmd_str)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         msg = result.stderr.strip() or result.stdout.strip() or "failed"
-        raise HTTPException(status_code=400, detail=msg)
+        raise HTTPException(status_code=400, detail=f"{cmd_str}\n{msg}")
     return result
 
 
