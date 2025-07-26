@@ -558,7 +558,7 @@ export function ImageManagement() {
                 </TableHeader>
                 <TableBody>
                   {isoFiles.length === 0 ? (
-                    <TableRow>
+                    <TableRow className="border-t border-border">
                       <TableCell colSpan={8} className="text-center">
                         No isos found
                       </TableCell>
@@ -693,7 +693,7 @@ export function ImageManagement() {
                 </TableHeader>
                 <TableBody>
                   {lxcImages.length === 0 ? (
-                    <TableRow>
+                    <TableRow className="border-t border-border">
                       <TableCell colSpan={7} className="text-center">
                         No images found
                       </TableCell>
@@ -812,7 +812,7 @@ export function ImageManagement() {
                 </TableHeader>
                 <TableBody>
                   {containerImages.length === 0 ? (
-                    <TableRow>
+                    <TableRow className="border-t border-border">
                       <TableCell colSpan={7} className="text-center">
                         No images found
                       </TableCell>

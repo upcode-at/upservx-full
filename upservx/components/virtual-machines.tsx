@@ -305,7 +305,7 @@ export function VirtualMachines() {
               </thead>
               <tbody>
                 {vms.length === 0 ? (
-                  <tr>
+                  <tr className="border-t border-border">
                     <td colSpan={7} className="text-center">
                       No virtual machines found
                     </td>
