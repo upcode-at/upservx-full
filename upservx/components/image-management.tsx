@@ -557,54 +557,62 @@ export function ImageManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isoFiles.map((iso) => (
-                    <TableRow key={iso.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Disc className="h-4 w-4" />
-                          <div>
-                            <div className="font-medium">{iso.name}</div>
-                            <div className="text-xs text-muted-foreground">{iso.path}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{iso.type}</Badge>
-                      </TableCell>
-                      <TableCell>{iso.version}</TableCell>
-                      <TableCell>{iso.architecture}</TableCell>
-                      <TableCell>{formatSize(iso.size)}</TableCell>
-                      <TableCell>{iso.created}</TableCell>
-                      <TableCell>
-                        <Badge variant={iso.used ? "default" : "secondary"}>
-                          {iso.used ? "In use" : "Available"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 bg-transparent"
-                            asChild
-                          >
-                            <a href={apiUrl(`/isos/${iso.name}/file`)}>
-                              <Download className="h-3 w-3" />
-                            </a>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 bg-transparent"
-                            disabled={iso.used}
-                            onClick={() => handleDeleteIso(iso.name)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                  {isoFiles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center">
+                        No isos found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    isoFiles.map((iso) => (
+                      <TableRow key={iso.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Disc className="h-4 w-4" />
+                            <div>
+                              <div className="font-medium">{iso.name}</div>
+                              <div className="text-xs text-muted-foreground">{iso.path}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{iso.type}</Badge>
+                        </TableCell>
+                        <TableCell>{iso.version}</TableCell>
+                        <TableCell>{iso.architecture}</TableCell>
+                        <TableCell>{formatSize(iso.size)}</TableCell>
+                        <TableCell>{iso.created}</TableCell>
+                        <TableCell>
+                          <Badge variant={iso.used ? "default" : "secondary"}>
+                            {iso.used ? "In use" : "Available"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 bg-transparent"
+                              asChild
+                            >
+                              <a href={apiUrl(`/isos/${iso.name}/file`)}>
+                                <Download className="h-3 w-3" />
+                              </a>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 bg-transparent"
+                              disabled={iso.used}
+                              onClick={() => handleDeleteIso(iso.name)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -684,38 +692,46 @@ export function ImageManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lxcImages.map((image) => (
-                    <TableRow key={image.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Container className="h-4 w-4" />
-                          <span className="font-medium">{image.repository}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{image.tag}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{image.imageId}</TableCell>
-                      <TableCell>{formatSize(image.size / 1000)}</TableCell>
-                      <TableCell>{image.created}</TableCell>
-                      <TableCell>{formatPulls(image.pulls)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-                            <Download className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 bg-transparent"
-                            onClick={() => handleDeleteLxcImage(image.imageId, `${image.repository}:${image.tag}`)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                  {lxcImages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        No images found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    lxcImages.map((image) => (
+                      <TableRow key={image.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Container className="h-4 w-4" />
+                            <span className="font-medium">{image.repository}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{image.tag}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{image.imageId}</TableCell>
+                        <TableCell>{formatSize(image.size / 1000)}</TableCell>
+                        <TableCell>{image.created}</TableCell>
+                        <TableCell>{formatPulls(image.pulls)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                              <Download className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 bg-transparent"
+                              onClick={() => handleDeleteLxcImage(image.imageId, `${image.repository}:${image.tag}`)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -795,38 +811,46 @@ export function ImageManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {containerImages.map((image) => (
-                    <TableRow key={image.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Container className="h-4 w-4" />
-                          <span className="font-medium">{image.repository}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{image.tag}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{image.imageId}</TableCell>
-                      <TableCell>{formatSize(image.size / 1000)}</TableCell>
-                      <TableCell>{image.created}</TableCell>
-                      <TableCell>{formatPulls(image.pulls)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-                            <Download className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 bg-transparent"
-                            onClick={() => handleDeleteImage(image.imageId, `${image.repository}:${image.tag}`)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                  {containerImages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        No images found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    containerImages.map((image) => (
+                      <TableRow key={image.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Container className="h-4 w-4" />
+                            <span className="font-medium">{image.repository}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{image.tag}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{image.imageId}</TableCell>
+                        <TableCell>{formatSize(image.size / 1000)}</TableCell>
+                        <TableCell>{image.created}</TableCell>
+                        <TableCell>{formatPulls(image.pulls)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                              <Download className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 bg-transparent"
+                              onClick={() => handleDeleteImage(image.imageId, `${image.repository}:${image.tag}`)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
