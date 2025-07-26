@@ -10,6 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { apiUrl } from "@/lib/api"
 
 export function VirtualMachines() {
@@ -167,7 +175,7 @@ export function VirtualMachines() {
       )}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Virtual Machines</h2>
+          <h2 className="text-3xl tracking-tight">Virtual Machines</h2>
           <p className="text-muted-foreground">Manage your virtual machines</p>
         </div>
         <div className="flex items-center gap-2">
@@ -291,35 +299,35 @@ export function VirtualMachines() {
       ) : (
         <Card>
           <CardContent className="py-0 pl-6 pr-0">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left">
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th>ISO</th>
-                  <th>CPU</th>
-                  <th>Memory</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-normal">Name</TableHead>
+                  <TableHead className="font-normal">Status</TableHead>
+                  <TableHead className="font-normal">ISO</TableHead>
+                  <TableHead className="font-normal">CPU</TableHead>
+                  <TableHead className="font-normal">Memory</TableHead>
+                  <TableHead className="font-normal">Created</TableHead>
+                  <TableHead className="font-normal">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {vms.length === 0 ? (
-                  <tr className="border-t border-border">
-                    <td colSpan={7} className="text-center">
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
                       No virtual machines found
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   vms.map((vm) => (
-                    <tr key={vm.id} className="border-t border-border">
-                      <td className="py-2">{vm.name}</td>
-                      <td>{vm.status}</td>
-                      <td className="text-sm">{vm.iso}</td>
-                      <td>{vm.cpu}</td>
-                      <td>{vm.memory}</td>
-                      <td className="text-sm">{vm.created}</td>
-                      <td>
+                    <TableRow key={vm.id}>
+                      <TableCell className="py-2">{vm.name}</TableCell>
+                      <TableCell>{vm.status}</TableCell>
+                      <TableCell className="text-sm">{vm.iso}</TableCell>
+                      <TableCell>{vm.cpu}</TableCell>
+                      <TableCell>{vm.memory}</TableCell>
+                      <TableCell className="text-sm">{vm.created}</TableCell>
+                      <TableCell>
                         <div className="flex gap-1">
                           {vm.status.includes("running") ? (
                             <Button variant="destructive" size="icon" onClick={() => handleStop(vm.name)}>
@@ -337,12 +345,12 @@ export function VirtualMachines() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
