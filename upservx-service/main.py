@@ -21,6 +21,10 @@ import grp
 import asyncio
 import socket
 
+# Track last network counters for throughput calculation
+_prev_net_io = psutil.net_io_counters()
+_prev_net_time = time.time()
+
 
 def run_subprocess(cmd: list[str]) -> subprocess.CompletedProcess:
     """Run a subprocess, logging the command and raising HTTPException on failure."""
@@ -1011,7 +1015,17 @@ def collect_metrics() -> dict:
     cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
     virt = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
+    global _prev_net_io, _prev_net_time
     net = psutil.net_io_counters()
+    now = time.time()
+    in_rate = 0.0
+    out_rate = 0.0
+    if _prev_net_io:
+        delta = max(now - _prev_net_time, 1e-6)
+        in_rate = (net.bytes_recv - _prev_net_io.bytes_recv) / delta
+        out_rate = (net.bytes_sent - _prev_net_io.bytes_sent) / delta
+    _prev_net_io = net
+    _prev_net_time = now
     uptime_seconds = time.time() - psutil.boot_time()
 
     services_info = [
@@ -1048,8 +1062,8 @@ def collect_metrics() -> dict:
             "usage": disk.percent,
         },
         "network": {
-            "in": round(net.bytes_recv / (1024 ** 2), 2),
-            "out": round(net.bytes_sent / (1024 ** 2), 2),
+            "in": round(in_rate / (1024 ** 2), 2),
+            "out": round(out_rate / (1024 ** 2), 2),
         },
         "gpu": get_gpu_model(),
         "uptime": format_uptime(uptime_seconds),
