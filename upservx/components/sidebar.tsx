@@ -44,13 +44,13 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "vms", label: "Virtual Machines", icon: Server },
     { id: "containers", label: "Container", icon: Container },
-    { id: "services", label: "Services", icon: Settings },
     { id: "images", label: "Images & ISOs", icon: Disc },
     { id: "network", label: "Network", icon: Network },
     { id: "storage", label: "Storage", icon: HardDrive },
     { id: "users", label: "Users", icon: Users },
     { id: "backup", label: "Backup", icon: Shield },
     { id: "logs", label: "Logs", icon: FileText },
+    { id: "services", label: "Services", icon: Settings },
     { id: "settings", label: "Settings", icon: Settings },
   ]
 
