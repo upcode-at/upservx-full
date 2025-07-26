@@ -304,35 +304,43 @@ export function VirtualMachines() {
                 </tr>
               </thead>
               <tbody>
-                {vms.map(vm => (
-                  <tr key={vm.id} className="border-t border-border">
-                    <td className="py-2">{vm.name}</td>
-                    <td>{vm.status}</td>
-                    <td className="text-sm">{vm.iso}</td>
-                    <td>{vm.cpu}</td>
-                    <td>{vm.memory}</td>
-                    <td className="text-sm">{vm.created}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        {vm.status.includes("running") ? (
-                          <Button variant="destructive" size="icon" onClick={() => handleStop(vm.name)}>
-                            <Square className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button className="bg-green-600 text-white hover:bg-green-700" size="icon" onClick={() => handleStart(vm.name)}>
-                            <Play className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                {vms.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center">
+                      No virtual machines found
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  vms.map((vm) => (
+                    <tr key={vm.id} className="border-t border-border">
+                      <td className="py-2">{vm.name}</td>
+                      <td>{vm.status}</td>
+                      <td className="text-sm">{vm.iso}</td>
+                      <td>{vm.cpu}</td>
+                      <td>{vm.memory}</td>
+                      <td className="text-sm">{vm.created}</td>
+                      <td>
+                        <div className="flex gap-1">
+                          {vm.status.includes("running") ? (
+                            <Button variant="destructive" size="icon" onClick={() => handleStop(vm.name)}>
+                              <Square className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button className="bg-green-600 text-white hover:bg-green-700" size="icon" onClick={() => handleStart(vm.name)}>
+                              <Play className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </CardContent>
