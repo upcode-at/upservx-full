@@ -175,7 +175,7 @@ export function VirtualMachines() {
       )}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl tracking-tight">Virtual Machines</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Virtual Machines</h2>
           <p className="text-muted-foreground">Manage your virtual machines</p>
         </div>
         <div className="flex items-center gap-2">
