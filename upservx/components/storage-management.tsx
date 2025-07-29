@@ -59,6 +59,10 @@ export function StorageManagement() {
   const [message, setMessage] = useState<string | null>(null)
   const [mountOpen, setMountOpen] = useState(false)
   const [formatOpen, setFormatOpen] = useState(false)
+  const [poolOpen, setPoolOpen] = useState(false)
+  const [poolName, setPoolName] = useState("")
+  const [raidLevel, setRaidLevel] = useState("mirror")
+  const [poolDevices, setPoolDevices] = useState<string[]>([])
 
   useEffect(() => {
     if (!error) return
@@ -132,6 +136,25 @@ export function StorageManagement() {
     setMountOpen(false)
   }
 
+  const handleCreatePool = async () => {
+    try {
+      const res = await fetch(apiUrl("/drives/zfs"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: poolName, devices: poolDevices, raid: raidLevel }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setMessage("Pool created")
+      setPoolOpen(false)
+      setPoolName("")
+      setPoolDevices([])
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+      setError("Pool creation failed")
+    }
+  }
+
 
   const getDriveIcon = (type: string) => {
     switch (type) {
@@ -163,9 +186,69 @@ export function StorageManagement() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
-        <p className="text-muted-foreground">Manage disks, volumes and usage</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
+          <p className="text-muted-foreground">Manage disks, volumes and usage</p>
+        </div>
+        <Dialog open={poolOpen} onOpenChange={setPoolOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => { setPoolDevices([]); setPoolName(""); setRaidLevel("mirror"); setPoolOpen(true) }}>
+              Create ZFS Pool
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create ZFS Pool</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pool-name">Pool Name</Label>
+                <Input id="pool-name" value={poolName} onChange={e => setPoolName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="raid">RAID Level</Label>
+                <Select value={raidLevel} onValueChange={setRaidLevel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select RAID" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stripe">stripe</SelectItem>
+                    <SelectItem value="mirror">mirror</SelectItem>
+                    <SelectItem value="raidz">raidz</SelectItem>
+                    <SelectItem value="raidz2">raidz2</SelectItem>
+                    <SelectItem value="raidz3">raidz3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Devices</Label>
+                <div className="grid gap-2">
+                  {drives.map(d => (
+                    <label key={d.device} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={poolDevices.includes(d.device)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setPoolDevices(prev => [...prev, d.device])
+                          } else {
+                            setPoolDevices(prev => prev.filter(x => x !== d.device))
+                          }
+                        }}
+                      />
+                      {d.device} ({d.size} GB)
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setPoolOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreatePool}>Create</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Physical Drives */}
