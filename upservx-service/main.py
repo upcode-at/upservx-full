@@ -880,15 +880,16 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             stripped = line.strip()
             if not stripped or stripped.startswith("NAME"):
                 continue
-            parts = stripped.split()
-            token = parts[0]
+            token = stripped.split()[0]
             if token == pool["name"]:
                 continue
             if token.startswith("mirror") or token.startswith("raidz"):
                 pool["type"] = token.split("-")[0]
                 continue
-            if token.startswith("/"):
-                pool["devices"].append(token)
+            device = token
+            if not token.startswith("/"):
+                device = f"/dev/{token}"
+            pool["devices"].append(device)
         if pool and line.startswith("errors:"):
             pass
     if pool:

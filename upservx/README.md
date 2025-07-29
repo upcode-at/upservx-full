@@ -44,3 +44,7 @@ Pools can be listed via `GET /drives/zfs`. Devices that belong to a pool are not
 returned by `/drives`; instead the pool entry contains the device list and RAID
 type. You can also create pools from the **Storage** tab in the dashboard,
 which provides a form to pick devices and RAID level.
+
+ZFS management commands typically require root privileges. Ensure that the
+backend service runs with sufficient permissions or execute the API calls using
+`sudo` so the `zpool` command can create and list pools successfully.
