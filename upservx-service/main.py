@@ -143,6 +143,12 @@ class DriveInfo(BaseModel):
     temperature: int | None = None
 
 
+class ZFSPoolInfo(BaseModel):
+    name: str
+    type: str
+    devices: List[str]
+
+
 class NetworkInterfaceInfo(BaseModel):
     name: str
     type: str
@@ -849,6 +855,47 @@ def _drive_type(dev: str) -> str:
     return "HDD"
 
 
+def get_zfs_pools() -> List[ZFSPoolInfo]:
+    """Return a list of ZFS pools with their member devices and type."""
+    if shutil.which("zpool") is None:
+        return []
+    result = subprocess.run(["zpool", "status", "-P"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return []
+    pools: List[ZFSPoolInfo] = []
+    lines = result.stdout.splitlines()
+    pool: dict | None = None
+    in_config = False
+    for line in lines:
+        if line.startswith("  pool:"):
+            if pool:
+                pools.append(ZFSPoolInfo(**pool))
+            pool = {"name": line.split()[1], "devices": [], "type": "stripe"}
+            in_config = False
+        elif pool and line.startswith(" state:"):
+            pass
+        elif pool and line.startswith("config:"):
+            in_config = True
+        elif pool and in_config:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("NAME"):
+                continue
+            parts = stripped.split()
+            token = parts[0]
+            if token == pool["name"]:
+                continue
+            if token.startswith("mirror") or token.startswith("raidz"):
+                pool["type"] = token.split("-")[0]
+                continue
+            if token.startswith("/"):
+                pool["devices"].append(token)
+        if pool and line.startswith("errors:"):
+            pass
+    if pool:
+        pools.append(ZFSPoolInfo(**pool))
+    return pools
+
+
 def get_drives() -> List[DriveInfo]:
     """Return information for all physical drives including unmounted ones."""
     drives: List[DriveInfo] = []
@@ -907,6 +954,11 @@ def get_drives() -> List[DriveInfo]:
 
     for dev in data.get("blockdevices", []):
         add_device(dev)
+
+    # Remove devices that are part of ZFS pools
+    for pool in get_zfs_pools():
+        for dev in pool.devices:
+            drives = [d for d in drives if d.device != dev]
 
     unique = {}
     for d in drives:
@@ -1695,6 +1747,11 @@ class ZFSPoolCreateRequest(BaseModel):
     name: str
     devices: List[str]
     raid: str = "stripe"
+
+
+@app.get("/drives/zfs")
+def list_zfs_pools():
+    return {"pools": [p.dict() for p in get_zfs_pools()]}
 
 
 @app.post("/drives/mount")

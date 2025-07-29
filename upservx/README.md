@@ -40,5 +40,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 The backend supports formatting drives with ZFS. To create a ZFS pool, send a
 POST request to `/drives/zfs` with a pool name, a list of devices and the desired
 RAID level (`mirror`, `raidz`, `raidz2`, `raidz3` or `stripe`).
-You can also create pools from the **Storage** tab in the dashboard, which
-provides a form to pick devices and RAID level.
+Pools can be listed via `GET /drives/zfs`. Devices that belong to a pool are not
+returned by `/drives`; instead the pool entry contains the device list and RAID
+type. You can also create pools from the **Storage** tab in the dashboard,
+which provides a form to pick devices and RAID level.

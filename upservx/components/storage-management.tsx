@@ -15,6 +15,12 @@ interface Drive {
   health: string
   temperature?: number | null
 }
+
+interface ZFSPool {
+  name: string
+  type: string
+  devices: string[]
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -35,12 +41,20 @@ import { apiUrl } from "@/lib/api"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
+  const [pools, setPools] = useState<ZFSPool[]>([])
   const loadDrives = async () => {
     try {
-      const res = await fetch(apiUrl("/drives"))
-      if (res.ok) {
-        const data = await res.json()
+      const [dRes, pRes] = await Promise.all([
+        fetch(apiUrl("/drives")),
+        fetch(apiUrl("/drives/zfs")),
+      ])
+      if (dRes.ok) {
+        const data = await dRes.json()
         setDrives(data.drives || [])
+      }
+      if (pRes.ok) {
+        const pData = await pRes.json()
+        setPools(pData.pools || [])
       }
     } catch (e) {
       console.error(e)
@@ -250,6 +264,31 @@ export function StorageManagement() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* ZFS Pools */}
+      {pools.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ZFS Pools</CardTitle>
+            <CardDescription>Configured ZFS pools</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {pools.map(p => (
+                <div key={p.name} className="border rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="font-medium">{p.name}</div>
+                    <Badge variant="outline">{p.type}</Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Devices: {p.devices.join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Physical Drives */}
       <Card>
