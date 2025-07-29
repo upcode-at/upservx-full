@@ -1691,6 +1691,12 @@ class DriveFormatRequest(BaseModel):
     label: str | None = None
 
 
+class ZFSPoolCreateRequest(BaseModel):
+    name: str
+    devices: List[str]
+    raid: str = "stripe"
+
+
 @app.post("/drives/mount")
 def mount_drive(req: DriveMountRequest):
     if not os.path.exists(req.mountpoint):
@@ -1712,20 +1718,47 @@ def format_drive(req: DriveFormatRequest):
         cmd = ["mkfs.vfat", "-F", "32"]
     elif fs == "exfat":
         cmd = ["mkfs.exfat"]
+    elif fs == "zfs":
+        if shutil.which("zpool") is None:
+            raise HTTPException(status_code=404, detail="zfs not installed")
+        pool = req.label or os.path.basename(req.device)
+        cmd = ["zpool", "create", "-f", pool, req.device]
     else:
         raise HTTPException(status_code=400, detail="unsupported filesystem")
-    if req.label:
+    if req.label and fs != "zfs":
         if fs in {"ext4", "ntfs"}:
             cmd.extend(["-L", req.label])
         else:
             cmd.extend(["-n", req.label])
-    cmd.append(req.device)
+    if fs != "zfs":
+        cmd.append(req.device)
     # Unmount the device first in case it is currently mounted
     subprocess.run(["umount", req.device], capture_output=True)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
     return {"detail": "formatted"}
+
+
+@app.post("/drives/zfs")
+def create_zfs_pool(req: ZFSPoolCreateRequest):
+    if shutil.which("zpool") is None:
+        raise HTTPException(status_code=404, detail="zfs not installed")
+    if not req.devices:
+        raise HTTPException(status_code=400, detail="no devices specified")
+    cmd = ["zpool", "create", "-f", req.name]
+    raid = req.raid.lower()
+    if raid == "mirror":
+        cmd.append("mirror")
+    elif raid in {"raidz", "raidz2", "raidz3"}:
+        cmd.append(raid)
+    elif raid != "stripe":
+        raise HTTPException(status_code=400, detail="invalid raid level")
+    cmd.extend(req.devices)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create pool")
+    return {"detail": "created"}
 
 
 @app.get("/users")
