@@ -139,6 +139,7 @@ class DriveInfo(BaseModel):
     filesystem: str
     mountpoint: str
     mounted: bool
+    health: str = "good"
     temperature: int | None = None
 
 
