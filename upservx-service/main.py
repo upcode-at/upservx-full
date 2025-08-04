@@ -150,6 +150,10 @@ class ZFSDeviceInfo(BaseModel):
 class ZFSPoolInfo(BaseModel):
     name: str
     type: str
+    size: float
+    used: float
+    available: float
+    mountpoint: str
     devices: List[ZFSDeviceInfo]
 
 
@@ -860,21 +864,65 @@ def _drive_type(dev: str) -> str:
 
 
 def get_zfs_pools() -> List[ZFSPoolInfo]:
-    """Return a list of ZFS pools with their member devices and type."""
+    """Return a list of ZFS pools with their member devices and usage."""
     if shutil.which("zpool") is None:
         return []
-    result = subprocess.run(["zpool", "status"], capture_output=True, text=True)
-    if result.returncode != 0:
+
+    size_info: dict[str, dict[str, int]] = {}
+    result = subprocess.run(
+        ["zpool", "list", "-H", "-p", "-o", "name,size,alloc,free"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                name, size, alloc, free = parts[:4]
+                size_info[name] = {
+                    "size": int(size),
+                    "used": int(alloc),
+                    "available": int(free),
+                }
+
+    mountpoints: dict[str, str] = {}
+    zfs_res = subprocess.run(
+        ["zfs", "list", "-H", "-o", "name,mountpoint"],
+        capture_output=True,
+        text=True,
+    )
+    if zfs_res.returncode == 0:
+        for line in zfs_res.stdout.splitlines():
+            try:
+                name, mnt = line.split("\t")
+            except ValueError:
+                continue
+            if "/" not in name:
+                mountpoints[name] = mnt
+
+    status = subprocess.run(["zpool", "status"], capture_output=True, text=True)
+    if status.returncode != 0:
         return []
+
     pools: List[ZFSPoolInfo] = []
-    lines = result.stdout.splitlines()
+    lines = status.stdout.splitlines()
     pool: dict | None = None
     in_config = False
     for line in lines:
         if line.startswith("  pool:"):
             if pool:
                 pools.append(ZFSPoolInfo(**pool))
-            pool = {"name": line.split()[1], "devices": [], "type": "stripe"}
+            name = line.split()[1]
+            info = size_info.get(name, {"size": 0, "used": 0, "available": 0})
+            pool = {
+                "name": name,
+                "devices": [],
+                "type": "stripe",
+                "size": round(info["size"] / (1024 ** 3)),
+                "used": round(info["used"] / (1024 ** 3)),
+                "available": round(info["available"] / (1024 ** 3)),
+                "mountpoint": mountpoints.get(name, ""),
+            }
             in_config = False
         elif pool and line.startswith(" state:"):
             pass

@@ -23,6 +23,10 @@ interface ZFSDevice {
 interface ZFSPool {
   name: string
   type: string
+  size: number
+  used: number
+  available: number
+  mountpoint: string
   devices: ZFSDevice[]
 }
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -271,7 +275,14 @@ export function StorageManagement() {
                     <div className="font-medium">{p.name}</div>
                     <Badge variant="outline">{p.type}</Badge>
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground mb-2">
+                    Mountpoint: {p.mountpoint || "-"}
+                  </div>
+                  <Progress value={getUsagePercentage(p.used, p.size)} />
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {p.used}GB / {p.size}GB
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-2">
                     Devices:{" "}
                     {p.devices.map((d, i) => (
                       <span
