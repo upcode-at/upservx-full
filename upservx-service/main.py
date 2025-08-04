@@ -142,10 +142,15 @@ class DriveInfo(BaseModel):
     temperature: int | None = None
 
 
+class ZFSDeviceInfo(BaseModel):
+    path: str
+    status: str
+
+
 class ZFSPoolInfo(BaseModel):
     name: str
     type: str
-    devices: List[str]
+    devices: List[ZFSDeviceInfo]
 
 
 class NetworkInterfaceInfo(BaseModel):
@@ -879,7 +884,9 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             stripped = line.strip()
             if not stripped or stripped.startswith("NAME"):
                 continue
-            token = stripped.split()[0]
+            parts = stripped.split()
+            token = parts[0]
+            state = parts[1] if len(parts) > 1 else ""
             if token == pool["name"]:
                 continue
             if token.startswith("mirror") or token.startswith("raidz"):
@@ -888,7 +895,7 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             device = token
             if not token.startswith("/"):
                 device = f"/dev/{token}"
-            pool["devices"].append(device)
+            pool["devices"].append({"path": device, "status": state})
         if pool and line.startswith("errors:"):
             pass
     if pool:
@@ -958,7 +965,7 @@ def get_drives() -> List[DriveInfo]:
     # Remove devices that are part of ZFS pools
     for pool in get_zfs_pools():
         for dev in pool.devices:
-            drives = [d for d in drives if d.device != dev]
+            drives = [d for d in drives if d.device != dev.path]
 
     unique = {}
     for d in drives:

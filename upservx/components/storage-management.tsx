@@ -15,10 +15,15 @@ interface Drive {
   temperature?: number | null
 }
 
+interface ZFSDevice {
+  path: string
+  status: string
+}
+
 interface ZFSPool {
   name: string
   type: string
-  devices: string[]
+  devices: ZFSDevice[]
 }
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -267,7 +272,16 @@ export function StorageManagement() {
                     <Badge variant="outline">{p.type}</Badge>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Devices: {p.devices.join(', ')}
+                    Devices:{" "}
+                    {p.devices.map((d, i) => (
+                      <span
+                        key={d.path}
+                        className={d.status !== "ONLINE" ? "text-red-500" : ""}
+                      >
+                        {i > 0 && ", "}
+                        {d.path}
+                      </span>
+                    ))}
                   </div>
                 </div>
               ))}
