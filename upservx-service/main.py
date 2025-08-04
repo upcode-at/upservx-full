@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import base64
 import pam
+import secrets
 from pydantic import BaseModel
 import psutil
 import platform
@@ -58,15 +59,22 @@ async def pam_auth_middleware(request: Request, call_next):
         return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
     try:
         scheme, credentials = auth_header.split(" ", 1)
-        if scheme.lower() != "basic":
+        scheme = scheme.lower()
+        if scheme == "basic":
+            decoded = base64.b64decode(credentials).decode()
+            username, password = decoded.split(":", 1)
+            if not pam_auth.authenticate(username, password):
+                return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+            request.state.user = username
+        elif scheme == "bearer":
+            settings = load_settings()
+            if not settings.api_key or credentials.strip() != settings.api_key:
+                return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+            request.state.user = "api-key"
+        else:
             raise ValueError
-        decoded = base64.b64decode(credentials).decode()
-        username, password = decoded.split(":", 1)
     except Exception:
         return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
-    if not pam_auth.authenticate(username, password):
-        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
-    request.state.user = username
     response = await call_next(request)
     return response
 
@@ -181,6 +189,7 @@ class SettingsModel(BaseModel):
     auto_updates: bool
     monitoring: bool
     ssh_port: int = 22
+    api_key: Optional[str] = None
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
@@ -230,6 +239,7 @@ def load_settings() -> SettingsModel:
         auto_updates=data.get("auto_updates", False),
         monitoring=data.get("monitoring", True),
         ssh_port=data.get("ssh_port", _system_ssh_port()),
+        api_key=data.get("api_key"),
     )
 
 
@@ -2149,6 +2159,14 @@ def update_settings(payload: SettingsModel):
     except Exception:
         pass
     return {"detail": "saved"}
+
+
+@app.post("/settings/api-key")
+def generate_api_key():
+    settings = load_settings()
+    settings.api_key = secrets.token_hex(16)
+    save_settings(settings)
+    return {"api_key": settings.api_key}
 
 
 if __name__ == "__main__":

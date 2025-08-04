@@ -14,6 +14,7 @@ export function Settings() {
     auto_updates: boolean
     monitoring: boolean
     ssh_port: number
+    api_key?: string
   }
 
   const [settings, setSettings] = useState<SettingsData>({
@@ -22,6 +23,7 @@ export function Settings() {
     auto_updates: false,
     monitoring: false,
     ssh_port: 22,
+    api_key: "",
   })
   const [message, setMessage] = useState<string | null>(null)
 
@@ -36,6 +38,7 @@ export function Settings() {
           auto_updates: data.auto_updates,
           monitoring: data.monitoring,
           ssh_port: data.ssh_port,
+          api_key: data.api_key || "",
         })
       }
     } catch (e) {
@@ -61,6 +64,19 @@ export function Settings() {
         body: JSON.stringify(settings),
       })
       if (res.ok) setMessage("Saved")
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleGenerateKey = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/api-key"), { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        setSettings({ ...settings, api_key: data.api_key })
+        setMessage("API key generated")
+      }
     } catch (e) {
       console.error(e)
     }
@@ -136,6 +152,13 @@ export function Settings() {
               onCheckedChange={(v) => setSettings({ ...settings, monitoring: v })}
             />
             <Label htmlFor="monitoring">Enable system monitoring</Label>
+          </div>
+          <div className="space-y-2 pt-4">
+            <Label htmlFor="api-key">API Key</Label>
+            <div className="flex space-x-2">
+              <Input id="api-key" value={settings.api_key} readOnly />
+              <Button onClick={handleGenerateKey}>Generate</Button>
+            </div>
           </div>
         </CardContent>
       </Card>
