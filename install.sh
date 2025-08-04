@@ -1,41 +1,150 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# install.sh – Installiert Abhängigkeiten, baut Next.js, richtet systemd-Service ein
 
 set -e
 
-# Update package lists
-apt update
+APP_DIR="/opt/upservx"
+SERVICE_NAME="upservx"
+PACKAGES="python3 python3-pip python3-venv git nodejs npm lshw kubeadm kubectl kubelet lxd qemu-kvm libvirt-daemon-system libvirt-clients sshfs vsftpd postgresql ftp zfsutils-linux"
 
-# Install required packages
-apt install -y \
-    python3 python3-pip python3-venv git \
-    nodejs npm lshw \
-    docker.io kubeadm kubectl kubelet \
-    lxd qemu-kvm libvirt-daemon-system libvirt-clients \
-    sshfs vsftpd postgresql ftp zfsutils-linux
+# === Farben & Spinner ========================================================
+GREEN="\e[32m"
+BLUE="\e[34m"
+RED="\e[31m"
+NC="\e[0m"
 
-# Configure PostgreSQL credentials
-read -s -p "Enter postgres root password: " POSTGRES_ROOT_PASSWORD
-echo
-read -p "Enter backend postgres user: " POSTGRES_USER
-read -s -p "Enter password for $POSTGRES_USER: " POSTGRES_USER_PASSWORD
-echo
+spin() {
+  local pid=$1
+  local delay=0.1
+  local spinstr='|/-\'
+  while ps -p $pid >/dev/null 2>&1; do
+    local temp=${spinstr#?}
+    printf " [%c]  " "$spinstr"
+    spinstr=$temp${spinstr%"$temp"}
+    sleep $delay
+    printf "\b\b\b\b\b\b"
+  done
+}
 
-sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
-ALTER USER postgres WITH PASSWORD '${POSTGRES_ROOT_PASSWORD}';
-CREATE USER ${POSTGRES_USER} WITH PASSWORD '${POSTGRES_USER_PASSWORD}';
-CREATE DATABASE ${POSTGRES_USER} OWNER ${POSTGRES_USER};
-SQL
+step() {
+  printf "${BLUE}➜${NC} %s..." "$1"
+}
 
-# Setup backend Python environment
-cd ./upservx-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+ok() {
+  printf "${GREEN}✔${NC}\n"
+}
 
-deactivate
+fail() {
+  printf "${RED}✖${NC}\n"
+  exit 1
+}
 
-# Build frontend
-cd ../upservx
-npm install
-npm run build
-mv dist ../upservx-service/static
+# === 1. Systemabhängigkeiten installieren ====================================
+step "Systempakete installieren"
+{
+  sudo apt update &&
+  sudo apt install -y $PACKAGES
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === Docker aus offiziellem Repository installieren =========================
+step "Docker installieren"
+{
+  sudo apt-get update &&
+  sudo apt-get install -y ca-certificates curl &&
+  sudo install -m 0755 -d /etc/apt/keyrings &&
+  sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc &&
+  sudo chmod a+r /etc/apt/keyrings/docker.asc &&
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+  sudo apt-get update &&
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 2. Projektdateien kopieren ==============================================
+step "Projekt nach $APP_DIR kopieren"
+{
+  sudo mkdir -p "$APP_DIR" &&
+  sudo cp -R . "$APP_DIR" &&
+  sudo chown -R $USER:$USER "$APP_DIR"
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 3. npm-Abhängigkeiten ====================================================
+step "npm install"
+{
+  cd "$APP_DIR/upservx" && npm install
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 4. Next.js build ========================================================
+step "npm run build"
+{
+  cd "$APP_DIR/upservx" && npm run build
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 5. Python-Abhängigkeiten ===============================================
+if [ -f "$APP_DIR/upservx-service/requirements.txt" ]; then
+  step "Python requirements installieren"
+  {
+    cd "$APP_DIR/upservx-service" &&
+    python3 -m venv venv &&
+    source venv/bin/activate &&
+    pip install -r requirements.txt
+  } &>/tmp/install.log &
+  spin $!
+  if [ $? -eq 0 ]; then ok; else fail; fi
+fi
+
+# === 6. Start-Skript für Service ============================================
+step "start.sh erzeugen"
+cat <<'EOS' > "$APP_DIR/start.sh"
+#!/usr/bin/env bash
+cd "$(dirname "$0")"
+( cd upservx && npm start ) &
+( cd upservx-service && source venv/bin/activate && python3 main.py ) &
+wait -n
+EOS
+chmod +x "$APP_DIR/start.sh"
+ok
+
+# === 7. systemd-Service installieren ========================================
+step "systemd-Service erstellen"
+sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<EOF_SERVICE
+[Unit]
+Description=upservx Next.js + Python Service
+After=network.target
+
+[Service]
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/start.sh
+Restart=always
+User=$USER
+Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+ok
+
+# === 8. Service aktivieren ===================================================
+step "Service aktivieren & starten"
+{
+  sudo systemctl daemon-reload &&
+  sudo systemctl enable "${SERVICE_NAME}" &&
+  sudo systemctl start "${SERVICE_NAME}"
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+printf "\n${GREEN}Installation abgeschlossen!${NC}\n"
+printf "Status prüfen mit: ${BLUE}systemctl status ${SERVICE_NAME}${NC}\n"
