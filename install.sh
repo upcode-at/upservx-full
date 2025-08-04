@@ -5,7 +5,7 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="python3 python3-pip python3-venv git nodejs npm lshw kubeadm kubectl kubelet lxd qemu-kvm libvirt-daemon-system libvirt-clients sshfs vsftpd postgresql ftp zfsutils-linux"
+PACKAGES="python3 python3-pip python3-venv git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system libvirt-clients sshfs vsftpd postgresql ftp zfsutils-linux linux-headers-$(uname -r) dkms"
 
 # === Colors & Spinner ========================================================
 GREEN="\e[32m"
