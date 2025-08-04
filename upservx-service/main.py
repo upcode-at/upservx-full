@@ -859,7 +859,7 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
     """Return a list of ZFS pools with their member devices and type."""
     if shutil.which("zpool") is None:
         return []
-    result = subprocess.run(["zpool", "status", "-P"], capture_output=True, text=True)
+    result = subprocess.run(["zpool", "status"], capture_output=True, text=True)
     if result.returncode != 0:
         return []
     pools: List[ZFSPoolInfo] = []
@@ -1752,8 +1752,18 @@ class ZFSPoolCreateRequest(BaseModel):
 
 @app.get("/drives/zfs")
 def list_zfs_pools():
-    return {"pools": [p.dict() for p in get_zfs_pools()]}
+    return get_zfs_pools()
 
+@app.get("/drives/zfs-debug")
+def zfs_debug():
+    zpool_path = shutil.which("zpool")
+    result = subprocess.run(["zpool", "status", "-P"], capture_output=True, text=True)
+    return {
+        "zpool_path": zpool_path,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr
+    }
 
 @app.post("/drives/mount")
 def mount_drive(req: DriveMountRequest):
