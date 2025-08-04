@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh – Installiert Abhängigkeiten, baut Next.js, richtet systemd-Service ein
+# install.sh – Install dependencies, build Next.js, set up systemd service
 
 set -e
 
@@ -7,7 +7,7 @@ APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
 PACKAGES="python3 python3-pip python3-venv git nodejs npm lshw kubeadm kubectl kubelet lxd qemu-kvm libvirt-daemon-system libvirt-clients sshfs vsftpd postgresql ftp zfsutils-linux"
 
-# === Farben & Spinner ========================================================
+# === Colors & Spinner ========================================================
 GREEN="\e[32m"
 BLUE="\e[34m"
 RED="\e[31m"
@@ -39,8 +39,8 @@ fail() {
   exit 1
 }
 
-# === 1. Systemabhängigkeiten installieren ====================================
-step "Systempakete installieren"
+# === 1. Install system dependencies ==========================================
+step "Install system packages"
 {
   sudo apt update &&
   sudo apt install -y $PACKAGES
@@ -48,8 +48,8 @@ step "Systempakete installieren"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-# === Docker aus offiziellem Repository installieren =========================
-step "Docker installieren"
+# === Install Docker from official repository ================================
+step "Install Docker"
 {
   sudo apt-get update &&
   sudo apt-get install -y ca-certificates curl &&
@@ -64,8 +64,8 @@ step "Docker installieren"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-# === 2. Projektdateien kopieren ==============================================
-step "Projekt nach $APP_DIR kopieren"
+# === 2. Copy project files ===================================================
+step "Copy project to $APP_DIR"
 {
   sudo mkdir -p "$APP_DIR" &&
   sudo cp -R . "$APP_DIR" &&
@@ -74,7 +74,7 @@ step "Projekt nach $APP_DIR kopieren"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-# === 3. npm-Abhängigkeiten ====================================================
+# === 3. npm dependencies =====================================================
 step "npm install"
 {
   cd "$APP_DIR/upservx" && npm install
@@ -90,9 +90,9 @@ step "npm run build"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-# === 5. Python-Abhängigkeiten ===============================================
+# === 5. Python dependencies ==================================================
 if [ -f "$APP_DIR/upservx-service/requirements.txt" ]; then
-  step "Python requirements installieren"
+  step "Install Python requirements"
   {
     cd "$APP_DIR/upservx-service" &&
     python3 -m venv venv &&
@@ -103,8 +103,8 @@ if [ -f "$APP_DIR/upservx-service/requirements.txt" ]; then
   if [ $? -eq 0 ]; then ok; else fail; fi
 fi
 
-# === 6. Start-Skript für Service ============================================
-step "start.sh erzeugen"
+# === 6. Start script for service ============================================
+step "Generate start.sh"
 cat <<'EOS' > "$APP_DIR/start.sh"
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
@@ -115,8 +115,8 @@ EOS
 chmod +x "$APP_DIR/start.sh"
 ok
 
-# === 7. systemd-Service installieren ========================================
-step "systemd-Service erstellen"
+# === 7. Install systemd service =============================================
+step "Create systemd service"
 sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<EOF_SERVICE
 [Unit]
 Description=upservx Next.js + Python Service
@@ -136,8 +136,8 @@ WantedBy=multi-user.target
 EOF_SERVICE
 ok
 
-# === 8. Service aktivieren ===================================================
-step "Service aktivieren & starten"
+# === 8. Enable service =======================================================
+step "Enable and start service"
 {
   sudo systemctl daemon-reload &&
   sudo systemctl enable "${SERVICE_NAME}" &&
@@ -146,5 +146,5 @@ step "Service aktivieren & starten"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-printf "\n${GREEN}Installation abgeschlossen!${NC}\n"
-printf "Status prüfen mit: ${BLUE}systemctl status ${SERVICE_NAME}${NC}\n"
+printf "\n${GREEN}Installation complete!${NC}\n"
+printf "Check status with: ${BLUE}systemctl status ${SERVICE_NAME}${NC}\n"
