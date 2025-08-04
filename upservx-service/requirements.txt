@@ -14,3 +14,4 @@ psutil
 uvicorn[standard]
 python-multipart
 python-pam
+six
