@@ -139,7 +139,6 @@ class DriveInfo(BaseModel):
     filesystem: str
     mountpoint: str
     mounted: bool
-    health: str = "good"
     temperature: int | None = None
 
 
@@ -1752,7 +1751,7 @@ class ZFSPoolCreateRequest(BaseModel):
 
 @app.get("/drives/zfs")
 def list_zfs_pools():
-    return get_zfs_pools()
+    return {"pools": [p.dict() for p in get_zfs_pools()]}
 
 @app.get("/drives/zfs-debug")
 def zfs_debug():

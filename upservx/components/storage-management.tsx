@@ -12,7 +12,6 @@ interface Drive {
   filesystem: string
   mountpoint: string
   mounted: boolean
-  health: string
   temperature?: number | null
 }
 
@@ -181,19 +180,6 @@ export function StorageManagement() {
     }
   }
 
-  const getHealthColor = (health: string) => {
-    switch (health) {
-      case "good":
-        return "default"
-      case "warning":
-        return "outline"
-      case "critical":
-        return "destructive"
-      default:
-        return "secondary"
-    }
-  }
-
   const getUsagePercentage = (used: number, size: number) => {
     return Math.round((used / size) * 100)
   }
@@ -308,9 +294,6 @@ export function StorageManagement() {
                       <div className="text-sm text-muted-foreground">{drive.device}</div>
                     </div>
                     <Badge variant="outline">{drive.type}</Badge>
-                    <Badge variant={getHealthColor(drive.health)}>
-                      {drive.health === "good" ? "Good" : drive.health === "warning" ? "Warning" : "Critical"}
-                    </Badge>
                     {!drive.mounted && <Badge variant="destructive">Not mounted</Badge>}
                   </div>
                   <div className="flex items-center gap-2">
