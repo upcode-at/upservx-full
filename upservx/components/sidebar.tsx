@@ -12,6 +12,7 @@ import {
   Users,
   Disc,
   FileText,
+  Settings,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -61,6 +62,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     {
       title: "Administration",
       items: [
+        { id: "settings", label: "Settings", icon: Settings },
         { id: "users", label: "Users", icon: Users },
         { id: "backup", label: "Backup", icon: Shield },
         { id: "network", label: "Network", icon: Network },
