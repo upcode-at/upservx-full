@@ -1092,7 +1092,7 @@ def collect_metrics() -> dict:
         {"name": "Kubernetes", "service": "k3s", "port": 6443},
         {"name": "LXC", "service": "lxd", "port": None},
         {"name": "SSH", "service": "sshd", "port": _system_ssh_port()},
-        {"name": "Web Interface", "service": "nginx", "port": 8080},
+        {"name": "ZFS", "service": "zfs", "port": None},
     ]
 
     services = [
