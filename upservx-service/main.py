@@ -143,10 +143,15 @@ class DriveInfo(BaseModel):
     temperature: int | None = None
 
 
+class ZFSDeviceInfo(BaseModel):
+    path: str
+    status: str
+
+
 class ZFSPoolInfo(BaseModel):
     name: str
     type: str
-    devices: List[str]
+    devices: List[ZFSDeviceInfo]
 
 
 class NetworkInterfaceInfo(BaseModel):
@@ -878,9 +883,17 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             in_config = True
         elif pool and in_config:
             stripped = line.strip()
-            if not stripped or stripped.startswith("NAME"):
+            if not stripped:
+                in_config = False
                 continue
-            token = stripped.split()[0]
+            if stripped.startswith("NAME"):
+                continue
+            if stripped.startswith("errors:"):
+                in_config = False
+                continue
+            parts = stripped.split()
+            token = parts[0]
+            state = parts[1] if len(parts) > 1 else ""
             if token == pool["name"]:
                 continue
             if token.startswith("mirror") or token.startswith("raidz"):
@@ -889,9 +902,7 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             device = token
             if not token.startswith("/"):
                 device = f"/dev/{token}"
-            pool["devices"].append(device)
-        if pool and line.startswith("errors:"):
-            pass
+            pool["devices"].append({"path": device, "status": state})
     if pool:
         pools.append(ZFSPoolInfo(**pool))
     return pools
@@ -959,7 +970,7 @@ def get_drives() -> List[DriveInfo]:
     # Remove devices that are part of ZFS pools
     for pool in get_zfs_pools():
         for dev in pool.devices:
-            drives = [d for d in drives if d.device != dev]
+            drives = [d for d in drives if d.device != dev.path]
 
     unique = {}
     for d in drives:
@@ -1752,7 +1763,7 @@ class ZFSPoolCreateRequest(BaseModel):
 
 @app.get("/drives/zfs")
 def list_zfs_pools():
-    return get_zfs_pools()
+    return {"pools": [p.dict() for p in get_zfs_pools()]}
 
 @app.get("/drives/zfs-debug")
 def zfs_debug():
