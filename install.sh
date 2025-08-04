@@ -64,6 +64,14 @@ step "Install Docker"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === Initialize LXD ==========================================================
+step "Initialize LXD"
+{
+  sudo lxd init --auto
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 2. Copy project files ===================================================
 step "Copy project to $APP_DIR"
 {
