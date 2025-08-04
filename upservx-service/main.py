@@ -139,8 +139,18 @@ class DriveInfo(BaseModel):
     filesystem: str
     mountpoint: str
     mounted: bool
-    health: str = "good"
     temperature: int | None = None
+
+
+class ZFSDeviceInfo(BaseModel):
+    path: str
+    status: str
+
+
+class ZFSPoolInfo(BaseModel):
+    name: str
+    type: str
+    devices: List[ZFSDeviceInfo]
 
 
 class NetworkInterfaceInfo(BaseModel):
@@ -849,6 +859,50 @@ def _drive_type(dev: str) -> str:
     return "HDD"
 
 
+def get_zfs_pools() -> List[ZFSPoolInfo]:
+    """Return a list of ZFS pools with their member devices and type."""
+    if shutil.which("zpool") is None:
+        return []
+    result = subprocess.run(["zpool", "status"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return []
+    pools: List[ZFSPoolInfo] = []
+    lines = result.stdout.splitlines()
+    pool: dict | None = None
+    in_config = False
+    for line in lines:
+        if line.startswith("  pool:"):
+            if pool:
+                pools.append(ZFSPoolInfo(**pool))
+            pool = {"name": line.split()[1], "devices": [], "type": "stripe"}
+            in_config = False
+        elif pool and line.startswith(" state:"):
+            pass
+        elif pool and line.startswith("config:"):
+            in_config = True
+        elif pool and in_config:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("NAME"):
+                continue
+            parts = stripped.split()
+            token = parts[0]
+            state = parts[1] if len(parts) > 1 else ""
+            if token == pool["name"]:
+                continue
+            if token.startswith("mirror") or token.startswith("raidz"):
+                pool["type"] = token.split("-")[0]
+                continue
+            device = token
+            if not token.startswith("/"):
+                device = f"/dev/{token}"
+            pool["devices"].append({"path": device, "status": state})
+        if pool and line.startswith("errors:"):
+            pass
+    if pool:
+        pools.append(ZFSPoolInfo(**pool))
+    return pools
+
+
 def get_drives() -> List[DriveInfo]:
     """Return information for all physical drives including unmounted ones."""
     drives: List[DriveInfo] = []
@@ -907,6 +961,11 @@ def get_drives() -> List[DriveInfo]:
 
     for dev in data.get("blockdevices", []):
         add_device(dev)
+
+    # Remove devices that are part of ZFS pools
+    for pool in get_zfs_pools():
+        for dev in pool.devices:
+            drives = [d for d in drives if d.device != dev.path]
 
     unique = {}
     for d in drives:
@@ -1691,6 +1750,27 @@ class DriveFormatRequest(BaseModel):
     label: str | None = None
 
 
+class ZFSPoolCreateRequest(BaseModel):
+    name: str
+    devices: List[str]
+    raid: str = "stripe"
+
+
+@app.get("/drives/zfs")
+def list_zfs_pools():
+    return {"pools": [p.dict() for p in get_zfs_pools()]}
+
+@app.get("/drives/zfs-debug")
+def zfs_debug():
+    zpool_path = shutil.which("zpool")
+    result = subprocess.run(["zpool", "status", "-P"], capture_output=True, text=True)
+    return {
+        "zpool_path": zpool_path,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr
+    }
+
 @app.post("/drives/mount")
 def mount_drive(req: DriveMountRequest):
     if not os.path.exists(req.mountpoint):
@@ -1712,20 +1792,47 @@ def format_drive(req: DriveFormatRequest):
         cmd = ["mkfs.vfat", "-F", "32"]
     elif fs == "exfat":
         cmd = ["mkfs.exfat"]
+    elif fs == "zfs":
+        if shutil.which("zpool") is None:
+            raise HTTPException(status_code=404, detail="zfs not installed")
+        pool = req.label or os.path.basename(req.device)
+        cmd = ["zpool", "create", "-f", pool, req.device]
     else:
         raise HTTPException(status_code=400, detail="unsupported filesystem")
-    if req.label:
+    if req.label and fs != "zfs":
         if fs in {"ext4", "ntfs"}:
             cmd.extend(["-L", req.label])
         else:
             cmd.extend(["-n", req.label])
-    cmd.append(req.device)
+    if fs != "zfs":
+        cmd.append(req.device)
     # Unmount the device first in case it is currently mounted
     subprocess.run(["umount", req.device], capture_output=True)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to format")
     return {"detail": "formatted"}
+
+
+@app.post("/drives/zfs")
+def create_zfs_pool(req: ZFSPoolCreateRequest):
+    if shutil.which("zpool") is None:
+        raise HTTPException(status_code=404, detail="zfs not installed")
+    if not req.devices:
+        raise HTTPException(status_code=400, detail="no devices specified")
+    cmd = ["zpool", "create", "-f", req.name]
+    raid = req.raid.lower()
+    if raid == "mirror":
+        cmd.append("mirror")
+    elif raid in {"raidz", "raidz2", "raidz3"}:
+        cmd.append(raid)
+    elif raid != "stripe":
+        raise HTTPException(status_code=400, detail="invalid raid level")
+    cmd.extend(req.devices)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create pool")
+    return {"detail": "created"}
 
 
 @app.get("/users")

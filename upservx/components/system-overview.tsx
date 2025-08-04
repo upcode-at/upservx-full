@@ -36,7 +36,6 @@ export function SystemOverview() {
     filesystem: string
     mountpoint: string
     mounted: boolean
-    health: string
     temperature?: number | null
   }
 

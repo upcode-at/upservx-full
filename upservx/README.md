@@ -34,3 +34,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Storage Management
+
+The backend supports formatting drives with ZFS. To create a ZFS pool, send a
+POST request to `/drives/zfs` with a pool name, a list of devices and the desired
+RAID level (`mirror`, `raidz`, `raidz2`, `raidz3` or `stripe`).
+Pools can be listed via `GET /drives/zfs`. Devices that belong to a pool are not
+returned by `/drives`; instead the pool entry contains the device list and RAID
+type. You can also create pools from the **Storage** tab in the dashboard,
+which provides a form to pick devices and RAID level.
+
+ZFS management commands typically require root privileges. Ensure that the
+backend service runs with sufficient permissions or execute the API calls using
+`sudo` so the `zpool` command can create and list pools successfully.

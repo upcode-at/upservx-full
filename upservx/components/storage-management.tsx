@@ -12,8 +12,18 @@ interface Drive {
   filesystem: string
   mountpoint: string
   mounted: boolean
-  health: string
   temperature?: number | null
+}
+
+interface ZFSDevice {
+  path: string
+  status: string
+}
+
+interface ZFSPool {
+  name: string
+  type: string
+  devices: ZFSDevice[]
 }
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -35,12 +45,20 @@ import { apiUrl } from "@/lib/api"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
+  const [pools, setPools] = useState<ZFSPool[]>([])
   const loadDrives = async () => {
     try {
-      const res = await fetch(apiUrl("/drives"))
-      if (res.ok) {
-        const data = await res.json()
+      const [dRes, pRes] = await Promise.all([
+        fetch(apiUrl("/drives")),
+        fetch(apiUrl("/drives/zfs")),
+      ])
+      if (dRes.ok) {
+        const data = await dRes.json()
         setDrives(data.drives || [])
+      }
+      if (pRes.ok) {
+        const pData = await pRes.json()
+        setPools(pData.pools || [])
       }
     } catch (e) {
       console.error(e)
@@ -59,6 +77,10 @@ export function StorageManagement() {
   const [message, setMessage] = useState<string | null>(null)
   const [mountOpen, setMountOpen] = useState(false)
   const [formatOpen, setFormatOpen] = useState(false)
+  const [poolOpen, setPoolOpen] = useState(false)
+  const [poolName, setPoolName] = useState("")
+  const [raidLevel, setRaidLevel] = useState("mirror")
+  const [poolDevices, setPoolDevices] = useState<string[]>([])
 
   useEffect(() => {
     if (!error) return
@@ -132,6 +154,25 @@ export function StorageManagement() {
     setMountOpen(false)
   }
 
+  const handleCreatePool = async () => {
+    try {
+      const res = await fetch(apiUrl("/drives/zfs"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: poolName, devices: poolDevices, raid: raidLevel }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setMessage("Pool created")
+      setPoolOpen(false)
+      setPoolName("")
+      setPoolDevices([])
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+      setError("Pool creation failed")
+    }
+  }
+
 
   const getDriveIcon = (type: string) => {
     switch (type) {
@@ -144,29 +185,110 @@ export function StorageManagement() {
     }
   }
 
-  const getHealthColor = (health: string) => {
-    switch (health) {
-      case "good":
-        return "default"
-      case "warning":
-        return "outline"
-      case "critical":
-        return "destructive"
-      default:
-        return "secondary"
-    }
-  }
-
   const getUsagePercentage = (used: number, size: number) => {
     return Math.round((used / size) * 100)
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
-        <p className="text-muted-foreground">Manage disks, volumes and usage</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
+          <p className="text-muted-foreground">Manage disks, volumes and usage</p>
+        </div>
+        <Dialog open={poolOpen} onOpenChange={setPoolOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => { setPoolDevices([]); setPoolName(""); setRaidLevel("mirror"); setPoolOpen(true) }}>
+              Create ZFS Pool
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create ZFS Pool</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pool-name">Pool Name</Label>
+                <Input id="pool-name" value={poolName} onChange={e => setPoolName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="raid">RAID Level</Label>
+                <Select value={raidLevel} onValueChange={setRaidLevel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select RAID" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stripe">stripe</SelectItem>
+                    <SelectItem value="mirror">mirror</SelectItem>
+                    <SelectItem value="raidz">raidz</SelectItem>
+                    <SelectItem value="raidz2">raidz2</SelectItem>
+                    <SelectItem value="raidz3">raidz3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Devices</Label>
+                <div className="grid gap-2">
+                  {drives.map(d => (
+                    <label key={d.device} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={poolDevices.includes(d.device)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setPoolDevices(prev => [...prev, d.device])
+                          } else {
+                            setPoolDevices(prev => prev.filter(x => x !== d.device))
+                          }
+                        }}
+                      />
+                      {d.device} ({d.size} GB)
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setPoolOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreatePool}>Create</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {/* ZFS Pools */}
+      {pools.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ZFS Pools</CardTitle>
+            <CardDescription>Configured ZFS pools</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {pools.map(p => (
+                <div key={p.name} className="border rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="font-medium">{p.name}</div>
+                    <Badge variant="outline">{p.type}</Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Devices:{" "}
+                    {p.devices.map((d, i) => (
+                      <span
+                        key={d.path}
+                        className={d.status !== "ONLINE" ? "text-red-500" : ""}
+                      >
+                        {i > 0 && ", "}
+                        {d.path}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Physical Drives */}
       <Card>
@@ -186,9 +308,6 @@ export function StorageManagement() {
                       <div className="text-sm text-muted-foreground">{drive.device}</div>
                     </div>
                     <Badge variant="outline">{drive.type}</Badge>
-                    <Badge variant={getHealthColor(drive.health)}>
-                      {drive.health === "good" ? "Good" : drive.health === "warning" ? "Warning" : "Critical"}
-                    </Badge>
                     {!drive.mounted && <Badge variant="destructive">Not mounted</Badge>}
                   </div>
                   <div className="flex items-center gap-2">

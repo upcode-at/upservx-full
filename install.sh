@@ -11,7 +11,7 @@ apt install -y \
     nodejs npm lshw \
     docker.io kubeadm kubectl kubelet \
     lxd qemu-kvm libvirt-daemon-system libvirt-clients \
-    sshfs vsftpd postgresql ftp
+    sshfs vsftpd postgresql ftp zfsutils-linux
 
 # Configure PostgreSQL credentials
 read -s -p "Enter postgres root password: " POSTGRES_ROOT_PASSWORD
