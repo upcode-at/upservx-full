@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { apiUrl } from "@/lib/api"
 
@@ -32,33 +33,44 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 p-6 border rounded-xl"
-      >
-        <div>
-          <label className="block mb-1">Username</label>
-          <input
-            className="border p-2 w-64 rounded-md"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="block mb-1">Password</label>
-          <input
-            type="password"
-            className="border p-2 w-64 rounded-md"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button type="submit" className="p-2 bg-primary text-primary-foreground rounded w-full">
-          Login
-        </button>
-      </form>
+    <div className="flex min-h-screen">
+      <div className="relative w-1/3">
+        <Image
+          src="/globe.svg"
+          alt="Login illustration"
+          fill
+          sizes="33vw"
+          className="object-cover"
+        />
+      </div>
+      <div className="flex w-2/3 items-center justify-center">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 p-6 border rounded-xl"
+        >
+          <div>
+            <label className="block mb-1">Username</label>
+            <input
+              className="border p-2 w-64 rounded-md"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block mb-1">Password</label>
+            <input
+              type="password"
+              className="border p-2 w-64 rounded-md"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button type="submit" className="p-2 bg-primary text-primary-foreground rounded w-full">
+            Login
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
