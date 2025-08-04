@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import base64
 import pam
 import secrets
-from pydantic import BaseModel
 import psutil
 import platform
 import subprocess
@@ -16,26 +15,63 @@ import pty
 import urllib.request
 import urllib.parse
 from datetime import datetime
-from typing import List, Any, Optional
-import pwd
-import grp
+from typing import List
 import asyncio
 import socket
+
+from models import (
+    Container,
+    ContainerCreate,
+    ISOInfo,
+    ContainerImageInfo,
+    LogInfo,
+    DriveInfo,
+    ZFSDeviceInfo,
+    ZFSPoolInfo,
+    NetworkInterfaceInfo,
+    VirtualMachine,
+    VirtualMachineCreate,
+    VirtualMachineUpdate,
+    ISODownloadRequest,
+    ImagePullRequest,
+    DriveMountRequest,
+    DriveFormatRequest,
+    ZFSPoolCreateRequest,
+)
+from settings import (
+    load_settings,
+    save_settings,
+    load_network_settings,
+    save_network_settings,
+    ISO_DIR,
+    SettingsModel,
+    NetworkSettingsModel,
+)
+from users import (
+    SystemUserModel,
+    SystemGroupModel,
+    UserCreateModel,
+    UserUpdateModel,
+    GroupCreateModel,
+    GroupUpdateModel,
+    SSHKeyListModel,
+    list_system_users,
+    list_system_groups,
+    read_authorized_keys,
+    write_authorized_keys,
+)
+from utils import (
+    run_subprocess,
+    parse_ports,
+    parse_docker_size,
+    guess_iso_info,
+    get_iso_files,
+    drive_type,
+)
 
 # Track last network counters for throughput calculation
 _prev_net_io = psutil.net_io_counters()
 _prev_net_time = time.time()
-
-
-def run_subprocess(cmd: list[str]) -> subprocess.CompletedProcess:
-    """Run a subprocess, logging the command and raising HTTPException on failure."""
-    cmd_str = " ".join(cmd)
-    print("Running command:", cmd_str)
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        msg = result.stderr.strip() or result.stdout.strip() or "failed"
-        raise HTTPException(status_code=400, detail=f"{cmd_str}\n{msg}")
-    return result
 
 
 app = FastAPI()
@@ -83,331 +119,12 @@ async def pam_auth_middleware(request: Request, call_next):
 def read_root():
     return {"detail": "ok"}
 
-
-class Container(BaseModel):
-    id: int
-    name: str
-    type: str
-    status: str
-    image: str
-    ports: List[str] = []
-    mounts: List[str] = []
-    envs: List[str] = []
-    cpu: float
-    memory: int
-    created: str
-
-
-class ContainerCreate(BaseModel):
-    name: str
-    type: str
-    image: str
-    ports: List[str] = []
-    mounts: List[str] = []
-    envs: List[str] = []
-    cpu: float = 0.0
-    memory: int = 0
-
-
-class ISOInfo(BaseModel):
-    id: int
-    name: str
-    size: float
-    type: str
-    version: str
-    architecture: str
-    created: str
-    used: bool
-    path: str
-
-
-class ContainerImageInfo(BaseModel):
-    id: int
-    repository: str
-    tag: str
-    imageId: str
-    size: float
-    created: str
-    used: bool = False
-    pulls: int = 0
-
-
-class LogInfo(BaseModel):
-    name: str
-    size: int
-
-
-class DriveInfo(BaseModel):
-    device: str
-    name: str
-    type: str
-    size: float
-    used: float
-    available: float
-    filesystem: str
-    mountpoint: str
-    mounted: bool
-    temperature: int | None = None
-
-
-class ZFSDeviceInfo(BaseModel):
-    path: str
-    status: str
-
-
-class ZFSPoolInfo(BaseModel):
-    name: str
-    type: str
-    size: float
-    used: float
-    available: float
-    mountpoint: str
-    devices: List[ZFSDeviceInfo]
-
-
-class NetworkInterfaceInfo(BaseModel):
-    name: str
-    type: str
-    status: str
-    ip: str
-    netmask: str
-    gateway: str
-    mac: str
-    speed: str
-    rx: str
-    tx: str
-
-
-class NetworkSettingsModel(BaseModel):
-    dns_primary: str = "8.8.8.8"
-    dns_secondary: str = "8.8.4.4"
-
-
-class SettingsModel(BaseModel):
-    hostname: str
-    timezone: str
-    auto_updates: bool
-    monitoring: bool
-    ssh_port: int = 22
-    api_key: Optional[str] = None
-
-
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
-NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
-ISO_DIR = os.path.join(os.path.dirname(__file__), "isos")
-os.makedirs(ISO_DIR, exist_ok=True)
-
-
-def _system_hostname() -> str:
-    """Return the system hostname from /etc/hostname or platform.node()."""
-    try:
-        with open("/etc/hostname") as f:
-            hostname = f.read().strip()
-            if hostname:
-                return hostname
-    except Exception:
-        pass
-    return platform.node() or "server"
-
-
-def _system_ssh_port() -> int:
-    """Return the SSH port from /etc/ssh/sshd_config or 22."""
-    try:
-        with open("/etc/ssh/sshd_config") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and line.lower().startswith("port"):
-                    parts = line.split()
-                    if len(parts) > 1 and parts[1].isdigit():
-                        return int(parts[1])
-    except Exception:
-        pass
-    return 22
-
-
-def load_settings() -> SettingsModel:
-    data: dict[str, Any] = {}
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE) as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-    return SettingsModel(
-        hostname=_system_hostname(),
-        timezone=data.get("timezone", "utc"),
-        auto_updates=data.get("auto_updates", False),
-        monitoring=data.get("monitoring", True),
-        ssh_port=data.get("ssh_port", _system_ssh_port()),
-        api_key=data.get("api_key"),
-    )
-
-
-def save_settings(settings: SettingsModel) -> None:
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings.dict(), f)
-
-
-def _system_nameservers() -> tuple[str, str]:
-    primary = "8.8.8.8"
-    secondary = "8.8.4.4"
-    try:
-        with open("/etc/resolv.conf") as f:
-            nameservers = [
-                line.split()[1]
-                for line in f
-                if line.strip().startswith("nameserver") and len(line.split()) >= 2
-            ]
-        if nameservers:
-            primary = nameservers[0]
-            if len(nameservers) > 1:
-                secondary = nameservers[1]
-    except Exception:
-        pass
-    return primary, secondary
-
-
-def load_network_settings() -> NetworkSettingsModel:
-    if os.path.exists(NETWORK_SETTINGS_FILE):
-        try:
-            with open(NETWORK_SETTINGS_FILE) as f:
-                data = json.load(f)
-                primary, secondary = _system_nameservers()
-                return NetworkSettingsModel(
-                    dns_primary=data.get("dns_primary", primary),
-                    dns_secondary=data.get("dns_secondary", secondary),
-                )
-        except Exception:
-            pass
-    primary, secondary = _system_nameservers()
-    return NetworkSettingsModel(dns_primary=primary, dns_secondary=secondary)
-
-
-def save_network_settings(settings: NetworkSettingsModel) -> None:
-    with open(NETWORK_SETTINGS_FILE, "w") as f:
-        json.dump(settings.dict(), f)
-
-
-LOGIN_SHELLS = {
-    "/bin/bash",
-    "/bin/sh",
-    "/bin/fish",
-    "/bin/zsh",
-    "/usr/bin/bash",
-    "/usr/bin/sh",
-    "/usr/bin/fish",
-    "/usr/bin/zsh",
-}
-
-
-class SystemUserModel(BaseModel):
-    username: str
-    uid: int
-    gid: int
-    groups: List[str]
-    shell: str
-    home: str
-    description: str | None = ""
-
-
-class SystemGroupModel(BaseModel):
-    name: str
-    gid: int
-    members: List[str]
-    description: str | None = ""
-
-
-def list_system_users() -> List[SystemUserModel]:
-    users: List[SystemUserModel] = []
-    all_groups = grp.getgrall()
-    for entry in pwd.getpwall():
-        if entry.pw_shell not in LOGIN_SHELLS:
-            continue
-        groups = [g.gr_name for g in all_groups if entry.pw_name in g.gr_mem or g.gr_gid == entry.pw_gid]
-        users.append(
-            SystemUserModel(
-                username=entry.pw_name,
-                uid=entry.pw_uid,
-                gid=entry.pw_gid,
-                groups=groups,
-                shell=entry.pw_shell,
-                home=entry.pw_dir,
-                description=entry.pw_gecos.split(',')[0] if entry.pw_gecos else "",
-            )
-        )
-    return users
-
-
-def list_system_groups() -> List[SystemGroupModel]:
-    groups: List[SystemGroupModel] = []
-    for entry in grp.getgrall():
-        groups.append(
-            SystemGroupModel(
-                name=entry.gr_name,
-                gid=entry.gr_gid,
-                members=list(entry.gr_mem),
-            )
-        )
-    return groups
-
-
-class UserCreateModel(BaseModel):
-    username: str
-    password: str
-    groups: List[str] = []
-    shell: str = "/bin/bash"
-
-
-class UserUpdateModel(BaseModel):
-    groups: List[str] | None = None
-    shell: str | None = None
-
-
-class GroupCreateModel(BaseModel):
-    name: str
-    members: List[str] = []
-
-
-class GroupUpdateModel(BaseModel):
-    members: List[str] | None = None
-
-
-class SSHKeyListModel(BaseModel):
-    keys: List[str] = []
-
-
 # Containers that are created via the API are stored here in-memory. Containers
 # discovered from Docker, LXC or Kubernetes are queried on demand and not stored
 # in this list.
 containers: List[Container] = []
 
 next_container_id = 1
-
-class VirtualMachine(BaseModel):
-    id: int
-    name: str
-    status: str
-    cpu: int
-    memory: int
-    iso: str
-    disks: List[str]
-    created: str
-
-
-class VirtualMachineCreate(BaseModel):
-    name: str
-    cpu: int
-    memory: int
-    iso: str
-    disks: List[int] = []
-
-
-class VirtualMachineUpdate(BaseModel):
-    cpu: Optional[int] = None
-    memory: Optional[int] = None
-    iso: Optional[str] = None
-    add_disks: List[int] = []
-
 
 VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
 
@@ -569,12 +286,6 @@ def parse_virsh_list() -> dict[str, str]:
     return statuses
 
 
-def _parse_ports(port_str: str) -> List[str]:
-    """Split Docker style port mappings into a list."""
-    if not port_str:
-        return []
-    return [p.strip() for p in port_str.split(',') if p.strip()]
-
 
 def get_docker_containers() -> List[Container]:
     """Return running Docker containers using the docker CLI."""
@@ -607,7 +318,7 @@ def get_docker_containers() -> List[Container]:
                 type="Docker",
                 status="running" if status.lower().startswith("up") else "stopped",
                 image=image,
-                ports=_parse_ports(ports),
+                ports=parse_ports(ports),
                 mounts=[],
                 envs=[],
                 cpu=0.0,
@@ -703,20 +414,6 @@ def get_docker_images() -> List[str]:
     return images
 
 
-def _parse_docker_size(size: str) -> float:
-    size = size.lower().strip()
-    if size.endswith("gb"):
-        try:
-            return float(size[:-2].strip()) * 1000
-        except ValueError:
-            return 0.0
-    if size.endswith("mb"):
-        try:
-            return float(size[:-2].strip())
-        except ValueError:
-            return 0.0
-    return 0.0
-
 
 def get_docker_image_details() -> List[ContainerImageInfo]:
     if shutil.which("docker") is None:
@@ -745,7 +442,7 @@ def get_docker_image_details() -> List[ContainerImageInfo]:
                 repository=repo,
                 tag=tag,
                 imageId=image_id,
-                size=_parse_docker_size(size),
+                size=parse_docker_size(size),
                 created=created,
                 used=True,
                 pulls=0,
@@ -807,70 +504,7 @@ def get_lxc_images() -> List[str]:
     return images
 
 
-def guess_iso_info(filename: str) -> tuple[str, str, str]:
-    lower = filename.lower()
-    typ = "Windows" if "win" in lower or "windows" in lower else "Linux"
-    arch = "arm64" if "arm64" in lower or "aarch64" in lower else "x86_64"
-    version = filename.rsplit(".", 1)[0]
-    return typ, version, arch
 
-
-def get_iso_files() -> List[ISOInfo]:
-    files: List[ISOInfo] = []
-    if not os.path.isdir(ISO_DIR):
-        return files
-    for idx, name in enumerate(sorted(os.listdir(ISO_DIR)), start=1):
-        if not name.lower().endswith(".iso"):
-            continue
-        path = os.path.join(ISO_DIR, name)
-        try:
-            stat = os.stat(path)
-        except FileNotFoundError:
-            continue
-        size = round(stat.st_size / (1024 ** 3), 1)
-        created = datetime.fromtimestamp(stat.st_mtime).date().isoformat()
-        typ, version, arch = guess_iso_info(name)
-        files.append(
-            ISOInfo(
-                id=idx,
-                name=name,
-                size=size,
-                type=typ,
-                version=version,
-                architecture=arch,
-                created=created,
-                used=False,
-                path=path,
-            )
-        )
-    return files
-
-
-def _drive_type(dev: str) -> str:
-    """Return the type for a device or partition."""
-    name = os.path.basename(dev)
-    # Resolve base device if this is a partition
-    try:
-        base = os.path.basename(os.path.realpath(os.path.join("/sys/class/block", name, "..")))
-    except Exception:
-        base = name
-    rotational = f"/sys/block/{base}/queue/rotational"
-    removable = f"/sys/block/{base}/removable"
-    try:
-        with open(removable) as f:
-            if f.read().strip() == "1":
-                return "USB"
-    except Exception:
-        pass
-    try:
-        with open(rotational) as f:
-            if f.read().strip() == "0":
-                return "SSD"
-    except Exception:
-        pass
-    if name.startswith("mmc"):
-        return "SD"
-    return "HDD"
 
 
 def get_zfs_pools() -> List[ZFSPoolInfo]:
@@ -1005,7 +639,7 @@ def get_drives() -> List[DriveInfo]:
             DriveInfo(
                 device=dev,
                 name=name,
-                type=_drive_type(dev),
+                type=drive_type(dev),
                 size=round(size / (1024 ** 3)),
                 used=round((usage.used if usage else 0) / (1024 ** 3)),
                 available=round((usage.free if usage else 0) / (1024 ** 3)),
@@ -1226,10 +860,6 @@ def list_isos():
     return {"isos": [iso.dict() for iso in get_iso_files()]}
 
 
-class ISODownloadRequest(BaseModel):
-    url: str
-    name: str | None = None
-
 
 @app.post("/isos/download")
 def download_iso(payload: ISODownloadRequest):
@@ -1308,11 +938,6 @@ def download_iso_file(name: str):
         raise HTTPException(status_code=404, detail="iso not found")
     return FileResponse(path, filename=name, media_type="application/octet-stream")
 
-
-class ImagePullRequest(BaseModel):
-    image: str
-    registry: str | None = None
-    type: str = "docker"
 
 
 @app.post("/images/pull")
@@ -1797,21 +1422,7 @@ def list_drives():
     return {"drives": [d.dict() for d in get_drives()]}
 
 
-class DriveMountRequest(BaseModel):
-    device: str
-    mountpoint: str
 
-
-class DriveFormatRequest(BaseModel):
-    device: str
-    filesystem: str
-    label: str | None = None
-
-
-class ZFSPoolCreateRequest(BaseModel):
-    name: str
-    devices: List[str]
-    raid: str = "stripe"
 
 
 @app.get("/drives/zfs")
@@ -1937,38 +1548,7 @@ def api_delete_user(username: str):
     return {"detail": "deleted"}
 
 
-def _authorized_keys_path(username: str) -> str:
-    info = pwd.getpwnam(username)
-    return os.path.join(info.pw_dir, ".ssh", "authorized_keys")
 
-
-def read_authorized_keys(username: str) -> List[str]:
-    path = _authorized_keys_path(username)
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
-                return [line.strip() for line in f if line.strip()]
-        except Exception:
-            return []
-    return []
-
-
-def write_authorized_keys(username: str, keys: List[str]) -> None:
-    info = pwd.getpwnam(username)
-    ssh_dir = os.path.join(info.pw_dir, ".ssh")
-    os.makedirs(ssh_dir, exist_ok=True)
-    path = os.path.join(ssh_dir, "authorized_keys")
-    with open(path, "w") as f:
-        for key in keys:
-            if key.strip():
-                f.write(key.strip() + "\n")
-    try:
-        os.chown(ssh_dir, info.pw_uid, info.pw_gid)
-        os.chmod(ssh_dir, 0o700)
-        os.chown(path, info.pw_uid, info.pw_gid)
-        os.chmod(path, 0o600)
-    except Exception:
-        pass
 
 
 @app.get("/users/{username}/keys")
