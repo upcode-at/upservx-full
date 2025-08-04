@@ -882,7 +882,13 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             in_config = True
         elif pool and in_config:
             stripped = line.strip()
-            if not stripped or stripped.startswith("NAME"):
+            if not stripped:
+                in_config = False
+                continue
+            if stripped.startswith("NAME"):
+                continue
+            if stripped.startswith("errors:"):
+                in_config = False
                 continue
             parts = stripped.split()
             token = parts[0]
@@ -896,8 +902,6 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
             if not token.startswith("/"):
                 device = f"/dev/{token}"
             pool["devices"].append({"path": device, "status": state})
-        if pool and line.startswith("errors:"):
-            pass
     if pool:
         pools.append(ZFSPoolInfo(**pool))
     return pools
