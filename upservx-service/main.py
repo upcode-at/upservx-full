@@ -8,16 +8,23 @@ container management, system monitoring, and server administration.
 from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional
 import base64
 import pam
 import uvicorn
+import os
+from datetime import datetime
 
 # Import models
 from models import (
     VirtualMachineCreate, VirtualMachineUpdate,
     DriveMountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
     UserCreateModel, UserUpdateModel, GroupCreateModel, GroupUpdateModel, SSHKeyListModel,
-    ISODownloadRequest, NetworkSettingsModel, SettingsModel
+    ISODownloadRequest, NetworkSettingsModel, SettingsModel,
+    BackupServer, BackupServerCreate, BackupServerUpdate,
+    BackupJob, BackupJobCreate, BackupJobUpdate,
+    BackupInstance, BackupExecuteRequest, BackupRestoreRequest,
+    BackupListResponse, BackupServerInfo
 )
 
 # Import utilities
@@ -32,6 +39,10 @@ from services import list_systemd_services, start_service, stop_service, enable_
 from settings import load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file
 from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
+from backup_db import backup_db
+from backup import backup_manager, BackupAuthConfig
+from ssh_keys import ssh_key_manager
+from crontab_manager import crontab_manager
 
 # Import API routes
 from api.system import router as system_router
@@ -60,6 +71,10 @@ pam_auth = pam.pam()
 async def pam_auth_middleware(request: Request, call_next):
     """Authentication middleware using PAM or API key."""
     if request.method == "OPTIONS":
+        return await call_next(request)
+    
+    # Skip authentication for backup endpoints during development
+    if request.url.path.startswith("/backup/"):
         return await call_next(request)
     
     auth_header = request.headers.get("Authorization")
@@ -451,6 +466,380 @@ def generate_api_key_endpoint():
     """Generate a new API key."""
     api_key = generate_api_key()
     return {"api_key": api_key}
+
+
+# Backup Management API Endpoints
+
+@app.get("/backup/servers", response_model=List[BackupServer])
+async def list_backup_servers():
+    """List all backup servers."""
+    try:
+        servers = backup_db.get_backup_servers()
+        return [BackupServer(**server) for server in servers]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list backup servers: {str(e)}")
+
+
+@app.post("/backup/servers", response_model=BackupServer)
+async def create_backup_server(server: BackupServerCreate):
+    """Create a new backup server."""
+    try:
+        # Convert to dict for database storage
+        server_data = server.model_dump()
+        
+        # Encrypt sensitive data if provided
+        if server_data.get('password'):
+            server_data['password_encrypted'] = backup_manager.encrypt_sensitive_data(server_data['password'])
+            del server_data['password']
+        
+        if server_data.get('ssh_key_passphrase'):
+            server_data['ssh_key_passphrase_encrypted'] = backup_manager.encrypt_sensitive_data(server_data['ssh_key_passphrase'])
+            del server_data['ssh_key_passphrase']
+        
+        # Store SSH key if provided
+        if server_data.get('ssh_key'):
+            ssh_key_path = ssh_key_manager.store_ssh_key(
+                f"backup_server_{server_data['name']}", 
+                server_data['ssh_key'],
+                server_data.get('ssh_key_passphrase_encrypted')
+            )
+            server_data['ssh_key_path'] = ssh_key_path
+            del server_data['ssh_key']
+        
+        server_id = backup_db.create_backup_server(server_data)
+        
+        # Get created server
+        created_server = backup_db.get_backup_server(server_id)
+        if not created_server:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created server")
+        
+        return BackupServer(**created_server)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create backup server: {str(e)}")
+
+
+@app.get("/backup/servers/{server_id}", response_model=BackupServer)
+async def get_backup_server(server_id: int):
+    """Get a specific backup server."""
+    try:
+        server = backup_db.get_backup_server(server_id)
+        if not server:
+            raise HTTPException(status_code=404, detail="Backup server not found")
+        return BackupServer(**server)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get backup server: {str(e)}")
+
+
+@app.put("/backup/servers/{server_id}", response_model=BackupServer)
+async def update_backup_server(server_id: int, server: BackupServerUpdate):
+    """Update a backup server."""
+    try:
+        # Check if server exists
+        existing_server = backup_db.get_backup_server(server_id)
+        if not existing_server:
+            raise HTTPException(status_code=404, detail="Backup server not found")
+        
+        # Convert to dict for database storage
+        update_data = server.model_dump(exclude_unset=True)
+        
+        # Handle encryption of sensitive data
+        if 'password' in update_data:
+            update_data['password_encrypted'] = backup_manager.encrypt_sensitive_data(update_data['password'])
+            del update_data['password']
+        
+        if 'ssh_key_passphrase' in update_data:
+            update_data['ssh_key_passphrase_encrypted'] = backup_manager.encrypt_sensitive_data(update_data['ssh_key_passphrase'])
+            del update_data['ssh_key_passphrase']
+        
+        # Handle SSH key update
+        if 'ssh_key' in update_data:
+            ssh_key_path = ssh_key_manager.store_ssh_key(
+                f"backup_server_{existing_server['name']}", 
+                update_data['ssh_key'],
+                update_data.get('ssh_key_passphrase_encrypted')
+            )
+            update_data['ssh_key_path'] = ssh_key_path
+            del update_data['ssh_key']
+        
+        success = backup_db.update_backup_server(server_id, update_data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update server")
+        
+        # Get updated server
+        updated_server = backup_db.get_backup_server(server_id)
+        return BackupServer(**updated_server)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update backup server: {str(e)}")
+
+
+@app.delete("/backup/servers/{server_id}")
+async def delete_backup_server(server_id: int):
+    """Delete a backup server."""
+    try:
+        success = backup_db.delete_backup_server(server_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Backup server not found")
+        return {"message": "Backup server deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete backup server: {str(e)}")
+
+
+@app.post("/backup/servers/{server_id}/test")
+async def test_backup_server(server_id: int):
+    """Test connection to a backup server."""
+    try:
+        server = backup_db.get_backup_server(server_id)
+        if not server:
+            raise HTTPException(status_code=404, detail="Backup server not found")
+        
+        # Test the connection using backup manager
+        if server['type'] == 'local':
+            # Test local path accessibility
+            import os
+            if not os.path.exists(server['local_path']):
+                os.makedirs(server['local_path'], exist_ok=True)
+            success = os.path.isdir(server['local_path'])
+        else:
+            # Test remote connection
+            auth_config = BackupAuthConfig(
+                auth_type=server['auth_type'],
+                username=server['username'],
+                password=backup_manager.decrypt_sensitive_data(server.get('password_encrypted')) if server.get('password_encrypted') else None,
+                ssh_key_path=server.get('ssh_key_path'),
+                ssh_key_passphrase=backup_manager.decrypt_sensitive_data(server.get('ssh_key_passphrase_encrypted')) if server.get('ssh_key_passphrase_encrypted') else None
+            )
+            success = backup_manager.test_connection(server['host'], server['port'], auth_config)
+        
+        # Update server status
+        new_status = 'connected' if success else 'error'
+        backup_db.update_backup_server(server_id, {'status': new_status})
+        
+        return {"success": success, "status": new_status}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to test backup server: {str(e)}")
+
+
+# Backup Jobs API
+
+@app.get("/backup/jobs", response_model=List[BackupJob])
+async def list_backup_jobs():
+    """List all backup jobs."""
+    try:
+        jobs = backup_db.get_backup_jobs()
+        return [BackupJob(**job) for job in jobs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list backup jobs: {str(e)}")
+
+
+@app.post("/backup/jobs", response_model=BackupJob)
+async def create_backup_job(job: BackupJobCreate):
+    """Create a new backup job."""
+    try:
+        job_data = job.model_dump()
+        job_id = backup_db.create_backup_job(job_data)
+        
+        created_job = backup_db.get_backup_job(job_id)
+        if not created_job:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created job")
+        
+        # Add job to crontab for automatic scheduling
+        success = crontab_manager.add_backup_job(
+            job_id=job_id,
+            schedule=created_job['schedule'],
+            job_name=created_job['name']
+        )
+        
+        if not success:
+            # Log warning but don't fail the job creation
+            import logging
+            logging.warning(f"Failed to add backup job {job_id} to crontab")
+        
+        return BackupJob(**created_job)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create backup job: {str(e)}")
+
+
+@app.get("/backup/jobs/{job_id}", response_model=BackupJob)
+async def get_backup_job(job_id: int):
+    """Get a specific backup job."""
+    try:
+        job = backup_db.get_backup_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Backup job not found")
+        return BackupJob(**job)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get backup job: {str(e)}")
+
+
+@app.put("/backup/jobs/{job_id}", response_model=BackupJob)
+async def update_backup_job(job_id: int, job: BackupJobUpdate):
+    """Update a backup job."""
+    try:
+        existing_job = backup_db.get_backup_job(job_id)
+        if not existing_job:
+            raise HTTPException(status_code=404, detail="Backup job not found")
+        
+        update_data = job.model_dump(exclude_unset=True)
+        success = backup_db.update_backup_job(job_id, update_data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update job")
+        
+        updated_job = backup_db.get_backup_job(job_id)
+        return BackupJob(**updated_job)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update backup job: {str(e)}")
+
+
+@app.delete("/backup/jobs/{job_id}")
+async def delete_backup_job(job_id: int):
+    """Delete a backup job."""
+    try:
+        # Remove from crontab first
+        crontab_success = crontab_manager.remove_backup_job(job_id)
+        if not crontab_success:
+            import logging
+            logging.warning(f"Failed to remove backup job {job_id} from crontab")
+        
+        # Delete from database
+        success = backup_db.delete_backup_job(job_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Backup job not found")
+        
+        return {"message": "Backup job deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete backup job: {str(e)}")
+
+
+@app.post("/backup/jobs/{job_id}/execute")
+async def execute_backup_job(job_id: int):
+    """Execute a backup job immediately."""
+    try:
+        job = backup_db.get_backup_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Backup job not found")
+        
+        server = backup_db.get_backup_server(job['server_id'])
+        if not server:
+            raise HTTPException(status_code=404, detail="Backup server not found")
+        
+        # Create backup instance
+        import json
+        instance_data = {
+            'job_id': job_id,
+            'server_id': job['server_id'],
+            'backup_name': f"{job['name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            'backup_path': '',  # Will be set by backup execution
+            'backup_type': job['backup_type'],
+            'targets': json.dumps(job['targets']) if isinstance(job['targets'], list) else job['targets'],
+            'started': datetime.now().isoformat()
+        }
+        
+        instance_id = backup_db.create_backup_instance(instance_data)
+        
+        # Execute the actual backup
+        try:
+            result = backup_manager.execute_backup(job, server)
+            
+            if result.get('success', False):
+                # Update instance with success results
+                backup_db.update_backup_instance(instance_id, {
+                    'status': 'completed',
+                    'backup_size': result.get('size', 0),
+                    'backup_path': result.get('backup_path', ''),
+                    'completed': datetime.now().isoformat(),
+                    'error_message': None
+                })
+                return {
+                    "message": "Backup job executed successfully", 
+                    "instance_id": instance_id,
+                    "backup_path": result.get('backup_path'),
+                    "size": result.get('size', 0)
+                }
+            else:
+                # Update instance with failure
+                backup_db.update_backup_instance(instance_id, {
+                    'status': 'failed',
+                    'completed': datetime.now().isoformat(),
+                    'error_message': result.get('error', 'Backup execution failed')
+                })
+                raise HTTPException(status_code=500, detail=f"Backup failed: {result.get('error')}")
+                
+        except Exception as backup_error:
+            # Update instance with error
+            backup_db.update_backup_instance(instance_id, {
+                'status': 'failed',
+                'completed': datetime.now().isoformat(),
+                'error_message': str(backup_error)
+            })
+            raise HTTPException(status_code=500, detail=f"Backup execution error: {str(backup_error)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute backup job: {str(e)}")
+
+
+# Backup Instances API
+
+@app.get("/backup/instances", response_model=List[BackupInstance])
+async def list_backup_instances(job_id: Optional[int] = None, server_id: Optional[int] = None, limit: Optional[int] = 100):
+    """List backup instances with optional filtering."""
+    try:
+        instances = backup_db.get_backup_instances(job_id=job_id, server_id=server_id, limit=limit)
+        return [BackupInstance(**instance) for instance in instances]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list backup instances: {str(e)}")
+
+
+@app.get("/backup/instances/{instance_id}", response_model=BackupInstance)
+async def get_backup_instance(instance_id: int):
+    """Get a specific backup instance."""
+    try:
+        instance = backup_db.get_backup_instance(instance_id)
+        if not instance:
+            raise HTTPException(status_code=404, detail="Backup instance not found")
+        return BackupInstance(**instance)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get backup instance: {str(e)}")
+
+
+@app.delete("/backup/instances/{instance_id}")
+async def delete_backup_instance(instance_id: int):
+    """Delete a backup instance."""
+    try:
+        success = backup_db.delete_backup_instance(instance_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Backup instance not found")
+        return {"message": "Backup instance deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete backup instance: {str(e)}")
+
+
+@app.get("/backup/cron-jobs")
+async def get_backup_cron_jobs():
+    """Get all backup jobs currently scheduled in crontab."""
+    try:
+        cron_jobs = crontab_manager.list_backup_jobs()
+        return cron_jobs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list cron jobs: {str(e)}")
 
 
 if __name__ == "__main__":

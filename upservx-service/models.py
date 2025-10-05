@@ -208,3 +208,119 @@ class VirtualMachineUpdate(BaseModel):
     memory: Optional[int] = None
     iso: Optional[str] = None
     add_disks: List[int] = []
+
+
+class BackupServer(BaseModel):
+    id: int
+    name: str
+    type: str  # 'local', 'remote'
+    status: str  # 'connected', 'disconnected', 'error'
+    host: Optional[str] = None  # For remote servers
+    port: Optional[int] = None  # For remote servers
+    remote_path: Optional[str] = None  # For remote servers
+    local_path: Optional[str] = None  # For local storage
+    auth_type: Optional[str] = None  # 'password', 'ssh_key'
+    username: Optional[str] = None  # For remote servers
+    capacity_gb: Optional[float] = None
+    used_gb: Optional[float] = None
+    last_sync: Optional[str] = None
+    created: str
+
+
+class BackupServerCreate(BaseModel):
+    name: str
+    type: str  # 'local', 'remote'
+    host: Optional[str] = None
+    port: Optional[int] = 22
+    remote_path: Optional[str] = '/backups'
+    local_path: Optional[str] = '/var/backups'
+    auth_type: Optional[str] = None  # 'password', 'ssh_key'
+    username: Optional[str] = None
+    password: Optional[str] = None  # Will be encrypted
+    ssh_key: Optional[str] = None  # SSH private key content
+    ssh_key_passphrase: Optional[str] = None
+
+
+class BackupServerUpdate(BaseModel):
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    remote_path: Optional[str] = None
+    local_path: Optional[str] = None
+    auth_type: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    ssh_key: Optional[str] = None
+    ssh_key_passphrase: Optional[str] = None
+
+
+class BackupJob(BaseModel):
+    id: int
+    name: str
+    backup_type: str  # 'vm', 'container', 'system', 'database'
+    targets: List[str]  # List of target names/paths
+    schedule: str  # Cron-like schedule
+    server_id: int  # Reference to BackupServer
+    status: str  # 'active', 'paused', 'error'
+    last_run: Optional[str] = None
+    next_run: Optional[str] = None
+    last_size: Optional[int] = None  # Size in bytes
+    retention_days: int = 30
+    compression: bool = True
+    created: str
+
+
+class BackupJobCreate(BaseModel):
+    name: str
+    backup_type: str
+    targets: List[str]
+    schedule: str
+    server_id: int
+    retention_days: int = 30
+    compression: bool = True
+
+
+class BackupJobUpdate(BaseModel):
+    name: Optional[str] = None
+    backup_type: Optional[str] = None
+    targets: Optional[List[str]] = None
+    schedule: Optional[str] = None
+    server_id: Optional[int] = None
+    status: Optional[str] = None
+    retention_days: Optional[int] = None
+    compression: Optional[bool] = None
+
+
+class BackupInstance(BaseModel):
+    id: int
+    job_id: int
+    server_id: int
+    backup_name: str
+    backup_path: str
+    backup_size: int  # Size in bytes
+    status: str  # 'completed', 'failed', 'in_progress'
+    created: str
+    backup_type: str
+    targets: List[str]
+
+
+class BackupExecuteRequest(BaseModel):
+    job_id: int
+
+
+class BackupRestoreRequest(BaseModel):
+    backup_id: int
+    restore_path: str
+
+
+class BackupListResponse(BaseModel):
+    backups: List[BackupInstance]
+    total: int
+
+
+class BackupServerInfo(BaseModel):
+    server_id: int
+    name: str
+    type: str
+    status: str
+    storage_info: dict

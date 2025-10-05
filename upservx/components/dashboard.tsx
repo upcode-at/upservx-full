@@ -11,7 +11,7 @@ import { Settings } from "@/components/settings"
 import { NetworkManagement } from "@/components/network-management"
 import { StorageManagement } from "@/components/storage-management"
 import { UserManagement } from "@/components/user-management"
-import { BackupManagement } from "@/components/backup-management"
+import BackupManagement from "@/components/backup-management"
 import { ImageManagement } from "@/components/image-management"
 import { Logs } from "@/components/logs"
 

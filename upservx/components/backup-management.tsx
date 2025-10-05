@@ -1,333 +1,520 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Server, Calendar, Plus, Loader2, AlertCircle, Play, Edit, Trash2, HardDrive, Clock } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Progress } from "@/components/ui/progress"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Server, Calendar, Play, Settings, Plus } from "lucide-react"
 
-export function BackupManagement() {
-  const [backupServers] = useState([
-    {
-      id: 1,
-      name: "Primary Backup Server",
-      type: "NFS",
-      address: "192.168.1.200",
-      port: 2049,
-      path: "/backups",
-      status: "connected",
-      capacity: 5000,
-      used: 2100,
-      lastSync: "2024-01-15 02:00",
-    },
-    {
-      id: 2,
-      name: "Cloud Backup",
-      type: "S3",
-      address: "s3.amazonaws.com",
-      port: 443,
-      path: "my-backup-bucket",
-      status: "connected",
-      capacity: 10000,
-      used: 850,
-      lastSync: "2024-01-15 03:30",
-    },
-    {
-      id: 3,
-      name: "Local Backup Drive",
-      type: "Local",
-      address: "/mnt/backup",
-      port: null,
-      path: "/mnt/backup",
-      status: "connected",
-      capacity: 1000,
-      used: 450,
-      lastSync: "2024-01-15 01:15",
-    },
-  ])
+interface BackupServer {
+  id: number
+  name: string
+  type: string
+  status: string
+  host?: string
+  port?: number
+  remote_path?: string
+  local_path?: string
+  created: string
+}
 
-  const [backupJobs] = useState([
-    {
-      id: 1,
-      name: "VM Full Backup",
-      type: "VM",
-      targets: ["Ubuntu-Server-01", "Windows-Dev"],
-      schedule: "Daily 02:00",
-      destination: "Primary Backup Server",
-      status: "completed",
-      lastRun: "2024-01-15 02:00",
-      nextRun: "2024-01-16 02:00",
-      size: "45 GB",
-      retention: "30 days",
-    },
-    {
-      id: 2,
-      name: "Container Data Backup",
-      type: "Container",
-      targets: ["mysql-db", "nginx-web"],
-      schedule: "Every 6 hours",
-      destination: "Cloud Backup",
-      status: "running",
-      lastRun: "2024-01-15 12:00",
-      nextRun: "2024-01-15 18:00",
-      size: "2.1 GB",
-      retention: "14 days",
-    },
-    {
-      id: 3,
-      name: "System Configuration",
-      type: "System",
-      targets: ["/etc", "/var/lib"],
-      schedule: "Weekly",
-      destination: "Local Backup Drive",
-      status: "scheduled",
-      lastRun: "2024-01-08 03:00",
-      nextRun: "2024-01-15 03:00",
-      size: "850 MB",
-      retention: "90 days",
-    },
-  ])
+// API client with authentication
+function apiUrl(path: string): string {
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location
+    const scheme = protocol.startsWith("http") ? protocol : "http:"
+    return `${scheme}//${hostname}:8000${path}`
+  }
+  return `http://localhost:8000${path}`
+}
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "connected":
-      case "completed":
-        return "default"
-      case "running":
-        return "outline"
-      case "scheduled":
-        return "secondary"
-      case "failed":
-      case "disconnected":
-        return "destructive"
-      default:
-        return "secondary"
+function getAuthHeaders(): HeadersInit {
+  const auth = btoa("admin:admin") // Basic auth credentials
+  return {
+    'Authorization': `Basic ${auth}`,
+    'Content-Type': 'application/json'
+  }
+}
+
+interface BackupJob {
+  id: number
+  name: string
+  backup_type: 'vm' | 'container' | 'system' | 'database'
+  targets: string[]
+  schedule: string
+  server_id: number
+  status: 'active' | 'paused' | 'error'
+  last_run?: string
+  next_run?: string
+  last_size?: number
+  retention_days: number
+  compression: boolean
+  created: string
+}
+
+const backupApi = {
+  servers: {
+    list: async (): Promise<BackupServer[]> => {
+      const response = await fetch(apiUrl('/backup/servers'), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    },
+    create: async (data: any): Promise<BackupServer> => {
+      const response = await fetch(apiUrl('/backup/servers'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    },
+    delete: async (id: number): Promise<void> => {
+      const response = await fetch(apiUrl(`/backup/servers/${id}`), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+    }
+  },
+  jobs: {
+    list: async (): Promise<BackupJob[]> => {
+      const response = await fetch(apiUrl('/backup/jobs'), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    },
+    create: async (data: any): Promise<BackupJob> => {
+      const response = await fetch(apiUrl('/backup/jobs'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    },
+    execute: async (jobId: number): Promise<any> => {
+      const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return response.json()
+    },
+    delete: async (id: number): Promise<void> => {
+      const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+    }
+  },
+  // API für verfügbare Backup-Ziele
+  targets: {
+    getVMs: async (): Promise<any[]> => {
+      const response = await fetch(apiUrl('/vms'), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      if (!response.ok) {
+        return [] // Keine VMs verfügbar
+      }
+      return response.json()
+    },
+    getContainers: async (): Promise<any[]> => {
+      try {
+        const response = await fetch(apiUrl('/containers'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+        if (!response.ok) {
+          return [] // Keine Container verfügbar
+        }
+        return response.json()
+      } catch {
+        return []
+      }
+    }
+  }
+}
+
+export default function BackupManagement() {
+  const [activeTab, setActiveTab] = useState('servers')
+  const [backupServers, setBackupServers] = useState<BackupServer[]>([])
+  const [backupJobs, setBackupJobs] = useState<BackupJob[]>([])
+  const [availableVMs, setAvailableVMs] = useState<any[]>([])
+  const [availableContainers, setAvailableContainers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Dialog states
+  const [showServerDialog, setShowServerDialog] = useState(false)
+  const [showJobDialog, setShowJobDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'server' | 'job', id: number, name: string } | null>(null)
+  
+  // Forms
+  const [serverForm, setServerForm] = useState({
+    name: '',
+    type: 'local',
+    local_path: '/var/backups'
+  })
+  
+  const [jobForm, setJobForm] = useState({
+    name: '',
+    backup_type: 'system',
+    targets: [''],
+    schedule: '0 2 * * *',
+    server_id: 0,
+    retention_days: 30,
+    compression: true
+  })
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const [serversData, jobsData, vmsData, containersData] = await Promise.all([
+        backupApi.servers.list(),
+        backupApi.jobs.list(),
+        backupApi.targets.getVMs(),
+        backupApi.targets.getContainers()
+      ])
+      
+      setBackupServers(serversData)
+      setBackupJobs(jobsData)
+      setAvailableVMs(vmsData)
+      setAvailableContainers(containersData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden der Daten')
+      console.error('Error fetching backup data:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "connected":
-        return "Verbunden"
-      case "disconnected":
-        return "Getrennt"
-      case "completed":
-        return "Abgeschlossen"
-      case "running":
-        return "Läuft"
-      case "scheduled":
-        return "Geplant"
-      case "failed":
-        return "Fehlgeschlagen"
-      default:
-        return status
+  const handleCreateServer = async () => {
+    try {
+      await backupApi.servers.create(serverForm)
+      await loadData()
+      setShowServerDialog(false)
+      setServerForm({ name: '', type: 'local', local_path: '/var/backups' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen des Servers')
     }
   }
 
-  const getUsagePercentage = (used: number, capacity: number) => {
-    return Math.round((used / capacity) * 100)
+  const handleCreateJob = async () => {
+    try {
+      const filteredTargets = jobForm.targets.filter(t => t.trim() !== '')
+      await backupApi.jobs.create({ ...jobForm, targets: filteredTargets })
+      await loadData()
+      setShowJobDialog(false)
+      setJobForm({
+        name: '',
+        backup_type: 'system',
+        targets: [''],
+        schedule: '0 2 * * *',
+        server_id: 0,
+        retention_days: 30,
+        compression: true
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen des Jobs')
+    }
+  }
+
+  const handleExecuteJob = async (jobId: number) => {
+    try {
+      await backupApi.jobs.execute(jobId)
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Ausführen des Jobs')
+    }
+  }
+
+  const handleDeleteClick = (type: 'server' | 'job', id: number, name: string) => {
+    setDeleteTarget({ type, id, name })
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    
+    try {
+      if (deleteTarget.type === 'server') {
+        await backupApi.servers.delete(deleteTarget.id)
+      } else {
+        await backupApi.jobs.delete(deleteTarget.id)
+      }
+      await loadData()
+      setShowDeleteDialog(false)
+      setDeleteTarget(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Löschen')
+    }
+  }
+
+  const addTarget = () => {
+    setJobForm(prev => ({ ...prev, targets: [...prev.targets, ''] }))
+  }
+
+  const removeTarget = (index: number) => {
+    setJobForm(prev => ({ ...prev, targets: prev.targets.filter((_, i) => i !== index) }))
+  }
+
+  const updateTarget = (index: number, value: string) => {
+    setJobForm(prev => ({
+      ...prev,
+      targets: prev.targets.map((target, i) => i === index ? value : target)
+    }))
+  }
+
+  const getBackupTargetOptions = () => {
+    const options: { value: string, label: string, group: string }[] = []
+    
+    // System-Pfade
+    const systemPaths = [
+      { value: '/home', label: '/home - Benutzerverzeichnisse', group: 'System-Pfade' },
+      { value: '/var/www', label: '/var/www - Web-Dateien', group: 'System-Pfade' },
+      { value: '/etc', label: '/etc - Konfigurationsdateien', group: 'System-Pfade' },
+      { value: '/opt', label: '/opt - Software-Pakete', group: 'System-Pfade' },
+      { value: '/srv', label: '/srv - Service-Daten', group: 'System-Pfade' }
+    ]
+    options.push(...systemPaths)
+
+    // Virtuelle Maschinen
+    if (availableVMs.length > 0) {
+      availableVMs.forEach(vm => {
+        options.push({
+          value: `vm:${vm.name}`,
+          label: `${vm.name} (VM)`,
+          group: 'Virtuelle Maschinen'
+        })
+      })
+    }
+
+    // Container
+    if (availableContainers.length > 0) {
+      availableContainers.forEach(container => {
+        options.push({
+          value: `container:${container.name}`,
+          label: `${container.name} (Container)`,
+          group: 'Container'
+        })
+      })
+    }
+
+    return options
+  }
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString()
+  }
+
+  const getServerName = (serverId: number) => {
+    const server = backupServers.find(s => s.id === serverId)
+    return server?.name || `Server ${serverId}`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Lade Backup-Daten...</span>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setError(null)}
+                className="ml-auto"
+              >
+                Schließen
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Backup Management</h2>
           <p className="text-muted-foreground">Backup-Server und automatische Sicherungen verwalten</p>
         </div>
-        <div className="flex gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Server className="mr-2 h-4 w-4" />
-                Backup Server hinzufügen
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Neuen Backup Server hinzufügen</DialogTitle>
-                <DialogDescription>Konfigurieren Sie einen neuen Backup-Server</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="server-name">Server Name</Label>
-                  <Input id="server-name" placeholder="z.B. Backup Server 2" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="server-type">Typ</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Typ auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="nfs">NFS</SelectItem>
-                        <SelectItem value="smb">SMB/CIFS</SelectItem>
-                        <SelectItem value="s3">S3 Compatible</SelectItem>
-                        <SelectItem value="ftp">FTP/SFTP</SelectItem>
-                        <SelectItem value="local">Local</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="server-port">Port</Label>
-                    <Input id="server-port" placeholder="z.B. 2049" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="server-address">IP-Adresse/URL</Label>
-                  <Input id="server-address" placeholder="z.B. 192.168.1.200 oder backup.example.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="server-path">Pfad</Label>
-                  <Input id="server-path" placeholder="z.B. /backups" />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline">Abbrechen</Button>
-                  <Button>Server hinzufügen</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Backup Job erstellen
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Neuen Backup Job erstellen</DialogTitle>
-                <DialogDescription>Konfigurieren Sie einen automatischen Backup-Job</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="job-name">Job Name</Label>
-                    <Input id="job-name" placeholder="z.B. Daily VM Backup" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="job-type">Backup Typ</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Typ auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vm">Virtual Machine</SelectItem>
-                        <SelectItem value="container">Container</SelectItem>
-                        <SelectItem value="system">System Files</SelectItem>
-                        <SelectItem value="database">Database</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job-schedule">Zeitplan</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Zeitplan auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hourly">Stündlich</SelectItem>
-                      <SelectItem value="daily">Täglich</SelectItem>
-                      <SelectItem value="weekly">Wöchentlich</SelectItem>
-                      <SelectItem value="monthly">Monatlich</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job-destination">Ziel Server</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Server auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="primary">Primary Backup Server</SelectItem>
-                      <SelectItem value="cloud">Cloud Backup</SelectItem>
-                      <SelectItem value="local">Local Backup Drive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline">Abbrechen</Button>
-                  <Button>Job erstellen</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
       </div>
 
-      <Tabs defaultValue="servers" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="servers">Backup Server</TabsTrigger>
-          <TabsTrigger value="jobs">Backup Jobs</TabsTrigger>
-          <TabsTrigger value="history">Backup Verlauf</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="servers" className="flex items-center gap-2">
+            <Server className="h-4 w-4" />
+            Backup Servers
+          </TabsTrigger>
+          <TabsTrigger value="jobs" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Backup Jobs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="servers" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold">Backup Servers</h3>
+            <Dialog open={showServerDialog} onOpenChange={setShowServerDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Neuer Server
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Backup Server hinzufügen</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      value={serverForm.name}
+                      onChange={(e) => setServerForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Mein Backup Server"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="type">Typ</Label>
+                    <Select
+                      value={serverForm.type}
+                      onValueChange={(value) => setServerForm(prev => ({ ...prev, type: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="local">Lokaler Storage</SelectItem>
+                        <SelectItem value="remote">Remote Server</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {serverForm.type === 'local' && (
+                    <div>
+                      <Label htmlFor="local_path">Lokaler Pfad</Label>
+                      <Input
+                        id="local_path"
+                        value={serverForm.local_path}
+                        onChange={(e) => setServerForm(prev => ({ ...prev, local_path: e.target.value }))}
+                        placeholder="/var/backups"
+                      />
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowServerDialog(false)}>
+                      Abbrechen
+                    </Button>
+                    <Button onClick={handleCreateServer}>
+                      Server erstellen
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
           <div className="grid gap-4">
             {backupServers.map((server) => (
               <Card key={server.id}>
-                <CardHeader>
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Server className="h-5 w-5" />
-                        {server.name}
-                        <Badge variant={getStatusColor(server.status)}>{getStatusText(server.status)}</Badge>
-                        <Badge variant="outline">{server.type}</Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        {server.address}
-                        {server.port && `:${server.port}`}
-                      </CardDescription>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded">
+                        {server.type === 'local' ? (
+                          <HardDrive className="h-5 w-5 text-blue-600" />
+                        ) : (
+                          <Server className="h-5 w-5 text-blue-600" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{server.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {server.type === 'remote' ? server.host : server.local_path}
+                        </p>
+                      </div>
                     </div>
-                    <Button variant="outline" size="icon">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                    <div>
-                      <span className="text-muted-foreground">Kapazität:</span>
-                      <div className="font-medium">{server.capacity} GB</div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{server.status}</Badge>
+                      <Badge variant="outline">{server.type}</Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDeleteClick('server', server.id, server.name)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Belegt:</span>
-                      <div className="font-medium">{server.used} GB</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Verfügbar:</span>
-                      <div className="font-medium">{server.capacity - server.used} GB</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Letzte Sync:</span>
-                      <div className="font-medium">{server.lastSync}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Speichernutzung</span>
-                      <span>{getUsagePercentage(server.used, server.capacity)}%</span>
-                    </div>
-                    <Progress value={getUsagePercentage(server.used, server.capacity)} className="h-2" />
                   </div>
                 </CardContent>
               </Card>
@@ -336,80 +523,206 @@ export function BackupManagement() {
         </TabsContent>
 
         <TabsContent value="jobs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Backup Jobs</CardTitle>
-              <CardDescription>Automatische Backup-Aufträge und deren Status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Job Name</TableHead>
-                    <TableHead>Typ</TableHead>
-                    <TableHead>Ziele</TableHead>
-                    <TableHead>Zeitplan</TableHead>
-                    <TableHead>Ziel</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Größe</TableHead>
-                    <TableHead>Nächster Lauf</TableHead>
-                    <TableHead>Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {backupJobs.map((job) => (
-                    <TableRow key={job.id}>
-                      <TableCell className="font-medium">{job.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{job.type}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">
-                          {job.targets.slice(0, 2).join(", ")}
-                          {job.targets.length > 2 && ` +${job.targets.length - 2}`}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs">{job.schedule}</TableCell>
-                      <TableCell className="text-xs">{job.destination}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(job.status)}>{getStatusText(job.status)}</Badge>
-                      </TableCell>
-                      <TableCell>{job.size}</TableCell>
-                      <TableCell className="text-xs">{job.nextRun}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-                            <Play className="h-3 w-3" />
-                          </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
-                            <Settings className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold">Backup Jobs</h3>
+            <Dialog open={showJobDialog} onOpenChange={setShowJobDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Neuer Job
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Backup Job erstellen</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="job_name">Job Name</Label>
+                      <Input
+                        id="job_name"
+                        value={jobForm.name}
+                        onChange={(e) => setJobForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Tägliches System Backup"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="backup_type">Backup Typ</Label>
+                      <Select
+                        value={jobForm.backup_type}
+                        onValueChange={(value: any) => setJobForm(prev => ({ ...prev, backup_type: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vm">Virtual Machine</SelectItem>
+                          <SelectItem value="container">Container</SelectItem>
+                          <SelectItem value="system">System Files</SelectItem>
+                          <SelectItem value="database">Database</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Backup Verlauf</CardTitle>
-              <CardDescription>Historie der durchgeführten Backups</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Backup-Verlauf wird hier angezeigt</p>
-                <p className="text-sm">Detaillierte Logs und Statistiken vergangener Backup-Läufe</p>
-              </div>
-            </CardContent>
-          </Card>
+                  <div>
+                    <Label>Backup Ziele</Label>
+                    {jobForm.targets.map((target, index) => (
+                      <div key={index} className="flex gap-2 mt-2">
+                        <Select
+                          value={target}
+                          onValueChange={(value) => updateTarget(index, value)}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder={
+                              jobForm.backup_type === 'vm' ? 'Virtuelle Maschine auswählen' :
+                              jobForm.backup_type === 'container' ? 'Container auswählen' :
+                              jobForm.backup_type === 'system' ? 'System-Pfad auswählen' :
+                              'Backup-Ziel auswählen'
+                            } />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getBackupTargetOptions()
+                              .filter(opt => 
+                                jobForm.backup_type === 'vm' ? opt.group === 'Virtuelle Maschinen' :
+                                jobForm.backup_type === 'container' ? opt.group === 'Container' :
+                                jobForm.backup_type === 'system' ? opt.group === 'System-Pfade' :
+                                true
+                              )
+                              .map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))
+                            }
+                          </SelectContent>
+                        </Select>
+                        {index > 0 && (
+                          <Button variant="outline" size="sm" onClick={() => removeTarget(index)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" className="mt-2" onClick={addTarget}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ziel hinzufügen
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="server_select">Backup Server</Label>
+                      <Select
+                        value={jobForm.server_id.toString()}
+                        onValueChange={(value) => setJobForm(prev => ({ ...prev, server_id: parseInt(value) }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Server auswählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {backupServers.map((server) => (
+                            <SelectItem key={server.id} value={server.id.toString()}>
+                              {server.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="schedule">Zeitplan (Cron)</Label>
+                      <Input
+                        id="schedule"
+                        value={jobForm.schedule}
+                        onChange={(e) => setJobForm(prev => ({ ...prev, schedule: e.target.value }))}
+                        placeholder="0 2 * * *"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowJobDialog(false)}>
+                      Abbrechen
+                    </Button>
+                    <Button onClick={handleCreateJob} disabled={jobForm.server_id === 0}>
+                      Job erstellen
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="grid gap-4">
+            {backupJobs.map((job) => (
+              <Card key={job.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded">
+                        <Clock className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{job.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {job.backup_type} • {getServerName(job.server_id)} • {job.schedule}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Ziele: {job.targets.join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{job.status}</Badge>
+                      <Button variant="outline" size="sm" onClick={() => handleExecuteJob(job.id)}>
+                        <Play className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDeleteClick('job', job.id, job.name)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteTarget?.type === 'server' ? 'Backup Server löschen' : 'Backup Job löschen'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Sind Sie sicher, dass Sie <strong>"{deleteTarget?.name}"</strong> löschen möchten?
+              {deleteTarget?.type === 'server' && (
+                <span className="block mt-2 text-red-600">
+                  Warnung: Alle zugehörigen Backup Jobs werden ebenfalls gelöscht.
+                </span>
+              )}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                Abbrechen
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteConfirm}>
+                {deleteTarget?.type === 'server' ? 'Server löschen' : 'Job löschen'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

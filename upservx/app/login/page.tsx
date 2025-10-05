@@ -33,43 +33,70 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <div className="relative w-1/3">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
+      <div className="relative w-1/2 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-600/20 z-10"></div>
         <Image
           src="/login.jpg"
           alt="Login illustration"
           fill
-          sizes="33vw"
+          sizes="50vw"
           className="object-cover"
         />
+        <div className="absolute inset-0 z-20 flex items-center justify-center">
+          <div className="text-center text-white p-8">
+            <div className="w-16 h-16 rounded-2xl upservx-gradient flex items-center justify-center mx-auto mb-6">
+              <span className="text-white font-bold text-2xl">US</span>
+            </div>
+            <h1 className="text-4xl font-bold mb-4">Welcome to UpServX</h1>
+            <p className="text-xl opacity-90">Professional Server Management Platform</p>
+          </div>
+        </div>
       </div>
-      <div className="flex w-2/3 items-center justify-center">
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 p-6 border rounded-xl"
-        >
-          <div>
-            <label className="block mb-1">Username</label>
-            <input
-              className="border p-2 w-64 rounded-md"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
+      <div className="flex w-1/2 items-center justify-center p-8">
+        <div className="w-full max-w-md">
+          <div className="upservx-card p-8 space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-2">
+                Sign In
+              </h2>
+              <p className="text-muted-foreground">Access your server dashboard</p>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Username</label>
+                <input
+                  className="w-full h-12 px-4 rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Password</label>
+                <input
+                  type="password"
+                  className="w-full h-12 px-4 rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                />
+              </div>
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <p className="text-destructive text-sm font-medium">{error}</p>
+                </div>
+              )}
+              <button 
+                type="submit" 
+                className="w-full upservx-button-primary text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              >
+                Sign In
+              </button>
+            </form>
           </div>
-          <div>
-            <label className="block mb-1">Password</label>
-            <input
-              type="password"
-              className="border p-2 w-64 rounded-md"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" className="p-2 bg-primary text-primary-foreground rounded w-full">
-            Login
-          </button>
-        </form>
+        </div>
       </div>
     </div>
   )

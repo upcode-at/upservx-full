@@ -72,32 +72,51 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   ]
 
   return (
-    <div className="w-64 bg-card border-r border-border flex flex-col">
-      <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-bold">UpServX</h1>
-        <p className="text-sm text-muted-foreground">{hostname}</p>
+    <div className="w-64 upservx-sidebar flex flex-col">
+      <div className="p-6 border-b border-sidebar-border/30">
+        <div className="flex items-center space-x-3 mb-2">
+          <div className="w-8 h-8 rounded-lg upservx-gradient flex items-center justify-center">
+            <span className="text-white font-bold text-sm">US</span>
+          </div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+            UpServX
+          </h1>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <p className="text-sm text-muted-foreground font-medium">{hostname || "Local Server"}</p>
+        </div>
       </div>
       <nav className="flex-1 p-4 space-y-6">
         {categories.map((category) => (
-          <div key={category.title} className="space-y-2">
-            <div className="px-2 text-xs font-semibold text-muted-foreground">
+          <div key={category.title} className="space-y-3">
+            <div className="px-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">
               {category.title}
             </div>
             <div className="space-y-1">
               {category.items.map((item) => {
                 const Icon = item.icon
+                const isActive = activeSection === item.id
                 return (
                   <Button
                     key={item.id}
-                    variant={activeSection === item.id ? "secondary" : "ghost"}
+                    variant="ghost"
                     className={cn(
-                      "w-full justify-start",
-                      activeSection === item.id && "bg-secondary"
+                      "w-full justify-start rounded-xl h-11 font-medium transition-all duration-200",
+                      isActive 
+                        ? "bg-gradient-to-r from-primary/15 to-purple-600/15 text-primary border border-primary/20 shadow-sm" 
+                        : "hover:bg-accent/60 hover:scale-105 hover:shadow-sm"
                     )}
                     onClick={() => onSectionChange(item.id)}
                   >
-                    <Icon className="mr-2 h-4 w-4" />
+                    <Icon className={cn(
+                      "mr-3 h-4 w-4 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )} />
                     {item.label}
+                    {isActive && (
+                      <div className="ml-auto w-2 h-2 bg-primary rounded-full"></div>
+                    )}
                   </Button>
                 )
               })}

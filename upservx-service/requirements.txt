@@ -8,6 +8,8 @@ sqlalchemy-utils
 alembic
 python-dotenv
 bcrypt
+paramiko
+cryptography
 pytest
 pytest-asyncio
 psutil
