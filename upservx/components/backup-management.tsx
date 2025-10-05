@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Server, Calendar, Plus, Loader2, AlertCircle, Play, Edit, Trash2, HardDrive, Clock } from "lucide-react"
+import { Server, Plus, Loader2, AlertCircle, Play, Trash2, HardDrive, Clock } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,23 @@ interface BackupServer {
   created: string
 }
 
+interface BackupServerCreate {
+  name: string
+  type: string
+  host?: string
+  port?: number
+  remote_path?: string
+  local_path?: string
+}
+
+interface BackupJobCreate {
+  name: string
+  backup_type: 'vm' | 'container' | 'system' | 'database'
+  targets: string[]
+  schedule: string
+  server_id: number
+}
+
 // API client with authentication
 function apiUrl(path: string): string {
   if (typeof window !== "undefined") {
@@ -33,13 +50,7 @@ function apiUrl(path: string): string {
   return `http://localhost:8000${path}`
 }
 
-function getAuthHeaders(): HeadersInit {
-  const auth = btoa("admin:admin") // Basic auth credentials
-  return {
-    'Authorization': `Basic ${auth}`,
-    'Content-Type': 'application/json'
-  }
-}
+
 
 interface BackupJob {
   id: number
@@ -71,7 +82,7 @@ const backupApi = {
       }
       return response.json()
     },
-    create: async (data: any): Promise<BackupServer> => {
+    create: async (data: BackupServerCreate): Promise<BackupServer> => {
       const response = await fetch(apiUrl('/backup/servers'), {
         method: 'POST',
         headers: {
@@ -109,7 +120,7 @@ const backupApi = {
       }
       return response.json()
     },
-    create: async (data: any): Promise<BackupJob> => {
+    create: async (data: BackupJobCreate): Promise<BackupJob> => {
       const response = await fetch(apiUrl('/backup/jobs'), {
         method: 'POST',
         headers: {
@@ -122,7 +133,7 @@ const backupApi = {
       }
       return response.json()
     },
-    execute: async (jobId: number): Promise<any> => {
+    execute: async (jobId: number): Promise<{ message: string }> => {
       const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
         method: 'POST',
         headers: {
@@ -148,7 +159,7 @@ const backupApi = {
   },
   // API for available backup targets
   targets: {
-    getVMs: async (): Promise<any[]> => {
+    getVMs: async (): Promise<{ name: string; id: string }[]> => {
       const response = await fetch(apiUrl('/vms'), {
         method: 'GET',
         headers: {
@@ -160,7 +171,7 @@ const backupApi = {
       }
       return response.json()
     },
-    getContainers: async (): Promise<any[]> => {
+    getContainers: async (): Promise<{ name: string; id: string }[]> => {
       try {
         const response = await fetch(apiUrl('/containers'), {
           method: 'GET',
@@ -183,8 +194,8 @@ export default function BackupManagement() {
   const [activeTab, setActiveTab] = useState('servers')
   const [backupServers, setBackupServers] = useState<BackupServer[]>([])
   const [backupJobs, setBackupJobs] = useState<BackupJob[]>([])
-  const [availableVMs, setAvailableVMs] = useState<any[]>([])
-  const [availableContainers, setAvailableContainers] = useState<any[]>([])
+  const [availableVMs, setAvailableVMs] = useState<{ name: string; id: string }[]>([])
+  const [availableContainers, setAvailableContainers] = useState<{ name: string; id: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
@@ -201,7 +212,15 @@ export default function BackupManagement() {
     local_path: '/var/backups'
   })
   
-  const [jobForm, setJobForm] = useState({
+  const [jobForm, setJobForm] = useState<{
+    name: string
+    backup_type: 'vm' | 'container' | 'system' | 'database'
+    targets: string[]
+    schedule: string
+    server_id: number
+    retention_days: number
+    compression: boolean
+  }>({
     name: '',
     backup_type: 'system',
     targets: [''],
@@ -354,17 +373,7 @@ export default function BackupManagement() {
     return options
   }
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
 
   const getServerName = (serverId: number) => {
     const server = backupServers.find(s => s.id === serverId)
@@ -551,7 +560,7 @@ export default function BackupManagement() {
                       <Label htmlFor="backup_type">Backup Type</Label>
                       <Select
                         value={jobForm.backup_type}
-                        onValueChange={(value: any) => setJobForm(prev => ({ ...prev, backup_type: value }))}
+                        onValueChange={(value: 'vm' | 'container' | 'system' | 'database') => setJobForm(prev => ({ ...prev, backup_type: value }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -705,7 +714,7 @@ export default function BackupManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete <strong>"{deleteTarget?.name}"</strong>?
+              Are you sure you want to delete <strong>&quot;{deleteTarget?.name}&quot;</strong>?
               {deleteTarget?.type === 'server' && (
                 <span className="block mt-2 text-red-600">
                   Warning: All associated backup jobs will also be deleted.

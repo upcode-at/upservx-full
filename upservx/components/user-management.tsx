@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -64,7 +64,7 @@ export function UserManagement() {
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const loadUsers = async (page = userPage, size = userPageSize) => {
+  const loadUsers = useCallback(async (page = userPage, size = userPageSize) => {
     try {
       const params = new URLSearchParams({
         limit: size.toString(),
@@ -79,9 +79,9 @@ export function UserManagement() {
     } catch (e) {
       console.error(e)
     }
-  }
+  }, [userPage, userPageSize])
 
-  const loadGroups = async (page = groupPage, size = groupPageSize) => {
+  const loadGroups = useCallback(async (page = groupPage, size = groupPageSize) => {
     try {
       const params = new URLSearchParams({
         limit: size.toString(),
@@ -96,7 +96,7 @@ export function UserManagement() {
     } catch (e) {
       console.error(e)
     }
-  }
+  }, [groupPage, groupPageSize])
 
   const loadAllGroups = async () => {
     try {
@@ -139,11 +139,11 @@ export function UserManagement() {
 
   useEffect(() => {
     loadUsers()
-  }, [userPage, userPageSize])
+  }, [loadUsers, userPage, userPageSize])
 
   useEffect(() => {
     loadGroups()
-  }, [groupPage, groupPageSize])
+  }, [loadGroups, groupPage, groupPageSize])
 
   useEffect(() => {
     loadAllGroups()

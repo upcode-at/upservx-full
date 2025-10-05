@@ -30,7 +30,7 @@ export function Logs() {
       }
     }
     load()
-  }, [])
+  }, [selected])
 
   useEffect(() => {
     if (!selected) return

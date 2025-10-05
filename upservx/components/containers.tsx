@@ -123,11 +123,11 @@ export function Containers() {
 
   useEffect(() => {
     if (cpu > maxCpu) setCpu(maxCpu)
-  }, [maxCpu])
+  }, [maxCpu, cpu])
 
   useEffect(() => {
     if (memory > maxMemory) setMemory(maxMemory)
-  }, [maxMemory])
+  }, [maxMemory, memory])
 
   useEffect(() => {
     if (!error) return

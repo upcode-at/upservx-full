@@ -1,3 +1,41 @@
+// Type definitions
+
+interface BackupServerCreate {
+  name: string
+  type: string
+  host?: string
+  port?: number
+  remote_path?: string
+  local_path?: string
+}
+
+interface BackupServerUpdate {
+  name?: string
+  type?: string
+  host?: string
+  port?: number
+  remote_path?: string
+  local_path?: string
+}
+
+
+
+interface BackupJobCreate {
+  name: string
+  backup_type: 'vm' | 'container' | 'system' | 'database'
+  targets: string[]
+  schedule: string
+  server_id: number
+}
+
+interface BackupJobUpdate {
+  name?: string
+  backup_type?: 'vm' | 'container' | 'system' | 'database'
+  targets?: string[]
+  schedule?: string
+  server_id?: number
+}
+
 export function apiUrl(path: string): string {
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location
@@ -36,7 +74,7 @@ export const api = {
       return response.json()
     },
     
-    create: async (server: any) => {
+    create: async (server: BackupServerCreate) => {
       const response = await fetch(apiUrl("/backup/servers"), {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -54,7 +92,7 @@ export const api = {
       return response.json()
     },
     
-    update: async (id: number, data: any) => {
+    update: async (id: number, data: BackupServerUpdate) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -101,7 +139,7 @@ export const api = {
       return response.json()
     },
     
-    create: async (job: any) => {
+    create: async (job: BackupJobCreate) => {
       const response = await fetch(apiUrl("/backup/jobs"), {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -119,7 +157,7 @@ export const api = {
       return response.json()
     },
     
-    update: async (id: number, data: any) => {
+    update: async (id: number, data: BackupJobUpdate) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
