@@ -232,7 +232,7 @@ export default function BackupManagement() {
       setAvailableVMs(vmsData)
       setAvailableContainers(containersData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Laden der Daten')
+      setError(err instanceof Error ? err.message : 'Error loading data')
       console.error('Error fetching backup data:', err)
     } finally {
       setLoading(false)
@@ -246,7 +246,7 @@ export default function BackupManagement() {
       setShowServerDialog(false)
       setServerForm({ name: '', type: 'local', local_path: '/var/backups' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen des Servers')
+      setError(err instanceof Error ? err.message : 'Error creating server')
     }
   }
 
@@ -266,7 +266,7 @@ export default function BackupManagement() {
         compression: true
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen des Jobs')
+      setError(err instanceof Error ? err.message : 'Error creating job')
     }
   }
 
@@ -275,7 +275,7 @@ export default function BackupManagement() {
       await backupApi.jobs.execute(jobId)
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Ausführen des Jobs')
+      setError(err instanceof Error ? err.message : 'Error executing job')
     }
   }
 
@@ -297,7 +297,7 @@ export default function BackupManagement() {
       setShowDeleteDialog(false)
       setDeleteTarget(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Löschen')
+      setError(err instanceof Error ? err.message : 'Error deleting')
     }
   }
 
@@ -375,7 +375,7 @@ export default function BackupManagement() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Lade Backup-Daten...</span>
+        <span className="ml-2">Loading backup data...</span>
       </div>
     )
   }
@@ -394,7 +394,7 @@ export default function BackupManagement() {
                 onClick={() => setError(null)}
                 className="ml-auto"
               >
-                Schließen
+                Close
               </Button>
             </div>
           </CardContent>
@@ -404,7 +404,7 @@ export default function BackupManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Backup Management</h2>
-          <p className="text-muted-foreground">Backup-Server und automatische Sicherungen verwalten</p>
+          <p className="text-muted-foreground">Manage backup servers and automated backups</p>
         </div>
       </div>
 
@@ -427,12 +427,12 @@ export default function BackupManagement() {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Neuer Server
+                  New Server
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Backup Server hinzufügen</DialogTitle>
+                  <DialogTitle>Add Backup Server</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -472,10 +472,10 @@ export default function BackupManagement() {
                   )}
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setShowServerDialog(false)}>
-                      Abbrechen
+                      Cancel
                     </Button>
                     <Button onClick={handleCreateServer}>
-                      Server erstellen
+                      Create Server
                     </Button>
                   </div>
                 </div>
@@ -529,7 +529,7 @@ export default function BackupManagement() {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Neuer Job
+                  New Job
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
@@ -607,7 +607,7 @@ export default function BackupManagement() {
                     ))}
                     <Button variant="outline" size="sm" className="mt-2" onClick={addTarget}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Ziel hinzufügen
+                      Add Target
                     </Button>
                   </div>
 
@@ -643,10 +643,10 @@ export default function BackupManagement() {
 
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setShowJobDialog(false)}>
-                      Abbrechen
+                      Cancel
                     </Button>
                     <Button onClick={handleCreateJob} disabled={jobForm.server_id === 0}>
-                      Job erstellen
+                      Create Job
                     </Button>
                   </div>
                 </div>
@@ -714,10 +714,10 @@ export default function BackupManagement() {
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                Abbrechen
+                Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteConfirm}>
-                {deleteTarget?.type === 'server' ? 'Server löschen' : 'Job löschen'}
+                {deleteTarget?.type === 'server' ? 'Delete Server' : 'Delete Job'}
               </Button>
             </div>
           </div>
