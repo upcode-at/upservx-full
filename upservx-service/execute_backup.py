@@ -12,7 +12,8 @@ from datetime import datetime
 import traceback
 
 # Add the service directory to Python path
-sys.path.append('/home/m/Dokumente/Repo/upservx-full/upservx-service')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
 from backup_db import backup_db
 from backup import BackupManager

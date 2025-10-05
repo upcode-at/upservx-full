@@ -21,7 +21,9 @@ class CrontabManager:
     def __init__(self):
         self.crontab_path = "/etc/crontab"
         self.python_executable = "/usr/bin/python3"
-        self.backup_script_path = "/home/m/Dokumente/Repo/upservx-full/upservx-service/execute_backup.py"
+        # Use dynamic path based on current script location
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.backup_script_path = os.path.join(current_dir, "execute_backup.py")
     
     def read_crontab(self) -> List[str]:
         """Read current crontab content."""

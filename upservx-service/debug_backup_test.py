@@ -10,7 +10,8 @@ import json
 from datetime import datetime
 
 # Add service directory to path
-sys.path.append('/home/m/Dokumente/Repo/upservx-full/upservx-service')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
 print("=" * 80)
 print("BACKUP SYSTEM DEBUG TEST")
