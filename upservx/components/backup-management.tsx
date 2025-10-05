@@ -146,7 +146,7 @@ const backupApi = {
       }
     }
   },
-  // API für verfügbare Backup-Ziele
+  // API for available backup targets
   targets: {
     getVMs: async (): Promise<any[]> => {
       const response = await fetch(apiUrl('/vms'), {
@@ -156,7 +156,7 @@ const backupApi = {
         }
       })
       if (!response.ok) {
-        return [] // Keine VMs verfügbar
+        return [] // No VMs available
       }
       return response.json()
     },
@@ -169,7 +169,7 @@ const backupApi = {
           }
         })
         if (!response.ok) {
-          return [] // Keine Container verfügbar
+          return [] // No containers available
         }
         return response.json()
       } catch {
@@ -319,34 +319,34 @@ export default function BackupManagement() {
   const getBackupTargetOptions = () => {
     const options: { value: string, label: string, group: string }[] = []
     
-    // System-Pfade
+    // System Paths
     const systemPaths = [
-      { value: '/home', label: '/home - Benutzerverzeichnisse', group: 'System-Pfade' },
-      { value: '/var/www', label: '/var/www - Web-Dateien', group: 'System-Pfade' },
-      { value: '/etc', label: '/etc - Konfigurationsdateien', group: 'System-Pfade' },
-      { value: '/opt', label: '/opt - Software-Pakete', group: 'System-Pfade' },
-      { value: '/srv', label: '/srv - Service-Daten', group: 'System-Pfade' }
+      { value: '/home', label: '/home - User Directories', group: 'System Paths' },
+      { value: '/var/www', label: '/var/www - Web Files', group: 'System Paths' },
+      { value: '/etc', label: '/etc - Configuration Files', group: 'System Paths' },
+      { value: '/opt', label: '/opt - Software Packages', group: 'System Paths' },
+      { value: '/srv', label: '/srv - Service Data', group: 'System Paths' }
     ]
     options.push(...systemPaths)
 
-    // Virtuelle Maschinen
+    // Virtual Machines
     if (availableVMs.length > 0) {
       availableVMs.forEach(vm => {
         options.push({
           value: `vm:${vm.name}`,
           label: `${vm.name} (VM)`,
-          group: 'Virtuelle Maschinen'
+          group: 'Virtual Machines'
         })
       })
     }
 
-    // Container
+    // Containers
     if (availableContainers.length > 0) {
       availableContainers.forEach(container => {
         options.push({
           value: `container:${container.name}`,
           label: `${container.name} (Container)`,
-          group: 'Container'
+          group: 'Containers'
         })
       })
     }
@@ -441,11 +441,11 @@ export default function BackupManagement() {
                       id="name"
                       value={serverForm.name}
                       onChange={(e) => setServerForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Mein Backup Server"
+                      placeholder="My Backup Server"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="type">Typ</Label>
+                    <Label htmlFor="type">Type</Label>
                     <Select
                       value={serverForm.type}
                       onValueChange={(value) => setServerForm(prev => ({ ...prev, type: value }))}
@@ -454,14 +454,14 @@ export default function BackupManagement() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="local">Lokaler Storage</SelectItem>
+                        <SelectItem value="local">Local Storage</SelectItem>
                         <SelectItem value="remote">Remote Server</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   {serverForm.type === 'local' && (
                     <div>
-                      <Label htmlFor="local_path">Lokaler Pfad</Label>
+                      <Label htmlFor="local_path">Local Path</Label>
                       <Input
                         id="local_path"
                         value={serverForm.local_path}
@@ -534,7 +534,7 @@ export default function BackupManagement() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Backup Job erstellen</DialogTitle>
+                  <DialogTitle>Create Backup Job</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -544,11 +544,11 @@ export default function BackupManagement() {
                         id="job_name"
                         value={jobForm.name}
                         onChange={(e) => setJobForm(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Tägliches System Backup"
+                        placeholder="Daily System Backup"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="backup_type">Backup Typ</Label>
+                      <Label htmlFor="backup_type">Backup Type</Label>
                       <Select
                         value={jobForm.backup_type}
                         onValueChange={(value: any) => setJobForm(prev => ({ ...prev, backup_type: value }))}
@@ -567,7 +567,7 @@ export default function BackupManagement() {
                   </div>
 
                   <div>
-                    <Label>Backup Ziele</Label>
+                    <Label>Backup Targets</Label>
                     {jobForm.targets.map((target, index) => (
                       <div key={index} className="flex gap-2 mt-2">
                         <Select
@@ -576,18 +576,18 @@ export default function BackupManagement() {
                         >
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder={
-                              jobForm.backup_type === 'vm' ? 'Virtuelle Maschine auswählen' :
-                              jobForm.backup_type === 'container' ? 'Container auswählen' :
-                              jobForm.backup_type === 'system' ? 'System-Pfad auswählen' :
-                              'Backup-Ziel auswählen'
+                              jobForm.backup_type === 'vm' ? 'Select Virtual Machine' :
+                              jobForm.backup_type === 'container' ? 'Select Container' :
+                              jobForm.backup_type === 'system' ? 'Select System Path' :
+                              'Select Backup Target'
                             } />
                           </SelectTrigger>
                           <SelectContent>
                             {getBackupTargetOptions()
                               .filter(opt => 
-                                jobForm.backup_type === 'vm' ? opt.group === 'Virtuelle Maschinen' :
-                                jobForm.backup_type === 'container' ? opt.group === 'Container' :
-                                jobForm.backup_type === 'system' ? opt.group === 'System-Pfade' :
+                                jobForm.backup_type === 'vm' ? opt.group === 'Virtual Machines' :
+                                jobForm.backup_type === 'container' ? opt.group === 'Containers' :
+                                jobForm.backup_type === 'system' ? opt.group === 'System Paths' :
                                 true
                               )
                               .map((option) => (
@@ -619,7 +619,7 @@ export default function BackupManagement() {
                         onValueChange={(value) => setJobForm(prev => ({ ...prev, server_id: parseInt(value) }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Server auswählen" />
+                          <SelectValue placeholder="Select Server" />
                         </SelectTrigger>
                         <SelectContent>
                           {backupServers.map((server) => (
@@ -631,7 +631,7 @@ export default function BackupManagement() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="schedule">Zeitplan (Cron)</Label>
+                      <Label htmlFor="schedule">Schedule (Cron)</Label>
                       <Input
                         id="schedule"
                         value={jobForm.schedule}
@@ -669,7 +669,7 @@ export default function BackupManagement() {
                           {job.backup_type} • {getServerName(job.server_id)} • {job.schedule}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Ziele: {job.targets.join(', ')}
+                          Targets: {job.targets.join(', ')}
                         </p>
                       </div>
                     </div>
@@ -700,15 +700,15 @@ export default function BackupManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteTarget?.type === 'server' ? 'Backup Server löschen' : 'Backup Job löschen'}
+              {deleteTarget?.type === 'server' ? 'Delete Backup Server' : 'Delete Backup Job'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Sind Sie sicher, dass Sie <strong>"{deleteTarget?.name}"</strong> löschen möchten?
+              Are you sure you want to delete <strong>"{deleteTarget?.name}"</strong>?
               {deleteTarget?.type === 'server' && (
                 <span className="block mt-2 text-red-600">
-                  Warnung: Alle zugehörigen Backup Jobs werden ebenfalls gelöscht.
+                  Warning: All associated backup jobs will also be deleted.
                 </span>
               )}
             </p>
