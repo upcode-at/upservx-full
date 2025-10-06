@@ -38,16 +38,9 @@ interface BackupJobUpdate {
 
 export function apiUrl(path: string): string {
   if (typeof window !== "undefined") {
-    // In production, use /api/ prefix (nginx will proxy to backend)
-    // In development, use direct backend port
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      const { protocol, hostname } = window.location
-      const scheme = protocol.startsWith("http") ? protocol : "http:"
-      return `${scheme}//${hostname}:8000${path}`
-    } else {
-      // Production: use /api/ prefix
-      return `/api${path}`
-    }
+    const { protocol, hostname } = window.location
+    const scheme = protocol.startsWith("http") ? protocol : "http:"
+    return `${scheme}//${hostname}:8000${path}`
   }
   return `http://localhost:8000${path}`
 }
@@ -55,14 +48,7 @@ export function apiUrl(path: string): string {
 export function wsUrl(path: string): string {
   if (typeof window !== "undefined") {
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    
-    // In development, use direct backend port
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      return `${wsProtocol}//${window.location.hostname}:8000${path}`
-    } else {
-      // Production: use /ws/ prefix
-      return `${wsProtocol}//${window.location.host}/ws${path}`
-    }
+    return `${wsProtocol}//${window.location.hostname}:8000${path}`
   }
   return `ws://localhost:8000${path}`
 }
