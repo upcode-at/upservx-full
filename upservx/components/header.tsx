@@ -26,14 +26,6 @@ export function Header() {
   return (
     <header className="h-16 border-b border-border/30 upservx-glass px-6 flex items-center justify-between backdrop-blur-md">
       <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg upservx-gradient flex items-center justify-center">
-            <span className="text-white font-bold text-sm">US</span>
-          </div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            UpServX
-          </h1>
-        </div>
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
