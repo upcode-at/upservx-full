@@ -177,6 +177,10 @@ def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
         subprocess.check_call(["ip", "link", "set", "dev", name, "up"])
 
         if cfg.method == "dhcp":
+            # Flush existing addresses first to remove any old static/secondary
+            # addresses that might otherwise remain when switching to DHCP.
+            subprocess.check_call(["ip", "addr", "flush", "dev", name])
+
             # Try to release any existing DHCP lease and request a new one
             try:
                 subprocess.call(["dhclient", "-r", name])

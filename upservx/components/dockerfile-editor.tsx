@@ -24,10 +24,6 @@ export function DockerfileEditor() {
       return
     }
 
-
-
-
-
       setBuilding(true);
       try {
         const fd = new FormData();
