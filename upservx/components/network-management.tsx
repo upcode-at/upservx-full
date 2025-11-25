@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Network, Wifi, Settings } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
 import { apiUrl } from "@/lib/api"
 
 interface NetworkInterface {
@@ -36,33 +38,37 @@ export function NetworkManagement() {
 
   })
   const [message, setMessage] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedIface, setSelectedIface] = useState<NetworkInterface | null>(null)
+  const [ifaceConfig, setIfaceConfig] = useState({ method: "dhcp", ip: "", netmask: "", gateway: "", enabled: true })
+
+  const fetchInterfaces = async () => {
+    try {
+      const res = await fetch(apiUrl("/network/interfaces"))
+      if (res.ok) {
+        const data = await res.json()
+        setNetworkInterfaces(data.interfaces || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch(apiUrl("/network/settings"))
+      if (res.ok) {
+        const data = await res.json()
+        setNetworkSettings(data)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
-    const loadInterfaces = async () => {
-      try {
-        const res = await fetch(apiUrl("/network/interfaces"))
-        if (res.ok) {
-          const data = await res.json()
-          setNetworkInterfaces(data.interfaces || [])
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    loadInterfaces()
-
-    const loadSettings = async () => {
-      try {
-        const res = await fetch(apiUrl("/network/settings"))
-        if (res.ok) {
-          const data = await res.json()
-          setNetworkSettings(data)
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    loadSettings()
+    fetchInterfaces()
+    fetchSettings()
   }, [])
 
   useEffect(() => {
@@ -115,9 +121,25 @@ export function NetworkManagement() {
                       </CardTitle>
                       <CardDescription>MAC: {iface.mac}</CardDescription>
                     </div>
-                    <Button variant="outline" size="icon">
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedIface(iface)
+                          setIfaceConfig({
+                            method: iface.ip && iface.ip !== "-" ? "static" : "dhcp",
+                            ip: iface.ip && iface.ip !== "-" ? iface.ip : "",
+                            netmask: iface.netmask && iface.netmask !== "-" ? iface.netmask : "",
+                            gateway: iface.gateway && iface.gateway !== "-" ? iface.gateway : "",
+                            enabled: iface.status === "up",
+                          })
+                          setDialogOpen(true)
+                        }}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -207,6 +229,85 @@ export function NetworkManagement() {
           </Card>
         </TabsContent>
       </Tabs>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure {selectedIface?.name}</DialogTitle>
+            <DialogDescription>Adjust settings for the interface</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 mt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Method</Label>
+                <select
+                  className="mt-1 block w-full rounded border p-2"
+                  value={ifaceConfig.method}
+                  onChange={(e) => setIfaceConfig({ ...ifaceConfig, method: e.target.value })}
+                >
+                  <option value="dhcp">DHCP</option>
+                  <option value="static">Static</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label>Enabled</Label>
+                <div>
+                  <Switch
+                    checked={ifaceConfig.enabled}
+                    onCheckedChange={(v) => setIfaceConfig({ ...ifaceConfig, enabled: v as boolean })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="iface-ip">IP Address</Label>
+                <Input id="iface-ip" value={ifaceConfig.ip} onChange={(e) => setIfaceConfig({ ...ifaceConfig, ip: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="iface-netmask">Netmask</Label>
+                <Input id="iface-netmask" value={ifaceConfig.netmask} onChange={(e) => setIfaceConfig({ ...ifaceConfig, netmask: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="iface-gateway">Gateway</Label>
+                <Input id="iface-gateway" value={ifaceConfig.gateway} onChange={(e) => setIfaceConfig({ ...ifaceConfig, gateway: e.target.value })} />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedIface) return
+                  try {
+                    const res = await fetch(apiUrl(`/network/interfaces/${selectedIface.name}`), {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(ifaceConfig),
+                    })
+                    if (res.ok) {
+                      setMessage("Applied")
+                      setDialogOpen(false)
+                      fetchInterfaces()
+                    } else {
+                      const txt = await res.text()
+                      setMessage("Error: " + txt)
+                    }
+                  } catch (e) {
+                    console.error(e)
+                    setMessage("Failed to apply")
+                  }
+                }}
+              >
+                Apply
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {message && (
         <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
           {message}

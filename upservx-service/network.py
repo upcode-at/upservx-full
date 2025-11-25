@@ -7,8 +7,9 @@ import json
 import subprocess
 import socket
 import psutil
+import ipaddress
 from typing import List
-from models import NetworkInterfaceInfo, NetworkSettingsModel
+from models import NetworkInterfaceInfo, NetworkSettingsModel, InterfaceConfigModel
 
 
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
@@ -143,3 +144,57 @@ def save_network_settings(settings: NetworkSettingsModel) -> None:
     """Save network settings to file."""
     with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
+
+
+def _netmask_to_prefix(netmask: str) -> int:
+    """Convert a netmask like '255.255.255.0' to a CIDR prefix length (e.g. 24)."""
+    try:
+        network = ipaddress.IPv4Network(f"0.0.0.0/{netmask}")
+        return network.prefixlen
+    except Exception:
+        # Fallback: count bits
+        try:
+            parts = [int(p) for p in netmask.split('.')]
+            bits = ''.join(format(p, '08b') for p in parts)
+            return bits.count('1')
+        except Exception:
+            return 24
+
+
+def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
+    """Apply configuration to a network interface.
+
+    This attempts to bring the interface up/down, configure DHCP or static
+    IP and set the default gateway. Commands use `ip` and `dhclient` and
+    therefore require appropriate system privileges.
+    """
+    try:
+        # Bring interface up/down as requested
+        if not cfg.enabled:
+            subprocess.check_call(["ip", "link", "set", "dev", name, "down"])
+            return
+
+        subprocess.check_call(["ip", "link", "set", "dev", name, "up"])
+
+        if cfg.method == "dhcp":
+            # Try to release any existing DHCP lease and request a new one
+            try:
+                subprocess.call(["dhclient", "-r", name])
+            except Exception:
+                pass
+            subprocess.check_call(["dhclient", name])
+        else:
+            # Static configuration
+            # Flush existing addresses on the interface
+            subprocess.check_call(["ip", "addr", "flush", "dev", name])
+
+            if cfg.ip and cfg.netmask:
+                prefix = _netmask_to_prefix(cfg.netmask)
+                subprocess.check_call(["ip", "addr", "add", f"{cfg.ip}/{prefix}", "dev", name])
+
+            if cfg.gateway:
+                # Replace the default route to use this gateway for the interface
+                subprocess.check_call(["ip", "route", "replace", "default", "via", cfg.gateway, "dev", name])
+
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Failed to configure interface: {e}")

@@ -142,6 +142,20 @@ class SettingsModel(BaseModel):
     api_key: Optional[str] = None
 
 
+class InterfaceConfigModel(BaseModel):
+    """Model for configuring a network interface.
+
+    - method: 'dhcp' or 'static'
+    - ip/netmask/gateway: used when method == 'static'
+    - enabled: whether the interface should be up
+    """
+    method: str = "dhcp"
+    ip: Optional[str] = None
+    netmask: Optional[str] = None
+    gateway: Optional[str] = None
+    enabled: bool = True
+
+
 class SystemUserModel(BaseModel):
     username: str
     uid: int

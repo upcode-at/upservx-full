@@ -21,6 +21,7 @@ from models import (
     DriveMountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
     UserCreateModel, UserUpdateModel, GroupCreateModel, GroupUpdateModel, SSHKeyListModel,
     ISODownloadRequest, NetworkSettingsModel, SettingsModel,
+    InterfaceConfigModel,
     BackupServer, BackupServerCreate, BackupServerUpdate,
     BackupJob, BackupJobCreate, BackupJobUpdate,
     BackupInstance, BackupExecuteRequest, BackupRestoreRequest,
@@ -30,7 +31,7 @@ from models import (
 # Import utilities
 from system_utils import collect_metrics
 from storage import get_drives, get_zfs_pools, mount_drive, format_drive, create_zfs_pool
-from network import get_network_interfaces, load_network_settings, save_network_settings
+from network import get_network_interfaces, load_network_settings, save_network_settings, configure_interface
 from users import (
     list_system_users, list_system_groups, create_user, update_user, delete_user,
     create_group, update_group, delete_group, read_authorized_keys, write_authorized_keys
@@ -240,6 +241,16 @@ def update_network_settings(payload: NetworkSettingsModel):
     """Update network settings."""
     save_network_settings(payload)
     return {"detail": "saved"}
+
+
+@app.post("/network/interfaces/{name}")
+def api_configure_network_interface(name: str, payload: InterfaceConfigModel):
+    """Configure a specific network interface."""
+    try:
+        configure_interface(name, payload)
+        return {"detail": "applied"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Storage Routes
