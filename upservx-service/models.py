@@ -207,6 +207,10 @@ class VirtualMachine(BaseModel):
     iso: str
     disks: List[str]
     created: str
+    autostart: bool | None = None
+    network_bridge: str | None = None
+    graphics: str | None = None
+    cloud_init_iso: str | None = None
 
 
 class VirtualMachineCreate(BaseModel):
@@ -215,6 +219,9 @@ class VirtualMachineCreate(BaseModel):
     memory: int
     iso: str
     disks: List[int] = []
+    network_bridge: str = "virbr0"
+    autostart: bool = False
+    cloud_init: str | None = None
 
 
 class VirtualMachineUpdate(BaseModel):
@@ -222,6 +229,8 @@ class VirtualMachineUpdate(BaseModel):
     memory: Optional[int] = None
     iso: Optional[str] = None
     add_disks: List[int] = []
+    autostart: Optional[bool] = None
+    network_bridge: Optional[str] = None
 
 
 class BackupServer(BaseModel):

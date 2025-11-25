@@ -54,7 +54,7 @@ export function wsUrl(path: string): string {
 }
 
 // Get authorization header with Basic auth
-function getAuthHeaders(): HeadersInit {
+export function getAuthHeaders(): HeadersInit {
   const auth = btoa("admin:admin") // Default credentials - should be configurable
   return {
     'Authorization': `Basic ${auth}`,

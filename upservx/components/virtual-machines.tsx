@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { apiUrl } from "@/lib/api"
+import { apiUrl, getAuthHeaders } from "@/lib/api"
 
 export function VirtualMachines() {
   interface VMData {
@@ -30,6 +30,8 @@ export function VirtualMachines() {
     iso: string
     disks: string[]
     created: string
+    autostart?: boolean
+    network_bridge?: string
   }
 
   const [vms, setVms] = useState<VMData[]>([])
@@ -39,8 +41,12 @@ export function VirtualMachines() {
   const [memory, setMemory] = useState(2048)
   const maxCpu = 16
   const maxMemory = 32768
+  const [systemCpuCores, setSystemCpuCores] = useState<number | null>(null)
+  const [systemMemoryMB, setSystemMemoryMB] = useState<number | null>(null)
   const [iso, setIso] = useState("")
   const [disks, setDisks] = useState<number[]>([20])
+  const [autostart, setAutostart] = useState(false)
+  const [cloudInit, setCloudInit] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("grid")
@@ -61,6 +67,24 @@ export function VirtualMachines() {
     }
     load()
     const id = setInterval(load, 4000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const loadMetrics = async () => {
+      try {
+        const res = await fetch(apiUrl("/metrics"), { headers: getAuthHeaders() })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.cpu?.cores) setSystemCpuCores(data.cpu.cores)
+          if (data?.memory?.total) setSystemMemoryMB(Math.round(data.memory.total * 1024))
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadMetrics()
+    const id = setInterval(loadMetrics, 10000)
     return () => clearInterval(id)
   }, [])
 
@@ -87,8 +111,8 @@ export function VirtualMachines() {
 
   const handleSave = async () => {
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks }
-      : { name, cpu, memory, iso, disks }
+      ? { cpu, memory, iso, add_disks: disks, autostart }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = name
@@ -158,6 +182,8 @@ export function VirtualMachines() {
     setMemory(vm.memory)
     setIso(vm.iso)
     setDisks([])
+    setAutostart(!!vm.autostart)
+    setCloudInit("")
     setOpen(true)
   }
 
@@ -183,7 +209,7 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -216,16 +242,49 @@ export function VirtualMachines() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vm-autostart">Autostart</Label>
+                    <div className="flex items-center gap-2">
+                      <input id="vm-autostart" type="checkbox" checked={autostart} onChange={e => setAutostart(e.target.checked)} />
+                      <span className="text-sm text-muted-foreground">Start VM automatically on host boot</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vm-cloudinit">Cloud-Init (user-data)</Label>
+                    <textarea id="vm-cloudinit" className="w-full border rounded p-2 text-sm" rows={6} value={cloudInit} onChange={e => setCloudInit(e.target.value)} placeholder="#cloud-config\nusers: ..." />
+                  </div>
                 </TabsContent>
                 <TabsContent value="resources" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="vm-cpu">CPU Cores: {cpu}</Label>
-                      <input id="vm-cpu" type="range" min={1} max={maxCpu} step={1} className="w-full" value={cpu} onChange={e => setCpu(parseInt(e.target.value))} />
+                      <input
+                        id="vm-cpu"
+                        type="range"
+                        min={1}
+                        max={systemCpuCores || maxCpu}
+                        step={1}
+                        className="w-full"
+                        value={cpu}
+                        onChange={e => setCpu(parseInt(e.target.value))}
+                      />
+                      <div className="text-sm text-muted-foreground">Available cores: {systemCpuCores ?? 'unknown'}</div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="vm-memory">RAM (MB): {memory}</Label>
-                      <input id="vm-memory" type="range" min={512} max={maxMemory} step={512} className="w-full" value={memory} onChange={e => setMemory(parseInt(e.target.value))} />
+                      <input
+                        id="vm-memory"
+                        type="range"
+                        min={512}
+                        max={systemMemoryMB || maxMemory}
+                        step={256}
+                        className="w-full"
+                        value={memory}
+                        onChange={e => setMemory(parseInt(e.target.value))}
+                      />
+                      <div className="text-sm text-muted-foreground">
+                        Total system RAM: {systemMemoryMB ? `${systemMemoryMB} MB` : 'unknown'}
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

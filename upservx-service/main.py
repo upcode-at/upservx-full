@@ -177,7 +177,17 @@ def list_vms():
 def create_vm_endpoint(payload: VirtualMachineCreate):
     """Create a new virtual machine."""
     try:
-        vm = create_vm(payload.name, payload.cpu, payload.memory, payload.iso, payload.disks, get_iso_dir())
+        vm = create_vm(
+            payload.name,
+            payload.cpu,
+            payload.memory,
+            payload.iso,
+            payload.disks,
+            get_iso_dir(),
+            network_bridge=getattr(payload, "network_bridge", "virbr0"),
+            autostart=getattr(payload, "autostart", False),
+            cloud_init=getattr(payload, "cloud_init", None),
+        )
         return vm.dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

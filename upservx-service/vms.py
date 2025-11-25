@@ -6,6 +6,7 @@ import os
 import json
 import subprocess
 import shutil
+import tempfile
 from typing import List
 from datetime import datetime
 from models import VirtualMachine
@@ -47,56 +48,115 @@ def parse_virsh_list() -> dict[str, str]:
     return statuses
 
 
-def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str) -> VirtualMachine:
-    """Create a new virtual machine using virt-install."""
+def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
+              network_bridge: str = "virbr0", autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
+    """Create a new virtual machine using virt-install.
+
+    Supports optional cloud-init user-data (string). If `cloud_init` is provided
+    a small seed ISO will be created and attached as a CD-ROM.
+    """
     if shutil.which("virt-install") is None:
         raise Exception("virt-install not installed")
-    
-    iso_path = os.path.join(iso_dir, iso)
-    if not os.path.isfile(iso_path):
+
+    iso_path = os.path.join(iso_dir, iso) if iso else None
+    if iso_path and not os.path.isfile(iso_path):
         raise Exception("iso not found")
+
+    if shutil.which("qemu-img") is None:
+        raise Exception("qemu-img not installed")
 
     disk_args = []
     disk_paths = []
     for idx, size in enumerate(disks or [20], start=1):
         disk_path = f"/var/lib/libvirt/images/{name}_{idx}.qcow2"
         disk_paths.append(disk_path)
-        subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True)
+        r = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Exception(r.stderr.strip() or "failed to create disk")
         disk_args.extend(["--disk", f"path={disk_path},size={size}"])
 
-    cmd = [
-        "virt-install",
-        "--name", name,
-        "--ram", str(memory),
-        "--vcpus", str(cpu),
-        *disk_args,
-        "--cdrom", iso_path,
-        "--os-variant", "generic",
-        "--network", "bridge=virbr0",
-        "--graphics", "vnc",
-        "--hvm",
-        "--noautoconsole",
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise Exception(result.stderr.strip() or "failed to create")
+    seed_iso_path = None
+    tempdir = None
+    try:
+        if cloud_init:
+            # create cloud-init seed ISO
+            tempdir = tempfile.mkdtemp(prefix=f"vm_{name}_")
+            user_data_path = os.path.join(tempdir, "user-data")
+            meta_data_path = os.path.join(tempdir, "meta-data")
+            with open(user_data_path, "w") as f:
+                f.write(cloud_init)
+            # minimal meta-data
+            with open(meta_data_path, "w") as f:
+                f.write(f"instance-id: {name}\nlocal-hostname: {name}\n")
 
-    # Create VM object
-    vms = load_vms()
-    vm = VirtualMachine(
-        id=len(vms) + 1,
-        name=name,
-        status="running",
-        cpu=cpu,
-        memory=memory,
-        iso=iso,
-        disks=disk_paths,
-        created=datetime.utcnow().date().isoformat(),
-    )
-    vms.append(vm)
-    save_vms(vms)
-    return vm
+            seed_iso_path = f"/var/lib/libvirt/images/{name}_seed.iso"
+            # prefer cloud-localds if available
+            if shutil.which("cloud-localds"):
+                r = subprocess.run(["cloud-localds", seed_iso_path, user_data_path, meta_data_path], capture_output=True, text=True)
+            elif shutil.which("genisoimage") or shutil.which("mkisofs"):
+                tool = shutil.which("genisoimage") or shutil.which("mkisofs")
+                r = subprocess.run([tool, "-output", seed_iso_path, "-volid", "cidata", "-joliet", "-rock", user_data_path, meta_data_path], capture_output=True, text=True)
+            else:
+                raise Exception("no tool available to create cloud-init ISO (install cloud-localds or genisoimage)")
+
+            if r.returncode != 0:
+                raise Exception(r.stderr.strip() or "failed to create cloud-init iso")
+
+            # attach as CD-ROM
+            disk_args.extend(["--disk", f"path={seed_iso_path},device=cdrom"])
+
+        cmd = [
+            "virt-install",
+            "--name", name,
+            "--ram", str(memory),
+            "--vcpus", str(cpu),
+            *disk_args,
+            "--os-variant", "generic",
+            "--network", f"bridge={network_bridge}",
+            "--graphics", "vnc",
+            "--hvm",
+            "--noautoconsole",
+        ]
+
+        if iso_path:
+            cmd.extend(["--cdrom", iso_path])
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr.strip() or "failed to create")
+
+        # optionally set autostart
+        if autostart:
+            r2 = subprocess.run(["virsh", "autostart", name], capture_output=True, text=True)
+            if r2.returncode != 0:
+                # non-fatal, but report
+                raise Exception(r2.stderr.strip() or "failed to set autostart")
+
+        # Create VM object
+        vms = load_vms()
+        vm = VirtualMachine(
+            id=len(vms) + 1,
+            name=name,
+            status="running",
+            cpu=cpu,
+            memory=memory,
+            iso=iso or "",
+            disks=disk_paths,
+            created=datetime.utcnow().date().isoformat(),
+            autostart=autostart,
+            network_bridge=network_bridge,
+            cloud_init_iso=seed_iso_path,
+        )
+        vms.append(vm)
+        save_vms(vms)
+        return vm
+    finally:
+        # tempdir may be kept for debugging, do not delete seed iso in /var/lib/libvirt/images
+        if tempdir and os.path.isdir(tempdir):
+            try:
+                shutil.rmtree(tempdir)
+            except Exception:
+                pass
 
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 

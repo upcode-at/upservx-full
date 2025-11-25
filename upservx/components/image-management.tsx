@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
-import { apiUrl } from "@/lib/api"
+import { apiUrl, getAuthHeaders } from "@/lib/api"
 
 export function ImageManagement() {
   const [isoFiles, setIsoFiles] = useState<
@@ -153,6 +153,14 @@ export function ImageManagement() {
 
     const xhr = new XMLHttpRequest()
     xhr.open("POST", apiUrl("/isos"))
+    try {
+      const auth = getAuthHeaders()
+      if (auth && (auth as any).Authorization) {
+        xhr.setRequestHeader("Authorization", (auth as any).Authorization)
+      }
+    } catch (e) {
+      // ignore if headers can't be set
+    }
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         setUploadedBytes(e.loaded)
