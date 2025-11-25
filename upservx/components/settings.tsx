@@ -26,6 +26,8 @@ export function Settings() {
     api_key: "",
   })
   const [message, setMessage] = useState<string | null>(null)
+  const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const loadSettings = async () => {
     try {
@@ -48,6 +50,7 @@ export function Settings() {
 
   useEffect(() => {
     loadSettings()
+    loadVpnStatus()
   }, [])
 
   useEffect(() => {
@@ -80,6 +83,77 @@ export function Settings() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  const loadVpnStatus = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/vpn/status"))
+      if (res.ok) {
+        const data = await res.json()
+        setVpnStatus(data)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleUploadVpn = async (file: File | null) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch(apiUrl("/settings/vpn/upload"), {
+        method: "POST",
+        body: fd,
+      })
+      if (res.ok) {
+        setMessage("VPN file uploaded")
+        await loadVpnStatus()
+      } else {
+        const txt = await res.text()
+        setMessage("Upload failed: " + txt)
+      }
+    } catch (e) {
+      console.error(e)
+      setMessage("Upload error")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleStartVpn = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/vpn/start"), { method: "POST" })
+      if (res.ok) {
+        setMessage("Starting VPN")
+        await loadVpnStatus()
+      } else {
+        setMessage("Failed to start VPN")
+      }
+    } catch (e) {
+      console.error(e)
+      setMessage("Start error")
+    }
+  }
+
+  const handleStopVpn = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/vpn/stop"), { method: "POST" })
+      if (res.ok) {
+        setMessage("Stopping VPN")
+        await loadVpnStatus()
+      } else {
+        setMessage("Failed to stop VPN")
+      }
+    } catch (e) {
+      console.error(e)
+      setMessage("Stop error")
+    }
+  }
+
+  const handleDownloadVpn = () => {
+    window.location.href = apiUrl("/settings/vpn/file")
   }
 
   return (
@@ -159,6 +233,44 @@ export function Settings() {
               <Input id="api-key" value={settings.api_key} readOnly />
               <Button onClick={handleGenerateKey}>Generate</Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>OpenVPN</CardTitle>
+          <CardDescription>Upload and control an OpenVPN client profile</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>OVPN File</Label>
+            <div className="flex items-center space-x-2">
+              <input
+                id="ovpn-file"
+                type="file"
+                accept=".ovpn"
+                onChange={(e) => handleUploadVpn(e.target.files ? e.target.files[0] : null)}
+                className="rounded"
+              />
+              <Button onClick={handleDownloadVpn} disabled={!vpnStatus || !vpnStatus.ovpn_path}>
+                Download
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <div>Status: {vpnStatus ? (vpnStatus.running ? "Running" : "Stopped") : "Unknown"}</div>
+            {vpnStatus && vpnStatus.ovpn_path && <div className="text-muted-foreground">{vpnStatus.ovpn_path.split('/').pop()}</div>}
+          </div>
+
+          <div className="flex space-x-2">
+            <Button onClick={handleStartVpn} disabled={vpnStatus?.running}>
+              Start
+            </Button>
+            <Button variant="destructive" onClick={handleStopVpn} disabled={!vpnStatus?.running}>
+              Stop
+            </Button>
           </div>
         </CardContent>
       </Card>

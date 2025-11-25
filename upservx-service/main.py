@@ -36,7 +36,10 @@ from users import (
     create_group, update_group, delete_group, read_authorized_keys, write_authorized_keys
 )
 from services import list_systemd_services, start_service, stop_service, enable_service, disable_service
-from settings import load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file
+from settings import (
+    load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
+    save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
+)
 from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
@@ -466,6 +469,60 @@ def generate_api_key_endpoint():
     """Generate a new API key."""
     api_key = generate_api_key()
     return {"api_key": api_key}
+
+
+# VPN / OpenVPN Routes
+@app.post("/settings/vpn/upload")
+async def upload_vpn(file: UploadFile = File(...)):
+    """Upload an OpenVPN .ovpn file to the server."""
+    filename = file.filename or "client.ovpn"
+    content = await file.read()
+    try:
+        path = save_vpn_ovpn(content, filename)
+        return {"detail": "saved", "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/settings/vpn/file")
+def download_vpn_file():
+    """Download the stored .ovpn file if present."""
+    try:
+        status = get_vpn_status()
+        if not status.get("ovpn_path"):
+            raise Exception("ovpn file not found")
+        return FileResponse(status.get("ovpn_path"), filename=os.path.basename(status.get("ovpn_path")), media_type="application/x-openvpn-profile")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/settings/vpn/status")
+def vpn_status():
+    """Get current VPN status."""
+    try:
+        return get_vpn_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/settings/vpn/start")
+def vpn_start():
+    """Start the OpenVPN tunnel using the uploaded .ovpn file."""
+    try:
+        status = start_vpn()
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/settings/vpn/stop")
+def vpn_stop():
+    """Stop the OpenVPN tunnel."""
+    try:
+        status = stop_vpn()
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Backup Management API Endpoints
