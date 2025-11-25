@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/dialog"
 import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
+import DockerfileEditor from "@/components/dockerfile-editor"
+
+import { Box } from "lucide-react"
 
 export function ImageManagement() {
   const [isoFiles, setIsoFiles] = useState<
@@ -439,10 +442,11 @@ export function ImageManagement() {
       </div>
 
       <Tabs defaultValue="isos" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="isos">ISO Files</TabsTrigger>
           <TabsTrigger value="containers">Container Images</TabsTrigger>
           <TabsTrigger value="lxc">LXC Images</TabsTrigger>
+          <TabsTrigger value="build">Build</TabsTrigger>
         </TabsList>
 
         <TabsContent value="isos" className="space-y-4">
@@ -742,6 +746,22 @@ export function ImageManagement() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="build" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Build Image</CardTitle>
+                  <CardDescription>Write Dockerfiles and build images from context</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DockerfileEditor />
             </CardContent>
           </Card>
         </TabsContent>

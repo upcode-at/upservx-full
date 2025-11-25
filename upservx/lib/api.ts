@@ -58,6 +58,12 @@ export function getAuthHeaders(): HeadersInit {
   const auth = btoa("admin:admin") // Default credentials - should be configurable
   return {
     'Authorization': `Basic ${auth}`,
+  }
+}
+
+export function getJsonHeaders(): HeadersInit {
+  return {
+    ...getAuthHeaders(),
     'Content-Type': 'application/json'
   }
 }
@@ -77,7 +83,7 @@ export const api = {
     create: async (server: BackupServerCreate) => {
       const response = await fetch(apiUrl("/backup/servers"), {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getJsonHeaders(),
         body: JSON.stringify(server)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -95,7 +101,7 @@ export const api = {
     update: async (id: number, data: BackupServerUpdate) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: getJsonHeaders(),
         body: JSON.stringify(data)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -142,7 +148,7 @@ export const api = {
     create: async (job: BackupJobCreate) => {
       const response = await fetch(apiUrl("/backup/jobs"), {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getJsonHeaders(),
         body: JSON.stringify(job)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -160,7 +166,7 @@ export const api = {
     update: async (id: number, data: BackupJobUpdate) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: getJsonHeaders(),
         body: JSON.stringify(data)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)

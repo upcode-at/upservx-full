@@ -60,9 +60,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Configure CORS. For development, set FRONTEND_ORIGINS env to a comma-separated
+# list (e.g. "http://localhost:3000,http://127.0.0.1:3000"). If not set, allow
+# common local dev origins so Authorization headers are accepted by browsers.
+frontend_origins = os.getenv("FRONTEND_ORIGINS")
+if frontend_origins:
+    allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
+else:
+    allow_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3001",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,6 +97,16 @@ async def pam_auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     auth_header = request.headers.get("Authorization")
+    # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
+    if not auth_header:
+        cookie_auth = request.cookies.get("auth")
+        if cookie_auth:
+            # cookie may contain the full header value or just the base64 token
+            if cookie_auth.lower().startswith("basic "):
+                auth_header = cookie_auth
+            else:
+                auth_header = f"Basic {cookie_auth}"
+
     if not auth_header:
         return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
     
@@ -107,6 +132,40 @@ async def pam_auth_middleware(request: Request, call_next):
     
     response = await call_next(request)
     return response
+
+
+
+@app.post("/auth/login")
+async def auth_login(payload: dict, request: Request):
+    """Login endpoint to set a Basic auth cookie for client use.
+
+    Accepts JSON {"username": "...", "password": "..."} and on success
+    sets a cookie named `auth` containing the Basic token (base64). Cookie is HttpOnly.
+    """
+    username = payload.get("username")
+    password = payload.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password required")
+
+    # authenticate via PAM or API key
+    try:
+        if pam_auth.authenticate(username, password):
+            token = base64.b64encode(f"{username}:{password}".encode()).decode()
+            resp = Response(content={"detail": "logged_in"}, media_type="application/json")
+            # For local development we set SameSite=Lax; do not set Secure so it works over HTTP
+            resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
+            return resp
+        else:
+            raise HTTPException(status_code=401, detail="invalid credentials")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/auth/logout")
+async def auth_logout():
+    resp = Response(content={"detail": "logged_out"}, media_type="application/json")
+    resp.delete_cookie("auth")
+    return resp
 
 
 # Include API routers
@@ -143,6 +202,16 @@ async def upload_iso(file: UploadFile = File(...)):
         return info.dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/debug/echo")
+async def debug_echo(request: Request):
+    """Return request headers and a simple note to help debug whether Authorization header arrives."""
+    try:
+        headers = dict(request.headers)
+    except Exception:
+        headers = {}
+    return {"note": "echo headers", "headers": headers}
 
 
 @app.delete("/isos/{name}")

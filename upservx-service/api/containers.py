@@ -2,7 +2,7 @@
 API routes for container management.
 """
 
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket, File, UploadFile, Request
 from starlette.websockets import WebSocketDisconnect
 from typing import List
 import subprocess
@@ -19,6 +19,14 @@ from containers import (
     get_docker_image_details, get_lxc_image_details,
     find_container_type, create_api_container
 )
+from fastapi.responses import StreamingResponse
+import tempfile
+import tarfile
+import shutil
+from fastapi import File, UploadFile
+import tempfile
+import tarfile
+import shutil
 
 router = APIRouter(prefix="/containers")
 
@@ -341,3 +349,147 @@ async def container_terminal(websocket: WebSocket, name: str):
                     await process.wait()
                 except:
                     pass
+
+
+@router.post("/build")
+def build_docker_image(request: Request, image: str, tag: str = "latest", dockerfile: UploadFile = File(None), context: UploadFile = File(None)):
+    """Build a Docker image from an uploaded Dockerfile or a context tarball.
+
+    - If `context` (tar.gz or tar) is provided, it will be extracted and used as build context.
+    - If `dockerfile` is provided, it will be written to a temporary directory as `Dockerfile` and used as build context.
+    Returns build logs on success or error details.
+    """
+    print("[containers.build] incoming request", request.method, request.url)
+    try:
+        print("[containers.build] headers:", dict(request.headers))
+    except Exception:
+        pass
+
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+
+    if not dockerfile and not context:
+        raise HTTPException(status_code=400, detail="dockerfile or context required")
+
+    tempdir = tempfile.mkdtemp(prefix="docker_build_")
+    try:
+        # Prepare context
+        if context:
+            # save uploaded tar to temp and extract
+            ctx_path = os.path.join(tempdir, "context.tar")
+            with open(ctx_path, "wb") as f:
+                f.write(context.file.read())
+            try:
+                with tarfile.open(ctx_path) as tar:
+                    tar.extractall(path=tempdir)
+            except tarfile.ReadError:
+                # not a tar - maybe plain directory stream
+                pass
+        if dockerfile:
+            df_path = os.path.join(tempdir, "Dockerfile")
+            with open(df_path, "wb") as f:
+                f.write(dockerfile.file.read())
+
+        # Build command
+        tag_name = f"{image}:{tag}" if tag else image
+        cmd = ["docker", "build", "-t", tag_name, tempdir]
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        out_lines = []
+        for line in proc.stdout:
+            out_lines.append(line)
+        proc.wait()
+        logs = "".join(out_lines)
+        if proc.returncode != 0:
+            raise HTTPException(status_code=400, detail=logs or "build failed")
+
+        return {"detail": "built", "image": tag_name, "logs": logs}
+    finally:
+        try:
+            shutil.rmtree(tempdir)
+        except Exception:
+            pass
+
+
+
+@router.post("/build/stream")
+def build_docker_image_stream(request: Request, image: str, tag: str = "latest", dockerfile: UploadFile = File(None), context: UploadFile = File(None)):
+    """Stream docker build logs as plain text (chunked) in the response body.
+    The client can read the response body as a stream and append logs in real time.
+    """
+    print("[containers.build.stream] incoming request", request.method, request.url)
+    try:
+        print("[containers.build.stream] headers:", dict(request.headers))
+    except Exception:
+        pass
+
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+
+    if not dockerfile and not context:
+        raise HTTPException(status_code=400, detail="dockerfile or context required")
+
+    tempdir = tempfile.mkdtemp(prefix="docker_build_")
+    # Read uploaded files into memory here so they remain available inside the
+    # streaming generator (UploadFile.file may be closed after request handling).
+    dockerfile_bytes = None
+    context_bytes = None
+    try:
+        if context:
+            context.file.seek(0)
+            context_bytes = context.file.read()
+            try:
+                context.file.close()
+            except Exception:
+                pass
+        if dockerfile:
+            dockerfile.file.seek(0)
+            dockerfile_bytes = dockerfile.file.read()
+            try:
+                dockerfile.file.close()
+            except Exception:
+                pass
+    except Exception:
+        # if reading fails, continue and let generator handle missing files
+        pass
+
+    def generate():
+        try:
+            # prepare
+            if context_bytes:
+                ctx_path = os.path.join(tempdir, "context.tar")
+                with open(ctx_path, "wb") as f:
+                    f.write(context_bytes)
+                try:
+                    with tarfile.open(ctx_path) as tar:
+                        tar.extractall(path=tempdir)
+                except tarfile.ReadError:
+                    pass
+            if dockerfile_bytes:
+                df_path = os.path.join(tempdir, "Dockerfile")
+                with open(df_path, "wb") as f:
+                    f.write(dockerfile_bytes)
+
+            tag_name = f"{image}:{tag}" if tag else image
+            cmd = ["docker", "build", "-t", tag_name, tempdir]
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
+            try:
+                for line in proc.stdout:
+                    yield line
+                proc.wait()
+                if proc.returncode != 0:
+                    yield f"\nBUILD FAILED with code {proc.returncode}\n"
+                else:
+                    yield f"\nBUILD FINISHED: {tag_name}\n"
+            finally:
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+        finally:
+            try:
+                shutil.rmtree(tempdir)
+            except Exception:
+                pass
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
