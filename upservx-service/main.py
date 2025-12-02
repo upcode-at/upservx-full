@@ -30,7 +30,7 @@ from models import (
 )
 
 # Import utilities
-from system_utils import collect_metrics
+from system_utils import collect_metrics, get_server_addresses
 from storage import get_drives, get_zfs_pools, mount_drive, format_drive, create_zfs_pool
 from network import get_network_interfaces, load_network_settings, save_network_settings, configure_interface
 from users import (
@@ -63,19 +63,14 @@ app = FastAPI(
 )
 
 # Configure CORS. For development, set FRONTEND_ORIGINS env to a comma-separated
-# list (e.g. "http://localhost:3000,http://127.0.0.1:3000"). If not set, allow
-# common local dev origins so Authorization headers are accepted by browsers.
+# list (e.g. "http://localhost:3000,http://127.0.0.1:3000"). If not set, automatically
+# detect all server IP addresses, hostnames, and common dev origins.
 frontend_origins = os.getenv("FRONTEND_ORIGINS")
 if frontend_origins:
     allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
 else:
-    allow_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3001",
-    ]
+    # Automatically allow all server addresses with common ports
+    allow_origins = get_server_addresses()
 
 app.add_middleware(
     CORSMiddleware,

@@ -8,6 +8,7 @@ import psutil
 import time
 import shutil
 import os
+import socket
 
 
 # Track last network counters for throughput calculation
@@ -225,3 +226,47 @@ def _system_nameservers() -> tuple[str, str]:
     except Exception:
         pass
     return primary, secondary
+
+
+def get_server_addresses() -> list[str]:
+    """Get all IP addresses and hostnames of the server for CORS configuration.
+    
+    Returns a list of origins including:
+    - All network interface IPs with common ports (3000, 8000, 80, 443, 5173)
+    - Hostname with common ports
+    - localhost and 127.0.0.1 for development
+    """
+    origins = []
+    ports = [3000, 8000, 80, 443, 5173, 3001]
+    protocols = ["http", "https"]
+    
+    # Add localhost
+    for protocol in protocols:
+        for port in ports:
+            origins.append(f"{protocol}://localhost:{port}")
+            origins.append(f"{protocol}://127.0.0.1:{port}")
+    
+    # Add hostname
+    try:
+        hostname = socket.gethostname()
+        for protocol in protocols:
+            for port in ports:
+                origins.append(f"{protocol}://{hostname}:{port}")
+    except Exception:
+        pass
+    
+    # Add all network interface IPs
+    try:
+        addrs = psutil.net_if_addrs()
+        for interface, addr_list in addrs.items():
+            for addr in addr_list:
+                if addr.family == socket.AF_INET:  # IPv4
+                    ip = addr.address
+                    if ip and ip != "127.0.0.1":
+                        for protocol in protocols:
+                            for port in ports:
+                                origins.append(f"{protocol}://{ip}:{port}")
+    except Exception:
+        pass
+    
+    return origins
