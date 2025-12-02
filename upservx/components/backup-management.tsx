@@ -57,10 +57,16 @@ interface BackupJob {
   created: string
 }
 
+// Helper to get API URL at runtime (not at module load time)
+const getBackupApiUrl = (path: string) => {
+  // This is called at runtime, so window is available
+  return apiUrl(path)
+}
+
 const backupApi = {
   servers: {
     list: async (): Promise<BackupServer[]> => {
-      const response = await fetch(apiUrl('/backup/servers'), {
+      const response = await fetch(getBackupApiUrl('/backup/servers'), {
         method: 'GET',
         headers: {
           ...getAuthHeaders(),
@@ -73,7 +79,7 @@ const backupApi = {
       return response.json()
     },
     create: async (data: BackupServerCreate): Promise<BackupServer> => {
-      const response = await fetch(apiUrl('/backup/servers'), {
+      const response = await fetch(getBackupApiUrl('/backup/servers'), {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
@@ -87,7 +93,7 @@ const backupApi = {
       return response.json()
     },
     delete: async (id: number): Promise<void> => {
-      const response = await fetch(apiUrl(`/backup/servers/${id}`), {
+      const response = await fetch(getBackupApiUrl(`/backup/servers/${id}`), {
         method: 'DELETE',
         headers: {
           ...getAuthHeaders(),
@@ -101,7 +107,7 @@ const backupApi = {
   },
   jobs: {
     list: async (): Promise<BackupJob[]> => {
-      const response = await fetch(apiUrl('/backup/jobs'), {
+      const response = await fetch(getBackupApiUrl('/backup/jobs'), {
         method: 'GET',
         headers: {
           ...getAuthHeaders(),
@@ -114,7 +120,7 @@ const backupApi = {
       return response.json()
     },
     create: async (data: BackupJobCreate): Promise<BackupJob> => {
-      const response = await fetch(apiUrl('/backup/jobs'), {
+      const response = await fetch(getBackupApiUrl('/backup/jobs'), {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
@@ -128,7 +134,7 @@ const backupApi = {
       return response.json()
     },
     execute: async (jobId: number): Promise<{ message: string }> => {
-      const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
+      const response = await fetch(getBackupApiUrl(`/backup/jobs/${jobId}/execute`), {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
@@ -141,7 +147,7 @@ const backupApi = {
       return response.json()
     },
     delete: async (id: number): Promise<void> => {
-      const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
+      const response = await fetch(getBackupApiUrl(`/backup/jobs/${id}`), {
         method: 'DELETE',
         headers: {
           ...getAuthHeaders(),
@@ -156,7 +162,7 @@ const backupApi = {
   // API for available backup targets
   targets: {
     getVMs: async (): Promise<{ name: string; id: string }[]> => {
-      const response = await fetch(apiUrl('/vms'), {
+      const response = await fetch(getBackupApiUrl('/vms'), {
         method: 'GET',
         headers: {
           ...getAuthHeaders(),
@@ -170,7 +176,7 @@ const backupApi = {
     },
     getContainers: async (): Promise<{ name: string; id: string }[]> => {
       try {
-        const response = await fetch(apiUrl('/containers'), {
+        const response = await fetch(getBackupApiUrl('/containers'), {
           method: 'GET',
           headers: {
             ...getAuthHeaders(),
