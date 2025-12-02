@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiUrl, getAuthHeaders } from "@/lib/api"
+import { apiUrl } from "@/lib/api"
 
 export function DockerfileEditor() {
   const [image, setImage] = useState("")
@@ -59,7 +59,7 @@ export function DockerfileEditor() {
             setLogs((prev) => prev + `\n[HTTP ${res.status}]`);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setLogs((prev) => prev + "\nERROR: " + String(err));
       } finally {
         setBuilding(false);

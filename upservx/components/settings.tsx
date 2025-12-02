@@ -31,7 +31,6 @@ export function Settings() {
   })
   const [message, setMessage] = useState<string | null>(null)
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
-  const [uploading, setUploading] = useState(false)
 
   const loadSettings = async () => {
     try {
@@ -103,7 +102,6 @@ export function Settings() {
 
   const handleUploadVpn = async (file: File | null) => {
     if (!file) return
-    setUploading(true)
     try {
       const fd = new FormData()
       fd.append("file", file)
@@ -121,8 +119,6 @@ export function Settings() {
     } catch (e) {
       console.error(e)
       setMessage("Upload error")
-    } finally {
-      setUploading(false)
     }
   }
 

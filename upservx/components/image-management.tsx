@@ -21,8 +21,6 @@ import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
 import DockerfileEditor from "@/components/dockerfile-editor"
 
-import { Box } from "lucide-react"
-
 export function ImageManagement() {
   const [isoFiles, setIsoFiles] = useState<
     {
@@ -158,10 +156,10 @@ export function ImageManagement() {
     xhr.open("POST", apiUrl("/isos"))
     try {
       const auth = getAuthHeaders()
-      if (auth && (auth as any).Authorization) {
-        xhr.setRequestHeader("Authorization", (auth as any).Authorization)
+      if (auth && (auth as Record<string, string>).Authorization) {
+        xhr.setRequestHeader("Authorization", (auth as Record<string, string>).Authorization)
       }
-    } catch (e) {
+    } catch {
       // ignore if headers can't be set
     }
     xhr.upload.onprogress = (e) => {

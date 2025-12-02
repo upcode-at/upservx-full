@@ -114,7 +114,7 @@ export default function ReverseProxyManagement() {
       } else {
         alert(`Failed to create config: ${data.message}`)
       }
-    } catch (error) {
+    } catch {
       alert("Failed to create proxy configuration")
     } finally {
       setLoading(false)
@@ -135,7 +135,7 @@ export default function ReverseProxyManagement() {
       } else {
         alert(`Failed to delete: ${data.message}`)
       }
-    } catch (error) {
+    } catch {
       alert("Failed to delete configuration")
     } finally {
       setLoading(false)
@@ -170,7 +170,7 @@ export default function ReverseProxyManagement() {
       } else {
         alert(`Failed to obtain certificate: ${data.message}`)
       }
-    } catch (error) {
+    } catch {
       alert("Failed to obtain certificate")
     } finally {
       setLoading(false)
@@ -189,7 +189,7 @@ export default function ReverseProxyManagement() {
       } else {
         alert(`Renewal failed: ${data.message}`)
       }
-    } catch (error) {
+    } catch {
       alert("Failed to renew certificates")
     } finally {
       setLoading(false)
@@ -210,7 +210,7 @@ export default function ReverseProxyManagement() {
       } else {
         alert(`Revocation failed: ${data.message}`)
       }
-    } catch (error) {
+    } catch {
       alert("Failed to revoke certificate")
     } finally {
       setLoading(false)
@@ -236,7 +236,7 @@ export default function ReverseProxyManagement() {
             Reverse Proxy Status
           </CardTitle>
           <CardDescription>
-            Nginx and Let's Encrypt SSL certificate management
+            Nginx and Let&apos;s Encrypt SSL certificate management
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -433,7 +433,7 @@ export default function ReverseProxyManagement() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>SSL Certificates</CardTitle>
-              <CardDescription>Manage Let's Encrypt SSL certificates</CardDescription>
+              <CardDescription>Manage Let&apos;s Encrypt SSL certificates</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button 
@@ -454,7 +454,7 @@ export default function ReverseProxyManagement() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Obtain SSL Certificate</DialogTitle>
-                    <DialogDescription>Get a free Let's Encrypt SSL certificate</DialogDescription>
+                    <DialogDescription>Get a free Let&apos;s Encrypt SSL certificate</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
