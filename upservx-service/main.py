@@ -106,7 +106,7 @@ async def pam_auth_middleware(request: Request, call_next):
                 auth_header = f"Basic {cookie_auth}"
 
     if not auth_header:
-        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+        return Response(status_code=401)
     
     try:
         scheme, credentials = auth_header.split(" ", 1)
@@ -116,17 +116,17 @@ async def pam_auth_middleware(request: Request, call_next):
             decoded = base64.b64decode(credentials).decode()
             username, password = decoded.split(":", 1)
             if not pam_auth.authenticate(username, password):
-                return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+                return Response(status_code=401)
             request.state.user = username
         elif scheme == "bearer":
             settings = load_settings()
             if not settings.api_key or credentials.strip() != settings.api_key:
-                return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+                return Response(status_code=401)
             request.state.user = "api-key"
         else:
             raise ValueError
     except Exception:
-        return Response(status_code=401, headers={"WWW-Authenticate": "Basic"})
+        return Response(status_code=401)
     
     response = await call_next(request)
     return response

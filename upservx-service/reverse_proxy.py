@@ -225,6 +225,8 @@ class ReverseProxyManager:
         config_lines.append(f"        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")
         config_lines.append(f"        proxy_set_header X-Forwarded-Proto $scheme;")
         config_lines.append(f"        proxy_cache_bypass $http_upgrade;")
+        config_lines.append(f"        # Hide WWW-Authenticate to prevent browser auth popup")
+        config_lines.append(f"        proxy_hide_header WWW-Authenticate;")
         config_lines.append(f"    }}")
         config_lines.append(f"")
         

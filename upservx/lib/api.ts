@@ -89,7 +89,18 @@ export function wsUrl(path: string): string {
 
 // Get authorization header with Basic auth
 export function getAuthHeaders(): HeadersInit {
-  const auth = btoa("admin:admin") // Default credentials - should be configurable
+  // Try to get token from localStorage first (set by AuthProvider)
+  if (typeof window !== "undefined") {
+    const storedToken = localStorage.getItem("authToken")
+    if (storedToken) {
+      return {
+        'Authorization': `Basic ${storedToken}`,
+      }
+    }
+  }
+  
+  // Fallback to default credentials (for SSR or when not logged in)
+  const auth = btoa("admin:admin")
   return {
     'Authorization': `Basic ${auth}`,
   }

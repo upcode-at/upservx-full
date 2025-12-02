@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return
     const origFetch = window.fetch
-    window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+    window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const headers =
         init.headers instanceof Headers
           ? new Headers(init.headers)
@@ -51,7 +51,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       init.headers = headers
-      return origFetch(input, init)
+      
+      // Make the request
+      const response = await origFetch(input, init)
+      
+      // If unauthorized and we have a token, clear it and redirect to login
+      if (response.status === 401 && token) {
+        setTokenState(null)
+        localStorage.removeItem("authToken")
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login"
+        }
+      }
+      
+      return response
     }
     return () => {
       window.fetch = origFetch
