@@ -155,9 +155,8 @@ class ReverseProxyManager:
                 self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
                 
                 config_lines.append(f"}}")
-            else:
-                # Certificates don't exist yet - SSL will be enabled after obtaining cert
-                self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
+            # If certificates don't exist, don't create HTTPS block yet
+            # It will be created automatically after obtaining certificates
         
         # Write config file
         try:
