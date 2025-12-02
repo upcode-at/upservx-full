@@ -51,14 +51,17 @@ export function apiUrl(path: string): string {
     
     // If accessing via standard ports (80/443), assume reverse proxy with /api/ path
     if (port === "" || port === "80" || port === "443") {
-      return `${protocol}//${hostname}/api${path}`
+      return `/api${path}`
     }
     
     // Otherwise, direct access to backend port
     const scheme = protocol.startsWith("http") ? protocol : "http:"
     return `${scheme}//${hostname}:8000${path}`
   }
-  return `http://localhost:8000${path}`
+  
+  // During SSR/build, return relative path (will be resolved by browser)
+  // This assumes reverse proxy setup - adjust if needed
+  return `/api${path}`
 }
 
 export function wsUrl(path: string): string {
