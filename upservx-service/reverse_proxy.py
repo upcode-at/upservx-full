@@ -233,7 +233,9 @@ class ReverseProxyManager:
         # WebSocket support for terminal
         config_lines.append(f"    # WebSocket Support")
         config_lines.append(f"    location /ws/ {{")
-        config_lines.append(f"        proxy_pass http://{backend_host}:{backend_port}/ws/;")
+        config_lines.append(f"        # Remove /ws prefix when proxying to backend")
+        config_lines.append(f"        rewrite ^/ws/(.*)$ /$1 break;")
+        config_lines.append(f"        proxy_pass http://{backend_host}:{backend_port};")
         config_lines.append(f"        proxy_http_version 1.1;")
         config_lines.append(f"        proxy_set_header Upgrade $http_upgrade;")
         config_lines.append(f"        proxy_set_header Connection \"upgrade\";")
@@ -241,6 +243,8 @@ class ReverseProxyManager:
         config_lines.append(f"        proxy_set_header X-Real-IP $remote_addr;")
         config_lines.append(f"        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")
         config_lines.append(f"        proxy_set_header X-Forwarded-Proto $scheme;")
+        config_lines.append(f"        proxy_read_timeout 3600s;")
+        config_lines.append(f"        proxy_send_timeout 3600s;")
         config_lines.append(f"    }}")
         config_lines.append(f"")
         
