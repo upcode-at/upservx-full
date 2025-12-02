@@ -38,7 +38,12 @@ fail() {
   printf "${RED}✖${NC}\n"
   exit 1
 }
-
+step "Update Codebase"
+{
+  git pull origin main
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
 # === 1. Install system dependencies ==========================================
 step "Install system packages"
 {
