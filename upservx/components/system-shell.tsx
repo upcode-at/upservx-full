@@ -78,7 +78,7 @@ export function SystemShell() {
       <CardContent className="p-0">
         <div 
           ref={containerRef} 
-          className="h-[calc(100vh-12rem)] w-full"
+          className="h-[calc(100vh-8rem)] w-full"
           style={{ padding: '1rem' }}
         />
       </CardContent>
