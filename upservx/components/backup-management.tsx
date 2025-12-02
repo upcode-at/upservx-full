@@ -57,140 +57,120 @@ interface BackupJob {
   created: string
 }
 
-// Helper to get API URL at runtime (not at module load time)
-const getBackupApiUrl = (path: string) => {
-  // This is called at runtime, so window is available
-  return apiUrl(path)
+// Helper functions that use apiUrl at runtime, not at module load
+async function fetchBackupServers(): Promise<BackupServer[]> {
+  const response = await fetch(apiUrl('/backup/servers'), {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
+    }
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
 }
 
-const backupApi = {
-  servers: {
-    list: async (): Promise<BackupServer[]> => {
-      const response = await fetch(getBackupApiUrl('/backup/servers'), {
-        method: 'GET',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return response.json()
+async function createBackupServer(data: BackupServerCreate): Promise<BackupServer> {
+  const response = await fetch(apiUrl('/backup/servers'), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
     },
-    create: async (data: BackupServerCreate): Promise<BackupServer> => {
-      const response = await fetch(getBackupApiUrl('/backup/servers'), {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return response.json()
-    },
-    delete: async (id: number): Promise<void> => {
-      const response = await fetch(getBackupApiUrl(`/backup/servers/${id}`), {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function deleteBackupServer(id: number): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/servers/${id}`), {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
     }
-  },
-  jobs: {
-    list: async (): Promise<BackupJob[]> => {
-      const response = await fetch(getBackupApiUrl('/backup/jobs'), {
-        method: 'GET',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return response.json()
-    },
-    create: async (data: BackupJobCreate): Promise<BackupJob> => {
-      const response = await fetch(getBackupApiUrl('/backup/jobs'), {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return response.json()
-    },
-    execute: async (jobId: number): Promise<{ message: string }> => {
-      const response = await fetch(getBackupApiUrl(`/backup/jobs/${jobId}/execute`), {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return response.json()
-    },
-    delete: async (id: number): Promise<void> => {
-      const response = await fetch(getBackupApiUrl(`/backup/jobs/${id}`), {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+}
+
+async function fetchBackupJobs(): Promise<BackupJob[]> {
+  const response = await fetch(apiUrl('/backup/jobs'), {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
     }
-  },
-  // API for available backup targets
-  targets: {
-    getVMs: async (): Promise<{ name: string; id: string }[]> => {
-      const response = await fetch(getBackupApiUrl('/vms'), {
-        method: 'GET',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      })
-      if (!response.ok) {
-        return [] // No VMs available
-      }
-      return response.json()
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function createBackupJob(data: BackupJobCreate): Promise<BackupJob> {
+  const response = await fetch(apiUrl('/backup/jobs'), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
     },
-    getContainers: async (): Promise<{ name: string; id: string }[]> => {
-      try {
-        const response = await fetch(getBackupApiUrl('/containers'), {
-          method: 'GET',
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json'
-          }
-        })
-        if (!response.ok) {
-          return [] // No containers available
-        }
-        return response.json()
-      } catch {
-        return []
-      }
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function executeBackupJob(jobId: number): Promise<{ message: string }> {
+  const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
     }
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function deleteBackupJob(id: number): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
+    }
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+}
+
+async function fetchVMs(): Promise<{ name: string; id: string }[]> {
+  try {
+    const response = await fetch(apiUrl('/vms'), {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      }
+    })
+    if (!response.ok) return []
+    return response.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchContainers(): Promise<{ name: string; id: string }[]> {
+  try {
+    const response = await fetch(apiUrl('/containers'), {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      }
+    })
+    if (!response.ok) return []
+    return response.json()
+  } catch {
+    return []
   }
 }
 
@@ -244,10 +224,10 @@ export default function BackupManagement() {
       setError(null)
 
       const [serversData, jobsData, vmsData, containersData] = await Promise.all([
-        backupApi.servers.list(),
-        backupApi.jobs.list(),
-        backupApi.targets.getVMs(),
-        backupApi.targets.getContainers()
+        fetchBackupServers(),
+        fetchBackupJobs(),
+        fetchVMs(),
+        fetchContainers()
       ])
       
       setBackupServers(serversData)
@@ -264,7 +244,7 @@ export default function BackupManagement() {
 
   const handleCreateServer = async () => {
     try {
-      await backupApi.servers.create(serverForm)
+      await createBackupServer(serverForm)
       await loadData()
       setShowServerDialog(false)
       setServerForm({ name: '', type: 'local', local_path: '/var/backups' })
@@ -276,7 +256,7 @@ export default function BackupManagement() {
   const handleCreateJob = async () => {
     try {
       const filteredTargets = jobForm.targets.filter(t => t.trim() !== '')
-      await backupApi.jobs.create({ ...jobForm, targets: filteredTargets })
+      await createBackupJob({ ...jobForm, targets: filteredTargets })
       await loadData()
       setShowJobDialog(false)
       setJobForm({
@@ -295,7 +275,7 @@ export default function BackupManagement() {
 
   const handleExecuteJob = async (jobId: number) => {
     try {
-      await backupApi.jobs.execute(jobId)
+      await executeBackupJob(jobId)
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error executing job')
@@ -312,9 +292,9 @@ export default function BackupManagement() {
     
     try {
       if (deleteTarget.type === 'server') {
-        await backupApi.servers.delete(deleteTarget.id)
+        await deleteBackupServer(deleteTarget.id)
       } else {
-        await backupApi.jobs.delete(deleteTarget.id)
+        await deleteBackupJob(deleteTarget.id)
       }
       await loadData()
       setShowDeleteDialog(false)
