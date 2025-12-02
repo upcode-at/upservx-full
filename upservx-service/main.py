@@ -208,6 +208,9 @@ async def system_shell_websocket(websocket: WebSocket):
             if slave_fd > 2:
                 os.close(slave_fd)
             
+            # Set TERM environment variable
+            os.environ['TERM'] = 'xterm-256color'
+            
             # Start bash
             os.execvp("bash", ["bash", "-l"])
         
