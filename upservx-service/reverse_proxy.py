@@ -132,23 +132,32 @@ class ReverseProxyManager:
         config_lines.append(f"}}")
         config_lines.append(f"")
         
-        # HTTPS server block if SSL is enabled
+        # HTTPS server block if SSL is enabled and certificates exist
         if ssl_enabled:
-            config_lines.append(f"server {{")
-            config_lines.append(f"    listen 443 ssl http2;")
-            config_lines.append(f"    listen [::]:443 ssl http2;")
-            config_lines.append(f"    server_name {domain};")
-            config_lines.append(f"")
-            config_lines.append(f"    ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;")
-            config_lines.append(f"    ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;")
-            config_lines.append(f"    ssl_protocols TLSv1.2 TLSv1.3;")
-            config_lines.append(f"    ssl_ciphers HIGH:!aNULL:!MD5;")
-            config_lines.append(f"    ssl_prefer_server_ciphers on;")
-            config_lines.append(f"")
+            cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+            key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
             
-            self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
-            
-            config_lines.append(f"}}")
+            # Only add HTTPS block if certificates exist
+            if os.path.exists(cert_path) and os.path.exists(key_path):
+                config_lines.append(f"server {{")
+                config_lines.append(f"    listen 443 ssl;")
+                config_lines.append(f"    listen [::]:443 ssl;")
+                config_lines.append(f"    http2 on;")
+                config_lines.append(f"    server_name {domain};")
+                config_lines.append(f"")
+                config_lines.append(f"    ssl_certificate {cert_path};")
+                config_lines.append(f"    ssl_certificate_key {key_path};")
+                config_lines.append(f"    ssl_protocols TLSv1.2 TLSv1.3;")
+                config_lines.append(f"    ssl_ciphers HIGH:!aNULL:!MD5;")
+                config_lines.append(f"    ssl_prefer_server_ciphers on;")
+                config_lines.append(f"")
+                
+                self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
+                
+                config_lines.append(f"}}")
+            else:
+                # Certificates don't exist yet - SSL will be enabled after obtaining cert
+                self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
         
         # Write config file
         try:
