@@ -25,7 +25,8 @@ from models import (
     BackupServer, BackupServerCreate, BackupServerUpdate,
     BackupJob, BackupJobCreate, BackupJobUpdate,
     BackupInstance, BackupExecuteRequest, BackupRestoreRequest,
-    BackupListResponse, BackupServerInfo
+    BackupListResponse, BackupServerInfo,
+    ProxyConfigModel, ProxyConfigCreate, CertificateRequest, CertificateInfo
 )
 
 # Import utilities
@@ -47,6 +48,7 @@ from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
 from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
+from reverse_proxy import reverse_proxy_manager
 
 # Import API routes
 from api.system import router as system_router
@@ -987,6 +989,73 @@ async def get_backup_cron_jobs():
         return cron_jobs
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list cron jobs: {str(e)}")
+
+
+# Reverse Proxy Management Routes
+
+@app.get("/proxy/status")
+def get_proxy_status():
+    """Get Nginx installation and status."""
+    return {
+        "nginx": reverse_proxy_manager.get_nginx_status(),
+        "certbot_installed": reverse_proxy_manager.check_certbot_installed()
+    }
+
+
+
+
+
+@app.get("/proxy/configs")
+def list_proxy_configs():
+    """List all reverse proxy configurations."""
+    return {"configs": reverse_proxy_manager.list_proxy_configs()}
+
+
+@app.post("/proxy/configs")
+def create_proxy_config(config: ProxyConfigCreate):
+    """Create a new reverse proxy configuration."""
+    return reverse_proxy_manager.create_proxy_config(
+        domain=config.domain,
+        backend_host=config.backend_host,
+        backend_port=config.backend_port,
+        frontend_port=config.frontend_port,
+        ssl_enabled=config.ssl_enabled,
+        force_ssl=config.force_ssl
+    )
+
+
+@app.delete("/proxy/configs/{domain}")
+def delete_proxy_config(domain: str):
+    """Delete a reverse proxy configuration."""
+    return reverse_proxy_manager.delete_proxy_config(domain)
+
+
+@app.get("/proxy/certificates")
+def list_certificates():
+    """List all SSL certificates."""
+    certs = reverse_proxy_manager.list_certificates()
+    return {"certificates": certs}
+
+
+@app.post("/proxy/certificates/obtain")
+def obtain_certificate(request: CertificateRequest):
+    """Obtain a new Let's Encrypt SSL certificate."""
+    return reverse_proxy_manager.obtain_certificate(
+        domain=request.domain,
+        email=request.email
+    )
+
+
+@app.post("/proxy/certificates/renew")
+def renew_certificates():
+    """Renew all SSL certificates."""
+    return reverse_proxy_manager.renew_certificates()
+
+
+@app.delete("/proxy/certificates/{domain}")
+def revoke_certificate(domain: str):
+    """Revoke and delete an SSL certificate."""
+    return reverse_proxy_manager.revoke_certificate(domain)
 
 
 if __name__ == "__main__":

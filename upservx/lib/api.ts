@@ -37,8 +37,24 @@ interface BackupJobUpdate {
 }
 
 export function apiUrl(path: string): string {
+  // Check for environment variable first (set at build time)
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL
+  
+  if (apiBase) {
+    // Use configured API base URL
+    return `${apiBase}${path}`
+  }
+  
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location
+    // Check if we're behind a reverse proxy with /api/ path
+    const { protocol, hostname, port } = window.location
+    
+    // If accessing via standard ports (80/443), assume reverse proxy with /api/ path
+    if (port === "" || port === "80" || port === "443") {
+      return `${protocol}//${hostname}/api${path}`
+    }
+    
+    // Otherwise, direct access to backend port
     const scheme = protocol.startsWith("http") ? protocol : "http:"
     return `${scheme}//${hostname}:8000${path}`
   }
@@ -46,9 +62,24 @@ export function apiUrl(path: string): string {
 }
 
 export function wsUrl(path: string): string {
+  // Check for environment variable first
+  const wsBase = process.env.NEXT_PUBLIC_WS_BASE_URL
+  
+  if (wsBase) {
+    return `${wsBase}${path}`
+  }
+  
   if (typeof window !== "undefined") {
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    return `${wsProtocol}//${window.location.hostname}:8000${path}`
+    const { protocol, hostname, port } = window.location
+    const wsProtocol = protocol === "https:" ? "wss:" : "ws:"
+    
+    // If accessing via standard ports, assume reverse proxy with /ws/ path
+    if (port === "" || port === "80" || port === "443") {
+      return `${wsProtocol}//${hostname}/ws${path}`
+    }
+    
+    // Otherwise, direct access to backend port
+    return `${wsProtocol}//${hostname}:8000${path}`
   }
   return `ws://localhost:8000${path}`
 }

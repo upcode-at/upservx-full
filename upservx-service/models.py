@@ -347,3 +347,33 @@ class BackupServerInfo(BaseModel):
     type: str
     status: str
     storage_info: dict
+
+
+class ProxyConfigModel(BaseModel):
+    domain: str
+    backend_host: str = "127.0.0.1"
+    backend_port: int = 8000
+    frontend_port: int = 3000
+    ssl_enabled: bool = False
+    force_ssl: bool = False
+
+
+class ProxyConfigCreate(BaseModel):
+    domain: str
+    backend_host: str = "127.0.0.1"
+    backend_port: int = 8000
+    frontend_port: int = 3000
+    ssl_enabled: bool = False
+    force_ssl: bool = False
+
+
+class CertificateRequest(BaseModel):
+    domain: str
+    email: str
+
+
+class CertificateInfo(BaseModel):
+    name: str
+    domains: str
+    expiry: str
+    cert_path: Optional[str] = None
