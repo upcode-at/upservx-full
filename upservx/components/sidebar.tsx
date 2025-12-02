@@ -13,6 +13,7 @@ import {
   Disc,
   FileText,
   Settings,
+  Terminal,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -43,7 +44,10 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const categories = [
     {
       title: "System",
-      items: [{ id: "dashboard", label: "Dashboard", icon: BarChart3 }],
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "shell", label: "Shell", icon: Terminal },
+      ],
     },
     {
       title: "Compute",

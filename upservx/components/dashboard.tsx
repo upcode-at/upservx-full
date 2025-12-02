@@ -14,6 +14,7 @@ import { UserManagement } from "@/components/user-management"
 import BackupManagement from "@/components/backup-management"
 import { ImageManagement } from "@/components/image-management"
 import { Logs } from "@/components/logs"
+import { SystemShell } from "@/components/system-shell"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -22,6 +23,8 @@ export function Dashboard() {
     switch (activeSection) {
       case "dashboard":
         return <SystemOverview />
+      case "shell":
+        return <SystemShell />
       case "vms":
         return <VirtualMachines />
       case "containers":
