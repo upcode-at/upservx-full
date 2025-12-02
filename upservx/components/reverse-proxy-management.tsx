@@ -45,6 +45,8 @@ export default function ReverseProxyManagement() {
   const [loading, setLoading] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCertDialog, setShowCertDialog] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   // Form states
   const [domain, setDomain] = useState("")
@@ -60,6 +62,18 @@ export default function ReverseProxyManagement() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 5000)
+    return () => clearTimeout(t)
+  }, [error])
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 5000)
+    return () => clearTimeout(t)
+  }, [message])
 
   const loadData = async () => {
     try {
@@ -85,7 +99,7 @@ export default function ReverseProxyManagement() {
 
   const createProxyConfig = async () => {
     if (!domain) {
-      alert("Please enter a domain")
+      setError("Please enter a domain")
       return
     }
 
@@ -107,15 +121,18 @@ export default function ReverseProxyManagement() {
       const data = await res.json()
       
       if (data.success) {
-        alert("Proxy configuration created successfully!")
+        setMessage("Proxy configuration created successfully!")
         setShowAddDialog(false)
         resetForm()
         await loadData()
       } else {
-        alert(`Failed to create config: ${data.message}`)
+        const errorMsg = `Failed to create config: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
       }
-    } catch {
-      alert("Failed to create proxy configuration")
+    } catch (err) {
+      console.error("Failed to create proxy configuration:", err)
+      setError("Failed to create proxy configuration")
     } finally {
       setLoading(false)
     }
@@ -130,13 +147,16 @@ export default function ReverseProxyManagement() {
       const data = await res.json()
       
       if (data.success) {
-        alert("Configuration deleted successfully!")
+        setMessage("Configuration deleted successfully!")
         await loadData()
       } else {
-        alert(`Failed to delete: ${data.message}`)
+        const errorMsg = `Failed to delete: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
       }
-    } catch {
-      alert("Failed to delete configuration")
+    } catch (err) {
+      console.error("Failed to delete configuration:", err)
+      setError("Failed to delete configuration")
     } finally {
       setLoading(false)
     }
@@ -144,7 +164,7 @@ export default function ReverseProxyManagement() {
 
   const obtainCertificate = async () => {
     if (!certDomain || !certEmail) {
-      alert("Please enter domain and email")
+      setError("Please enter domain and email")
       return
     }
 
@@ -162,16 +182,19 @@ export default function ReverseProxyManagement() {
       const data = await res.json()
       
       if (data.success) {
-        alert("Certificate obtained successfully!")
+        setMessage("Certificate obtained successfully!")
         setShowCertDialog(false)
         setCertDomain("")
         setCertEmail("")
         await loadData()
       } else {
-        alert(`Failed to obtain certificate: ${data.message}`)
+        const errorMsg = `Failed to obtain certificate: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
       }
-    } catch {
-      alert("Failed to obtain certificate")
+    } catch (err) {
+      console.error("Failed to obtain certificate:", err)
+      setError("Failed to obtain certificate")
     } finally {
       setLoading(false)
     }
@@ -184,13 +207,16 @@ export default function ReverseProxyManagement() {
       const data = await res.json()
       
       if (data.success) {
-        alert("Certificates renewed successfully!")
+        setMessage("Certificates renewed successfully!")
         await loadData()
       } else {
-        alert(`Renewal failed: ${data.message}`)
+        const errorMsg = `Renewal failed: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
       }
-    } catch {
-      alert("Failed to renew certificates")
+    } catch (err) {
+      console.error("Failed to renew certificates:", err)
+      setError("Failed to renew certificates")
     } finally {
       setLoading(false)
     }
@@ -205,13 +231,16 @@ export default function ReverseProxyManagement() {
       const data = await res.json()
       
       if (data.success) {
-        alert("Certificate revoked successfully!")
+        setMessage("Certificate revoked successfully!")
         await loadData()
       } else {
-        alert(`Revocation failed: ${data.message}`)
+        const errorMsg = `Revocation failed: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
       }
-    } catch {
-      alert("Failed to revoke certificate")
+    } catch (err) {
+      console.error("Failed to revoke certificate:", err)
+      setError("Failed to revoke certificate")
     } finally {
       setLoading(false)
     }
@@ -228,6 +257,18 @@ export default function ReverseProxyManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Error and Success Messages */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded">
+          {message}
+        </div>
+      )}
+
       {/* Status Card */}
       <Card>
         <CardHeader>
