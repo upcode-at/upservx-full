@@ -112,6 +112,15 @@ class ReverseProxyManager:
         config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
         enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
         
+        # Remove old config files if they exist (to avoid conflicts with old syntax)
+        try:
+            if os.path.exists(enabled_path):
+                os.remove(enabled_path)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+        except Exception:
+            pass
+        
         # Build nginx config
         config_lines = []
         
