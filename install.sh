@@ -156,3 +156,4 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 
 printf "\n${GREEN}Installation complete!${NC}\n"
 printf "Check status with: ${BLUE}systemctl status ${SERVICE_NAME}${NC}\n"
+systemctl restart ${SERVICE_NAME}
