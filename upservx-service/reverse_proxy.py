@@ -124,6 +124,11 @@ class ReverseProxyManager:
         # Build nginx config
         config_lines = []
         
+        # Check if certificates exist
+        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+        certs_exist = os.path.exists(cert_path) and os.path.exists(key_path)
+        
         # HTTP server block (always needed for Let's Encrypt or redirect)
         config_lines.append(f"server {{")
         config_lines.append(f"    listen 80;")
@@ -131,41 +136,34 @@ class ReverseProxyManager:
         config_lines.append(f"    server_name {domain};")
         config_lines.append(f"")
         
-        if ssl_enabled and force_ssl:
-            # Redirect all HTTP to HTTPS
+        if ssl_enabled and force_ssl and certs_exist:
+            # Redirect all HTTP to HTTPS (only if certificates exist)
             config_lines.append(f"    return 301 https://$server_name$request_uri;")
         else:
-            # Serve on HTTP
+            # Serve on HTTP (either no SSL, or SSL not forced, or certs don't exist yet)
             self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
         
         config_lines.append(f"}}")
         config_lines.append(f"")
         
         # HTTPS server block if SSL is enabled and certificates exist
-        if ssl_enabled:
-            cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
-            key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+        if ssl_enabled and certs_exist:
+            config_lines.append(f"server {{")
+            config_lines.append(f"    listen 443 ssl;")
+            config_lines.append(f"    listen [::]:443 ssl;")
+            config_lines.append(f"    http2 on;")
+            config_lines.append(f"    server_name {domain};")
+            config_lines.append(f"")
+            config_lines.append(f"    ssl_certificate {cert_path};")
+            config_lines.append(f"    ssl_certificate_key {key_path};")
+            config_lines.append(f"    ssl_protocols TLSv1.2 TLSv1.3;")
+            config_lines.append(f"    ssl_ciphers HIGH:!aNULL:!MD5;")
+            config_lines.append(f"    ssl_prefer_server_ciphers on;")
+            config_lines.append(f"")
             
-            # Only add HTTPS block if certificates exist
-            if os.path.exists(cert_path) and os.path.exists(key_path):
-                config_lines.append(f"server {{")
-                config_lines.append(f"    listen 443 ssl;")
-                config_lines.append(f"    listen [::]:443 ssl;")
-                config_lines.append(f"    http2 on;")
-                config_lines.append(f"    server_name {domain};")
-                config_lines.append(f"")
-                config_lines.append(f"    ssl_certificate {cert_path};")
-                config_lines.append(f"    ssl_certificate_key {key_path};")
-                config_lines.append(f"    ssl_protocols TLSv1.2 TLSv1.3;")
-                config_lines.append(f"    ssl_ciphers HIGH:!aNULL:!MD5;")
-                config_lines.append(f"    ssl_prefer_server_ciphers on;")
-                config_lines.append(f"")
-                
-                self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
-                
-                config_lines.append(f"}}")
-            # If certificates don't exist, don't create HTTPS block yet
-            # It will be created automatically after obtaining certificates
+            self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
+            
+            config_lines.append(f"}}")
         
         # Write config file
         try:
@@ -303,14 +301,18 @@ class ReverseProxyManager:
             return {"success": False, "message": "Certbot not installed"}
         
         try:
-            # Use nginx plugin for easier setup
+            # Use standalone method (temporarily stops nginx on port 80)
+            # This works without nginx plugin being installed
             cmd = [
                 "certbot", "certonly",
-                "--nginx",
+                "--standalone",
+                "--preferred-challenges", "http",
                 "-d", domain,
                 "--email", email,
                 "--agree-tos",
-                "--non-interactive"
+                "--non-interactive",
+                "--pre-hook", "systemctl stop nginx",
+                "--post-hook", "systemctl start nginx"
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True)
