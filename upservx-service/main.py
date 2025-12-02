@@ -90,6 +90,7 @@ async def pam_auth_middleware(request: Request, call_next):
         return await call_next(request)
     
     # Skip authentication for backup endpoints during development
+    # Note: This will be called directly at /backup/ or via reverse proxy
     if request.url.path.startswith("/backup/"):
         return await call_next(request)
     

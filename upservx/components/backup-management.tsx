@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiUrl, getAuthHeaders } from "@/lib/api"
 
 interface BackupServer {
   id: number
@@ -40,18 +41,6 @@ interface BackupJobCreate {
   server_id: number
 }
 
-// API client with authentication
-function apiUrl(path: string): string {
-  if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location
-    const scheme = protocol.startsWith("http") ? protocol : "http:"
-    return `${scheme}//${hostname}:8000${path}`
-  }
-  return `http://localhost:8000${path}`
-}
-
-
-
 interface BackupJob {
   id: number
   name: string
@@ -74,6 +63,7 @@ const backupApi = {
       const response = await fetch(apiUrl('/backup/servers'), {
         method: 'GET',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -86,6 +76,7 @@ const backupApi = {
       const response = await fetch(apiUrl('/backup/servers'), {
         method: 'POST',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
@@ -99,6 +90,7 @@ const backupApi = {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
         method: 'DELETE',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -112,6 +104,7 @@ const backupApi = {
       const response = await fetch(apiUrl('/backup/jobs'), {
         method: 'GET',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -124,6 +117,7 @@ const backupApi = {
       const response = await fetch(apiUrl('/backup/jobs'), {
         method: 'POST',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
@@ -137,6 +131,7 @@ const backupApi = {
       const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
         method: 'POST',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -149,6 +144,7 @@ const backupApi = {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
         method: 'DELETE',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -163,6 +159,7 @@ const backupApi = {
       const response = await fetch(apiUrl('/vms'), {
         method: 'GET',
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json'
         }
       })
@@ -176,6 +173,7 @@ const backupApi = {
         const response = await fetch(apiUrl('/containers'), {
           method: 'GET',
           headers: {
+            ...getAuthHeaders(),
             'Content-Type': 'application/json'
           }
         })
