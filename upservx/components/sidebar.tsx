@@ -54,6 +54,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       items: [
         { id: "vms", label: "Virtual Machines", icon: Server },
         { id: "containers", label: "Container", icon: Container },
+        { id: "compose", label: "Compose Builder", icon: FileText },
       ],
     },
     {

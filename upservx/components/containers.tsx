@@ -75,7 +75,11 @@ export function Containers() {
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState<"grid" | "list">("grid")
+  const [view, setView] = useState<"grid" | "list">("list")
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeName, setComposeName] = useState("")
+  const [composeFile, setComposeFile] = useState<File | null>(null)
+  const [composeYaml, setComposeYaml] = useState("")
 
   const loadMetrics = async () => {
     try {
@@ -144,7 +148,9 @@ export function Containers() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(apiUrl("/containers"))
+        const includeCompose = filter === "Docker-Compose"
+        const url = includeCompose ? "/containers?include_compose=true" : "/containers"
+        const res = await fetch(apiUrl(url))
         if (res.ok) {
           const data = await res.json()
           setContainers(data)
@@ -159,7 +165,79 @@ export function Containers() {
       const id = setInterval(load, 4000)
       return () => clearInterval(id)
     }
-  }, [activeTerminal])
+  }, [activeTerminal, filter])
+
+  const handleCreateComposeFromYaml = async () => {
+    if (!composeYaml || !composeName) return
+    
+    try {
+      // Create a File object from the YAML string
+      const blob = new Blob([composeYaml], { type: "text/yaml" })
+      const file = new File([blob], "docker-compose.yml", { type: "text/yaml" })
+      
+      const formData = new FormData()
+      formData.append("compose_file", file)
+      
+      const res = await fetch(apiUrl(`/containers/compose?project_name=${composeName}`), {
+        method: "POST",
+        body: formData,
+      })
+      
+      if (res.ok) {
+        setMessage(`Docker Compose stack "${composeName}" created`)
+        setComposeOpen(false)
+        setComposeName("")
+        setComposeYaml("")
+        
+        // Reload containers
+        const listRes = await fetch(apiUrl("/containers"))
+        if (listRes.ok) {
+          const data = await listRes.json()
+          setContainers(data)
+        }
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to create compose stack")
+      }
+    } catch (e) {
+      console.error(e)
+      setError("Failed to create compose stack")
+    }
+  }
+
+  const handleCreateComposeFromFile = async () => {
+    if (!composeFile || !composeName) return
+    
+    try {
+      const formData = new FormData()
+      formData.append("compose_file", composeFile)
+      
+      const res = await fetch(apiUrl(`/containers/compose?project_name=${composeName}`), {
+        method: "POST",
+        body: formData,
+      })
+      
+      if (res.ok) {
+        setMessage(`Docker Compose stack "${composeName}" created`)
+        setComposeOpen(false)
+        setComposeName("")
+        setComposeFile(null)
+        
+        // Reload containers
+        const listRes = await fetch(apiUrl("/containers"))
+        if (listRes.ok) {
+          const data = await listRes.json()
+          setContainers(data)
+        }
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to create compose stack")
+      }
+    } catch (e) {
+      console.error(e)
+      setError("Failed to create compose stack")
+    }
+  }
 
   const handleCreate = async () => {
     const payload = {
@@ -284,10 +362,33 @@ export function Containers() {
   const statusClass = (status: string) =>
     status === "running" ? "bg-green-600 text-white" : "bg-red-600 text-white"
 
+  // Group Docker Compose containers by project
+  const groupedContainers = () => {
+    const filtered = containers.filter(
+      (c) => !filter || c.type.toLowerCase() === filter.toLowerCase()
+    )
+    
+    if (filter.toLowerCase() !== "docker-compose") {
+      return { ungrouped: filtered, groups: {} }
+    }
+    
+    const groups: Record<string, ContainerData[]> = {}
+    const ungrouped: ContainerData[] = []
+    
+    filtered.forEach((c) => {
+      if (c.type === "Docker-Compose" && c.name.includes("/")) {
+        const project = c.name.split("/")[0]
+        if (!groups[project]) groups[project] = []
+        groups[project].push(c)
+      } else {
+        ungrouped.push(c)
+      }
+    })
+    
+    return { ungrouped, groups }
+  }
 
-  const filteredContainers = containers.filter(
-    (c) => !filter || c.type.toLowerCase() === filter.toLowerCase()
-  )
+  const { ungrouped: filteredContainers, groups: composeGroups } = groupedContainers()
 
   return (
     <div className="space-y-6">
@@ -318,6 +419,7 @@ export function Containers() {
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="Docker">Docker</SelectItem>
+                <SelectItem value="Docker-Compose">Docker Compose</SelectItem>
                 <SelectItem value="LXC">LXC</SelectItem>
                 <SelectItem value="Kubernetes">Kubernetes</SelectItem>
               </SelectContent>
@@ -339,11 +441,96 @@ export function Containers() {
               <ListIcon className="h-4 w-4" />
             </Button>
           </div>
+          <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Docker Compose Stack
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create Docker Compose Stack</DialogTitle>
+                <DialogDescription>Write or upload a docker-compose.yml file</DialogDescription>
+              </DialogHeader>
+              <Tabs defaultValue="editor" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="editor">Write YAML</TabsTrigger>
+                  <TabsTrigger value="upload">Upload File</TabsTrigger>
+                </TabsList>
+                <TabsContent value="editor" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-name-editor">Project Name</Label>
+                    <Input
+                      id="project-name-editor"
+                      value={composeName}
+                      onChange={(e) => setComposeName(e.target.value)}
+                      placeholder="e.g. my-app-stack"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="compose-yaml">docker-compose.yml Content</Label>
+                    <textarea
+                      id="compose-yaml"
+                      className="w-full h-96 p-3 font-mono text-sm border rounded-md bg-slate-950 text-slate-50"
+                      value={composeYaml}
+                      onChange={(e) => setComposeYaml(e.target.value)}
+                      placeholder={`version: '3.8'
+
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./html:/usr/share/nginx/html
+    
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: example
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:`}
+                    />
+                  </div>
+                  <Button onClick={handleCreateComposeFromYaml} disabled={!composeName || !composeYaml}>
+                    Create Stack from YAML
+                  </Button>
+                </TabsContent>
+                <TabsContent value="upload" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-name-upload">Project Name</Label>
+                    <Input
+                      id="project-name-upload"
+                      value={composeName}
+                      onChange={(e) => setComposeName(e.target.value)}
+                      placeholder="e.g. my-app-stack"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="compose-file">docker-compose.yml File</Label>
+                    <Input
+                      id="compose-file"
+                      type="file"
+                      accept=".yml,.yaml"
+                      onChange={(e) => setComposeFile(e.target.files?.[0] || null)}
+                    />
+                  </div>
+                  <Button onClick={handleCreateComposeFromFile} disabled={!composeName || !composeFile}>
+                    Create Stack from File
+                  </Button>
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create New Container
+                Create Container
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
@@ -562,7 +749,74 @@ export function Containers() {
         </div>
       </div>
 
-      {view === "grid" ? (
+      {/* Docker Compose Groups */}
+      {Object.keys(composeGroups).length > 0 && (
+        <div className="space-y-4">
+          {Object.entries(composeGroups).map(([project, projectContainers]) => (
+            <Card key={project}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Container className="h-5 w-5" />
+                  Docker Compose Stack: {project}
+                  <Badge variant="outline">{projectContainers.length} services</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-2">
+                  {projectContainers.map((container) => (
+                    <div key={container.id} className="flex items-center justify-between p-2 border rounded">
+                      <div className="flex items-center gap-2">
+                        <Badge className={statusClass(container.status)}>
+                          {container.status}
+                        </Badge>
+                        <span className="font-medium">{container.name.split("/")[1]}</span>
+                        <span className="text-sm text-muted-foreground">{container.image}</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        {container.status === "running" && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setActiveTerminal(container.name)}
+                          >
+                            <Terminal className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {container.status === "running" ? (
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleStop(container.name)}
+                          >
+                            <Square className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="icon"
+                            onClick={() => handleStart(container.name)}
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDelete(container.name)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {filter !== "Docker-Compose" && (view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {filteredContainers.map((container) => (
             <Card key={container.id} className="rounded-lg aspect-[4/3] flex flex-col">
@@ -646,23 +900,23 @@ export function Containers() {
         </div>
       ) : (
         <Card>
-          <CardContent className="py-0 pl-6 pr-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Image</TableHead>
-                  <TableHead>CPU</TableHead>
-                  <TableHead>Memory</TableHead>
-                  <TableHead>Ports</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContainers.length === 0 ? (
+            <CardContent className="py-0 pl-6 pr-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Image</TableHead>
+                    <TableHead>CPU</TableHead>
+                    <TableHead>Memory</TableHead>
+                    <TableHead>Ports</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredContainers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center">
                       No containers found
@@ -733,11 +987,11 @@ export function Containers() {
                       </TableCell>
                     </TableRow>
                   )))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+      ))}
       {activeTerminal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <TerminalEmulator containerName={activeTerminal} onClose={() => setActiveTerminal(null)} />

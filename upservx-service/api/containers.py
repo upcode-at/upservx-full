@@ -11,6 +11,7 @@ import asyncio
 import pty
 import os
 import fcntl
+import json
 from datetime import datetime
 
 from models import ContainerCreate, Container, ImagePullRequest
@@ -27,14 +28,32 @@ from fastapi import File, UploadFile
 import tempfile
 import tarfile
 import shutil
+from compose_manager import compose_manager
+from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter(prefix="/containers")
 
 
+# Compose Manager Models
+class ComposeServiceCreate(BaseModel):
+    name: str
+    image: str
+    ports: Optional[List[str]] = None
+    volumes: Optional[List[str]] = None
+    environment: Optional[dict] = None
+    cpu: Optional[float] = None
+    memory: Optional[int] = None
+    restart: Optional[str] = "unless-stopped"
+
+class ComposeProjectInfo(BaseModel):
+    project_name: str
+
+
 @router.get("")
-def list_containers():
+def list_containers(include_compose: bool = False):
     """List all containers from all backends."""
-    all_containers = list_all_containers()
+    all_containers = list_all_containers(include_compose=include_compose)
     return [c.dict() for c in all_containers]
 
 
@@ -493,3 +512,211 @@ def build_docker_image_stream(request: Request, image: str, tag: str = "latest",
                 pass
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+# Docker Compose endpoints
+@router.post("/compose")
+async def create_compose_stack(
+    project_name: str,
+    compose_file: UploadFile = File(...)
+):
+    """Create a Docker Compose stack from an uploaded docker-compose.yml file."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    
+    # Create temporary directory for compose file
+    temp_dir = tempfile.mkdtemp()
+    compose_path = os.path.join(temp_dir, "docker-compose.yml")
+    
+    try:
+        # Save uploaded compose file
+        content = await compose_file.read()
+        with open(compose_path, "wb") as f:
+            f.write(content)
+        
+        # Run docker compose up
+        result = subprocess.run(
+            ["docker", "compose", "-f", compose_path, "-p", project_name, "up", "-d"],
+            capture_output=True,
+            text=True,
+            cwd=temp_dir
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create compose stack")
+        
+        return {"detail": "Compose stack created", "project": project_name, "output": result.stdout}
+    finally:
+        try:
+            shutil.rmtree(temp_dir)
+        except:
+            pass
+
+
+@router.get("/compose/stacks")
+def list_compose_stacks():
+    """List all Docker Compose stacks (projects)."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    
+    try:
+        output = subprocess.check_output(
+            ["docker", "compose", "ls", "--format", "json"],
+            text=True
+        ).strip()
+        
+        if not output:
+            return []
+        
+        stacks = json.loads(output)
+        return stacks
+    except subprocess.CalledProcessError:
+        return []
+    except json.JSONDecodeError:
+        return []
+
+
+@router.post("/compose/{project_name}/start")
+def start_compose_stack(project_name: str):
+    """Start all containers in a Docker Compose stack."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    
+    try:
+        # Find containers belonging to this project
+        result = subprocess.run(
+            ["docker", "compose", "-p", project_name, "start"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start compose stack")
+        
+        return {"detail": "Compose stack started", "project": project_name}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/compose/{project_name}/stop")
+def stop_compose_stack(project_name: str):
+    """Stop all containers in a Docker Compose stack."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-p", project_name, "stop"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop compose stack")
+        
+        return {"detail": "Compose stack stopped", "project": project_name}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/compose/{project_name}")
+def delete_compose_stack(project_name: str):
+    """Delete a Docker Compose stack (down with volumes)."""
+    if shutil.which("docker") is None:
+        raise HTTPException(status_code=404, detail="docker not installed")
+    
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-p", project_name, "down", "-v"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete compose stack")
+        
+        return {"detail": "Compose stack deleted", "project": project_name}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# Compose Manager endpoints
+@router.get("/compose-projects")
+def list_compose_projects():
+    """List all compose projects."""
+    return compose_manager.list_projects()
+
+
+@router.post("/compose-projects")
+def create_compose_project(project_info: ComposeProjectInfo):
+    """Create a new compose project."""
+    result = compose_manager.create_project(project_info.project_name)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.post("/compose-projects/{project_name}/services")
+def add_service_to_project(project_name: str, service: ComposeServiceCreate):
+    """Add a service to a compose project."""
+    service_config = service.dict()
+    result = compose_manager.add_service_to_project(project_name, service_config)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.delete("/compose-projects/{project_name}/services/{service_name}")
+def remove_service_from_project(project_name: str, service_name: str):
+    """Remove a service from a compose project."""
+    result = compose_manager.remove_service_from_project(project_name, service_name)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.get("/compose-projects/{project_name}/compose")
+def get_project_compose(project_name: str):
+    """Get the compose file content."""
+    compose = compose_manager.get_project_compose(project_name)
+    if compose:
+        return compose
+    raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.put("/compose-projects/{project_name}/compose")
+def update_project_compose(project_name: str, request: Request):
+    """Update compose file content."""
+    import asyncio
+    compose_content = asyncio.run(request.body()).decode('utf-8')
+    result = compose_manager.update_project_compose(project_name, compose_content)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.post("/compose-projects/{project_name}/start")
+def start_compose_project(project_name: str):
+    """Start a compose project."""
+    result = compose_manager.start_project(project_name)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.post("/compose-projects/{project_name}/stop")
+def stop_compose_project(project_name: str):
+    """Stop a compose project."""
+    result = compose_manager.stop_project(project_name)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.delete("/compose-projects/{project_name}")
+def delete_compose_project_manager(project_name: str, remove_volumes: bool = True):
+    """Delete a compose project."""
+    result = compose_manager.delete_project(project_name, remove_volumes)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])

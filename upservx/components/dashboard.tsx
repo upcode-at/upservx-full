@@ -15,6 +15,7 @@ import BackupManagement from "@/components/backup-management"
 import { ImageManagement } from "@/components/image-management"
 import { Logs } from "@/components/logs"
 import { SystemShell } from "@/components/system-shell"
+import { ComposeBuilder } from "@/components/compose-builder"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -29,6 +30,8 @@ export function Dashboard() {
         return <VirtualMachines />
       case "containers":
         return <Containers />
+      case "compose":
+        return <ComposeBuilder />
       case "services":
         return <Services />
       case "network":

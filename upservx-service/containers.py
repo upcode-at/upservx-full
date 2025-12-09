@@ -258,11 +258,61 @@ def get_lxc_images() -> List[str]:
     return images
 
 
+def get_docker_compose_stacks() -> List[Container]:
+    """Return Docker Compose stacks and their containers."""
+    if shutil.which("docker") is None:
+        return []
+    
+    try:
+        # Get all containers with compose project labels
+        output = subprocess.check_output(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter", "label=com.docker.compose.project",
+                "--format",
+                "{{.Names}}||{{.Image}}||{{.Status}}||{{.Ports}}||{{.RunningFor}}||{{.Label \"com.docker.compose.project\"}}||{{.Label \"com.docker.compose.service\"}}",
+            ],
+            text=True,
+        ).strip()
+    except Exception:
+        return []
+
+    containers_list = []
+    for line in output.splitlines():
+        parts = line.split("||")
+        if len(parts) != 7:
+            continue
+        name, image, status, ports, running_for, project, service = parts
+        
+        # Use project name as the container name, mark it as compose type
+        containers_list.append(
+            Container(
+                id=0,
+                name=f"{project}/{service}" if service else name,
+                type="Docker-Compose",
+                status="running" if status.lower().startswith("up") else "stopped",
+                image=image,
+                ports=_parse_ports(ports),
+                mounts=[],
+                envs=[f"COMPOSE_PROJECT={project}", f"COMPOSE_SERVICE={service}"],
+                cpu=0.0,
+                memory=0,
+                created=running_for,
+            )
+        )
+    return containers_list
+
+
 def find_container_type(name: str) -> str | None:
     """Detect which container backend knows a container by this name."""
     for c in get_docker_containers():
         if c.name == name:
             return "docker"
+    for c in get_docker_compose_stacks():
+        if c.name == name:
+            return "docker-compose"
     for c in get_lxc_containers():
         if c.name == name:
             return "lxc"
@@ -275,13 +325,18 @@ def find_container_type(name: str) -> str | None:
     return None
 
 
-def list_all_containers() -> List[Container]:
+def list_all_containers(include_compose: bool = False) -> List[Container]:
     """Return all containers from all backends."""
     all_containers: List[Container] = []
     all_containers.extend(get_docker_containers())
+    all_containers.extend(get_docker_compose_stacks())
     all_containers.extend(get_lxc_containers())
     all_containers.extend(get_k8s_pods())
     all_containers.extend(containers)
+
+    # Filter out Docker-Compose containers if not explicitly requested
+    if not include_compose:
+        all_containers = [c for c in all_containers if c.type != "Docker-Compose"]
 
     # Assign stable sequential ids for the response
     for idx, c in enumerate(all_containers, start=1):
