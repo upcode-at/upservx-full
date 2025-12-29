@@ -1,0 +1,17 @@
+{
+  "name": "phpMyAdmin",
+  "description": "Web-based MySQL/MariaDB administration tool. Manage databases, tables, users, and execute SQL queries through an intuitive web interface.",
+  "version": "latest",
+  "category": "tools",
+  "icon": "🗄️",
+  "author": "phpMyAdmin Team",
+  "ports": [
+    "8082:80"
+  ],
+  "volumes": [],
+  "environment": {
+    "PMA_HOST": "mysql",
+    "PMA_PORT": "3306",
+    "MYSQL_ROOT_PASSWORD": "rootpassword"
+  }
+}
