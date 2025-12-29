@@ -1,0 +1,21 @@
+{
+  "name": "Gitea",
+  "description": "A painless self-hosted Git service. Gitea is a community managed lightweight code hosting solution written in Go. It's easy to install, has a low resource footprint, and runs on almost any platform.",
+  "version": "latest",
+  "category": "productivity",
+  "icon": "🦊",
+  "author": "Gitea",
+  "ports": [
+    "3000:3000",
+    "2222:22"
+  ],
+  "volumes": [
+    "/opt/upservx/data/gitea:/data",
+    "/etc/timezone:/etc/timezone:ro",
+    "/etc/localtime:/etc/localtime:ro"
+  ],
+  "environment": {
+    "USER_UID": "1000",
+    "USER_GID": "1000"
+  }
+}

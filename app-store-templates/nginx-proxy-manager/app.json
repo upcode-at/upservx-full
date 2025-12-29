@@ -1,0 +1,18 @@
+{
+  "name": "Nginx Proxy Manager",
+  "description": "Docker container for managing Nginx proxy hosts with a simple, powerful interface. Expose your services easily and securely with SSL certificates, access lists, and more.",
+  "version": "latest",
+  "category": "networking",
+  "icon": "🌐",
+  "author": "jc21",
+  "ports": [
+    "80:80",
+    "443:443",
+    "81:81"
+  ],
+  "volumes": [
+    "/opt/upservx/data/nginx-proxy-manager/data:/data",
+    "/opt/upservx/data/nginx-proxy-manager/letsencrypt:/etc/letsencrypt"
+  ],
+  "environment": {}
+}

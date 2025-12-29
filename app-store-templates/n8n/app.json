@@ -1,0 +1,21 @@
+{
+  "name": "n8n",
+  "description": "Workflow automation tool. n8n is a fair-code licensed workflow automation tool that lets you connect anything to everything via its open, fair-code model.",
+  "version": "latest",
+  "category": "productivity",
+  "icon": "🔗",
+  "author": "n8n GmbH",
+  "ports": [
+    "5678:5678"
+  ],
+  "volumes": [
+    "/opt/upservx/data/n8n:/home/node/.n8n"
+  ],
+  "environment": {
+    "N8N_HOST": "localhost",
+    "N8N_PORT": "5678",
+    "N8N_PROTOCOL": "http",
+    "WEBHOOK_URL": "http://localhost:5678/",
+    "GENERIC_TIMEZONE": "Europe/Vienna"
+  }
+}
