@@ -1,0 +1,17 @@
+{
+  "name": "Redis",
+  "description": "In-memory data structure store. Fast, versatile key-value database used as cache, message broker, and real-time data store.",
+  "version": "latest",
+  "category": "database",
+  "icon": "🔴",
+  "author": "Redis Ltd.",
+  "ports": [
+    "6379:6379"
+  ],
+  "volumes": [
+    "/opt/upservx/data/redis/data:/data"
+  ],
+  "environment": {
+    "REDIS_PASSWORD": "redispassword"
+  }
+}
