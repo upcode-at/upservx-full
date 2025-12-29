@@ -1,0 +1,25 @@
+{
+  "name": "WordPress",
+  "description": "The world's most popular CMS. Create beautiful websites, blogs, and online stores with thousands of themes and plugins.",
+  "version": "latest",
+  "category": "cms",
+  "icon": "📝",
+  "author": "WordPress",
+  "ports": [
+    "8080:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/wordpress/html:/var/www/html",
+    "/opt/upservx/data/wordpress/db:/var/lib/mysql"
+  ],
+  "environment": {
+    "WORDPRESS_DB_HOST": "wordpress-db",
+    "WORDPRESS_DB_USER": "wordpress",
+    "WORDPRESS_DB_PASSWORD": "wordpress",
+    "WORDPRESS_DB_NAME": "wordpress",
+    "MYSQL_ROOT_PASSWORD": "rootpassword",
+    "MYSQL_DATABASE": "wordpress",
+    "MYSQL_USER": "wordpress",
+    "MYSQL_PASSWORD": "wordpress"
+  }
+}

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  wordpress-db:
+    image: mariadb:11
+    container_name: wordpress-db
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/wordpress/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=wordpress
+      - MYSQL_USER=wordpress
+      - MYSQL_PASSWORD=wordpress
+    command: '--default-authentication-plugin=mysql_native_password'
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - /opt/upservx/data/wordpress/html:/var/www/html
+    environment:
+      - WORDPRESS_DB_HOST=wordpress-db
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+    depends_on:
+      - wordpress-db
