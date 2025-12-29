@@ -1,0 +1,16 @@
+{
+  "name": "Adminer",
+  "description": "Lightweight database management tool. Single-file alternative to phpMyAdmin supporting MySQL, PostgreSQL, SQLite, MS SQL, Oracle, and more.",
+  "version": "latest",
+  "category": "tools",
+  "icon": "🔧",
+  "author": "Adminer Team",
+  "ports": [
+    "8083:8080"
+  ],
+  "volumes": [],
+  "environment": {
+    "ADMINER_DEFAULT_SERVER": "mysql",
+    "ADMINER_DESIGN": "pepa-linha"
+  }
+}
