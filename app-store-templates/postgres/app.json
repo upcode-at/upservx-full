@@ -1,0 +1,19 @@
+{
+  "name": "PostgreSQL",
+  "description": "Advanced open-source relational database. The world's most advanced open-source database with powerful features and excellent standards compliance.",
+  "version": "latest",
+  "category": "database",
+  "icon": "🐘",
+  "author": "PostgreSQL Global Development Group",
+  "ports": [
+    "5432:5432"
+  ],
+  "volumes": [
+    "/opt/upservx/data/postgres/data:/var/lib/postgresql/data"
+  ],
+  "environment": {
+    "POSTGRES_PASSWORD": "postgres",
+    "POSTGRES_USER": "postgres",
+    "POSTGRES_DB": "mydb"
+  }
+}
