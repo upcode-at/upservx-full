@@ -331,7 +331,7 @@ export function AppStore() {
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="compose">Docker Compose</TabsTrigger>
-              <TabsTrigger value="readme">Documentation</TabsTrigger>
+              <TabsTrigger value="readme">Description</TabsTrigger>
             </TabsList>
             <ScrollArea className="flex-1 pr-4">
               <TabsContent value="overview" className="space-y-4">
@@ -393,7 +393,7 @@ export function AppStore() {
               <TabsContent value="readme">
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   <pre className="whitespace-pre-wrap text-sm">
-                    {selectedApp?.readme || "No documentation available."}
+                    {selectedApp?.readme || "No description available."}
                   </pre>
                 </div>
               </TabsContent>
