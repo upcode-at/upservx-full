@@ -1,0 +1,19 @@
+{
+  "name": "Ombi",
+  "description": "Ombi is a self-hosted web application that automatically gives your shared Plex, Emby or Jellyfin users the ability to request content by themselves.",
+  "version": "latest",
+  "category": "media",
+  "icon": "🎬",
+  "author": "Ombi Team",
+  "ports": [
+    "3579:3579"
+  ],
+  "volumes": [
+    "/opt/upservx/data/ombi/config:/config"
+  ],
+  "environment": {
+    "PUID": "1000",
+    "PGID": "1000",
+    "TZ": "Europe/Vienna"
+  }
+}
