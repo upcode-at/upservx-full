@@ -1,0 +1,20 @@
+{
+  "name": "MongoDB",
+  "description": "Leading NoSQL document database. Flexible, scalable database designed for modern applications with dynamic schemas and horizontal scaling.",
+  "version": "latest",
+  "category": "database",
+  "icon": "🍃",
+  "author": "MongoDB Inc.",
+  "ports": [
+    "27017:27017"
+  ],
+  "volumes": [
+    "/opt/upservx/data/mongodb/data:/data/db",
+    "/opt/upservx/data/mongodb/config:/data/configdb"
+  ],
+  "environment": {
+    "MONGO_INITDB_ROOT_USERNAME": "admin",
+    "MONGO_INITDB_ROOT_PASSWORD": "adminpassword",
+    "MONGO_INITDB_DATABASE": "mydb"
+  }
+}
