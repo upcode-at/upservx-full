@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    volumes:
+      - /opt/upservx/data/mysql/data:/var/lib/mysql
+      - /opt/upservx/data/mysql/conf:/etc/mysql/conf.d
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=mydb
+      - MYSQL_USER=myuser
+      - MYSQL_PASSWORD=mypassword
+    command: '--default-authentication-plugin=mysql_native_password'
