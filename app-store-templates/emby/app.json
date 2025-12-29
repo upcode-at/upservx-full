@@ -1,0 +1,21 @@
+{
+  "name": "Emby Server",
+  "description": "Bring all your home videos, music, and photos together into one place. Stream to your devices from anywhere with Emby's media server software.",
+  "version": "latest",
+  "category": "media",
+  "icon": "📺",
+  "author": "Emby LLC",
+  "ports": [
+    "8096:8096",
+    "8920:8920"
+  ],
+  "volumes": [
+    "/opt/upservx/data/emby/config:/config",
+    "/mnt/media:/media"
+  ],
+  "environment": {
+    "PUID": "1000",
+    "PGID": "1000",
+    "TZ": "Europe/Vienna"
+  }
+}
