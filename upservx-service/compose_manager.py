@@ -255,6 +255,129 @@ class ComposeManager:
         except Exception as e:
             return {"success": False, "message": str(e)}
     
+    def get_service_details(self, project_name: str, service_name: str) -> Optional[Dict]:
+        """Get detailed configuration of a specific service."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
+        project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
+        compose_file = os.path.join(project_dir, "docker-compose.yml")
+        
+        if not os.path.exists(compose_file):
+            return None
+        
+        try:
+            with open(compose_file, 'r') as f:
+                compose_data = yaml.safe_load(f)
+            
+            if service_name not in compose_data.get("services", {}):
+                return None
+            
+            service_def = compose_data["services"][service_name]
+            
+            # Parse the service configuration
+            result = {
+                "name": service_name,
+                "image": service_def.get("image", ""),
+                "ports": service_def.get("ports", []),
+                "volumes": service_def.get("volumes", []),
+                "environment": service_def.get("environment", {}),
+                "restart": service_def.get("restart", "unless-stopped"),
+                "cpu": None,
+                "memory": None
+            }
+            
+            # Extract resource limits if present
+            if "deploy" in service_def:
+                resources = service_def.get("deploy", {}).get("resources", {}).get("limits", {})
+                if "cpus" in resources:
+                    result["cpu"] = float(resources["cpus"])
+                if "memory" in resources:
+                    # Parse memory string (e.g., "512M" -> 512)
+                    mem_str = resources["memory"]
+                    if mem_str.endswith("M"):
+                        result["memory"] = int(mem_str[:-1])
+                    elif mem_str.endswith("G"):
+                        result["memory"] = int(mem_str[:-1]) * 1024
+            
+            return result
+        except Exception as e:
+            print(f"Error getting service details: {e}")
+            return None
+    
+    def update_service_in_project(self, project_name: str, old_service_name: str, service_config: Dict) -> Dict:
+        """Update an existing service in a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
+        project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
+        compose_file = os.path.join(project_dir, "docker-compose.yml")
+        
+        if not os.path.exists(compose_file):
+            return {"success": False, "message": "Project not found"}
+        
+        try:
+            # Load existing compose file
+            with open(compose_file, 'r') as f:
+                compose_data = yaml.safe_load(f) or {}
+            
+            if "services" not in compose_data:
+                return {"success": False, "message": "No services in project"}
+            
+            # Check if old service exists
+            if old_service_name not in compose_data["services"]:
+                return {"success": False, "message": "Service not found"}
+            
+            # Build updated service configuration
+            new_service_name = service_config.get("name", old_service_name)
+            service_def = {
+                "image": service_config.get("image"),
+                "container_name": f"{project_name}_{new_service_name}"
+            }
+            
+            # Add ports
+            if service_config.get("ports"):
+                service_def["ports"] = service_config["ports"]
+            
+            # Add volumes
+            if service_config.get("volumes"):
+                service_def["volumes"] = service_config["volumes"]
+            
+            # Add environment variables
+            if service_config.get("environment"):
+                service_def["environment"] = service_config["environment"]
+            
+            # Add resource limits
+            if service_config.get("cpu") or service_config.get("memory"):
+                service_def["deploy"] = {"resources": {"limits": {}}}
+                if service_config.get("cpu"):
+                    service_def["deploy"]["resources"]["limits"]["cpus"] = str(service_config["cpu"])
+                if service_config.get("memory"):
+                    service_def["deploy"]["resources"]["limits"]["memory"] = f"{service_config['memory']}M"
+            
+            # Add restart policy
+            if service_config.get("restart"):
+                service_def["restart"] = service_config["restart"]
+            
+            # Remove old service if name changed
+            if old_service_name != new_service_name:
+                del compose_data["services"][old_service_name]
+            
+            # Add/update service
+            compose_data["services"][new_service_name] = service_def
+            
+            # Save compose file
+            with open(compose_file, 'w') as f:
+                yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
+            
+            return {
+                "success": True,
+                "message": f"Service updated in project {project_name}",
+                "compose_file": compose_file
+            }
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
     def get_project_compose(self, project_name: str) -> Optional[Dict]:
         """Get the compose file content for a project."""
         # Normalize the project name

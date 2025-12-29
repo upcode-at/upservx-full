@@ -676,6 +676,25 @@ def remove_service_from_project(project_name: str, service_name: str):
     raise HTTPException(status_code=400, detail=result["message"])
 
 
+@router.get("/compose-projects/{project_name}/services/{service_name}")
+def get_service_details(project_name: str, service_name: str):
+    """Get detailed configuration of a specific service."""
+    service = compose_manager.get_service_details(project_name, service_name)
+    if service:
+        return service
+    raise HTTPException(status_code=404, detail="Service not found")
+
+
+@router.put("/compose-projects/{project_name}/services/{service_name}")
+def update_service_in_project(project_name: str, service_name: str, service: ComposeServiceCreate):
+    """Update an existing service in a compose project."""
+    service_config = service.dict()
+    result = compose_manager.update_service_in_project(project_name, service_name, service_config)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
 @router.get("/compose-projects/{project_name}/compose")
 def get_project_compose(project_name: str):
     """Get the compose file content."""

@@ -58,6 +58,8 @@ export function ComposeBuilder() {
   const [newProjectName, setNewProjectName] = useState("")
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
   const [addServiceOpen, setAddServiceOpen] = useState(false)
+  const [editServiceOpen, setEditServiceOpen] = useState(false)
+  const [editingService, setEditingService] = useState<string | null>(null)
   const [viewComposeOpen, setViewComposeOpen] = useState(false)
   const [composeContent, setComposeContent] = useState("")
   
@@ -185,6 +187,109 @@ export function ComposeBuilder() {
     setServiceCpu(1)
     setServiceMemory(512)
     setServiceRestart("unless-stopped")
+    setEditingService(null)
+  }
+
+  const handleEditService = async (projectName: string, serviceName: string) => {
+    try {
+      const res = await fetch(
+        apiUrl(`/containers/compose-projects/${projectName}/services/${serviceName}`)
+      )
+
+      if (res.ok) {
+        const data = await res.json()
+        
+        // Populate form with existing data
+        setServiceName(data.name)
+        setServiceImage(data.image)
+        
+        // Parse ports
+        const ports = (data.ports || []).map((p: string) => {
+          const parts = p.split(":")
+          return { host: parts[0] || "", container: parts[1] || "" }
+        })
+        setServicePorts(ports.length > 0 ? ports : [{ host: "", container: "" }])
+        
+        // Parse volumes
+        const volumes = (data.volumes || []).map((v: string) => {
+          const parts = v.split(":")
+          return { host: parts[0] || "", container: parts[1] || "" }
+        })
+        setServiceVolumes(volumes.length > 0 ? volumes : [{ host: "", container: "" }])
+        
+        // Parse environment
+        const envs = Object.entries(data.environment || {}).map(([name, value]) => ({
+          name,
+          value: String(value)
+        }))
+        setServiceEnvs(envs.length > 0 ? envs : [{ name: "", value: "" }])
+        
+        setServiceCpu(data.cpu || 1)
+        setServiceMemory(data.memory || 512)
+        setServiceRestart(data.restart || "unless-stopped")
+        
+        setSelectedProject(projectName)
+        setEditingService(serviceName)
+        setEditServiceOpen(true)
+      } else {
+        setError("Failed to load service details")
+      }
+    } catch (e) {
+      setError("Failed to load service details")
+    }
+  }
+
+  const handleUpdateService = async () => {
+    if (!selectedProject || !editingService) {
+      setError("Invalid state")
+      return
+    }
+
+    if (!serviceName || !serviceImage) {
+      setError("Service name and image are required")
+      return
+    }
+
+    // Build service config
+    const serviceConfig: ServiceForm = {
+      name: serviceName,
+      image: serviceImage,
+      ports: servicePorts
+        .filter(p => p.host && p.container)
+        .map(p => `${p.host}:${p.container}`),
+      volumes: serviceVolumes
+        .filter(v => v.host && v.container)
+        .map(v => `${v.host}:${v.container}`),
+      environment: Object.fromEntries(
+        serviceEnvs.filter(e => e.name && e.value).map(e => [e.name, e.value])
+      ),
+      cpu: serviceCpu,
+      memory: serviceMemory,
+      restart: serviceRestart,
+    }
+
+    try {
+      const res = await fetch(
+        apiUrl(`/containers/compose-projects/${selectedProject}/services/${editingService}`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(serviceConfig),
+        }
+      )
+
+      if (res.ok) {
+        setMessage(`Service ${serviceName} updated in ${selectedProject}`)
+        resetServiceForm()
+        setEditServiceOpen(false)
+        loadProjects()
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to update service")
+      }
+    } catch (e) {
+      setError("Failed to update service")
+    }
   }
 
   const handleStartProject = async (projectName: string) => {
@@ -246,6 +351,27 @@ export function ComposeBuilder() {
       }
     } catch (e) {
       setError("Failed to delete project")
+    }
+  }
+
+  const handleRemoveService = async (projectName: string, serviceName: string) => {
+    if (!confirm(`Remove service ${serviceName} from ${projectName}?`)) return
+
+    try {
+      const res = await fetch(
+        apiUrl(`/containers/compose-projects/${projectName}/services/${serviceName}`),
+        { method: "DELETE" }
+      )
+
+      if (res.ok) {
+        setMessage(`Service ${serviceName} removed from ${projectName}`)
+        loadProjects()
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to remove service")
+      }
+    } catch (e) {
+      setError("Failed to remove service")
     }
   }
 
@@ -503,6 +629,174 @@ export function ComposeBuilder() {
             </Dialog>
           </div>
 
+          {/* Edit Service Dialog */}
+          <Dialog open={editServiceOpen} onOpenChange={(open) => {
+            setEditServiceOpen(open)
+            if (!open) resetServiceForm()
+          }}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Service</DialogTitle>
+                <DialogDescription>
+                  Update the configuration of {editingService}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Service Name</Label>
+                    <Input
+                      placeholder="my-service"
+                      value={serviceName}
+                      onChange={(e) => setServiceName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Docker Image</Label>
+                    <Input
+                      placeholder="nginx:latest"
+                      value={serviceImage}
+                      onChange={(e) => setServiceImage(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>CPU Limit</Label>
+                    <Input
+                      type="number"
+                      value={serviceCpu}
+                      onChange={(e) => setServiceCpu(parseFloat(e.target.value))}
+                      step="0.1"
+                      min="0.1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Memory (MB)</Label>
+                    <Input
+                      type="number"
+                      value={serviceMemory}
+                      onChange={(e) => setServiceMemory(parseInt(e.target.value))}
+                      min="128"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Restart Policy</Label>
+                    <Select value={serviceRestart} onValueChange={setServiceRestart}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="always">Always</SelectItem>
+                        <SelectItem value="on-failure">On Failure</SelectItem>
+                        <SelectItem value="unless-stopped">Unless Stopped</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label>Ports</Label>
+                    <Button size="sm" variant="outline" onClick={addPort}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  {servicePorts.map((port, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
+                      <Input
+                        placeholder="Host Port (8080)"
+                        value={port.host}
+                        onChange={(e) => {
+                          const newPorts = [...servicePorts]
+                          newPorts[idx].host = e.target.value
+                          setServicePorts(newPorts)
+                        }}
+                      />
+                      <Input
+                        placeholder="Container Port (80)"
+                        value={port.container}
+                        onChange={(e) => {
+                          const newPorts = [...servicePorts]
+                          newPorts[idx].container = e.target.value
+                          setServicePorts(newPorts)
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label>Volumes</Label>
+                    <Button size="sm" variant="outline" onClick={addVolume}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  {serviceVolumes.map((volume, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
+                      <Input
+                        placeholder="Host Path (/data)"
+                        value={volume.host}
+                        onChange={(e) => {
+                          const newVolumes = [...serviceVolumes]
+                          newVolumes[idx].host = e.target.value
+                          setServiceVolumes(newVolumes)
+                        }}
+                      />
+                      <Input
+                        placeholder="Container Path (/app/data)"
+                        value={volume.container}
+                        onChange={(e) => {
+                          const newVolumes = [...serviceVolumes]
+                          newVolumes[idx].container = e.target.value
+                          setServiceVolumes(newVolumes)
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label>Environment Variables</Label>
+                    <Button size="sm" variant="outline" onClick={addEnv}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  {serviceEnvs.map((env, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
+                      <Input
+                        placeholder="Variable Name"
+                        value={env.name}
+                        onChange={(e) => {
+                          const newEnvs = [...serviceEnvs]
+                          newEnvs[idx].name = e.target.value
+                          setServiceEnvs(newEnvs)
+                        }}
+                      />
+                      <Input
+                        placeholder="Value"
+                        value={env.value}
+                        onChange={(e) => {
+                          const newEnvs = [...serviceEnvs]
+                          newEnvs[idx].value = e.target.value
+                          setServiceEnvs(newEnvs)
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <Button onClick={handleUpdateService}>Update Service</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <div>
             <Label>Active Project</Label>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -542,14 +836,36 @@ export function ComposeBuilder() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {project.services.map((service) => (
-                    <Badge key={service} variant="outline">
-                      {service}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="space-y-4">
+                {project.services.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2">Services</h4>
+                    <div className="space-y-2">
+                      {project.services.map((service) => (
+                        <div key={service} className="flex items-center justify-between p-2 border rounded">
+                          <Badge variant="outline">{service}</Badge>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditService(project.name, service)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRemoveService(project.name, service)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex gap-2 pt-2">
                   {project.status !== "running" ? (
                     <Button
