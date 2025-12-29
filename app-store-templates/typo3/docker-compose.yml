@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  typo3-db:
+    image: mariadb:11
+    container_name: typo3-db
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/typo3/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=typo3
+      - MYSQL_USER=typo3
+      - MYSQL_PASSWORD=typo3
+    command: '--default-authentication-plugin=mysql_native_password'
+
+  typo3:
+    image: typo3/typo3:latest
+    container_name: typo3
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - /opt/upservx/data/typo3/html:/var/www/html
+    environment:
+      - TYPO3_DB_HOST=typo3-db
+      - TYPO3_DB_DRIVER=mysqli
+      - TYPO3_DB_USERNAME=typo3
+      - TYPO3_DB_PASSWORD=typo3
+      - TYPO3_DB_NAME=typo3
+      - TYPO3_INSTALL_TOOL_PASSWORD=typo3admin
+      - TYPO3_CONTEXT=Development
+    depends_on:
+      - typo3-db

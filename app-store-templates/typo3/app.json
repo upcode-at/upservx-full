@@ -1,0 +1,25 @@
+{
+  "name": "TYPO3",
+  "description": "Professional, flexible Content Management System. Enterprise-grade CMS trusted by organizations worldwide for complex websites and digital experiences.",
+  "version": "latest",
+  "category": "cms",
+  "icon": "🦁",
+  "author": "TYPO3 Association",
+  "ports": [
+    "8081:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/typo3/html:/var/www/html",
+    "/opt/upservx/data/typo3/db:/var/lib/mysql"
+  ],
+  "environment": {
+    "TYPO3_DB_HOST": "typo3-db",
+    "TYPO3_DB_USER": "typo3",
+    "TYPO3_DB_PASSWORD": "typo3",
+    "TYPO3_DB_NAME": "typo3",
+    "MYSQL_ROOT_PASSWORD": "rootpassword",
+    "MYSQL_DATABASE": "typo3",
+    "MYSQL_USER": "typo3",
+    "MYSQL_PASSWORD": "typo3"
+  }
+}
