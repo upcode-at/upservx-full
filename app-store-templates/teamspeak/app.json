@@ -1,0 +1,19 @@
+{
+  "name": "TeamSpeak Server",
+  "description": "High-quality voice communication system for online gaming, education and training, or just staying in touch with friends and family. Crystal clear voice quality with minimal latency.",
+  "version": "latest",
+  "category": "communication",
+  "icon": "🎙️",
+  "author": "TeamSpeak Systems GmbH",
+  "ports": [
+    "9987:9987/udp",
+    "10011:10011",
+    "30033:30033"
+  ],
+  "volumes": [
+    "/opt/upservx/data/teamspeak:/var/ts3server"
+  ],
+  "environment": {
+    "TS3SERVER_LICENSE": "accept"
+  }
+}

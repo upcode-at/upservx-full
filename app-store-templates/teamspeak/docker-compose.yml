@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  teamspeak:
+    image: teamspeak:latest
+    container_name: teamspeak
+    restart: unless-stopped
+    environment:
+      - TS3SERVER_LICENSE=accept
+    volumes:
+      - /opt/upservx/data/teamspeak:/var/ts3server
+    ports:
+      - "9987:9987/udp"
+      - "10011:10011"
+      - "30033:30033"
