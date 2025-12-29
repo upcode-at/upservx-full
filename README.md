@@ -9,7 +9,7 @@ A comprehensive web-based server management platform with Docker container manag
 
 ## 🚀 Features
 
-- 📦 **Docker Container Management** - Container lifecycle, logs, image management
+- 📦 **Container and VM Management** - Container lifecycle, logs, image management
 - 🏪 **Integrated App Store** - 20+ pre-configured apps (WordPress, TYPO3, Nextcloud, Jellyfin, MySQL, PostgreSQL, MongoDB, Redis, Grafana, Prometheus, Pi-hole, and more)
 - 💾 **Automated Backup System** - Scheduled backups with Cron, local and SSH remote storage
 - 👥 **User & Group Management** - System users, SSH keys, permissions
