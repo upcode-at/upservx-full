@@ -235,7 +235,17 @@ export function AppStore() {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="text-4xl">{app.icon}</div>
+                  <div className="text-4xl">
+                    {app.icon.startsWith('/') ? (
+                      <img 
+                        src={apiUrl(app.icon)} 
+                        alt={app.name}
+                        className="w-12 h-12 object-contain rounded"
+                      />
+                    ) : (
+                      app.icon
+                    )}
+                  </div>
                   <div>
                     <CardTitle className="text-lg">{app.name}</CardTitle>
                     <CardDescription className="text-xs">
@@ -300,7 +310,15 @@ export function AppStore() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <span className="text-4xl">{selectedApp?.icon}</span>
+              {selectedApp?.icon.startsWith('/') ? (
+                <img 
+                  src={apiUrl(selectedApp.icon)} 
+                  alt={selectedApp.name}
+                  className="w-16 h-16 object-contain rounded"
+                />
+              ) : (
+                <span className="text-4xl">{selectedApp?.icon}</span>
+              )}
               <div>
                 <DialogTitle>{selectedApp?.name}</DialogTitle>
                 <DialogDescription>

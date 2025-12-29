@@ -772,6 +772,20 @@ def get_app_store_app_details(app_id: str):
     raise HTTPException(status_code=404, detail="App not found")
 
 
+@router.get("/app-store/apps/{app_id}/icon")
+def get_app_icon(app_id: str):
+    """Get the icon image for an app."""
+    from fastapi.responses import FileResponse
+    import mimetypes
+    
+    icon_path = app_store.get_app_icon(app_id)
+    if icon_path:
+        # Detect media type based on file extension
+        media_type = mimetypes.guess_type(icon_path)[0] or "image/png"
+        return FileResponse(icon_path, media_type=media_type)
+    raise HTTPException(status_code=404, detail="Icon not found")
+
+
 class AppInstallRequest(BaseModel):
     custom_name: Optional[str] = None
 

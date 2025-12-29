@@ -95,6 +95,10 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.url.path.startswith("/backup/"):
         return await call_next(request)
     
+    # Skip authentication for app store icons (public assets)
+    if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
+        return await call_next(request)
+    
     auth_header = request.headers.get("Authorization")
     # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
     if not auth_header:

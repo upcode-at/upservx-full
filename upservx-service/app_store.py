@@ -44,13 +44,21 @@ class AppStore:
                         # Add installation status
                         installed = self._check_if_installed(app_name)
                         
+                        # Check for icon image files (icon.png, logo.png, icon.jpg, logo.jpg)
+                        icon = metadata.get("icon", "📦")
+                        for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
+                            icon_path = os.path.join(app_dir, icon_filename)
+                            if os.path.exists(icon_path):
+                                icon = f"/containers/app-store/apps/{app_name}/icon"
+                                break
+                        
                         apps.append({
                             "id": app_name,
                             "name": metadata.get("name", app_name),
                             "description": metadata.get("description", ""),
                             "version": metadata.get("version", "latest"),
                             "category": metadata.get("category", "other"),
-                            "icon": metadata.get("icon", "📦"),
+                            "icon": icon,
                             "author": metadata.get("author", ""),
                             "ports": metadata.get("ports", []),
                             "volumes": metadata.get("volumes", []),
@@ -85,13 +93,21 @@ class AppStore:
             
             installed = self._check_if_installed(app_id)
             
+            # Check for icon image files (icon.png, logo.png, icon.jpg, logo.jpg)
+            icon = metadata.get("icon", "📦")
+            for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
+                icon_path = os.path.join(app_dir, icon_filename)
+                if os.path.exists(icon_path):
+                    icon = f"/containers/app-store/apps/{app_id}/icon"
+                    break
+            
             return {
                 "id": app_id,
                 "name": metadata.get("name", app_id),
                 "description": metadata.get("description", ""),
                 "version": metadata.get("version", "latest"),
                 "category": metadata.get("category", "other"),
-                "icon": metadata.get("icon", "📦"),
+                "icon": icon,
                 "author": metadata.get("author", ""),
                 "ports": metadata.get("ports", []),
                 "volumes": metadata.get("volumes", []),
@@ -169,6 +185,18 @@ class AppStore:
         for app in apps:
             categories.add(app.get("category", "other"))
         return sorted(list(categories))
+    
+    def get_app_icon(self, app_id: str) -> Optional[str]:
+        """Get the path to an app's icon file."""
+        app_dir = os.path.join(APP_STORE_DIR, app_id)
+        
+        # Check for various icon file names
+        for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
+            icon_path = os.path.join(app_dir, icon_filename)
+            if os.path.exists(icon_path):
+                return icon_path
+        
+        return None
 
 
 # Global instance
