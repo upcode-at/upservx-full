@@ -6,10 +6,37 @@ import os
 import yaml
 import subprocess
 import shutil
+import re
 from typing import List, Dict, Optional
 from pathlib import Path
 
 COMPOSE_BASE_DIR = "/opt/upservx/compose"
+
+
+def normalize_project_name(name: str) -> str:
+    """
+    Normalize project name to be compatible with Docker Compose requirements.
+    Must consist only of lowercase alphanumeric characters, hyphens, and underscores
+    and must start with a letter or number.
+    """
+    # Convert to lowercase
+    name = name.lower()
+    
+    # Replace spaces and invalid characters with hyphens
+    name = re.sub(r'[^a-z0-9_-]', '-', name)
+    
+    # Remove leading/trailing hyphens or underscores
+    name = name.strip('-_')
+    
+    # Ensure it starts with a letter or number
+    if name and not name[0].isalnum():
+        name = 'project-' + name
+    
+    # If empty after normalization, use default
+    if not name:
+        name = 'project'
+    
+    return name
 
 
 class ComposeManager:
@@ -90,6 +117,10 @@ class ComposeManager:
     
     def create_project(self, project_name: str) -> Dict:
         """Create a new compose project directory."""
+        # Normalize the project name
+        original_name = project_name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         
         if os.path.exists(project_dir):
@@ -108,16 +139,24 @@ class ComposeManager:
             with open(compose_file, 'w') as f:
                 yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
             
+            message = "Project created"
+            if original_name != project_name:
+                message = f"Project created as '{project_name}' (normalized from '{original_name}')"
+            
             return {
                 "success": True,
-                "message": "Project created",
-                "path": project_dir
+                "message": message,
+                "path": project_dir,
+                "project_name": project_name
             }
         except Exception as e:
             return {"success": False, "message": str(e)}
     
     def add_service_to_project(self, project_name: str, service_config: Dict) -> Dict:
         """Add a service to a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -126,6 +165,9 @@ class ComposeManager:
             create_result = self.create_project(project_name)
             if not create_result["success"]:
                 return create_result
+            # Update project_name from the create result if it was normalized
+            if "project_name" in create_result:
+                project_name = create_result["project_name"]
         
         try:
             # Load existing compose file
@@ -185,6 +227,9 @@ class ComposeManager:
     
     def remove_service_from_project(self, project_name: str, service_name: str) -> Dict:
         """Remove a service from a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -212,6 +257,9 @@ class ComposeManager:
     
     def get_project_compose(self, project_name: str) -> Optional[Dict]:
         """Get the compose file content for a project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -226,6 +274,9 @@ class ComposeManager:
     
     def update_project_compose(self, project_name: str, compose_content: str) -> Dict:
         """Update compose file content directly."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -250,6 +301,9 @@ class ComposeManager:
     
     def start_project(self, project_name: str) -> Dict:
         """Start all services in a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -273,6 +327,9 @@ class ComposeManager:
     
     def stop_project(self, project_name: str) -> Dict:
         """Stop all services in a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
@@ -296,6 +353,9 @@ class ComposeManager:
     
     def delete_project(self, project_name: str, remove_volumes: bool = True) -> Dict:
         """Delete a compose project."""
+        # Normalize the project name
+        project_name = normalize_project_name(project_name)
+        
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
