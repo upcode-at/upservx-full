@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - /opt/upservx/data/influxdb/data:/var/lib/influxdb2
+      - /opt/upservx/data/influxdb/config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=myorg
+      - DOCKER_INFLUXDB_INIT_BUCKET=mybucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=mytoken123456

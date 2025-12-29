@@ -1,0 +1,23 @@
+{
+  "name": "InfluxDB",
+  "description": "High-performance time series database. Purpose-built for storing and analyzing time-stamped data like metrics, events, and real-time analytics.",
+  "version": "latest",
+  "category": "database",
+  "icon": "📈",
+  "author": "InfluxData",
+  "ports": [
+    "8086:8086"
+  ],
+  "volumes": [
+    "/opt/upservx/data/influxdb/data:/var/lib/influxdb2",
+    "/opt/upservx/data/influxdb/config:/etc/influxdb2"
+  ],
+  "environment": {
+    "DOCKER_INFLUXDB_INIT_MODE": "setup",
+    "DOCKER_INFLUXDB_INIT_USERNAME": "admin",
+    "DOCKER_INFLUXDB_INIT_PASSWORD": "adminpassword",
+    "DOCKER_INFLUXDB_INIT_ORG": "myorg",
+    "DOCKER_INFLUXDB_INIT_BUCKET": "mybucket",
+    "DOCKER_INFLUXDB_INIT_ADMIN_TOKEN": "mytoken123456"
+  }
+}
