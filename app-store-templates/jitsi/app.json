@@ -1,0 +1,27 @@
+{
+  "name": "Jitsi Meet",
+  "description": "Free, open-source video conferencing solution. Host your own secure video meetings without limits. Perfect alternative to Zoom, Teams, or Google Meet.",
+  "version": "stable",
+  "category": "communication",
+  "icon": "📹",
+  "author": "Jitsi",
+  "ports": [
+    "8000:80",
+    "8443:443",
+    "10000:10000/udp"
+  ],
+  "volumes": [
+    "/opt/upservx/data/jitsi/web:/config/web",
+    "/opt/upservx/data/jitsi/transcripts:/usr/share/jitsi-meet/transcripts",
+    "/opt/upservx/data/jitsi/prosody/config:/config",
+    "/opt/upservx/data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom",
+    "/opt/upservx/data/jitsi/jicofo:/config",
+    "/opt/upservx/data/jitsi/jvb:/config"
+  ],
+  "environment": {
+    "PUBLIC_URL": "https://localhost:8443",
+    "TZ": "Europe/Vienna",
+    "ENABLE_AUTH": "0",
+    "ENABLE_GUESTS": "1"
+  }
+}
