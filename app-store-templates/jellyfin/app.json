@@ -1,0 +1,22 @@
+{
+  "name": "Jellyfin",
+  "description": "The Free Software Media System. Stream your media to any device. No premium, no subscriptions, just your media.",
+  "version": "latest",
+  "category": "media",
+  "icon": "🎥",
+  "author": "Jellyfin Team",
+  "ports": [
+    "8096:8096",
+    "8920:8920"
+  ],
+  "volumes": [
+    "/opt/upservx/data/jellyfin/config:/config",
+    "/opt/upservx/data/jellyfin/cache:/cache",
+    "/mnt/media:/media"
+  ],
+  "environment": {
+    "PUID": "1000",
+    "PGID": "1000",
+    "TZ": "Europe/Vienna"
+  }
+}

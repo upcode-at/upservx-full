@@ -128,6 +128,16 @@ EOS
 chmod +x "$APP_DIR/start.sh"
 ok
 
+# === 6.5. Copy app store templates ===========================================
+step "Copy app store templates"
+{
+  sudo mkdir -p /opt/upservx/app-store
+  sudo cp -r "$APP_DIR/app-store-templates/"* /opt/upservx/app-store/
+  sudo chown -R $USER:$USER /opt/upservx/app-store
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 7. Install systemd service =============================================
 step "Create systemd service"
 sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<EOF_SERVICE

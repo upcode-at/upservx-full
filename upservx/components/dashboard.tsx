@@ -16,6 +16,7 @@ import { ImageManagement } from "@/components/image-management"
 import { Logs } from "@/components/logs"
 import { SystemShell } from "@/components/system-shell"
 import { ComposeBuilder } from "@/components/compose-builder"
+import { AppStore } from "@/components/app-store"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -48,6 +49,8 @@ export function Dashboard() {
         return <Settings />
       case "images":
         return <ImageManagement />
+      case "app-store":
+        return <AppStore />
       default:
         return <SystemOverview />
     }

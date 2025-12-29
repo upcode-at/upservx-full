@@ -1,0 +1,20 @@
+{
+  "name": "Nextcloud",
+  "description": "Self-hosted productivity platform. Files, calendar, contacts, and more in one place. A safe home for all your data.",
+  "version": "latest",
+  "category": "productivity",
+  "icon": "☁️",
+  "author": "Nextcloud GmbH",
+  "ports": [
+    "8080:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/nextcloud:/var/www/html"
+  ],
+  "environment": {
+    "MYSQL_ROOT_PASSWORD": "changeme",
+    "MYSQL_DATABASE": "nextcloud",
+    "MYSQL_USER": "nextcloud",
+    "MYSQL_PASSWORD": "nextcloud"
+  }
+}

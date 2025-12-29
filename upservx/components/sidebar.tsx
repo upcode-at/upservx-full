@@ -14,6 +14,7 @@ import {
   FileText,
   Settings,
   Terminal,
+  Store,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -67,6 +68,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     {
       title: "Administration",
       items: [
+        { id: "app-store", label: "App Store", icon: Store },
         { id: "settings", label: "Settings", icon: Settings },
         { id: "users", label: "Users", icon: Users },
         { id: "backup", label: "Backup", icon: Shield },

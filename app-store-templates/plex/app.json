@@ -1,0 +1,30 @@
+{
+  "name": "Plex Media Server",
+  "description": "Stream your media library to any device. Plex is a powerful media server that organizes your video, music, and photo collections and streams them to all of your devices.",
+  "version": "latest",
+  "category": "media",
+  "icon": "🎬",
+  "author": "Plex Inc.",
+  "ports": [
+    "32400:32400/tcp",
+    "1900:1900/udp",
+    "5353:5353/udp",
+    "8324:8324/tcp",
+    "32410:32410/udp",
+    "32412:32412/udp",
+    "32413:32413/udp",
+    "32414:32414/udp",
+    "32469:32469/tcp"
+  ],
+  "volumes": [
+    "/opt/upservx/data/plex/config:/config",
+    "/opt/upservx/data/plex/transcode:/transcode",
+    "/mnt/media:/media"
+  ],
+  "environment": {
+    "PUID": "1000",
+    "PGID": "1000",
+    "TZ": "Europe/Vienna",
+    "VERSION": "docker"
+  }
+}

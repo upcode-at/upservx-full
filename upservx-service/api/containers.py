@@ -29,6 +29,7 @@ import tempfile
 import tarfile
 import shutil
 from compose_manager import compose_manager
+from app_store import app_store
 from pydantic import BaseModel
 from typing import Optional
 
@@ -717,6 +718,58 @@ def stop_compose_project(project_name: str):
 def delete_compose_project_manager(project_name: str, remove_volumes: bool = True):
     """Delete a compose project."""
     result = compose_manager.delete_project(project_name, remove_volumes)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+# App Store endpoints
+@router.get("/app-store/apps")
+def list_app_store_apps(category: Optional[str] = None, search: Optional[str] = None):
+    """List all available apps in the store."""
+    if search:
+        return app_store.search_apps(search)
+    
+    apps = app_store.list_apps()
+    
+    if category:
+        apps = [app for app in apps if app.get("category") == category]
+    
+    return apps
+
+
+@router.get("/app-store/categories")
+def get_app_categories():
+    """Get all available app categories."""
+    return app_store.get_categories()
+
+
+@router.get("/app-store/apps/{app_id}")
+def get_app_store_app_details(app_id: str):
+    """Get detailed information about an app."""
+    app = app_store.get_app_details(app_id)
+    if app:
+        return app
+    raise HTTPException(status_code=404, detail="App not found")
+
+
+class AppInstallRequest(BaseModel):
+    custom_name: Optional[str] = None
+
+
+@router.post("/app-store/apps/{app_id}/install")
+def install_app_from_store(app_id: str, request: AppInstallRequest):
+    """Install an app from the store."""
+    result = app_store.install_app(app_id, request.custom_name)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.delete("/app-store/apps/{project_name}/uninstall")
+def uninstall_app_from_store(project_name: str):
+    """Uninstall an app."""
+    result = app_store.uninstall_app(project_name)
     if result["success"]:
         return result
     raise HTTPException(status_code=400, detail=result["message"])
