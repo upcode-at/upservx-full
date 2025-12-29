@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8084:80"
+    volumes:
+      - /opt/upservx/data/pihole/etc:/etc/pihole
+      - /opt/upservx/data/pihole/dnsmasq:/etc/dnsmasq.d
+    environment:
+      - TZ=Europe/Vienna
+      - WEBPASSWORD=admin
+      - FTLCONF_LOCAL_IPV4=0.0.0.0
+    cap_add:
+      - NET_ADMIN
+    dns:
+      - 127.0.0.1
+      - 1.1.1.1
