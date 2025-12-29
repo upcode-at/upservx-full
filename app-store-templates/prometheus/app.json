@@ -1,0 +1,16 @@
+{
+  "name": "Prometheus",
+  "description": "Open-source monitoring and alerting system. Time series database with powerful query language for monitoring metrics and generating alerts.",
+  "version": "latest",
+  "category": "monitoring",
+  "icon": "🔥",
+  "author": "Prometheus Authors",
+  "ports": [
+    "9090:9090"
+  ],
+  "volumes": [
+    "/opt/upservx/data/prometheus/data:/prometheus",
+    "/opt/upservx/data/prometheus/config:/etc/prometheus"
+  ],
+  "environment": {}
+}
