@@ -1,0 +1,21 @@
+{
+  "name": "Vaultwarden",
+  "description": "Unofficial Bitwarden compatible server. Self-hosted password manager with web vault and browser extensions. Secure, lightweight alternative to cloud password managers.",
+  "version": "latest",
+  "category": "security",
+  "icon": "🔐",
+  "author": "Vaultwarden",
+  "ports": [
+    "8080:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/vaultwarden:/data"
+  ],
+  "environment": {
+    "WEBSOCKET_ENABLED": "true",
+    "SIGNUPS_ALLOWED": "true",
+    "INVITATIONS_ALLOWED": "true",
+    "SHOW_PASSWORD_HINT": "false",
+    "DOMAIN": "https://localhost:8080"
+  }
+}
