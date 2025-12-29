@@ -1,0 +1,21 @@
+{
+  "name": "Grafana",
+  "description": "Analytics and interactive visualization platform. Create, explore, and share beautiful dashboards with your team for monitoring and observability.",
+  "version": "latest",
+  "category": "monitoring",
+  "icon": "📊",
+  "author": "Grafana Labs",
+  "ports": [
+    "3000:3000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/grafana/data:/var/lib/grafana",
+    "/opt/upservx/data/grafana/provisioning:/etc/grafana/provisioning"
+  ],
+  "environment": {
+    "GF_SECURITY_ADMIN_USER": "admin",
+    "GF_SECURITY_ADMIN_PASSWORD": "admin",
+    "GF_INSTALL_PLUGINS": "",
+    "GF_SERVER_ROOT_URL": "http://localhost:3000"
+  }
+}
