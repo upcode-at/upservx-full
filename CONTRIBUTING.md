@@ -239,7 +239,7 @@ To contribute a new app template:
    
    ## Default Port
    
-   - Web UI: `8080`
+   - Web UI: `3000`
    
    ## Configuration
    
