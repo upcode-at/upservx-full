@@ -17,6 +17,7 @@ import { Logs } from "@/components/logs"
 import { SystemShell } from "@/components/system-shell"
 import { ComposeBuilder } from "@/components/compose-builder"
 import { AppStore } from "@/components/app-store"
+import FirewallManagement from "@/components/firewall-management"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -51,6 +52,8 @@ export function Dashboard() {
         return <ImageManagement />
       case "app-store":
         return <AppStore />
+      case "firewall":
+        return <FirewallManagement />
       default:
         return <SystemOverview />
     }

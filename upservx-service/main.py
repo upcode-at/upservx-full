@@ -55,6 +55,7 @@ from reverse_proxy import reverse_proxy_manager
 from api.system import router as system_router
 from api.containers import router as containers_router
 from api.images import router as images_router
+from api.firewall import router as firewall_router
 
 
 app = FastAPI(
@@ -175,6 +176,7 @@ async def auth_logout():
 app.include_router(system_router)
 app.include_router(containers_router)
 app.include_router(images_router)
+app.include_router(firewall_router)
 
 
 # System Shell WebSocket

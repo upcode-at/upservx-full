@@ -377,3 +377,37 @@ class CertificateInfo(BaseModel):
     domains: str
     expiry: str
     cert_path: Optional[str] = None
+
+
+# Firewall Models
+class FirewallRuleCreate(BaseModel):
+    chain: str  # input, output, forward
+    protocol: Optional[str] = None  # tcp, udp, icmp, all
+    port: Optional[int] = None
+    source_ip: Optional[str] = None
+    destination_ip: Optional[str] = None
+    action: str = "accept"  # accept, drop, reject
+    comment: Optional[str] = None
+    position: Optional[int] = None
+
+
+class FirewallRuleDelete(BaseModel):
+    chain: str
+    handle: int
+
+
+class FirewallChainPolicy(BaseModel):
+    chain: str
+    policy: str  # accept, drop
+
+
+class PortForwardCreate(BaseModel):
+    external_port: int
+    internal_ip: str
+    internal_port: int
+    protocol: str = "tcp"
+    comment: Optional[str] = None
+
+
+class MasqueradeCreate(BaseModel):
+    interface: str

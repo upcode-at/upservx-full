@@ -73,6 +73,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         { id: "users", label: "Users", icon: Users },
         { id: "backup", label: "Backup", icon: Shield },
         { id: "network", label: "Network", icon: Network },
+        { id: "firewall", label: "Firewall", icon: Shield },
         { id: "logs", label: "Logs", icon: FileText },
       ],
     },
