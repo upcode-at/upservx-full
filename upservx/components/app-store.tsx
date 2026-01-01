@@ -124,10 +124,11 @@ export function AppStore() {
       const res = await fetch(apiUrl(`/containers/app-store/apps/${appId}`))
       if (res.ok) {
         const data = await res.json()
-        setApps(data)
+        setSelectedApp(data)
+        setDetailsOpen(true)
       }
-    } catch (e) {
-      console.error("Failed to load apps:", e)
+    } catch {
+      setError("Failed to load app details")
     }
   }
 
@@ -219,7 +220,7 @@ export function AppStore() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredApps.map((app) => (
+        {Array.isArray(filteredApps) && filteredApps.map((app) => (
           <Card key={app.id} className="flex flex-col">
             <CardHeader>
               <div className="flex items-start justify-between">
