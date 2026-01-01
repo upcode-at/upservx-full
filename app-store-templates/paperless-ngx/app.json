@@ -1,0 +1,119 @@
+{
+  "name": "Paperless-ngx",
+  "description": "A community-supported supercharged version of paperless: scan, index and archive all your physical documents",
+  "version": "latest",
+  "category": "Document Management",
+  "icon": "📄",
+  "tags": ["document-management", "ocr", "scanning", "archive", "productivity"],
+  "author": "paperless-ngx",
+  "website": "https://docs.paperless-ngx.com/",
+  "repository": "https://github.com/paperless-ngx/paperless-ngx",
+  "ports": [
+    {
+      "container": 8000,
+      "host": 8000,
+      "description": "Web interface"
+    }
+  ],
+  "volumes": [
+    {
+      "container": "/usr/src/paperless/data",
+      "host": "./data",
+      "description": "Application data"
+    },
+    {
+      "container": "/usr/src/paperless/media",
+      "host": "./media",
+      "description": "Document storage"
+    },
+    {
+      "container": "/usr/src/paperless/export",
+      "host": "./export",
+      "description": "Export directory"
+    },
+    {
+      "container": "/usr/src/paperless/consume",
+      "host": "./consume",
+      "description": "Document intake directory"
+    }
+  ],
+  "environment": [
+    {
+      "name": "PAPERLESS_REDIS",
+      "default": "redis://redis:6379",
+      "description": "Redis connection string"
+    },
+    {
+      "name": "PAPERLESS_DBHOST",
+      "default": "db",
+      "description": "PostgreSQL database host"
+    },
+    {
+      "name": "PAPERLESS_DBNAME",
+      "default": "paperless",
+      "description": "Database name"
+    },
+    {
+      "name": "PAPERLESS_DBUSER",
+      "default": "paperless",
+      "description": "Database user"
+    },
+    {
+      "name": "PAPERLESS_DBPASS",
+      "default": "paperless",
+      "description": "Database password",
+      "secret": true
+    },
+    {
+      "name": "PAPERLESS_SECRET_KEY",
+      "default": "",
+      "description": "Secret key for encryption (generate a random string)",
+      "secret": true,
+      "required": true
+    },
+    {
+      "name": "PAPERLESS_URL",
+      "default": "http://localhost:8000",
+      "description": "Public URL for the application"
+    },
+    {
+      "name": "PAPERLESS_TIME_ZONE",
+      "default": "Europe/Berlin",
+      "description": "Timezone for the application"
+    },
+    {
+      "name": "PAPERLESS_OCR_LANGUAGE",
+      "default": "deu+eng",
+      "description": "OCR language codes (e.g., deu+eng for German and English)"
+    },
+    {
+      "name": "PAPERLESS_ADMIN_USER",
+      "default": "admin",
+      "description": "Initial admin username"
+    },
+    {
+      "name": "PAPERLESS_ADMIN_PASSWORD",
+      "default": "admin",
+      "description": "Initial admin password",
+      "secret": true
+    },
+    {
+      "name": "PAPERLESS_ADMIN_MAIL",
+      "default": "admin@example.com",
+      "description": "Admin email address"
+    }
+  ],
+  "requirements": {
+    "memory": "2GB",
+    "cpu": "2 cores",
+    "disk": "10GB"
+  },
+  "notes": [
+    "Paperless-ngx requires PostgreSQL and Redis to function",
+    "After first start, create an admin user with the environment variables",
+    "Place documents in the consume directory for automatic processing",
+    "Configure OCR_LANGUAGE for your preferred languages",
+    "Generate a secure PAPERLESS_SECRET_KEY (at least 32 random characters)",
+    "Access the web interface at http://your-server:8000"
+  ]
+}
