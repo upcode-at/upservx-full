@@ -71,10 +71,6 @@ export default function FirewallManagement() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-  useEffect(() => {
-    loadFirewallData()
-  }, [loadFirewallData])
-
   const loadFirewallData = async () => {
     try {
       setLoading(true)
@@ -101,6 +97,10 @@ export default function FirewallManagement() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadFirewallData()
+  }, [])
 
   const addRule = async () => {
     try {

@@ -70,9 +70,29 @@ export function AppStore() {
     loadCategories()
   }, [])
 
+  const filterApps = () => {
+    let filtered = apps
+
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((app) => app.category === selectedCategory)
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(
+        (app) =>
+          app.name.toLowerCase().includes(query) ||
+          app.description.toLowerCase().includes(query) ||
+          app.category.toLowerCase().includes(query)
+      )
+    }
+
+    setFilteredApps(filtered)
+  }
+
   useEffect(() => {
     filterApps()
-  }, [apps, selectedCategory, searchQuery, filterApps])
+  }, [apps, selectedCategory, searchQuery])
 
   const loadApps = async () => {
     try {
@@ -98,36 +118,15 @@ export function AppStore() {
     }
   }
 
-  const filterApps = () => {
-    let filtered = apps
-
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter((app) => app.category === selectedCategory)
-    }
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (app) =>
-          app.name.toLowerCase().includes(query) ||
-          app.description.toLowerCase().includes(query) ||
-          app.category.toLowerCase().includes(query)
-      )
-    }
-
-    setFilteredApps(filtered)
-  }
-
   const handleShowDetails = async (appId: string) => {
     try {
-      const res = await fetch(apiUrl(`/containers/app-store/apps/${appId}`))
+      const res = await fetch(apiUrl("/containers/app-store/apps"))
       if (res.ok) {
         const data = await res.json()
-        setSelectedApp(data)
-        setDetailsOpen(true)
+        setApps(data)
       }
-    } catch {
-      setError("Failed to load app details")
+    } catch (e) {
+      console.error("Failed to load apps:", e)
     }
   }
 

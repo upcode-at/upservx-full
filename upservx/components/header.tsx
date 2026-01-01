@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Sun, Moon, User } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
