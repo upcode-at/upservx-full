@@ -24,16 +24,7 @@ export function Header() {
   }
 
   return (
-    <header className="h-16 border-b border-border/30 upservx-glass px-6 flex items-center justify-between backdrop-blur-md">
-      <div className="flex items-center space-x-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search services, containers..." 
-            className="pl-10 w-72 bg-background/60 backdrop-blur-sm border-border/50 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-200" 
-          />
-        </div>
-      </div>
+    <header className="h-16 border-b border-border/30 upservx-glass px-6 flex items-center justify-end backdrop-blur-md">
       <div className="flex items-center space-x-3">
         <Button 
           variant="ghost" 
