@@ -245,6 +245,7 @@ export function ComposeBuilder() {
         setError("Failed to load service details")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to load service details")
     }
   }
@@ -425,11 +426,6 @@ export function ComposeBuilder() {
       setError("Failed to load compose file")
     }
   }
-      }
-    } catch (e) {
-      setError("Failed to load compose file")
-    }
-  }
 
   const addPort = () => {
     setServicePorts([...servicePorts, { host: "", container: "" }])
@@ -445,7 +441,7 @@ export function ComposeBuilder() {
 
   return (
     <div className="space-y-4">
-      <NotificationContainer success={success} error={error} onSuccessClear={() => setSuccess(null)} onErrorClear={() => setError(null)} />
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
 
       <Card>
         <CardHeader>
