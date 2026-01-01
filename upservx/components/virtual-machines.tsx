@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save } from "lucide-react"
+import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
   TableBody,
@@ -50,8 +51,8 @@ export function VirtualMachines() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("grid")
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -103,13 +104,11 @@ export function VirtualMachines() {
     loadIsos()
   }, [])
 
-  useEffect(() => {
-    if (!error && !message) return
-    const t = setTimeout(() => { setError(null); setMessage(null) }, 3000)
-    return () => clearTimeout(t)
-  }, [error, message])
+
 
   const handleSave = async () => {
+    setSuccess(null)
+    setError(null)
     const payload = editing
       ? { cpu, memory, iso, add_disks: disks, autostart }
       : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit }
@@ -131,14 +130,15 @@ export function VirtualMachines() {
         }
         setOpen(false)
         setEditing(null)
-        setMessage(`VM ${vmName} ${editing ? "updated" : "created"}`)
+        setSuccess(`VM ${vmName} ${editing ? "updated" : "created"}`)
       } else {
         const data = await res.json().catch(() => null)
-        setError(data?.detail || "Error saving")
+        setError(data?.detail || "Error saving VM")
       }
     } catch (e) {
       console.error(e)
       if (e instanceof Error) setError(e.message)
+      else setError("Failed to save VM")
     }
   }
 
@@ -189,16 +189,7 @@ export function VirtualMachines() {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onSuccessClear={() => setSuccess(null)} onErrorClear={() => setError(null)} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Virtual Machines</h2>
@@ -301,7 +292,9 @@ export function VirtualMachines() {
               </Tabs>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => { setOpen(false); setEditing(null) }}>Cancel</Button>
-                <Button onClick={handleSave}>{editing ? "Save" : "Create VM"}</Button>
+                <Button onClick={handleSave}>
+                  {editing ? <><Save className="mr-2 h-4 w-4" />Save</> : <><Plus className="mr-2 h-4 w-4" />Create VM</>}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>

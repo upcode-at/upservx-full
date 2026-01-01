@@ -26,6 +26,7 @@ import {
   Trash2,
   LayoutGrid,
   List as ListIcon,
+  Save,
 } from "lucide-react"
 import {
   Table,
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/table"
 import { TerminalEmulator } from "@/components/terminal-emulator"
 import { apiUrl } from "@/lib/api"
+import { NotificationContainer } from "@/components/ui/notification"
 
 export function Containers() {
   interface ContainerData {
@@ -70,8 +72,8 @@ export function Containers() {
   const [envs, setEnvs] = useState<{ name: string; value: string }[]>([
     { name: "", value: "" },
   ])
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [activeTerminal, setActiveTerminal] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
   const [open, setOpen] = useState(false)
@@ -133,19 +135,7 @@ export function Containers() {
     if (memory > maxMemory) setMemory(maxMemory)
   }, [maxMemory, memory])
 
-  useEffect(() => {
-    if (!error) return
-    const t = setTimeout(() => setError(null), 3000)
-    return () => clearTimeout(t)
-  }, [error])
-
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(t)
-  }, [message])
-
-  useEffect(() => {
+useEffect(() => {
     const load = async () => {
       try {
         const includeCompose = filter === "Docker-Compose"
@@ -170,6 +160,9 @@ export function Containers() {
   const handleCreateComposeFromYaml = async () => {
     if (!composeYaml || !composeName) return
     
+    setSuccess(null)
+    setError(null)
+    
     try {
       // Create a File object from the YAML string
       const blob = new Blob([composeYaml], { type: "text/yaml" })
@@ -184,7 +177,7 @@ export function Containers() {
       })
       
       if (res.ok) {
-        setMessage(`Docker Compose stack "${composeName}" created`)
+        setSuccess(`Docker Compose stack "${composeName}" created`)
         setComposeOpen(false)
         setComposeName("")
         setComposeYaml("")
@@ -208,6 +201,9 @@ export function Containers() {
   const handleCreateComposeFromFile = async () => {
     if (!composeFile || !composeName) return
     
+    setSuccess(null)
+    setError(null)
+    
     try {
       const formData = new FormData()
       formData.append("compose_file", composeFile)
@@ -218,7 +214,7 @@ export function Containers() {
       })
       
       if (res.ok) {
-        setMessage(`Docker Compose stack "${composeName}" created`)
+        setSuccess(`Docker Compose stack "${composeName}" created`)
         setComposeOpen(false)
         setComposeName("")
         setComposeFile(null)
@@ -257,6 +253,10 @@ export function Containers() {
         .map((e) => `${e.name}=${e.value}`),
     }
     const creating = name
+    
+    setSuccess(null)
+    setError(null)
+    
     try {
       const res = await fetch(apiUrl("/containers"), {
         method: "POST",
@@ -274,11 +274,15 @@ export function Containers() {
         } else {
           setContainers((prev) => [...prev, c])
         }
-        setMessage(`Container ${creating} created`)
+        setSuccess(`Container ${creating} created`)
         setOpen(false)
+      } else {
+        const data = await res.json().catch(() => null)
+        setError(data?.detail || "Failed to create container")
       }
     } catch (e) {
       console.error(e)
+      setError("Failed to create container")
     }
   }
 
@@ -291,6 +295,7 @@ export function Containers() {
         setContainers((prev) =>
           prev.map((c) => (c.name === name ? { ...c, status: "running" } : c))
         )
+        setSuccess(null)
         setError(null)
       } else {
         let message = "Error starting"
@@ -300,8 +305,15 @@ export function Containers() {
         } catch {
           message = await res.text()
         }
+        setSuccess(null)
         setError(message)
       }
+    } catch (e) {
+      console.error(e)
+      setSuccess(null)
+      setError("Failed to start container")
+    }
+  }
     } catch (e) {
       console.error(e)
       if (e instanceof Error) setError(e.message)
@@ -392,16 +404,7 @@ export function Containers() {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onSuccessClear={() => setSuccess(null)} onErrorClear={() => setError(null)} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Container</h2>
@@ -497,6 +500,7 @@ volumes:
                     />
                   </div>
                   <Button onClick={handleCreateComposeFromYaml} disabled={!composeName || !composeYaml}>
+                    <Plus className="mr-2 h-4 w-4" />
                     Create Stack from YAML
                   </Button>
                 </TabsContent>
@@ -520,6 +524,7 @@ volumes:
                     />
                   </div>
                   <Button onClick={handleCreateComposeFromFile} disabled={!composeName || !composeFile}>
+                    <Plus className="mr-2 h-4 w-4" />
                     Create Stack from File
                   </Button>
                 </TabsContent>
@@ -742,7 +747,10 @@ volumes:
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate}>Create Container</Button>
+              <Button onClick={handleCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Container
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

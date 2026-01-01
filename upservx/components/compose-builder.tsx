@@ -22,6 +22,7 @@ import {
   Trash2,
   FileCode,
   FolderOpen,
+  Save,
 } from "lucide-react"
 import {
   Table,
@@ -32,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { apiUrl } from "@/lib/api"
+import { NotificationContainer } from "@/components/ui/notification"
 
 interface ComposeProject {
   name: string
@@ -79,7 +81,7 @@ export function ComposeBuilder() {
   const [serviceMemory, setServiceMemory] = useState<number>(512)
   const [serviceRestart, setServiceRestart] = useState("unless-stopped")
   
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -104,6 +106,9 @@ export function ComposeBuilder() {
       return
     }
 
+    setSuccess(null)
+    setError(null)
+
     try {
       const res = await fetch(apiUrl("/containers/compose-projects"), {
         method: "POST",
@@ -112,7 +117,7 @@ export function ComposeBuilder() {
       })
 
       if (res.ok) {
-        setMessage(`Project ${newProjectName} created`)
+        setSuccess(`Project ${newProjectName} created`)
         setNewProjectName("")
         setCreateProjectOpen(false)
         loadProjects()
@@ -121,6 +126,7 @@ export function ComposeBuilder() {
         setError(data.detail || "Failed to create project")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to create project")
     }
   }
@@ -135,6 +141,9 @@ export function ComposeBuilder() {
       setError("Service name and image are required")
       return
     }
+
+    setSuccess(null)
+    setError(null)
 
     // Build service config
     const serviceConfig: ServiceForm = {
@@ -165,7 +174,7 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Service ${serviceName} added to ${selectedProject}`)
+        setSuccess(`Service ${serviceName} added to ${selectedProject}`)
         resetServiceForm()
         setAddServiceOpen(false)
         loadProjects()
@@ -174,6 +183,7 @@ export function ComposeBuilder() {
         setError(data.detail || "Failed to add service")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to add service")
     }
   }
@@ -250,6 +260,9 @@ export function ComposeBuilder() {
       return
     }
 
+    setSuccess(null)
+    setError(null)
+
     // Build service config
     const serviceConfig: ServiceForm = {
       name: serviceName,
@@ -279,7 +292,7 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Service ${serviceName} updated in ${selectedProject}`)
+        setSuccess(`Service ${serviceName} updated in ${selectedProject}`)
         resetServiceForm()
         setEditServiceOpen(false)
         loadProjects()
@@ -288,11 +301,15 @@ export function ComposeBuilder() {
         setError(data.detail || "Failed to update service")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to update service")
     }
   }
 
   const handleStartProject = async (projectName: string) => {
+    setSuccess(null)
+    setError(null)
+    
     try {
       const res = await fetch(
         apiUrl(`/containers/compose-projects/${projectName}/start`),
@@ -300,18 +317,22 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Project ${projectName} started`)
+        setSuccess(`Project ${projectName} started`)
         loadProjects()
       } else {
         const data = await res.json()
         setError(data.detail || "Failed to start project")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to start project")
     }
   }
 
   const handleStopProject = async (projectName: string) => {
+    setSuccess(null)
+    setError(null)
+    
     try {
       const res = await fetch(
         apiUrl(`/containers/compose-projects/${projectName}/stop`),
@@ -319,19 +340,23 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Project ${projectName} stopped`)
+        setSuccess(`Project ${projectName} stopped`)
         loadProjects()
       } else {
         const data = await res.json()
         setError(data.detail || "Failed to stop project")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to stop project")
     }
   }
 
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Delete project ${projectName}?`)) return
+
+    setSuccess(null)
+    setError(null)
 
     try {
       const res = await fetch(
@@ -340,7 +365,7 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Project ${projectName} deleted`)
+        setSuccess(`Project ${projectName} deleted`)
         if (selectedProject === projectName) {
           setSelectedProject("")
         }
@@ -350,12 +375,16 @@ export function ComposeBuilder() {
         setError(data.detail || "Failed to delete project")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to delete project")
     }
   }
 
   const handleRemoveService = async (projectName: string, serviceName: string) => {
     if (!confirm(`Remove service ${serviceName} from ${projectName}?`)) return
+
+    setSuccess(null)
+    setError(null)
 
     try {
       const res = await fetch(
@@ -364,18 +393,21 @@ export function ComposeBuilder() {
       )
 
       if (res.ok) {
-        setMessage(`Service ${serviceName} removed from ${projectName}`)
+        setSuccess(`Service ${serviceName} removed from ${projectName}`)
         loadProjects()
       } else {
         const data = await res.json()
         setError(data.detail || "Failed to remove service")
       }
     } catch (e) {
+      console.error(e)
       setError("Failed to remove service")
     }
   }
 
   const handleViewCompose = async (projectName: string) => {
+    setError(null)
+    
     try {
       const res = await fetch(
         apiUrl(`/containers/compose-projects/${projectName}/compose`)
@@ -387,6 +419,12 @@ export function ComposeBuilder() {
         setViewComposeOpen(true)
       } else {
         setError("Failed to load compose file")
+      }
+    } catch (e) {
+      console.error(e)
+      setError("Failed to load compose file")
+    }
+  }
       }
     } catch (e) {
       setError("Failed to load compose file")
@@ -407,22 +445,7 @@ export function ComposeBuilder() {
 
   return (
     <div className="space-y-4">
-      {message && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-          {message}
-          <button onClick={() => setMessage(null)} className="absolute top-0 right-0 px-4 py-3">
-            ×
-          </button>
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          {error}
-          <button onClick={() => setError(null)} className="absolute top-0 right-0 px-4 py-3">
-            ×
-          </button>
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onSuccessClear={() => setSuccess(null)} onErrorClear={() => setError(null)} />
 
       <Card>
         <CardHeader>
@@ -456,7 +479,10 @@ export function ComposeBuilder() {
                       placeholder="my-project"
                     />
                   </div>
-                  <Button onClick={handleCreateProject}>Create Project</Button>
+                  <Button onClick={handleCreateProject}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -620,10 +646,13 @@ export function ComposeBuilder() {
                           }}
                         />
                       </div>
-                    ))}
+                    ))
                   </div>
 
-                  <Button onClick={handleAddService}>Add Service</Button>
+                  <Button onClick={handleAddService}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Service
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -789,10 +818,13 @@ export function ComposeBuilder() {
                         }}
                       />
                     </div>
-                  ))}
+                  ))
                 </div>
 
-                <Button onClick={handleUpdateService}>Update Service</Button>
+                <Button onClick={handleUpdateService}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Update Service
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
