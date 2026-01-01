@@ -50,7 +50,7 @@ export function VirtualMachines() {
   const [cloudInit, setCloudInit] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
-  const [view, setView] = useState<"grid" | "list">("grid")
+  const [view, setView] = useState<"grid" | "list">("list")
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
