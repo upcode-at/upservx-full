@@ -92,6 +92,7 @@ export function AppStore() {
 
   useEffect(() => {
     filterApps()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apps, selectedCategory, searchQuery])
 
   const loadApps = async () => {
@@ -120,7 +121,7 @@ export function AppStore() {
 
   const handleShowDetails = async (appId: string) => {
     try {
-      const res = await fetch(apiUrl("/containers/app-store/apps"))
+      const res = await fetch(apiUrl(`/containers/app-store/apps/${appId}`))
       if (res.ok) {
         const data = await res.json()
         setApps(data)

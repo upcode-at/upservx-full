@@ -100,6 +100,7 @@ export default function FirewallManagement() {
 
   useEffect(() => {
     loadFirewallData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const addRule = async () => {
