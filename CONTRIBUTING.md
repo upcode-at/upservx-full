@@ -75,8 +75,8 @@ Feature suggestions are welcome! Please provide:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/upservx-full.git
-   cd upservx-full
+   git clone https://github.com/upcode-at/upservx.git
+   cd upservx
    ```
 
 3. **Create a new branch** for your feature or bugfix:
