@@ -10,6 +10,8 @@ services:
       - PGID=1000
       - TZ=Europe/Vienna
       - VERSION=docker
+    ports:
+      - "32400:32400"
     volumes:
       - /opt/upservx/data/plex/config:/config
       - /opt/upservx/data/plex/transcode:/transcode
