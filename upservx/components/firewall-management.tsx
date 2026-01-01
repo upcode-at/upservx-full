@@ -421,12 +421,12 @@ export default function FirewallManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="protocol">Protocol</Label>
-                  <Select value={newRule.protocol} onValueChange={(value) => setNewRule({ ...newRule, protocol: value })}>
+                  <Select value={newRule.protocol || "any"} onValueChange={(value) => setNewRule({ ...newRule, protocol: value === "any" ? "" : value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Any" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       <SelectItem value="tcp">TCP</SelectItem>
                       <SelectItem value="udp">UDP</SelectItem>
                       <SelectItem value="icmp">ICMP</SelectItem>
