@@ -20,6 +20,7 @@ import {
 import { Disc, Download, Upload, Trash2, Plus, Container } from "lucide-react"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
 import DockerfileEditor from "@/components/dockerfile-editor"
+import { NotificationContainer } from "@/components/ui/notification"
 
 export function ImageManagement() {
   const [isoFiles, setIsoFiles] = useState<
@@ -125,29 +126,20 @@ export function ImageManagement() {
   const [lxcImageName, setLxcImageName] = useState("")
   const [lxcRemote, setLxcRemote] = useState("")
 
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openUpload, setOpenUpload] = useState(false)
   const [openPull, setOpenPull] = useState(false)
   const [openPullLxc, setOpenPullLxc] = useState(false)
   const [openDownload, setOpenDownload] = useState(false)
 
-  useEffect(() => {
-    if (!message && !error) return
-    const t = setTimeout(() => {
-      setMessage(null)
-      setError(null)
-    }, 3000)
-    return () => clearTimeout(t)
-  }, [message, error])
-
   const handleUpload = async () => {
     if (!isoFile) return
     setIsUploading(true)
     setUploadProgress(0)
     setUploadedBytes(0)
+    setSuccess(null)
     setError(null)
-    setMessage(null)
 
     const data = new FormData()
     data.append("file", isoFile)
@@ -178,7 +170,7 @@ export function ImageManagement() {
         try {
           const info = JSON.parse(xhr.responseText)
           setIsoFiles((prev) => [...prev, info])
-          setMessage("ISO uploaded")
+          setSuccess("ISO uploaded")
         } catch {
           setError("Upload error")
         }
@@ -204,8 +196,8 @@ export function ImageManagement() {
     if (!isoUrl) return
     setIsDownloading(true)
     setDownloadProgress(0)
+    setSuccess(null)
     setError(null)
-    setMessage(null)
 
     const interval = setInterval(() => {
       setDownloadProgress((p) => Math.min(p + 5, 95))
@@ -220,7 +212,7 @@ export function ImageManagement() {
       if (res.ok) {
         const info = await res.json()
         setIsoFiles((prev) => [...prev, info])
-        setMessage("ISO downloaded")
+        setSuccess("ISO downloaded")
       } else {
         let msg = "Download error"
         try {
@@ -265,7 +257,7 @@ export function ImageManagement() {
       )
       if (res.ok) {
         setContainerImages((prev) => prev.filter((i) => i.imageId !== id))
-        setMessage(`${name} deleted`)
+        setSuccess(`${name} deleted`)
       } else {
         let msg = "Error deleting"
         try {
@@ -287,7 +279,7 @@ export function ImageManagement() {
     setIsPulling(true)
     setPullProgress(0)
     setError(null)
-    setMessage(null)
+    setSuccess(null)
 
     const interval = setInterval(() => {
       setPullProgress((p) => Math.min(p + 5, 95))
@@ -305,7 +297,7 @@ export function ImageManagement() {
           const data = await list.json()
           setContainerImages(data.images || [])
         }
-        setMessage("Image pulled")
+        setSuccess("Image pulled")
       } else {
         let msg = "Error pulling"
         try {
@@ -335,7 +327,7 @@ export function ImageManagement() {
       })
       if (res.ok) {
         setLxcImages((prev) => prev.filter((i) => i.imageId !== id))
-        setMessage(`${name} deleted`)
+        setSuccess(`${name} deleted`)
       } else {
         let msg = "Error deleting"
         try {
@@ -357,7 +349,7 @@ export function ImageManagement() {
     setIsPullingLxc(true)
     setPullProgressLxc(0)
     setError(null)
-    setMessage(null)
+    setSuccess(null)
 
     const interval = setInterval(() => {
       setPullProgressLxc((p) => Math.min(p + 5, 95))
@@ -379,7 +371,7 @@ export function ImageManagement() {
           const data = await list.json()
           setLxcImages(data.images || [])
         }
-        setMessage("Image pulled")
+        setSuccess("Image pulled")
       } else {
         let msg = "Error pulling"
         try {
@@ -422,16 +414,7 @@ export function ImageManagement() {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Images & ISOs</h2>

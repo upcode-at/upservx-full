@@ -153,7 +153,7 @@ export function UserManagement() {
   useEffect(() => {
     if (!message && !error) return
     const t = setTimeout(() => {
-      setMessage(null)
+      setSuccess(null)
       setError(null)
     }, 3000)
     return () => clearTimeout(t)
@@ -178,7 +178,7 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
-        setMessage("User created")
+        setSuccess("User created")
         setNewUser({ username: "", password: "", shell: "/bin/bash" })
         setNewUserGroups([])
         setCreateUserOpen(false)
@@ -213,7 +213,7 @@ export function UserManagement() {
         }),
       })
       if (res.ok) {
-        setMessage("Group created")
+        setSuccess("Group created")
         setNewGroup({ name: "" })
         setNewGroupMembers([])
         setCreateGroupOpen(false)
@@ -245,7 +245,7 @@ export function UserManagement() {
         body: JSON.stringify({ keys: userKeys.filter((k) => k.trim() !== "") }),
       })
       if (res.ok) {
-        setMessage("SSH keys saved")
+        setSuccess("SSH keys saved")
         setKeyUser(null)
       } else {
         let msg = "Error saving"
@@ -436,7 +436,7 @@ export function UserManagement() {
                       body: JSON.stringify({ shell: editUser.shell, groups: editUser.groups.filter(Boolean) }),
                     })
                     if (res.ok) {
-                      setMessage("User saved")
+                      setSuccess("User saved")
                       setEditUser(null)
                       loadUsers()
                       loadAllGroups()
@@ -760,7 +760,7 @@ export function UserManagement() {
                               body: JSON.stringify({ members: editGroup.members.filter(Boolean) }),
                             })
                             if (res.ok) {
-                              setMessage("Group saved")
+                              setSuccess("Group saved")
                               setEditGroup(null)
                               loadGroups()
                               loadAllUsers()
