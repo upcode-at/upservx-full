@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { User, Users, Plus, Settings, Key, Save } from "lucide-react"
+import { User, Users, Plus, Settings, Key } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
 

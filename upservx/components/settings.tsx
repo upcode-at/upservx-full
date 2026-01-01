@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Save, Key, Upload, Play, Square, Download } from "lucide-react"
+import { Save, Key, Play, Square, Download } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import ReverseProxyManagement from "./reverse-proxy-management"
 

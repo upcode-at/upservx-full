@@ -23,7 +23,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, CheckCircle, ExternalLink, AlertCircle, Plus } from "lucide-react"
+import { Search, Download, CheckCircle } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 
 const apiUrl = (path: string) => {
@@ -72,7 +72,7 @@ export function AppStore() {
 
   useEffect(() => {
     filterApps()
-  }, [apps, selectedCategory, searchQuery])
+  }, [apps, selectedCategory, searchQuery, filterApps])
 
   const loadApps = async () => {
     try {
@@ -126,7 +126,7 @@ export function AppStore() {
         setSelectedApp(data)
         setDetailsOpen(true)
       }
-    } catch (e) {
+    } catch {
       setError("Failed to load app details")
     }
   }
@@ -163,7 +163,7 @@ export function AppStore() {
       } else {
         setError(data.detail || "Failed to install app")
       }
-    } catch (e) {
+    } catch {
       setError("Failed to install app")
     } finally {
       setLoading(false)

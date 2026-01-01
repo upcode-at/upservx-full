@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle, Save } from "lucide-react"
+import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
 

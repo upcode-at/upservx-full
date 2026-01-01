@@ -16,7 +16,7 @@ interface FirewallRule {
   family: string
   table: string
   chain: string
-  expr: any[]
+  expr: unknown[]
   handle: number
   comment?: string
   formatted: string
@@ -73,7 +73,7 @@ export default function FirewallManagement() {
 
   useEffect(() => {
     loadFirewallData()
-  }, [])
+  }, [loadFirewallData])
 
   const loadFirewallData = async () => {
     try {
@@ -107,7 +107,7 @@ export default function FirewallManagement() {
       setError(null)
       setSuccess(null)
 
-      const payload: any = {
+      const payload: Record<string, string | number> = {
         chain: newRule.chain,
         action: newRule.action,
       }

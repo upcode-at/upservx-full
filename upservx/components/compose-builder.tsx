@@ -24,14 +24,7 @@ import {
   FolderOpen,
   Save,
 } from "lucide-react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
 
