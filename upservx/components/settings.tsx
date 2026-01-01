@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { NotificationContainer } from "@/components/ui/notification"
+import { Save, Key, Upload, Play, Square, Download } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import ReverseProxyManagement from "./reverse-proxy-management"
 
@@ -29,7 +31,8 @@ export function Settings() {
     ssh_port: 22,
     api_key: "",
   })
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
 
   const loadSettings = async () => {
@@ -68,41 +71,47 @@ export function Settings() {
     loadVpnStatus()
   }, [])
 
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(t)
-  }, [message])
-
-  const handleSave = async () => {
+  const saveSettings = async () => {
     try {
+      setError(null)
+      setSuccess(null)
       const res = await fetch(apiUrl("/settings"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       })
-      if (res.ok) setMessage("Saved")
+      if (res.ok) {
+        setSuccess("Settings saved successfully")
+      } else {
+        setError("Failed to save settings")
+      }
     } catch (e) {
-      console.error(e)
+      setError(e instanceof Error ? e.message : "Failed to save settings")
     }
   }
 
-  const handleGenerateKey = async () => {
+  const generateApiKey = async () => {
     try {
-      const res = await fetch(apiUrl("/settings/api-key"), { method: "POST" })
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/generate-api-key"), { method: "POST" })
       if (res.ok) {
         const data = await res.json()
         setSettings({ ...settings, api_key: data.api_key })
-        setMessage("API key generated")
+        setSuccess("API key generated successfully")
+      } else {
+        setError("Failed to generate API key")
       }
     } catch (e) {
-      console.error(e)
+      setError(e instanceof Error ? e.message : "Failed to generate API key")
     }
   }
 
   const handleUploadVpn = async (file: File | null) => {
     if (!file) return
     try {
+      setError(null)
+      setSuccess(null)
       const fd = new FormData()
       fd.append("file", file)
       const res = await fetch(apiUrl("/settings/vpn/upload"), {
@@ -110,45 +119,46 @@ export function Settings() {
         body: fd,
       })
       if (res.ok) {
-        setMessage("VPN file uploaded")
+        setSuccess("VPN configuration uploaded successfully")
         await loadVpnStatus()
       } else {
         const txt = await res.text()
-        setMessage("Upload failed: " + txt)
+        setError("Upload failed: " + txt)
       }
     } catch (e) {
-      console.error(e)
-      setMessage("Upload error")
+      setError(e instanceof Error ? e.message : "Failed to upload VPN configuration")
     }
   }
 
   const handleStartVpn = async () => {
     try {
+      setError(null)
+      setSuccess(null)
       const res = await fetch(apiUrl("/settings/vpn/start"), { method: "POST" })
       if (res.ok) {
-        setMessage("Starting VPN")
+        setSuccess("VPN started successfully")
         await loadVpnStatus()
       } else {
-        setMessage("Failed to start VPN")
+        setError("Failed to start VPN")
       }
     } catch (e) {
-      console.error(e)
-      setMessage("Start error")
+      setError(e instanceof Error ? e.message : "Failed to start VPN")
     }
   }
 
   const handleStopVpn = async () => {
     try {
+      setError(null)
+      setSuccess(null)
       const res = await fetch(apiUrl("/settings/vpn/stop"), { method: "POST" })
       if (res.ok) {
-        setMessage("Stopping VPN")
+        setSuccess("VPN stopped successfully")
         await loadVpnStatus()
       } else {
-        setMessage("Failed to stop VPN")
+        setError("Failed to stop VPN")
       }
     } catch (e) {
-      console.error(e)
-      setMessage("Stop error")
+      setError(e instanceof Error ? e.message : "Failed to stop VPN")
     }
   }
 
@@ -158,15 +168,24 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
         <p className="text-muted-foreground">Configure your server management system</p>
       </div>
+
+      <NotificationContainer
+        success={success}
+        error={error}
+        onClearSuccess={() => setSuccess(null)}
+        onClearError={() => setError(null)}
+      />
+
+      <NotificationContainer
+        success={success}
+        error={error}
+        onClearSuccess={() => setSuccess(null)}
+        onClearError={() => setError(null)}
+      />
 
       <Tabs defaultValue="system" className="space-y-6">
         <TabsList>
@@ -239,7 +258,10 @@ export function Settings() {
                 <Label htmlFor="api-key">API Key</Label>
                 <div className="flex space-x-2">
                   <Input id="api-key" value={settings.api_key} readOnly />
-                  <Button onClick={handleGenerateKey}>Generate</Button>
+                  <Button onClick={generateApiKey}>
+                    <Key className="h-4 w-4 mr-2" />
+                    Generate
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -249,7 +271,10 @@ export function Settings() {
             <Button variant="outline" onClick={loadSettings}>
               Reset
             </Button>
-            <Button onClick={handleSave}>Save settings</Button>
+            <Button onClick={saveSettings}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
           </div>
         </TabsContent>
 
@@ -270,7 +295,12 @@ export function Settings() {
                     onChange={(e) => handleUploadVpn(e.target.files ? e.target.files[0] : null)}
                     className="rounded"
                   />
-                  <Button onClick={handleDownloadVpn} disabled={!vpnStatus || !vpnStatus.ovpn_path}>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDownloadVpn} 
+                    disabled={!vpnStatus || !vpnStatus.ovpn_path}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
                     Download
                   </Button>
                 </div>
@@ -283,10 +313,12 @@ export function Settings() {
 
               <div className="flex space-x-2">
                 <Button onClick={handleStartVpn} disabled={vpnStatus?.running}>
-                  Start
+                  <Play className="h-4 w-4 mr-2" />
+                  Start VPN
                 </Button>
                 <Button variant="destructive" onClick={handleStopVpn} disabled={!vpnStatus?.running}>
-                  Stop
+                  <Square className="h-4 w-4 mr-2" />
+                  Stop VPN
                 </Button>
               </div>
             </CardContent>
