@@ -314,11 +314,6 @@ useEffect(() => {
       setError("Failed to start container")
     }
   }
-    } catch (e) {
-      console.error(e)
-      if (e instanceof Error) setError(e.message)
-    }
-  }
 
   const handleStop = async (name: string) => {
     try {
