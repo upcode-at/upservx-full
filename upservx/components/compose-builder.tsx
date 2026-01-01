@@ -642,7 +642,7 @@ export function ComposeBuilder() {
                           }}
                         />
                       </div>
-                    ))
+                    ))}
                   </div>
 
                   <Button onClick={handleAddService}>
@@ -814,7 +814,7 @@ export function ComposeBuilder() {
                         }}
                       />
                     </div>
-                  ))
+                  ))}
                 </div>
 
                 <Button onClick={handleUpdateService}>
