@@ -349,7 +349,7 @@ useEffect(() => {
       if (res.ok) {
         setContainers((prev) => prev.filter((c) => c.name !== name))
         setError(null)
-        setMessage(`Container ${name} deleted`)
+        setSuccess(`Container ${name} deleted`)
       } else {
         let message = "Error deleting"
         try {
