@@ -1,6 +1,24 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle, Save } from "lucide-react"
+import { apiUrl } from "@/lib/api"
+import { NotificationContainer } from "@/components/ui/notification"
 
 interface Drive {
   device: string
@@ -29,23 +47,6 @@ interface ZFSPool {
   mountpoint: string
   devices: ZFSDevice[]
 }
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { HardDrive, Usb, MemoryStickIcon as SdCard, Settings, AlertTriangle } from "lucide-react"
-import { apiUrl } from "@/lib/api"
 
 export function StorageManagement() {
   const [drives, setDrives] = useState<Drive[]>([])
@@ -77,8 +78,8 @@ export function StorageManagement() {
   const [formatFs, setFormatFs] = useState("")
   const [formatLabel, setFormatLabel] = useState("")
   const [mountPath, setMountPath] = useState("")
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [mountOpen, setMountOpen] = useState(false)
   const [formatOpen, setFormatOpen] = useState(false)
   const [poolOpen, setPoolOpen] = useState(false)
@@ -86,35 +87,27 @@ export function StorageManagement() {
   const [raidLevel, setRaidLevel] = useState("mirror")
   const [poolDevices, setPoolDevices] = useState<string[]>([])
 
-  useEffect(() => {
-    if (!error) return
-    const t = setTimeout(() => setError(null), 3000)
-    return () => clearTimeout(t)
-  }, [error])
-
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(t)
-  }, [message])
-
-  const cancelFormat = () => {
+  const handleFormatCancel = () => {
     setActiveDrive(null)
     setFormatFs("")
     setFormatLabel("")
     setFormatOpen(false)
-    setMessage("Formatting cancelled")
+    setSuccess("Formatting cancelled")
   }
 
   const cancelMount = () => {
     setActiveDrive(null)
     setMountPath("")
     setMountOpen(false)
-    setMessage("Mount cancelled")
+    setSuccess("Mount cancelled")
   }
 
   const handleFormat = async () => {
     if (!activeDrive) return
+    
+    setSuccess(null)
+    setError(null)
+    
     try {
       const res = await fetch(apiUrl("/drives/format"), {
         method: "POST",
@@ -126,7 +119,7 @@ export function StorageManagement() {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setMessage("Formatting complete")
+      setSuccess("Formatting complete")
       await loadDrives()
     } catch (e) {
       console.error(e)
@@ -148,7 +141,7 @@ export function StorageManagement() {
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
       await loadDrives()
-      setMessage("Drive mounted")
+      setSuccess("Drive mounted")
     } catch (e) {
       console.error(e)
       setError("Mount failed")
@@ -166,7 +159,7 @@ export function StorageManagement() {
         body: JSON.stringify({ name: poolName, devices: poolDevices, raid: raidLevel }),
       })
       if (!res.ok) throw new Error(await res.text())
-      setMessage("Pool created")
+      setSuccess("Pool created")
       setPoolOpen(false)
       setPoolName("")
       setPoolDevices([])
@@ -195,6 +188,7 @@ export function StorageManagement() {
 
   return (
     <div className="space-y-6">
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Storage Management</h2>
@@ -409,7 +403,7 @@ export function StorageManagement() {
                             <Input id="label" value={formatLabel} onChange={(e) => setFormatLabel(e.target.value)} placeholder="z.B. Backup Drive" />
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <Button variant="outline" onClick={cancelFormat}>Cancel</Button>
+                            <Button variant="outline" onClick={handleFormatCancel}>Cancel</Button>
                             <Button variant="destructive" onClick={handleFormat}>Format</Button>
                           </div>
                         </div>
@@ -461,17 +455,6 @@ export function StorageManagement() {
           </div>
         </CardContent>
       </Card>
-
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
     </div>
   )
 }

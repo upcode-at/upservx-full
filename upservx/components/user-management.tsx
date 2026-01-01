@@ -23,8 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { User, Users, Plus, Settings, Key } from "lucide-react"
+import { User, Users, Plus, Settings, Key, Save } from "lucide-react"
 import { apiUrl } from "@/lib/api"
+import { NotificationContainer } from "@/components/ui/notification"
 
 interface SysUser {
   username: string
@@ -62,7 +63,7 @@ export function UserManagement() {
   const [userKeys, setUserKeys] = useState<string[]>([])
   const [createUserOpen, setCreateUserOpen] = useState(false)
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadUsers = useCallback(async (page = userPage, size = userPageSize) => {
     try {
@@ -149,15 +150,6 @@ export function UserManagement() {
     loadAllGroups()
     loadAllUsers()
   }, [])
-
-  useEffect(() => {
-    if (!message && !error) return
-    const t = setTimeout(() => {
-      setSuccess(null)
-      setError(null)
-    }, 3000)
-    return () => clearTimeout(t)
-  }, [message, error])
 
   const [newUser, setNewUser] = useState({
     username: "",
@@ -266,16 +258,7 @@ export function UserManagement() {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-3 py-2 rounded shadow">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">User Management</h2>

@@ -23,7 +23,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, CheckCircle, ExternalLink, AlertCircle } from "lucide-react"
+import { Search, Download, CheckCircle, ExternalLink, AlertCircle, Plus } from "lucide-react"
+import { NotificationContainer } from "@/components/ui/notification"
 
 const apiUrl = (path: string) => {
   if (typeof window === "undefined") return path
@@ -60,7 +61,7 @@ export function AppStore() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [customName, setCustomName] = useState("")
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -141,7 +142,7 @@ export function AppStore() {
 
     setLoading(true)
     setError(null)
-    setMessage(null)
+    setSuccess(null)
 
     try {
       const res = await fetch(
@@ -156,7 +157,7 @@ export function AppStore() {
       const data = await res.json()
 
       if (res.ok) {
-        setMessage(data.message)
+        setSuccess(data.message)
         setInstallDialogOpen(false)
         loadApps()
       } else {
@@ -190,19 +191,7 @@ export function AppStore() {
         </p>
       </div>
 
-      {message && (
-        <div className="flex items-center gap-2 p-4 bg-green-500/10 text-green-500 rounded-lg">
-          <CheckCircle className="h-5 w-5" />
-          <span>{message}</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 p-4 bg-red-500/10 text-red-500 rounded-lg">
-          <AlertCircle className="h-5 w-5" />
-          <span>{error}</span>
-        </div>
-      )}
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">

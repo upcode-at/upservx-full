@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Network, Wifi, Settings } from "lucide-react"
+import { Network, Wifi, Settings, Save } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { apiUrl } from "@/lib/api"
+import { NotificationContainer } from "@/components/ui/notification"
 
 interface NetworkInterface {
   name: string
@@ -37,7 +38,7 @@ export function NetworkManagement() {
     dns_secondary: "8.8.4.4",
 
   })
-  const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedIface, setSelectedIface] = useState<NetworkInterface | null>(null)
   const [ifaceConfig, setIfaceConfig] = useState({ method: "dhcp", ip: "", netmask: "", gateway: "", enabled: true })
@@ -71,13 +72,6 @@ export function NetworkManagement() {
     fetchSettings()
   }, [])
 
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(t)
-  }, [message])
-
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "up":
@@ -93,6 +87,7 @@ export function NetworkManagement() {
 
   return (
     <div className="space-y-6">
+      <NotificationContainer success={success} error={null} onClearSuccess={() => setSuccess(null)} onClearError={() => {}} />
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Network Management</h2>
         <p className="text-muted-foreground">Manage network interfaces</p>
@@ -216,7 +211,7 @@ export function NetworkManagement() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(networkSettings),
                       })
-                      if (res.ok) setMessage("Saved")
+                      if (res.ok) setSuccess("Saved")
                     } catch (e) {
                       console.error(e)
                     }
@@ -289,16 +284,16 @@ export function NetworkManagement() {
                       body: JSON.stringify(ifaceConfig),
                     })
                     if (res.ok) {
-                      setMessage("Applied")
+                      setSuccess("Applied")
                       setDialogOpen(false)
                       fetchInterfaces()
                     } else {
                       const txt = await res.text()
-                      setMessage("Error: " + txt)
+                      setSuccess("Error: " + txt)
                     }
                   } catch (e) {
                     console.error(e)
-                    setMessage("Failed to apply")
+                    setSuccess("Failed to apply")
                   }
                 }}
               >
@@ -308,11 +303,6 @@ export function NetworkManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {message && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-3 py-2 rounded shadow">
-          {message}
-        </div>
-      )}
     </div>
   )
 }
