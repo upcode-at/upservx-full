@@ -1,0 +1,49 @@
+{
+  "name": "Home Assistant",
+  "description": "Open source home automation that puts local control and privacy first. Control all your devices from a single, unified interface.",
+  "version": "latest",
+  "category": "Home Automation",
+  "icon": "🏠",
+  "tags": ["home-automation", "iot", "smart-home", "automation", "dashboard"],
+  "author": "Home Assistant",
+  "website": "https://www.home-assistant.io/",
+  "repository": "https://github.com/home-assistant/core",
+  "ports": [
+    {
+      "container": 8123,
+      "host": 8123,
+      "description": "Web interface"
+    }
+  ],
+  "volumes": [
+    {
+      "container": "/config",
+      "host": "./config",
+      "description": "Configuration files"
+    }
+  ],
+  "environment": [
+    {
+      "name": "TZ",
+      "default": "Europe/Berlin",
+      "description": "Timezone for the application"
+    }
+  ],
+  "privileged": true,
+  "network_mode": "host",
+  "requirements": {
+    "memory": "1GB",
+    "cpu": "2 cores",
+    "disk": "5GB"
+  },
+  "notes": [
+    "Home Assistant runs in host network mode for device discovery",
+    "First start may take several minutes to initialize",
+    "Access the web interface at http://your-server:8123",
+    "Create your admin account on first login",
+    "Many integrations require additional configuration",
+    "USB devices (Zigbee/Z-Wave) need to be passed through to the container",
+    "For USB devices, add device mappings in docker-compose.yml",
+    "Consider using the supervised installation for add-ons support"
+  ]
+}
