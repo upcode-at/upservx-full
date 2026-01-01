@@ -1,0 +1,41 @@
+{
+  "name": "Uptime Kuma",
+  "description": "A fancy self-hosted monitoring tool like 'Uptime Robot'. Monitor HTTP(s), TCP, DNS, Docker containers, and more with beautiful status pages.",
+  "version": "latest",
+  "category": "Monitoring",
+  "icon": "📊",
+  "tags": ["monitoring", "uptime", "status-page", "alerting", "health-check"],
+  "author": "Louis Lam",
+  "website": "https://uptime.kuma.pet/",
+  "repository": "https://github.com/louislam/uptime-kuma",
+  "ports": [
+    {
+      "container": 3001,
+      "host": 3001,
+      "description": "Web interface"
+    }
+  ],
+  "volumes": [
+    {
+      "container": "/app/data",
+      "host": "./data",
+      "description": "Application data and database"
+    }
+  ],
+  "environment": [],
+  "requirements": {
+    "memory": "512MB",
+    "cpu": "1 core",
+    "disk": "1GB"
+  },
+  "notes": [
+    "Access the web interface at http://your-server:3001",
+    "Create your admin account on first login",
+    "Supports HTTP(s), TCP, DNS, Ping, Docker Container, and more",
+    "Built-in notification system (Discord, Telegram, Slack, Email, etc.)",
+    "Create beautiful public status pages",
+    "Data is stored in SQLite database",
+    "Supports multiple users and RBAC",
+    "Optional: Mount Docker socket for container monitoring"
+  ]
+}
