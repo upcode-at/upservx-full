@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Cpu, HardDrive, MemoryStick, Activity } from "lucide-react"
+import { Cpu, HardDrive, MemoryStick, Activity, Container, Server, Disc, Package } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
 
@@ -24,6 +24,14 @@ export function SystemOverview() {
     gpu: "",
     architecture: "",
     services: [] as { name: string; status: string; port: number | null }[],
+  })
+
+  const [resourceCounts, setResourceCounts] = useState({
+    containers: 0,
+    vms: 0,
+    dockerImages: 0,
+    isos: 0,
+    lxcImages: 0,
   })
 
   interface Drive {
@@ -95,6 +103,66 @@ export function SystemOverview() {
       }
     }
     loadDrives()
+  }, [])
+
+  useEffect(() => {
+    const fetchResourceCounts = async () => {
+      try {
+        // Fetch containers
+        const containersRes = await fetch(apiUrl("/containers"), { credentials: "include" })
+        let containersCount = 0
+        if (containersRes.ok) {
+          const containersData = await containersRes.json()
+          containersCount = containersData.length || 0
+        }
+
+        // Fetch VMs
+        const vmsRes = await fetch(apiUrl("/vms"), { credentials: "include" })
+        let vmsCount = 0
+        if (vmsRes.ok) {
+          const vmsData = await vmsRes.json()
+          vmsCount = vmsData.length || 0
+        }
+
+        // Fetch Docker Images
+        const dockerImagesRes = await fetch(apiUrl("/images?type=docker"), { credentials: "include" })
+        let dockerImagesCount = 0
+        if (dockerImagesRes.ok) {
+          const dockerData = await dockerImagesRes.json()
+          dockerImagesCount = dockerData.images?.length || 0
+        }
+
+        // Fetch LXC Images
+        const lxcImagesRes = await fetch(apiUrl("/images?type=lxc"), { credentials: "include" })
+        let lxcImagesCount = 0
+        if (lxcImagesRes.ok) {
+          const lxcData = await lxcImagesRes.json()
+          lxcImagesCount = lxcData.images?.length || 0
+        }
+
+        // Fetch ISOs
+        const isosRes = await fetch(apiUrl("/isos"), { credentials: "include" })
+        let isosCount = 0
+        if (isosRes.ok) {
+          const isosData = await isosRes.json()
+          isosCount = isosData.isos?.length || 0
+        }
+
+        setResourceCounts({
+          containers: containersCount,
+          vms: vmsCount,
+          dockerImages: dockerImagesCount,
+          isos: isosCount,
+          lxcImages: lxcImagesCount,
+        })
+      } catch (err) {
+        console.error("Failed to fetch resource counts:", err)
+      }
+    }
+
+    fetchResourceCounts()
+    const interval = setInterval(fetchResourceCounts, 30000) // Update every 30 seconds
+    return () => clearInterval(interval)
   }, [])
 
 
@@ -170,6 +238,64 @@ export function SystemOverview() {
             <div className="text-2xl font-bold">↓{systemStats.network.in}MB/s</div>
             <div className="text-sm text-muted-foreground">↑{systemStats.network.out}MB/s</div>
             <p className="text-xs text-muted-foreground mt-2">Current throughput</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Resource Statistics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Containers</CardTitle>
+            <Container className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resourceCounts.containers}</div>
+            <p className="text-xs text-muted-foreground mt-2">Containers</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Virtual Machines</CardTitle>
+            <Server className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resourceCounts.vms}</div>
+            <p className="text-xs text-muted-foreground mt-2">QEMU/KVM VMs</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Docker Images</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resourceCounts.dockerImages}</div>
+            <p className="text-xs text-muted-foreground mt-2">Container images</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">LXC Images</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resourceCounts.lxcImages}</div>
+            <p className="text-xs text-muted-foreground mt-2">LXC container images</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ISO Images</CardTitle>
+            <Disc className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resourceCounts.isos}</div>
+            <p className="text-xs text-muted-foreground mt-2">VM installation media</p>
           </CardContent>
         </Card>
       </div>
