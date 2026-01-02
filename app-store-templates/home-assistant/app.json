@@ -2,7 +2,7 @@
   "name": "Home Assistant",
   "description": "Open source home automation that puts local control and privacy first. Control all your devices from a single, unified interface.",
   "version": "latest",
-  "category": "Home Automation",
+  "category": "automation",
   "icon": "🏠",
   "tags": ["home-automation", "iot", "smart-home", "automation", "dashboard"],
   "author": "Home Assistant",

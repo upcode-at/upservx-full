@@ -2,7 +2,7 @@
   "name": "Paperless-ngx",
   "description": "A community-supported supercharged version of paperless: scan, index and archive all your physical documents",
   "version": "latest",
-  "category": "Document Management",
+  "category": "document",
   "icon": "📄",
   "tags": ["document-management", "ocr", "scanning", "archive", "productivity"],
   "author": "paperless-ngx",
