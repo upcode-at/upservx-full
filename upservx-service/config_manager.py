@@ -9,6 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from encryption import get_encryption_manager
 
 CONFIG_DIR = "/etc/upservx"
 BACKUP_SERVERS_FILE = os.path.join(CONFIG_DIR, "backup_servers.json")
@@ -61,13 +62,23 @@ class ConfigManager:
     def get_backup_servers(self) -> List[Dict[str, Any]]:
         """Get all configured backup servers."""
         data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
-        return data.get("servers", [])
+        servers = data.get("servers", [])
+        
+        # Return servers without exposing encrypted passwords
+        return [{**server, 'password': None} if server.get('password_encrypted') else server 
+                for server in servers]
     
     def get_backup_server(self, server_id: int) -> Optional[Dict[str, Any]]:
         """Get specific backup server by ID."""
         servers = self.get_backup_servers()
         for server in servers:
             if server.get("id") == server_id:
+                # Decrypt password if encrypted
+                if server.get("password_encrypted") and server.get("password"):
+                    encryption = get_encryption_manager()
+                    server_copy = server.copy()
+                    server_copy["password"] = encryption.decrypt(server["password"])
+                    return server_copy
                 return server
         return None
     
@@ -81,6 +92,12 @@ class ConfigManager:
         server_data["created"] = datetime.now().isoformat()
         server_data["status"] = "active"
         
+        # Encrypt password if provided
+        if "password" in server_data and server_data["password"]:
+            encryption = get_encryption_manager()
+            server_data["password"] = encryption.encrypt(server_data["password"])
+            server_data["password_encrypted"] = True
+        
         servers.append(server_data)
         
         if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
@@ -91,6 +108,12 @@ class ConfigManager:
     def update_backup_server(self, server_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update existing backup server."""
         servers = self.get_backup_servers()
+        
+        # Encrypt password if being updated
+        if "password" in updates and updates["password"]:
+            encryption = get_encryption_manager()
+            updates["password"] = encryption.encrypt(updates["password"])
+            updates["password_encrypted"] = True
         
         for i, server in enumerate(servers):
             if server.get("id") == server_id:

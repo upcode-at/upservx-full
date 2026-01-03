@@ -967,7 +967,9 @@ async def execute_backup_job(job_id: int):
         if not job:
             raise HTTPException(status_code=404, detail="Backup job not found")
         
-        server = backup_db.get_backup_server(job['server_id'])
+        # Get server from config manager (will decrypt password)
+        config = get_config_manager()
+        server = config.get_backup_server(job['server_id'])
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
         
