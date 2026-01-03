@@ -210,6 +210,8 @@ export default function BackupManagement() {
     port: 22,
     remote_path: '',
     username: 'root',
+    auth_type: 'ssh_key',
+    password: '',
     ssh_key: ''
   })
   
@@ -274,8 +276,6 @@ export default function BackupManagement() {
   const handleCreateServer = async () => {
     try {
       await createBackupServer(serverForm)
-      await loadData()
-      setShowServerDialog(false)
       setServerForm({ 
         name: '', 
         type: 'local', 
@@ -284,6 +284,8 @@ export default function BackupManagement() {
         port: 22,
         remote_path: '',
         username: 'root',
+        auth_type: 'ssh_key',
+        password: '',
         ssh_key: ''
       })
     } catch (err) {
@@ -400,8 +402,6 @@ export default function BackupManagement() {
 
     return options
   }
-
-
 
   const getServerName = (serverId: number) => {
     const server = backupServers.find(s => s.id === serverId)
@@ -551,18 +551,46 @@ export default function BackupManagement() {
                         </div>
                       </div>
                       <div>
-                        <Label htmlFor="ssh_key">SSH Private Key (optional)</Label>
-                        <textarea
-                          id="ssh_key"
-                          value={serverForm.ssh_key}
-                          onChange={(e) => setServerForm(prev => ({ ...prev, ssh_key: e.target.value }))}
-                          placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
-                          className="w-full h-32 p-2 border rounded-md font-mono text-xs"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Paste your SSH private key or leave empty to use SSH agent
-                        </p>
+                        <Label htmlFor="auth_type">Authentication Method</Label>
+                        <Select
+                          value={serverForm.auth_type}
+                          onValueChange={(value) => setServerForm(prev => ({ ...prev, auth_type: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ssh_key">SSH Key</SelectItem>
+                            <SelectItem value="password">Password</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
+                      {serverForm.auth_type === 'password' ? (
+                        <div>
+                          <Label htmlFor="password">Password</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={serverForm.password}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, password: e.target.value }))}
+                            placeholder="Enter password"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <Label htmlFor="ssh_key">SSH Private Key (optional)</Label>
+                          <textarea
+                            id="ssh_key"
+                            value={serverForm.ssh_key}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, ssh_key: e.target.value }))}
+                            placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                            className="w-full h-32 p-2 border rounded-md font-mono text-xs"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Paste your SSH private key or leave empty to use SSH agent
+                          </p>
+                        </div>
+                      )}
                     </>
                   )}
                   <div className="flex justify-end gap-2">
