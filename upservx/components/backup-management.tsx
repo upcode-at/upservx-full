@@ -39,6 +39,12 @@ interface BackupJobCreate {
   targets: string[]
   schedule: string
   server_id: number
+  rsync_enabled?: boolean
+  rsync_host?: string
+  rsync_port?: number
+  rsync_user?: string
+  rsync_path?: string
+  rsync_ssh_key?: string
 }
 
 interface BackupJob {
@@ -54,6 +60,12 @@ interface BackupJob {
   last_size?: number
   retention_days: number
   compression: boolean
+  rsync_enabled?: boolean
+  rsync_host?: string
+  rsync_port?: number
+  rsync_user?: string
+  rsync_path?: string
+  rsync_ssh_key?: string
   created: string
 }
 
@@ -193,7 +205,12 @@ export default function BackupManagement() {
   const [serverForm, setServerForm] = useState({
     name: '',
     type: 'local',
-    local_path: '/var/backups'
+    local_path: '/var/backups',
+    host: '',
+    port: 22,
+    remote_path: '',
+    username: 'root',
+    ssh_key: ''
   })
   
   const [jobForm, setJobForm] = useState<{
@@ -204,6 +221,12 @@ export default function BackupManagement() {
     server_id: number
     retention_days: number
     compression: boolean
+    rsync_enabled: boolean
+    rsync_host: string
+    rsync_port: number
+    rsync_user: string
+    rsync_path: string
+    rsync_ssh_key: string
   }>({
     name: '',
     backup_type: 'system',
@@ -211,7 +234,13 @@ export default function BackupManagement() {
     schedule: '0 2 * * *',
     server_id: 0,
     retention_days: 30,
-    compression: true
+    compression: true,
+    rsync_enabled: false,
+    rsync_host: '',
+    rsync_port: 22,
+    rsync_user: 'root',
+    rsync_path: '/backups',
+    rsync_ssh_key: ''
   })
 
   useEffect(() => {
@@ -247,7 +276,16 @@ export default function BackupManagement() {
       await createBackupServer(serverForm)
       await loadData()
       setShowServerDialog(false)
-      setServerForm({ name: '', type: 'local', local_path: '/var/backups' })
+      setServerForm({ 
+        name: '', 
+        type: 'local', 
+        local_path: '/var/backups',
+        host: '',
+        port: 22,
+        remote_path: '',
+        username: 'root',
+        ssh_key: ''
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error creating server')
     }
@@ -266,7 +304,13 @@ export default function BackupManagement() {
         schedule: '0 2 * * *',
         server_id: 0,
         retention_days: 30,
-        compression: true
+        compression: true,
+        rsync_enabled: false,
+        rsync_host: '',
+        rsync_port: 22,
+        rsync_user: 'root',
+        rsync_path: '/backups',
+        rsync_ssh_key: ''
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error creating job')
@@ -463,6 +507,64 @@ export default function BackupManagement() {
                       />
                     </div>
                   )}
+                  {serverForm.type === 'remote' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="host">Host</Label>
+                          <Input
+                            id="host"
+                            value={serverForm.host}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, host: e.target.value }))}
+                            placeholder="backup.example.com"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="port">Port</Label>
+                          <Input
+                            id="port"
+                            type="number"
+                            value={serverForm.port}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, port: parseInt(e.target.value) || 22 }))}
+                            placeholder="22"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="username">Username</Label>
+                          <Input
+                            id="username"
+                            value={serverForm.username}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, username: e.target.value }))}
+                            placeholder="root"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="remote_path">Remote Path</Label>
+                          <Input
+                            id="remote_path"
+                            value={serverForm.remote_path}
+                            onChange={(e) => setServerForm(prev => ({ ...prev, remote_path: e.target.value }))}
+                            placeholder="/backups"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="ssh_key">SSH Private Key (optional)</Label>
+                        <textarea
+                          id="ssh_key"
+                          value={serverForm.ssh_key}
+                          onChange={(e) => setServerForm(prev => ({ ...prev, ssh_key: e.target.value }))}
+                          placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                          className="w-full h-32 p-2 border rounded-md font-mono text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Paste your SSH private key or leave empty to use SSH agent
+                        </p>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setShowServerDialog(false)}>
                       Cancel
@@ -632,6 +734,80 @@ export default function BackupManagement() {
                         placeholder="0 2 * * *"
                       />
                     </div>
+                  </div>
+
+                  {/* Rsync Remote Sync Configuration */}
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="rsync_enabled"
+                        checked={jobForm.rsync_enabled}
+                        onChange={(e) => setJobForm(prev => ({ ...prev, rsync_enabled: e.target.checked }))}
+                        className="rounded"
+                      />
+                      <Label htmlFor="rsync_enabled" className="cursor-pointer">
+                        Sync backup to remote server via rsync after creation
+                      </Label>
+                    </div>
+
+                    {jobForm.rsync_enabled && (
+                      <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="rsync_host">Remote Host</Label>
+                            <Input
+                              id="rsync_host"
+                              value={jobForm.rsync_host}
+                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_host: e.target.value }))}
+                              placeholder="backup.example.com"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="rsync_port">SSH Port</Label>
+                            <Input
+                              id="rsync_port"
+                              type="number"
+                              value={jobForm.rsync_port}
+                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_port: parseInt(e.target.value) || 22 }))}
+                              placeholder="22"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="rsync_user">Remote User</Label>
+                            <Input
+                              id="rsync_user"
+                              value={jobForm.rsync_user}
+                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_user: e.target.value }))}
+                              placeholder="root"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="rsync_path">Remote Path</Label>
+                            <Input
+                              id="rsync_path"
+                              value={jobForm.rsync_path}
+                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_path: e.target.value }))}
+                              placeholder="/backups"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="rsync_ssh_key">SSH Private Key Path (optional)</Label>
+                          <Input
+                            id="rsync_ssh_key"
+                            value={jobForm.rsync_ssh_key}
+                            onChange={(e) => setJobForm(prev => ({ ...prev, rsync_ssh_key: e.target.value }))}
+                            placeholder="/root/.ssh/id_rsa"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Leave empty to use SSH agent or default key
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2">

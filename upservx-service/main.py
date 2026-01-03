@@ -50,6 +50,7 @@ from backup import backup_manager, BackupAuthConfig
 from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
+from config_manager import get_config_manager
 
 # Import API routes
 from api.system import router as system_router
@@ -719,9 +720,10 @@ def vpn_stop():
 
 @app.get("/backup/servers", response_model=List[BackupServer])
 async def list_backup_servers():
-    """List all backup servers."""
+    """List all backup servers from /etc/upservx configuration."""
     try:
-        servers = backup_db.get_backup_servers()
+        config = get_config_manager()
+        servers = config.get_backup_servers()
         return [BackupServer(**server) for server in servers]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list backup servers: {str(e)}")
@@ -729,36 +731,20 @@ async def list_backup_servers():
 
 @app.post("/backup/servers", response_model=BackupServer)
 async def create_backup_server(server: BackupServerCreate):
-    """Create a new backup server."""
+    """Create a new backup server in /etc/upservx configuration."""
     try:
-        # Convert to dict for database storage
+        config = get_config_manager()
         server_data = server.model_dump()
         
-        # Encrypt sensitive data if provided
-        if server_data.get('password'):
-            server_data['password_encrypted'] = backup_manager.encrypt_sensitive_data(server_data['password'])
-            del server_data['password']
-        
-        if server_data.get('ssh_key_passphrase'):
-            server_data['ssh_key_passphrase_encrypted'] = backup_manager.encrypt_sensitive_data(server_data['ssh_key_passphrase'])
-            del server_data['ssh_key_passphrase']
-        
-        # Store SSH key if provided
+        # Handle SSH key if provided
         if server_data.get('ssh_key'):
-            ssh_key_path = ssh_key_manager.store_ssh_key(
-                f"backup_server_{server_data['name']}", 
-                server_data['ssh_key'],
-                server_data.get('ssh_key_passphrase_encrypted')
-            )
-            server_data['ssh_key_path'] = ssh_key_path
+            key_name = f"backup_{server_data['name'].replace(' ', '_').lower()}"
+            key_path = config.save_ssh_key(key_name, server_data['ssh_key'])
+            server_data['ssh_key_path'] = key_path
             del server_data['ssh_key']
         
-        server_id = backup_db.create_backup_server(server_data)
-        
-        # Get created server
-        created_server = backup_db.get_backup_server(server_id)
-        if not created_server:
-            raise HTTPException(status_code=500, detail="Failed to retrieve created server")
+        # Store in /etc/upservx/backup_servers.json
+        created_server = config.add_backup_server(server_data)
         
         return BackupServer(**created_server)
     except Exception as e:
@@ -767,9 +753,10 @@ async def create_backup_server(server: BackupServerCreate):
 
 @app.get("/backup/servers/{server_id}", response_model=BackupServer)
 async def get_backup_server(server_id: int):
-    """Get a specific backup server."""
+    """Get a specific backup server from /etc/upservx configuration."""
     try:
-        server = backup_db.get_backup_server(server_id)
+        config = get_config_manager()
+        server = config.get_backup_server(server_id)
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
         return BackupServer(**server)
@@ -825,9 +812,10 @@ async def update_backup_server(server_id: int, server: BackupServerUpdate):
 
 @app.delete("/backup/servers/{server_id}")
 async def delete_backup_server(server_id: int):
-    """Delete a backup server."""
+    """Delete a backup server from /etc/upservx configuration."""
     try:
-        success = backup_db.delete_backup_server(server_id)
+        config = get_config_manager()
+        success = config.delete_backup_server(server_id)
         if not success:
             raise HTTPException(status_code=404, detail="Backup server not found")
         return {"message": "Backup server deleted successfully"}
