@@ -69,36 +69,64 @@ class ConfigManager:
                 for server in servers]
     
     def get_backup_server(self, server_id: int) -> Optional[Dict[str, Any]]:
-        """Get specific backup server by ID."""
-        servers = self.get_backup_servers()
+        """Get specific backup server by ID with decrypted password."""
+        # Read directly from file to get encrypted password
+        data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
+        servers = data.get("servers", [])
+        
         for server in servers:
             if server.get("id") == server_id:
                 # Decrypt password if encrypted
                 if server.get("password_encrypted") and server.get("password"):
-                    encryption = get_encryption_manager()
-                    server_copy = server.copy()
-                    server_copy["password"] = encryption.decrypt(server["password"])
-                    return server_copy
+                    print(f"[CONFIG] Decrypting password for server {server_id}...")
+                    try:
+                        encryption = get_encryption_manager()
+                        server_copy = server.copy()
+                        encrypted_password = server["password"]
+                        print(f"[CONFIG] Encrypted password: {encrypted_password[:20]}...")
+                        decrypted = encryption.decrypt(encrypted_password)
+                        server_copy["password"] = decrypted
+                        print(f"[CONFIG] Password decrypted successfully")
+                        return server_copy
+                    except Exception as e:
+                        print(f"[CONFIG] ERROR decrypting password: {e}")
+                        raise
                 return server
         return None
     
     def add_backup_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
         """Add new backup server configuration."""
+        print("[CONFIG] add_backup_server called")
+        print(f"[CONFIG] Input server_data: {server_data}")
+        
         servers = self.get_backup_servers()
+        print(f"[CONFIG] Current servers count: {len(servers)}")
         
         # Generate new ID
         max_id = max([s.get("id", 0) for s in servers], default=0)
         server_data["id"] = max_id + 1
         server_data["created"] = datetime.now().isoformat()
         server_data["status"] = "active"
+        print(f"[CONFIG] Generated ID: {server_data['id']}")
         
         # Encrypt password if provided
         if "password" in server_data and server_data["password"]:
-            encryption = get_encryption_manager()
-            server_data["password"] = encryption.encrypt(server_data["password"])
-            server_data["password_encrypted"] = True
+            print("[CONFIG] Encrypting password...")
+            try:
+                encryption = get_encryption_manager()
+                print("[CONFIG] Encryption manager obtained")
+                encrypted_password = encryption.encrypt(server_data["password"])
+                print(f"[CONFIG] Password encrypted: {encrypted_password[:20]}...")
+                server_data["password"] = encrypted_password
+                server_data["password_encrypted"] = True
+            except Exception as e:
+                print(f"[CONFIG] ERROR encrypting password: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
         
         servers.append(server_data)
+        print("[CONFIG] Server appended to list")
         
         if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
             return server_data

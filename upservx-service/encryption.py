@@ -21,14 +21,24 @@ class EncryptionManager:
     def _load_or_generate_key(self):
         """Load existing key or generate a new one if it doesn't exist."""
         key_path = Path(self.KEY_FILE)
+        print(f"[ENCRYPTION] Checking for key at: {self.KEY_FILE}")
         
         if key_path.exists():
             # Load existing key
-            with open(key_path, 'rb') as f:
-                key = f.read()
-            self._cipher = Fernet(key)
+            print("[ENCRYPTION] Loading existing key...")
+            try:
+                with open(key_path, 'rb') as f:
+                    key = f.read().strip()  # Remove any whitespace/newlines
+                print(f"[ENCRYPTION] Key length: {len(key)} bytes")
+                self._cipher = Fernet(key)
+                print("[ENCRYPTION] Key loaded successfully")
+            except Exception as e:
+                print(f"[ENCRYPTION] ERROR loading key: {e}")
+                print(f"[ENCRYPTION] Key content (first 20 chars): {key[:20] if key else 'empty'}")
+                raise
         else:
             # Generate new key
+            print("[ENCRYPTION] Key not found, generating new key...")
             self._generate_and_save_key()
     
     def _generate_and_save_key(self):
@@ -67,8 +77,15 @@ class EncryptionManager:
         if not plaintext:
             return ""
         
-        encrypted_bytes = self._cipher.encrypt(plaintext.encode('utf-8'))
-        return encrypted_bytes.decode('utf-8')
+        print(f"[ENCRYPTION] Encrypting plaintext of length: {len(plaintext)}")
+        try:
+            encrypted_bytes = self._cipher.encrypt(plaintext.encode('utf-8'))
+            result = encrypted_bytes.decode('utf-8')
+            print(f"[ENCRYPTION] Encryption successful, result length: {len(result)}")
+            return result
+        except Exception as e:
+            print(f"[ENCRYPTION] ERROR during encryption: {e}")
+            raise
     
     def decrypt(self, encrypted_text: str) -> str:
         """

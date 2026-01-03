@@ -14,7 +14,12 @@ import base64
 import pam
 import uvicorn
 import os
+import logging
 from datetime import datetime
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import models
 from models import (
@@ -733,21 +738,32 @@ async def list_backup_servers():
 async def create_backup_server(server: BackupServerCreate):
     """Create a new backup server in /etc/upservx configuration."""
     try:
+        logger.info("Creating backup server...")
         config = get_config_manager()
+        logger.info("Config manager obtained")
+        
         server_data = server.model_dump()
+        logger.info(f"Server data: {server_data}")
         
         # Handle SSH key if provided
         if server_data.get('ssh_key'):
+            logger.info("SSH key provided, saving...")
             key_name = f"backup_{server_data['name'].replace(' ', '_').lower()}"
             key_path = config.save_ssh_key(key_name, server_data['ssh_key'])
             server_data['ssh_key_path'] = key_path
             del server_data['ssh_key']
+            logger.info(f"SSH key saved to: {key_path}")
         
         # Store in /etc/upservx/backup_servers.json
+        logger.info("Adding backup server to config...")
         created_server = config.add_backup_server(server_data)
+        logger.info(f"Backup server created with ID: {created_server.get('id')}")
         
         return BackupServer(**created_server)
     except Exception as e:
+        logger.error(f"Failed to create backup server: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to create backup server: {str(e)}")
 
 
