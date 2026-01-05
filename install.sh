@@ -25,7 +25,6 @@ spin() {
     printf "\b\b\b\b\b\b"
   done
 }
-sudo apt install -t stable-backports zfsutils-linux
 step() {
   printf "${BLUE}➜${NC} %s..." "$1"
 }
