@@ -49,7 +49,7 @@ step "Install system packages"
 {
   sudo apt update &&
   sudo apt install -y $PACKAGES
-  sudo apt install -t stable-backports zfsutils-linux
+  sudo apt install -t zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
