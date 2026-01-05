@@ -60,10 +60,9 @@ export function apiUrl(path: string): string {
     return `${scheme}//${hostname}:8000${path}`
   }
   
-  // During SSR/build, we can't determine the correct URL
-  // Return a placeholder that will be replaced on the client side
-  // This should never actually be used since fetch calls are in useEffect
-  return `http://localhost:8000${path}`
+  // During SSR, return a relative path that will work once hydrated
+  // This is a fallback and should be replaced by client-side logic
+  return path
 }
 
 export function wsUrl(path: string): string {

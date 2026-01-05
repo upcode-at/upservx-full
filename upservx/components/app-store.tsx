@@ -92,7 +92,12 @@ export function AppStore() {
 
   const loadApps = async () => {
     try {
-      const res = await fetch(apiUrl("/containers/app-store/apps"))
+      // Ensure we're in the browser before calling apiUrl
+      if (typeof window === "undefined") return
+      
+      const url = apiUrl("/app-store/apps")
+      console.log("Loading apps from:", url) // Debug log
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setApps(data)
@@ -104,7 +109,12 @@ export function AppStore() {
 
   const loadCategories = async () => {
     try {
-      const res = await fetch(apiUrl("/containers/app-store/categories"))
+      // Ensure we're in the browser before calling apiUrl
+      if (typeof window === "undefined") return
+      
+      const url = apiUrl("/containers/app-store/categories")
+      console.log("Loading categories from:", url) // Debug log
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setCategories(["all", ...data])
