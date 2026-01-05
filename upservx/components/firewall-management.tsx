@@ -69,7 +69,7 @@ export default function FirewallManagement() {
   const [masqueradeIface, setMasqueradeIface] = useState("")
   const [policyChange, setPolicyChange] = useState({ chain: "input", policy: "accept" })
 
-    const getApiUrl = (path: string) => {
+  const getApiUrl = (path: string) => {
     if (typeof window === "undefined") return path
     const { protocol, hostname, port } = window.location
     const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":8000"
@@ -82,8 +82,8 @@ export default function FirewallManagement() {
       setError(null)
 
       const [rulesRes, statsRes] = await Promise.all([
-        fetch(`${getApiUrl}/firewall/rules`, { credentials: "include" }),
-        fetch(`${getApiUrl}/firewall/statistics`, { credentials: "include" })
+        fetch(getApiUrl("/firewall/rules"), { credentials: "include" }),
+        fetch(getApiUrl("/firewall/statistics"), { credentials: "include" })
       ])
 
       if (!rulesRes.ok || !statsRes.ok) {
@@ -124,7 +124,7 @@ export default function FirewallManagement() {
       if (newRule.destination_ip) payload.destination_ip = newRule.destination_ip
       if (newRule.comment) payload.comment = newRule.comment
 
-      const response = await fetch(`${getApiUrl}/firewall/rules`, {
+      const response = await fetch(getApiUrl("/firewall/rules"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -157,7 +157,7 @@ export default function FirewallManagement() {
 
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/rules`, {
+      const response = await fetch(getApiUrl("/firewall/rules"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -181,7 +181,7 @@ export default function FirewallManagement() {
 
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/chains/${chain}/flush`, {
+      const response = await fetch(getApiUrl(`/firewall/chains/${chain}/flush`), {
         method: "POST",
         credentials: "include"
       })
@@ -203,7 +203,7 @@ export default function FirewallManagement() {
 
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/chains/policy`, {
+      const response = await fetch(getApiUrl("/firewall/chains/policy"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -225,7 +225,7 @@ export default function FirewallManagement() {
   const addPortForward = async () => {
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/port-forward`, {
+      const response = await fetch(getApiUrl("/firewall/port-forward"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -265,7 +265,7 @@ export default function FirewallManagement() {
 
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/masquerade`, {
+      const response = await fetch(getApiUrl("/firewall/masquerade"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -288,7 +288,7 @@ export default function FirewallManagement() {
   const saveRules = async () => {
     try {
       setError(null)
-      const response = await fetch(`${getApiUrl}/firewall/save`, {
+      const response = await fetch(getApiUrl("/firewall/save"), {
         method: "POST",
         credentials: "include"
       })
