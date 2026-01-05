@@ -5,7 +5,7 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system dnsmasq libvirt-clients sshfs vsftpd postgresql openvpn ftp zfsutils-linux linux-headers-$(uname -r) dkms"
+PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system dnsmasq libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms"
 
 # === Colors & Spinner ========================================================
 GREEN="\e[32m"
@@ -25,7 +25,7 @@ spin() {
     printf "\b\b\b\b\b\b"
   done
 }
-
+sudo apt install -t stable-backports zfsutils-linux
 step() {
   printf "${BLUE}➜${NC} %s..." "$1"
 }
@@ -49,6 +49,7 @@ step "Install system packages"
 {
   sudo apt update &&
   sudo apt install -y $PACKAGES
+  sudo apt install -t stable-backports zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
