@@ -46,7 +46,7 @@ export function apiUrl(path: string): string {
   }
   
   if (typeof window !== "undefined") {
-    // We're in the browser, use the current window location
+    // We're in the browser, build URL dynamically at runtime
     const { protocol, hostname, port } = window.location
     
     // If accessing via standard ports (80/443), assume reverse proxy with /api/ path
@@ -56,13 +56,13 @@ export function apiUrl(path: string): string {
     
     // Otherwise, direct access to backend port
     // Always use the same hostname as the frontend for consistency
-    const scheme = protocol.startsWith("http") ? protocol : "http:"
-    return `${scheme}//${hostname}:8000${path}`
+    const apiPort = ":8000"
+    return `${protocol}//${hostname}${apiPort}${path}`
   }
   
-  // During SSR, return a relative path that will work once hydrated
-  // This is a fallback and should be replaced by client-side logic
-  return path
+  // During SSR, return empty string to avoid wrong URLs
+  // This should not be used as all fetch calls should be in useEffect (client-side only)
+  return ""
 }
 
 export function wsUrl(path: string): string {
