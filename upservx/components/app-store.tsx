@@ -25,12 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Download, CheckCircle } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
-
-const apiUrl = (path: string) => {
-  if (typeof window === "undefined") return path
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-  return `${base}${path}`
-}
+import { apiUrl } from "@/lib/api"
 
 interface App {
   id: string
