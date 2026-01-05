@@ -25,7 +25,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Download, CheckCircle } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
-import { apiUrl } from "@/lib/api"
 
 interface App {
   id: string
@@ -59,6 +58,14 @@ export function AppStore() {
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Helper function to build API URL at runtime
+  const getApiUrl = (path: string) => {
+    if (typeof window === "undefined") return path
+    const { protocol, hostname, port } = window.location
+    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":8000"
+    return `${protocol}//${hostname}${apiPort}${path}`
+  }
 
   useEffect(() => {
     loadApps()
@@ -95,7 +102,7 @@ export function AppStore() {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
       
-      const url = apiUrl("/app-store/apps")
+      const url = getApiUrl("/containers/app-store/apps")
       console.log("Loading apps from:", url) // Debug log
       const res = await fetch(url)
       if (res.ok) {
@@ -112,7 +119,7 @@ export function AppStore() {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
       
-      const url = apiUrl("/containers/app-store/categories")
+      const url = getApiUrl("/containers/app-store/categories")
       console.log("Loading categories from:", url) // Debug log
       const res = await fetch(url)
       if (res.ok) {
@@ -126,7 +133,7 @@ export function AppStore() {
 
   const handleShowDetails = async (appId: string) => {
     try {
-      const res = await fetch(apiUrl(`/containers/app-store/apps/${appId}`))
+      const res = await fetch(getApiUrl(`/containers/app-store/apps/${appId}`))
       if (res.ok) {
         const data = await res.json()
         setSelectedApp(data)
@@ -152,7 +159,7 @@ export function AppStore() {
 
     try {
       const res = await fetch(
-        apiUrl(`/containers/app-store/apps/${selectedApp.id}/install`),
+        getApiUrl(`/containers/app-store/apps/${selectedApp.id}/install`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -233,7 +240,7 @@ export function AppStore() {
                   <div className="text-4xl">
                     {app.icon.startsWith('/') ? (
                       <img 
-                        src={apiUrl(app.icon)} 
+                        src={getApiUrl(app.icon)} 
                         alt={app.name}
                         className="w-12 h-12 object-contain rounded"
                       />
@@ -307,7 +314,7 @@ export function AppStore() {
             <div className="flex items-center gap-3">
               {selectedApp?.icon.startsWith('/') ? (
                 <img 
-                  src={apiUrl(selectedApp.icon)} 
+                  src={getApiUrl(selectedApp.icon)} 
                   alt={selectedApp.name}
                   className="w-16 h-16 object-contain rounded"
                 />
