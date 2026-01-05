@@ -245,6 +245,9 @@ def get_server_addresses() -> list[str]:
         for port in ports:
             origins.append(f"{protocol}://localhost:{port}")
             origins.append(f"{protocol}://127.0.0.1:{port}")
+        # Add without port for standard ports
+        origins.append(f"{protocol}://localhost")
+        origins.append(f"{protocol}://127.0.0.1")
     
     # Add hostname
     try:
@@ -252,6 +255,8 @@ def get_server_addresses() -> list[str]:
         for protocol in protocols:
             for port in ports:
                 origins.append(f"{protocol}://{hostname}:{port}")
+            # Add without port for standard ports
+            origins.append(f"{protocol}://{hostname}")
     except Exception:
         pass
     
@@ -266,6 +271,8 @@ def get_server_addresses() -> list[str]:
                         for protocol in protocols:
                             for port in ports:
                                 origins.append(f"{protocol}://{ip}:{port}")
+                            # Add without port for standard ports
+                            origins.append(f"{protocol}://{ip}")
     except Exception:
         pass
     
