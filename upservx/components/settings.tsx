@@ -37,7 +37,8 @@ export function Settings() {
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
-  const [updateOutput, setUpdateOutput] = useState<string>("")  const [updateStatus, setUpdateStatus] = useState<"running" | "success" | "error">("running")
+  const [updateOutput, setUpdateOutput] = useState<string>("")
+  const [updateStatus, setUpdateStatus] = useState<"running" | "success" | "error">("running")
 
   const loadSettings = async () => {
     try {
