@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
 import { Save, Key, Play, Square, Download, RefreshCw } from "lucide-react"
 import { apiUrl } from "@/lib/api"
@@ -35,6 +36,8 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null)
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [updateOutput, setUpdateOutput] = useState<string>("")  const [updateStatus, setUpdateStatus] = useState<"running" | "success" | "error">("running")
 
   const loadSettings = async () => {
     try {
@@ -172,19 +175,33 @@ export function Settings() {
       setError(null)
       setSuccess(null)
       setIsUpdating(true)
+      setShowUpdateModal(true)
+      setUpdateOutput("Starting update...\n")
+      setUpdateStatus("running")
+      
       const res = await fetch(apiUrl("/settings/update"), { method: "POST" })
       if (res.ok) {
         const data = await res.json()
+        setUpdateOutput(data.stdout || data.stderr || "Update completed")
+        
         if (data.exit_code === 0) {
           setSuccess("System update completed successfully")
+          setUpdateStatus("success")
         } else {
           setError(`Update failed with exit code ${data.exit_code}`)
+          setUpdateStatus("error")
         }
       } else {
+        const errorText = await res.text()
+        setUpdateOutput(errorText)
         setError("Failed to run update")
+        setUpdateStatus("error")
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to run update")
+      const errorMsg = e instanceof Error ? e.message : "Failed to run update"
+      setUpdateOutput(errorMsg)
+      setError(errorMsg)
+      setUpdateStatus("error")
     } finally {
       setIsUpdating(false)
     }
@@ -204,12 +221,31 @@ export function Settings() {
         onClearError={() => setError(null)}
       />
 
-      <NotificationContainer
-        success={success}
-        error={error}
-        onClearSuccess={() => setSuccess(null)}
-        onClearError={() => setError(null)}
-      />
+      <Dialog open={showUpdateModal} onOpenChange={setShowUpdateModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className={`h-5 w-5 ${updateStatus === "running" ? "animate-spin" : ""}`} />
+              System Update
+            </DialogTitle>
+            <DialogDescription>
+              {updateStatus === "running" && "Update in progress..."}
+              {updateStatus === "success" && "Update completed successfully"}
+              {updateStatus === "error" && "Update failed"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted rounded-md p-4 max-h-96 overflow-y-auto">
+              <pre className="text-xs whitespace-pre-wrap font-mono">{updateOutput}</pre>
+            </div>
+            {updateStatus !== "running" && (
+              <div className="flex justify-end">
+                <Button onClick={() => setShowUpdateModal(false)}>Close</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="system" className="space-y-6">
         <TabsList>

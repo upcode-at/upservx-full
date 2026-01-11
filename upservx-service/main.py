@@ -14,6 +14,7 @@ import base64
 import pam
 import uvicorn
 import os
+import subprocess
 import logging
 from datetime import datetime
 
