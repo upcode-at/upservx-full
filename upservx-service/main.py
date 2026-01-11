@@ -721,6 +721,34 @@ def vpn_stop():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/settings/update")
+async def run_update():
+    """Run the install.sh script to update the system."""
+    try:
+        install_script = "/opt/upservx/install.sh"
+        if not os.path.exists(install_script):
+            raise HTTPException(status_code=404, detail="install.sh not found")
+        
+        # Run the install script with sudo
+        result = subprocess.run(
+            ["sudo", "bash", install_script],
+            capture_output=True,
+            text=True,
+            timeout=600  # 10 minute timeout
+        )
+        
+        return {
+            "detail": "update completed",
+            "exit_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="update timed out")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Backup Management API Endpoints
 
 @app.get("/backup/servers", response_model=List[BackupServer])

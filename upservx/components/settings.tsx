@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Save, Key, Play, Square, Download } from "lucide-react"
+import { Save, Key, Play, Square, Download, RefreshCw } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import ReverseProxyManagement from "./reverse-proxy-management"
 
@@ -34,6 +34,7 @@ export function Settings() {
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const loadSettings = async () => {
     try {
@@ -166,6 +167,29 @@ export function Settings() {
     window.location.href = apiUrl("/settings/vpn/file")
   }
 
+  const handleUpdate = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      setIsUpdating(true)
+      const res = await fetch(apiUrl("/settings/update"), { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.exit_code === 0) {
+          setSuccess("System update completed successfully")
+        } else {
+          setError(`Update failed with exit code ${data.exit_code}`)
+        }
+      } else {
+        setError("Failed to run update")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to run update")
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -264,6 +288,22 @@ export function Settings() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>System Update</CardTitle>
+              <CardDescription>Update UpservX to the latest version</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This will run the install.sh script to update UpservX to the latest version from the repository.
+              </p>
+              <Button onClick={handleUpdate} disabled={isUpdating}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
+                {isUpdating ? "Updating..." : "Run Update"}
+              </Button>
             </CardContent>
           </Card>
 
