@@ -50,7 +50,7 @@ step "Install system packages"
   sudo apt update
   sudo apt install -y $PACKAGES
   sudo apt update
-  sudo apt install -t -y zfsutils-linux
+  sudo apt install -y zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
