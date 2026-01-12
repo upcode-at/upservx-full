@@ -66,9 +66,11 @@ export default function ClusterManagement() {
     return `${protocol}//${hostname}${apiPort}${path}`
   }
 
-  const loadClusterInfo = async () => {
+  const loadClusterInfo = async (isInitialLoad = false) => {
     try {
-      setLoading(true)
+      if (isInitialLoad) {
+        setLoading(true)
+      }
       setError(null)
 
       const response = await fetch(getApiUrl("/cluster/info"), {
@@ -84,13 +86,15 @@ export default function ClusterManagement() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load cluster info")
     } finally {
-      setLoading(false)
+      if (isInitialLoad) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadClusterInfo()
-    const interval = setInterval(loadClusterInfo, 10000) // Refresh every 10 seconds
+    loadClusterInfo(true)
+    const interval = setInterval(() => loadClusterInfo(false), 10000) // Refresh every 10 seconds
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
