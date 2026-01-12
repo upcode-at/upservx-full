@@ -283,8 +283,7 @@ async def join_cluster(request: ClusterJoinRequest):
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 master_url,
-                json=node_data,
-                headers={"Authorization": f"Bearer {request.token}"}
+                json=node_data
             )
             
             if response.status_code != 200:
