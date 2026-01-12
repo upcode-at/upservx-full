@@ -152,6 +152,32 @@ def get_cluster_key():
             return child_config.get("key")
     return None
 
+async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
+    """Fetch metrics from a child node"""
+    try:
+        url = f"http://{ip_address}:{port}/metrics"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            if response.status_code == 200:
+                metrics = response.json()
+                return {
+                    "cpu_usage": metrics.get("cpu_percent", 0),
+                    "memory_usage": metrics.get("memory_percent", 0),
+                    "disk_usage": metrics.get("disk_percent", 0)
+                }
+    except (httpx.RequestError, httpx.TimeoutException, Exception):
+        pass
+    
+    return {
+        "cpu_usage": 0,
+        "memory_usage": 0,
+        "disk_usage": 0
+    }
+
 @router.get("/cluster/info")
 async def get_cluster_info():
     """Get cluster information"""
@@ -181,18 +207,30 @@ async def get_cluster_info():
         }
         nodes.append(master_node)
         
-        # Add all child nodes from nodes directory
+        # Add all child nodes from nodes directory and fetch their metrics
         child_nodes = list_all_nodes()
         for node in child_nodes:
             if node.get("hostname") != get_hostname():
+                # Fetch current metrics from child node
+                resources = await fetch_node_metrics(
+                    node.get("ip_address"),
+                    node.get("port", 8000),
+                    cluster_token
+                )
+                
+                # Update node config with fresh metrics
+                node["resources"] = resources
+                node["last_seen"] = datetime.now().isoformat()
+                write_node_config(node.get("hostname"), node)
+                
                 nodes.append({
                     "id": node.get("hostname"),
                     "hostname": node.get("hostname"),
                     "ip_address": node.get("ip_address"),
                     "port": node.get("port", 8000),
-                    "status": "online",  # TODO: Implement health check
+                    "status": "online" if resources.get("cpu_usage", 0) > 0 or resources.get("memory_usage", 0) > 0 else "offline",
                     "role": "child",
-                    "resources": node.get("resources", {}),
+                    "resources": resources,
                     "last_seen": node.get("last_seen", "")
                 })
     
