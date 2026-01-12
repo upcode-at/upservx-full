@@ -165,9 +165,10 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
             if response.status_code == 200:
                 metrics = response.json()
                 return {
-                    "cpu_usage": metrics.get("cpu_percent", 0),
-                    "memory_usage": metrics.get("memory_percent", 0),
-                    "disk_usage": metrics.get("disk_percent", 0)
+                    "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
+                    "memory_usage": metrics.get("memory", {}).get("usage", 0),
+                    "disk_usage": metrics.get("storage", {}).get("usage", 0),
+                    "success": True
                 }
     except (httpx.RequestError, httpx.TimeoutException, Exception):
         pass
@@ -175,7 +176,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     return {
         "cpu_usage": 0,
         "memory_usage": 0,
-        "disk_usage": 0
+        "disk_usage": 0,
+        "success": False
     }
 
 @router.get("/cluster/info")
@@ -223,12 +225,15 @@ async def get_cluster_info():
                 node["last_seen"] = datetime.now().isoformat()
                 write_node_config(node.get("hostname"), node)
                 
+                # Remove success flag before adding to response
+                is_online = resources.pop("success", False)
+                
                 nodes.append({
                     "id": node.get("hostname"),
                     "hostname": node.get("hostname"),
                     "ip_address": node.get("ip_address"),
                     "port": node.get("port", 8000),
-                    "status": "online" if resources.get("cpu_usage", 0) > 0 or resources.get("memory_usage", 0) > 0 else "offline",
+                    "status": "online" if is_online else "offline",
                     "role": "child",
                     "resources": resources,
                     "last_seen": node.get("last_seen", "")
