@@ -7,6 +7,7 @@ import psutil
 from datetime import datetime
 import json
 import os
+import httpx
 
 router = APIRouter()
 
@@ -23,6 +24,12 @@ class ClusterJoinRequest(BaseModel):
     master_ip: str
     token: str
     port: int = 8000
+
+class NodeRegistrationRequest(BaseModel):
+    hostname: str
+    ip_address: str
+    port: int
+    cluster_key: str
 
 class ClusterNode(BaseModel):
     id: str
@@ -136,6 +143,14 @@ def is_master_node():
 def is_child_node():
     """Check if this node is a child"""
     return os.path.exists(CHILD_CONFIG_FILE)
+
+def get_cluster_key():
+    """Get the cluster key if this node is part of a cluster"""
+    if is_child_node():
+        child_config = read_child_config()
+        if child_config:
+            return child_config.get("key")
+    return None
 
 @router.get("/cluster/info")
 async def get_cluster_info():
@@ -254,6 +269,32 @@ async def join_cluster(request: ClusterJoinRequest):
     if is_child_node():
         raise HTTPException(status_code=400, detail="Already part of a cluster")
     
+    # Prepare node data to register with master
+    node_data = {
+        "hostname": get_hostname(),
+        "ip_address": get_local_ip(),
+        "port": 8000,
+        "cluster_key": request.token
+    }
+    
+    # Register this node with the master
+    try:
+        master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                master_url,
+                json=node_data,
+                headers={"Authorization": f"Bearer {request.token}"}
+            )
+            
+            if response.status_code != 200:
+                error_detail = response.json().get("detail", "Failed to register with master")
+                raise HTTPException(status_code=400, detail=f"Master rejected registration: {error_detail}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to connect to master: {str(e)}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=400, detail="Connection to master timed out")
+    
     # Create child configuration
     child_config = {
         "key": request.token,
@@ -264,12 +305,48 @@ async def join_cluster(request: ClusterJoinRequest):
     
     write_child_config(child_config)
     
-    # TODO: Register this node with master via API call
-    # For now, the master needs to be notified manually or via periodic heartbeat
-    
     return {
         "message": "Successfully joined cluster",
         "master_ip": request.master_ip
+    }
+
+@router.post("/cluster/register")
+async def register_node(request: NodeRegistrationRequest):
+    """Register a child node with the master (master only)"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can register nodes")
+    
+    # Verify the cluster key
+    master_config = read_master_config()
+    if not master_config or master_config.get("key") != request.cluster_key:
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    # Check if node already exists
+    existing_node = read_node_config(request.hostname)
+    if existing_node:
+        # Update existing node
+        existing_node["ip_address"] = request.ip_address
+        existing_node["port"] = request.port
+        existing_node["resources"] = get_system_resources()
+        existing_node["last_seen"] = datetime.now().isoformat()
+        write_node_config(request.hostname, existing_node)
+        return {"message": "Node updated successfully", "hostname": request.hostname}
+    
+    # Create new node configuration
+    node_config = {
+        "hostname": request.hostname,
+        "ip_address": request.ip_address,
+        "port": request.port,
+        "resources": {},
+        "last_seen": datetime.now().isoformat(),
+        "registered_at": datetime.now().isoformat()
+    }
+    
+    write_node_config(request.hostname, node_config)
+    
+    return {
+        "message": "Node registered successfully",
+        "hostname": request.hostname
     }
 
 @router.post("/cluster/leave")

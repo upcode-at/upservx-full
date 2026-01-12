@@ -63,7 +63,7 @@ from api.system import router as system_router
 from api.containers import router as containers_router
 from api.images import router as images_router
 from api.firewall import router as firewall_router
-from api.cluster import router as cluster_router
+from api.cluster import router as cluster_router, get_cluster_key
 
 
 app = FastAPI(
@@ -134,9 +134,18 @@ async def pam_auth_middleware(request: Request, call_next):
             request.state.user = username
         elif scheme == "bearer":
             settings = load_settings()
-            if not settings.api_key or credentials.strip() != settings.api_key:
-                return Response(status_code=401)
-            request.state.user = "api-key"
+            token = credentials.strip()
+            
+            # Check if it's the configured API key
+            if settings.api_key and token == settings.api_key:
+                request.state.user = "api-key"
+            # Check if it's the cluster key (for child nodes)
+            else:
+                cluster_key = get_cluster_key()
+                if cluster_key and token == cluster_key:
+                    request.state.user = "cluster-node"
+                else:
+                    return Response(status_code=401)
         else:
             raise ValueError
     except Exception:
