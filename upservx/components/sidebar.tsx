@@ -15,6 +15,7 @@ import {
   Settings,
   Terminal,
   Store,
+  GitBranch,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -48,6 +49,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       items: [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
         { id: "shell", label: "Shell", icon: Terminal },
+        { id: "cluster", label: "Cluster", icon: GitBranch },
       ],
     },
     {
