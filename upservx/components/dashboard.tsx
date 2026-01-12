@@ -18,6 +18,7 @@ import { SystemShell } from "@/components/system-shell"
 import { ComposeBuilder } from "@/components/compose-builder"
 import { AppStore } from "@/components/app-store"
 import FirewallManagement from "@/components/firewall-management"
+import ClusterManagement from "@/components/cluster-management"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -54,6 +55,8 @@ export function Dashboard() {
         return <AppStore />
       case "firewall":
         return <FirewallManagement />
+      case "cluster":
+        return <ClusterManagement />
       default:
         return <SystemOverview />
     }

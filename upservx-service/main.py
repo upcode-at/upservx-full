@@ -14,6 +14,7 @@ import base64
 import pam
 import uvicorn
 import os
+import subprocess
 import logging
 from datetime import datetime
 
@@ -62,6 +63,7 @@ from api.system import router as system_router
 from api.containers import router as containers_router
 from api.images import router as images_router
 from api.firewall import router as firewall_router
+from api.cluster import router as cluster_router, get_cluster_key
 
 
 app = FastAPI(
@@ -106,6 +108,10 @@ async def pam_auth_middleware(request: Request, call_next):
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
     
+    # Skip authentication for cluster registration (validates token in request body)
+    if request.url.path == "/cluster/register" and request.method == "POST":
+        return await call_next(request)
+    
     auth_header = request.headers.get("Authorization")
     # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
     if not auth_header:
@@ -132,9 +138,18 @@ async def pam_auth_middleware(request: Request, call_next):
             request.state.user = username
         elif scheme == "bearer":
             settings = load_settings()
-            if not settings.api_key or credentials.strip() != settings.api_key:
-                return Response(status_code=401)
-            request.state.user = "api-key"
+            token = credentials.strip()
+            
+            # Check if it's the configured API key
+            if settings.api_key and token == settings.api_key:
+                request.state.user = "api-key"
+            # Check if it's the cluster key (for child nodes)
+            else:
+                cluster_key = get_cluster_key()
+                if cluster_key and token == cluster_key:
+                    request.state.user = "cluster-node"
+                else:
+                    return Response(status_code=401)
         else:
             raise ValueError
     except Exception:
@@ -183,6 +198,7 @@ app.include_router(system_router)
 app.include_router(containers_router)
 app.include_router(images_router)
 app.include_router(firewall_router)
+app.include_router(cluster_router)
 
 
 # System Shell WebSocket
@@ -717,6 +733,34 @@ def vpn_stop():
     try:
         status = stop_vpn()
         return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/settings/update")
+async def run_update():
+    """Run the install.sh script to update the system."""
+    try:
+        install_script = "/opt/upservx/install.sh"
+        if not os.path.exists(install_script):
+            raise HTTPException(status_code=404, detail="install.sh not found")
+        
+        # Run the install script with sudo
+        result = subprocess.run(
+            ["sudo", "bash", install_script],
+            capture_output=True,
+            text=True,
+            timeout=600  # 10 minute timeout
+        )
+        
+        return {
+            "detail": "update completed",
+            "exit_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="update timed out")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

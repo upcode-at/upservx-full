@@ -364,7 +364,7 @@ export default function FirewallManagement() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{Object.keys(stats.chains).length}</div>
+              <div className="text-2xl font-bold">{stats.chains ? Object.keys(stats.chains).length : 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -373,7 +373,7 @@ export default function FirewallManagement() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.packets_processed.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{(stats.packets_processed ?? 0).toLocaleString()}</div>
             </CardContent>
           </Card>
           <Card>
@@ -382,7 +382,7 @@ export default function FirewallManagement() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatBytes(stats.bytes_processed)}</div>
+              <div className="text-2xl font-bold">{formatBytes(stats.bytes_processed ?? 0)}</div>
             </CardContent>
           </Card>
         </div>
