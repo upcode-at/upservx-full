@@ -24,6 +24,7 @@ interface ClusterNode {
   id: string
   hostname: string
   ip_address: string
+  port: number
   status: "online" | "offline" | "syncing"
   role: "master" | "child"
   resources: {
@@ -55,6 +56,7 @@ export default function ClusterManagement() {
   // Form states
   const [clusterName, setClusterName] = useState("")
   const [masterIp, setMasterIp] = useState("")
+  const [masterPort, setMasterPort] = useState("8000")
   const [joinToken, setJoinToken] = useState("")
 
   const getApiUrl = (path: string) => {
@@ -131,7 +133,8 @@ export default function ClusterManagement() {
         credentials: "include",
         body: JSON.stringify({
           master_ip: masterIp,
-          token: joinToken
+          token: joinToken,
+          port: parseInt(masterPort)
         })
       })
 
@@ -143,6 +146,7 @@ export default function ClusterManagement() {
       setSuccess("Successfully joined cluster")
       setJoinClusterOpen(false)
       setMasterIp("")
+      setMasterPort("8000")
       setJoinToken("")
       loadClusterInfo()
     } catch (err) {
@@ -298,6 +302,16 @@ export default function ClusterManagement() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="master-port">Master Node Port</Label>
+                      <Input
+                        id="master-port"
+                        type="number"
+                        placeholder="8000"
+                        value={masterPort}
+                        onChange={(e) => setMasterPort(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="join-token">Cluster Token</Label>
                       <Input
                         id="join-token"
@@ -311,7 +325,7 @@ export default function ClusterManagement() {
                     <Button variant="outline" onClick={() => setJoinClusterOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={joinCluster} disabled={!masterIp || !joinToken}>
+                    <Button onClick={joinCluster} disabled={!masterIp || !joinToken || !masterPort}>
                       Join
                     </Button>
                   </DialogFooter>
@@ -400,6 +414,7 @@ export default function ClusterManagement() {
                   <TableRow>
                     <TableHead>Hostname</TableHead>
                     <TableHead>IP Address</TableHead>
+                    <TableHead>Port</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>CPU</TableHead>
@@ -414,6 +429,7 @@ export default function ClusterManagement() {
                     <TableRow key={node.id}>
                       <TableCell className="font-medium">{node.hostname}</TableCell>
                       <TableCell>{node.ip_address}</TableCell>
+                      <TableCell>{node.port ?? 8000}</TableCell>
                       <TableCell>{getRoleBadge(node.role)}</TableCell>
                       <TableCell>{getStatusBadge(node.status)}</TableCell>
                       <TableCell>{node.resources?.cpu_usage?.toFixed(1) ?? 0}%</TableCell>
