@@ -78,6 +78,16 @@ step "Initialize LXD"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === Initialize Kubernetes ==========================================================
+step "Initialize K3s"
+{
+  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  sudo curl -sfL https://get.k3s.io | sh -
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 2. Copy project files ===================================================
 step "Copy project to $APP_DIR"
 {
