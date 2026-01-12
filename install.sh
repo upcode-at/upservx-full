@@ -47,9 +47,10 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 step "Install system packages"
 {
   sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
-  sudo apt update &&
+  sudo apt update
   sudo apt install -y $PACKAGES
-  sudo apt install -t zfsutils-linux
+  sudo apt update
+  sudo apt install -t -y zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -84,6 +85,14 @@ step "Initialize K3s"
   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
   sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
   sudo curl -sfL https://get.k3s.io | sh -
+  
+  mkdir -p ~/.kube
+  sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+  sudo chown $USER:$USER ~/.kube/config
+  chmod 600 ~/.kube/config
+  
+  export KUBECONFIG=~/.kube/config
+  echo "export KUBECONFIG=~/.kube/config" >> ~/.bashrc
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
