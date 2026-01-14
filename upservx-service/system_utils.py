@@ -146,6 +146,7 @@ def collect_metrics() -> dict:
     services = [
         {
             "name": s["name"],
+            "service": s["service"],
             "status": get_service_status(s["service"]),
             "port": s["port"],
         }

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -9,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Cpu, HardDrive, MemoryStick, Activity, Container, Server, Disc, Package } from "lucide-react"
+import { Cpu, HardDrive, MemoryStick, Activity, Container, Server, Disc, Package, Play, Square } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
 
@@ -23,7 +24,7 @@ export function SystemOverview() {
     kernel: "",
     gpu: "",
     architecture: "",
-    services: [] as { name: string; status: string; port: number | null }[],
+    services: [] as { name: string; service?: string; status: string; port: number | null }[],
   })
 
   const [resourceCounts, setResourceCounts] = useState({
@@ -53,6 +54,22 @@ export function SystemOverview() {
     if (usage >= 90) return "bg-red-500"
     if (usage >= 80) return "bg-yellow-400"
     return undefined
+  }
+
+  const toggleService = async (serviceName: string, displayName: string, running: boolean) => {
+    try {
+      const res = await fetch(apiUrl(`/services/${serviceName}/${running ? "stop" : "start"}`), { method: "POST" })
+      if (res.ok) {
+        setSystemStats((prev) => ({
+          ...prev,
+          services: prev.services.map((s) => 
+            s.name === displayName ? { ...s, status: running ? "stopped" : "running" } : s
+          ),
+        }))
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
@@ -345,7 +362,19 @@ export function SystemOverview() {
                     </Badge>
                     <span className="text-sm font-medium">{service.name}</span>
                   </div>
-                  {service.port && <span className="text-xs text-muted-foreground">:{service.port}</span>}
+                  <div className="flex items-center space-x-2">
+                    {service.port && <span className="text-xs text-muted-foreground">:{service.port}</span>}
+                    {service.status !== "not found" && service.service && (
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => toggleService(service.service!, service.name, service.status === "running")}
+                      >
+                        {service.status === "running" ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
