@@ -203,6 +203,30 @@ def stop_container(name: str):
     return {"detail": "stopped"}
 
 
+@router.get("/{name}/logs")
+def get_container_logs(name: str, lines: int = 100):
+    """Get logs from a Docker container."""
+    ctype = find_container_type(name)
+    
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(
+            ["docker", "logs", "--tail", str(lines), name],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to get logs")
+        
+        # Combine stdout and stderr
+        logs = result.stdout + result.stderr
+        return {"logs": logs}
+    
+    else:
+        raise HTTPException(status_code=400, detail="logs only available for docker containers")
+
+
 @router.delete("/{name}")
 def delete_container(name: str):
     """Delete a container by name if possible."""

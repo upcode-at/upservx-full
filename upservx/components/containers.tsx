@@ -26,6 +26,7 @@ import {
   Trash2,
   LayoutGrid,
   List as ListIcon,
+  FileText,
 } from "lucide-react"
 import {
   Table,
@@ -81,6 +82,9 @@ export function Containers() {
   const [composeName, setComposeName] = useState("")
   const [composeFile, setComposeFile] = useState<File | null>(null)
   const [composeYaml, setComposeYaml] = useState("")
+  const [logsOpen, setLogsOpen] = useState(false)
+  const [logsContainer, setLogsContainer] = useState<string | null>(null)
+  const [logs, setLogs] = useState("")
 
   const loadMetrics = async () => {
     try {
@@ -362,6 +366,29 @@ useEffect(() => {
     } catch (e) {
       console.error(e)
       if (e instanceof Error) setError(e.message)
+    }
+  }
+
+  const handleViewLogs = async (name: string, type: string) => {
+    if (type.toLowerCase() !== "docker") {
+      setError("Logs are only available for Docker containers")
+      return
+    }
+    
+    try {
+      const res = await fetch(apiUrl(`/containers/${name}/logs?lines=500`))
+      if (res.ok) {
+        const data = await res.json()
+        setLogs(data.logs || "No logs available")
+        setLogsContainer(name)
+        setLogsOpen(true)
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to fetch logs")
+      }
+    } catch (e) {
+      console.error(e)
+      setError("Failed to fetch logs")
     }
   }
 
@@ -784,6 +811,15 @@ volumes:
                             <Terminal className="h-4 w-4" />
                           </Button>
                         )}
+                        {container.type === "docker" && (
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => handleViewLogs(container.name, container.type)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        )}
                         {container.status === "running" ? (
                           <Button
                             variant="destructive"
@@ -866,9 +902,15 @@ volumes:
                         <Terminal className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button variant="outline" size="icon">
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    {container.type.toLowerCase() === "docker" && (
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => handleViewLogs(container.name, container.type)}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    )}
                     {container.status === "running" ? (
                       <Button
                         variant="destructive"
@@ -956,9 +998,15 @@ volumes:
                               <Terminal className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button variant="outline" size="icon">
-                            <Settings className="h-4 w-4" />
-                          </Button>
+                          {container.type.toLowerCase() === "docker" && (
+                            <Button 
+                              variant="outline" 
+                              size="icon"
+                              onClick={() => handleViewLogs(container.name, container.type)}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
                           {container.status === "running" ? (
                             <Button
                               variant="destructive"
@@ -999,6 +1047,18 @@ volumes:
           <TerminalEmulator containerName={activeTerminal} onClose={() => setActiveTerminal(null)} />
         </div>
       )}
+
+      <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Container Logs: {logsContainer}</DialogTitle>
+            <DialogDescription>Last 500 lines of logs</DialogDescription>
+          </DialogHeader>
+          <div className="bg-black text-green-400 p-4 rounded font-mono text-sm overflow-auto max-h-[60vh]">
+            <pre className="whitespace-pre-wrap">{logs}</pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
