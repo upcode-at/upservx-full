@@ -19,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Play,
   Square,
-  Settings,
   Plus,
   Terminal,
   Container,
@@ -27,7 +26,6 @@ import {
   LayoutGrid,
   List as ListIcon,
   FileText,
-  X,
 } from "lucide-react"
 import {
   Table,
