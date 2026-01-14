@@ -5,7 +5,7 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system dnsmasq libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms"
+PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms"
 
 # === Colors & Spinner ========================================================
 GREEN="\e[32m"
