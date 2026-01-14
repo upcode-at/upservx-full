@@ -27,6 +27,7 @@ import {
   LayoutGrid,
   List as ListIcon,
   FileText,
+  X,
 } from "lucide-react"
 import {
   Table,
@@ -1048,17 +1049,26 @@ volumes:
         </div>
       )}
 
-      <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Container Logs: {logsContainer}</DialogTitle>
-            <DialogDescription>Last 500 lines of logs</DialogDescription>
-          </DialogHeader>
-          <div className="bg-black text-green-400 p-4 rounded font-mono text-sm overflow-auto max-h-[60vh]">
-            <pre className="whitespace-pre-wrap">{logs}</pre>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {logsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-5xl h-[80vh] flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
+              <div>
+                <CardTitle className="text-sm font-medium">Container Logs: {logsContainer}</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">Last 500 lines of logs</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setLogsOpen(false)}>
+                <Terminal className="h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="h-full w-full bg-black text-green-400 p-4 overflow-auto font-mono text-sm">
+                <pre className="whitespace-pre-wrap">{logs}</pre>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
