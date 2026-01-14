@@ -176,6 +176,16 @@ step "Generate encryption key"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === 6.4. Create ISO directory ==============================================
+step "Create ISO directory"
+{
+  sudo mkdir -p /var/lib/libvirt/isos
+  sudo chown libvirt-qemu:libvirt-qemu /var/lib/libvirt/isos
+  sudo chmod 755 /var/lib/libvirt/isos
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 6.5. Copy app store templates ===========================================
 step "Copy app store templates"
 {

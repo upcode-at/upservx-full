@@ -13,7 +13,7 @@ from models import ISOInfo
 
 def get_iso_dir() -> str:
     """Get the ISO directory path."""
-    iso_dir = os.path.join(os.path.dirname(__file__), "isos")
+    iso_dir = "/var/lib/libvirt/isos"
     os.makedirs(iso_dir, exist_ok=True)
     return iso_dir
 
