@@ -212,12 +212,8 @@ export function VirtualMachines() {
     setCpu(vm.cpu)
     setMemory(vm.memory)
     setIso(vm.iso)
-    // Parse disk sizes from disk paths (for display only, can't edit existing disks)
-    const diskSizes = vm.disks?.map(disk => {
-      // Extract size from path or default to 0 (existing disks)
-      return 0
-    }) || []
-    setDisks(diskSizes)
+    // Start with empty array - only new disks to be added
+    setDisks([])
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setOpen(true)
@@ -324,16 +320,18 @@ export function VirtualMachines() {
                     <div className="mb-4 p-3 bg-muted rounded-md">
                       <p className="text-sm font-medium mb-2">Existing Disks:</p>
                       {editing.disks.map((disk, idx) => (
-                        <div key={idx} className="text-sm text-muted-foreground">
-                          • Disk {idx + 1}: {disk}
+                        <div key={idx} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">• Disk {idx + 1}: {disk.split('/').pop()}</span>
                         </div>
                       ))}
-                      <p className="text-xs text-muted-foreground mt-2">Add new disks below:</p>
+                      <p className="text-xs text-muted-foreground mt-2">Note: Disk removal must be done manually via CLI</p>
                     </div>
                   )}
+                  {!editing && <Label>Disks (GB)</Label>}
+                  {editing && <Label>Add New Disks (GB)</Label>}
                   {disks.map((d, idx) => (
                     <div key={idx} className="flex space-x-2 items-center">
-                      <Input type="number" value={d} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />
+                      <Input type="number" value={d || 20} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value) || 0; setDisks(arr) }} placeholder="Size in GB" />
                       <Button variant="outline" size="icon" onClick={() => setDisks(disks.filter((_, i) => i !== idx))}>-</Button>
                     </div>
                   ))}

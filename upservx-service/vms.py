@@ -206,11 +206,15 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if not vm:
         raise Exception("vm not found")
     
+    print(f"Updating VM {name}: cpu={cpu}, memory={memory}, autostart={autostart}, add_disks={add_disks}")
+    
     # Check if VM is running
     statuses = parse_virsh_list()
     is_running = statuses.get(name) == "running"
+    print(f"VM {name} is_running: {is_running}")
     
     if cpu is not None and cpu != vm.cpu:
+        print(f"Updating CPU from {vm.cpu} to {cpu}")
         # Set maximum vcpus first
         result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
         if result.returncode != 0:
@@ -264,10 +268,15 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         vm.iso = iso
     
     if add_disks:
-        for size in add_disks:
+        # Filter out 0 or invalid disk sizes
+        valid_disks = [size for size in add_disks if size and size > 0]
+        for size in valid_disks:
             disk_path = f"/var/lib/libvirt/images/{name}_{len(vm.disks) + 1}.qcow2"
-            subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True)
-            vm.disks.append(disk_path)
+            result = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
+            if result.returncode == 0:
+                # Attach disk to VM
+                subprocess.run(["virsh", "attach-disk", name, disk_path, "--driver", "qemu", "--subdriver", "qcow2", "--targetbus", "virtio", "--persistent"], capture_output=True)
+                vm.disks.append(disk_path)
     
     save_vms(vms)
     return vm
