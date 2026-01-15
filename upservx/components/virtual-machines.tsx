@@ -157,7 +157,16 @@ export function VirtualMachines() {
     try {
       const res = await fetch(apiUrl(`/vms/${name}/shutdown`), { method: "POST" })
       if (res.ok) {
-        setVms(prev => prev.map(vm => vm.name === name ? { ...vm, status: "shut off" } : vm))
+        // Force immediate status update
+        setVms(prev => prev.map(vm => vm.name === name ? { ...vm, status: "stopped" } : vm))
+        // Reload to get actual status
+        setTimeout(async () => {
+          const refreshRes = await fetch(apiUrl("/vms"))
+          if (refreshRes.ok) {
+            const data = await refreshRes.json()
+            setVms(data)
+          }
+        }, 3000)
       }
     } catch (e) {
       console.error(e)

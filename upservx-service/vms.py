@@ -218,12 +218,18 @@ def start_vm(name: str) -> None:
 
 
 def shutdown_vm(name: str) -> None:
-    """Shutdown a virtual machine."""
+    """Shutdown a virtual machine (hard stop)."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
-    result = subprocess.run(["virsh", "shutdown", name], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise Exception(result.stderr.strip() or "failed to shutdown")
+    # Try graceful shutdown first
+    subprocess.run(["virsh", "shutdown", name], capture_output=True, text=True)
+    # If still running after 2 seconds, force destroy
+    import time
+    time.sleep(2)
+    result = subprocess.run(["virsh", "destroy", name], capture_output=True, text=True)
+    # destroy returns error if VM is already stopped, which is ok
+    if result.returncode != 0 and "domain is not running" not in result.stderr.lower():
+        raise Exception(result.stderr.strip() or "failed to stop")
 
 
 def delete_vm(name: str) -> None:
