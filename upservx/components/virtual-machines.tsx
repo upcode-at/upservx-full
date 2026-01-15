@@ -120,14 +120,14 @@ export function VirtualMachines() {
           console.log("Network interfaces loaded:", data)
           // Filter physical interfaces (exclude lo, docker, virbr, veth, etc.)
           const physical = data
-            .filter((iface: any) => 
+            .filter((iface: { name: string }) => 
               !iface.name.startsWith('lo') && 
               !iface.name.startsWith('docker') && 
               !iface.name.startsWith('virbr') && 
               !iface.name.startsWith('veth') &&
               !iface.name.startsWith('lxc')
             )
-            .map((iface: any) => iface.name)
+            .map((iface: { name: string }) => iface.name)
           console.log("Filtered physical interfaces:", physical)
           setNetworkInterfaces(physical)
           if (physical.length > 0) setBridgeInterface(physical[0])
@@ -223,7 +223,6 @@ export function VirtualMachines() {
     try {
       const res = await fetch(apiUrl(`/vms/${name}/vnc`))
       if (res.ok) {
-        const data = await res.json()
         // Use websockify proxy on port 6080 with noVNC from public/novnc/
         const url = `/novnc/vnc.html?host=${window.location.hostname}&port=6080&path=websockify&autoconnect=true&resize=scale`
         setVncUrl(url)
