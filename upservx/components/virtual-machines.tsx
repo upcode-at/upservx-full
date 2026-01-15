@@ -48,6 +48,7 @@ export function VirtualMachines() {
   const [disks, setDisks] = useState<number[]>([20])
   const [autostart, setAutostart] = useState(false)
   const [cloudInit, setCloudInit] = useState("")
+  const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none">("nat")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("list")
@@ -114,8 +115,8 @@ export function VirtualMachines() {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = name
@@ -218,6 +219,9 @@ export function VirtualMachines() {
     setDisksToRemove([])
     setAutostart(!!vm.autostart)
     setCloudInit("")
+    // Determine network mode from network_bridge
+    const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : "bridge"
+    setNetworkMode(mode)
     setOpen(true)
   }
 
@@ -237,7 +241,7 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -276,6 +280,22 @@ export function VirtualMachines() {
                       <input id="vm-autostart" type="checkbox" checked={autostart} onChange={e => setAutostart(e.target.checked)} />
                       <span className="text-sm text-muted-foreground">Start VM automatically on host boot</span>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vm-network">Network</Label>
+                    <Select value={networkMode} onValueChange={(v) => setNetworkMode(v as "bridge" | "nat" | "none")}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select network mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nat">NAT (virbr0)</SelectItem>
+                        <SelectItem value="bridge">Bridge (br0)</SelectItem>
+                        <SelectItem value="none">No Network</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      NAT: Internet access via host NAT | Bridge: Direct network access | None: No network
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-cloudinit">Cloud-Init (user-data)</Label>

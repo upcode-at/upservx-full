@@ -219,7 +219,7 @@ class VirtualMachineCreate(BaseModel):
     memory: int
     iso: str
     disks: List[int] = []
-    network_bridge: str = "virbr0"
+    network_mode: str = "nat"  # "nat", "bridge", "none"
     autostart: bool = False
     cloud_init: str | None = None
 
@@ -230,7 +230,8 @@ class VirtualMachineUpdate(BaseModel):
     iso: Optional[str] = None
     add_disks: List[int] = []
     autostart: Optional[bool] = None
-    network_bridge: Optional[str] = None
+    network_mode: Optional[str] = None
+    remove_disks: List[str] = []
 
 
 class BackupServer(BaseModel):

@@ -78,11 +78,12 @@ def get_vnc_info(name: str) -> dict:
 
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
-              network_bridge: str = "virbr0", autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
+              network_mode: str = "nat", autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
     Supports optional cloud-init user-data (string). If `cloud_init` is provided
     a small seed ISO will be created and attached as a CD-ROM.
+    network_mode: "nat" (virbr0), "bridge" (br0), or "none" (no network)
     """
     if shutil.which("virt-install") is None:
         raise Exception("virt-install not installed")
@@ -134,6 +135,22 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             # attach as CD-ROM
             disk_args.extend(["--disk", f"path={seed_iso_path},device=cdrom"])
 
+        # Configure network based on mode
+        network_args = []
+        network_bridge = "virbr0"  # default for storage
+        if network_mode == "nat":
+            network_args = ["--network", "bridge=virbr0"]
+            network_bridge = "virbr0"
+        elif network_mode == "bridge":
+            network_args = ["--network", "bridge=br0"]
+            network_bridge = "br0"
+        elif network_mode == "none":
+            network_args = ["--network", "none"]
+            network_bridge = "none"
+        else:
+            network_args = ["--network", "bridge=virbr0"]
+            network_bridge = "virbr0"
+
         cmd = [
             "virt-install",
             "--name", name,
@@ -141,7 +158,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             "--vcpus", str(cpu),
             *disk_args,
             "--os-variant", "generic",
-            "--network", f"bridge={network_bridge}",
+            *network_args,
             "--graphics", "vnc",
             "--hvm",
             "--noautoconsole",
@@ -197,7 +214,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
              iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", 
-             autostart: bool | None = None, remove_disks: List[str] | None = None) -> VirtualMachine:
+             autostart: bool | None = None, remove_disks: List[str] | None = None, network_mode: str | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
@@ -297,6 +314,17 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                             print(f"Warning: Could not delete disk file {disk_path}: {e}")
                 else:
                     print(f"Warning: Could not detach disk {disk_path}: {result.stderr}")
+    
+    # Update network mode
+    if network_mode is not None:
+        # Map network_mode to network_bridge for storage
+        if network_mode == "nat":
+            vm.network_bridge = "virbr0"
+        elif network_mode == "bridge":
+            vm.network_bridge = "br0"
+        elif network_mode == "none":
+            vm.network_bridge = "none"
+        print(f"Network mode updated to {network_mode} (bridge: {vm.network_bridge})")
     
     save_vms(vms)
     return vm

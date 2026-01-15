@@ -379,7 +379,7 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
             payload.iso,
             payload.disks,
             get_iso_dir(),
-            network_bridge=getattr(payload, "network_bridge", "virbr0"),
+            network_mode=getattr(payload, "network_mode", "nat"),
             autostart=getattr(payload, "autostart", False),
             cloud_init=getattr(payload, "cloud_init", None),
         )
@@ -399,7 +399,9 @@ def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
             payload.iso, 
             payload.add_disks, 
             get_iso_dir(),
-            autostart=getattr(payload, "autostart", None)
+            autostart=getattr(payload, "autostart", None),
+            remove_disks=getattr(payload, "remove_disks", []),
+            network_mode=getattr(payload, "network_mode", None)
         )
         return vm.dict()
     except Exception as e:
