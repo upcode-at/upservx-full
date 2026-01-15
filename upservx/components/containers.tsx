@@ -1060,7 +1060,7 @@ volumes:
               </Button>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
-              <div className="h-full w-full bg-black text-green-400 p-4 overflow-auto font-mono text-sm">
+              <div className="h-full w-full bg-black text-white p-4 overflow-auto font-mono text-sm">
                 <pre className="whitespace-pre-wrap">{logs}</pre>
               </div>
             </CardContent>
