@@ -117,7 +117,6 @@ export function VirtualMachines() {
         const res = await fetch(apiUrl("/network/interfaces"))
         if (res.ok) {
           const data = await res.json()
-          console.log("Network interfaces loaded:", data)
           // Filter physical interfaces (exclude lo, docker, virbr, veth, etc.)
           const physical = data
             .filter((iface: { name: string }) => 
@@ -128,12 +127,11 @@ export function VirtualMachines() {
               !iface.name.startsWith('lxc')
             )
             .map((iface: { name: string }) => iface.name)
-          console.log("Filtered physical interfaces:", physical)
           setNetworkInterfaces(physical)
           if (physical.length > 0) setBridgeInterface(physical[0])
         }
       } catch (e) {
-        console.error("Error loading interfaces:", e)
+        console.error(e)
       }
     }
     loadInterfaces()
@@ -149,7 +147,7 @@ export function VirtualMachines() {
       : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
-    const vmName = name
+    const vmName = editing ? editing.name : name
     try {
       const res = await fetch(apiUrl(target), {
         method,
@@ -157,11 +155,11 @@ export function VirtualMachines() {
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        const vm = await res.json()
-        if (editing) {
-          setVms(prev => prev.map(v => v.name === editing.name ? vm : v))
-        } else {
-          setVms(prev => [...prev, vm])
+        // Reload VM list to get fresh data
+        const refreshRes = await fetch(apiUrl("/vms"))
+        if (refreshRes.ok) {
+          const allVms = await refreshRes.json()
+          setVms(allVms)
         }
         setOpen(false)
         setEditing(null)

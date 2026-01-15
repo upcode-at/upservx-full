@@ -229,29 +229,32 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if not vm:
         raise Exception("vm not found")
     
-    print(f"Updating VM {name}: cpu={cpu}, memory={memory}, autostart={autostart}, add_disks={add_disks}, remove_disks={remove_disks}")
-    
     # Check if VM is running
     statuses = parse_virsh_list()
     is_running = statuses.get(name) == "running"
-    print(f"VM {name} is_running: {is_running}")
     
     if cpu is not None and cpu != vm.cpu:
-        print(f"Updating CPU from {vm.cpu} to {cpu}")
-        # Set maximum vcpus first
-        result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"Warning: setvcpus maximum failed: {result.stderr}")
-        # Set current vcpus
-        result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise Exception(f"Failed to set CPU: {result.stderr.strip()}")
-        # If running, also update live
-        if is_running:
-            result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--live"], capture_output=True, text=True)
+            # Set maximum vcpus first (config for next boot)
+            result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
             if result.returncode != 0:
-                print(f"Warning: live CPU update failed: {result.stderr}")
-        vm.cpu = cpu
+                print(f"Warning: setvcpus maximum config failed: {result.stderr}")
+            
+            # Set current vcpus (config for next boot)
+            result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"Failed to set CPU config: {result.stderr.strip()}")
+            
+            # If running, also update live (maximum first, then current)
+            if is_running:
+                # First set live maximum
+                result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--live"], capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"Warning: live CPU maximum update failed: {result.stderr}")
+                # Then set live current
+                result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--live"], capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"Warning: live CPU update failed: {result.stderr}")
+            vm.cpu = cpu
     
     if memory is not None and memory != vm.memory:
         # Memory in MB, virsh expects KiB
@@ -314,7 +317,6 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                     if os.path.exists(disk_path) and disk_path.endswith('.qcow2'):
                         try:
                             os.remove(disk_path)
-                            print(f"Removed disk: {disk_path}")
                         except Exception as e:
                             print(f"Warning: Could not delete disk file {disk_path}: {e}")
                 else:
@@ -332,7 +334,6 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 raise Exception("bridge_interface required for bridge mode")
         elif network_mode == "none":
             vm.network_bridge = "none"
-        print(f"Network mode updated to {network_mode} (bridge: {vm.network_bridge})")
     
     save_vms(vms)
     return vm
