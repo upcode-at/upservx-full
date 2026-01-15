@@ -196,7 +196,8 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
-             iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", autostart: bool | None = None) -> VirtualMachine:
+             iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", 
+             autostart: bool | None = None, remove_disks: List[str] | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
@@ -206,7 +207,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if not vm:
         raise Exception("vm not found")
     
-    print(f"Updating VM {name}: cpu={cpu}, memory={memory}, autostart={autostart}, add_disks={add_disks}")
+    print(f"Updating VM {name}: cpu={cpu}, memory={memory}, autostart={autostart}, add_disks={add_disks}, remove_disks={remove_disks}")
     
     # Check if VM is running
     statuses = parse_virsh_list()
@@ -277,6 +278,25 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 # Attach disk to VM
                 subprocess.run(["virsh", "attach-disk", name, disk_path, "--driver", "qemu", "--subdriver", "qcow2", "--targetbus", "virtio", "--persistent"], capture_output=True)
                 vm.disks.append(disk_path)
+    
+    # Remove disks
+    if remove_disks:
+        for disk_path in remove_disks:
+            if disk_path in vm.disks:
+                # Detach disk from VM
+                result = subprocess.run(["virsh", "detach-disk", name, disk_path, "--persistent"], capture_output=True, text=True)
+                if result.returncode == 0:
+                    # Remove from VM's disk list
+                    vm.disks.remove(disk_path)
+                    # Delete the disk file
+                    if os.path.exists(disk_path) and disk_path.endswith('.qcow2'):
+                        try:
+                            os.remove(disk_path)
+                            print(f"Removed disk: {disk_path}")
+                        except Exception as e:
+                            print(f"Warning: Could not delete disk file {disk_path}: {e}")
+                else:
+                    print(f"Warning: Could not detach disk {disk_path}: {result.stderr}")
     
     save_vms(vms)
     return vm

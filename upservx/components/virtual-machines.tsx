@@ -56,6 +56,7 @@ export function VirtualMachines() {
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleVm, setConsoleVm] = useState<string | null>(null)
   const [vncUrl, setVncUrl] = useState<string | null>(null)
+  const [disksToRemove, setDisksToRemove] = useState<string[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -113,7 +114,7 @@ export function VirtualMachines() {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove }
       : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
@@ -214,6 +215,7 @@ export function VirtualMachines() {
     setIso(vm.iso)
     // Start with empty array - only new disks to be added
     setDisks([])
+    setDisksToRemove([])
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setOpen(true)
@@ -315,16 +317,26 @@ export function VirtualMachines() {
                   </div>
                 </TabsContent>
                 <TabsContent value="storage" className="space-y-4">
-                  <Label>Disks (GB)</Label>
                   {editing && editing.disks && editing.disks.length > 0 && (
-                    <div className="mb-4 p-3 bg-muted rounded-md">
-                      <p className="text-sm font-medium mb-2">Existing Disks:</p>
-                      {editing.disks.map((disk, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">• Disk {idx + 1}: {disk.split('/').pop()}</span>
+                    <div className="space-y-2">
+                      <Label>Existing Disks</Label>
+                      {editing.disks.filter(disk => !disksToRemove.includes(disk)).map((disk) => (
+                        <div key={disk} className="flex space-x-2 items-center">
+                          <Input 
+                            type="text" 
+                            value={disk.split('/').pop() || disk} 
+                            disabled 
+                            className="flex-1"
+                          />
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            onClick={() => setDisksToRemove([...disksToRemove, disk])}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       ))}
-                      <p className="text-xs text-muted-foreground mt-2">Note: Disk removal must be done manually via CLI</p>
                     </div>
                   )}
                   {!editing && <Label>Disks (GB)</Label>}
