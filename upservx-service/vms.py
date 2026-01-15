@@ -7,12 +7,62 @@ import json
 import subprocess
 import shutil
 import tempfile
+import pwd
+import grp
 from typing import List
 from datetime import datetime
 from models import VirtualMachine
 
 
 VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
+
+
+def set_libvirt_permissions(path: str) -> None:
+    """Set ownership and permissions for libvirt-qemu user."""
+    try:
+        # Get libvirt-qemu user and group IDs
+        uid = pwd.getpwnam("libvirt-qemu").pw_uid
+        gid = grp.getgrnam("libvirt-qemu").gr_gid
+        
+        # Set ownership
+        os.chown(path, uid, gid)
+        
+        # Set permissions: 755 for directories, 644 for files
+        if os.path.isdir(path):
+            os.chmod(path, 0o755)
+        else:
+            os.chmod(path, 0o644)
+    except (KeyError, PermissionError) as e:
+        print(f"Warning: Could not set libvirt permissions on {path}: {e}")
+
+
+def ensure_parent_permissions(path: str) -> None:
+    """Ensure all parent directories are accessible (executable) for libvirt-qemu."""
+    try:
+        # Get libvirt-qemu group ID
+        gid = grp.getgrnam("libvirt-qemu").gr_gid
+        
+        # Walk up the directory tree and ensure execute permission for group
+        current = os.path.dirname(path)
+        while current and current != "/":
+            try:
+                stat_info = os.stat(current)
+                # Add execute permission for group if not already set (o+rx for group access)
+                current_mode = stat_info.st_mode
+                # Ensure at least o+rx (others can read and execute) so libvirt-qemu can traverse
+                new_mode = current_mode | 0o755
+                if current_mode != new_mode:
+                    os.chmod(current, new_mode)
+            except (PermissionError, OSError) as e:
+                print(f"Warning: Could not set permissions on parent directory {current}: {e}")
+                break
+            
+            parent = os.path.dirname(current)
+            if parent == current:  # Reached root
+                break
+            current = parent
+    except (KeyError, PermissionError) as e:
+        print(f"Warning: Could not ensure parent permissions for {path}: {e}")
 
 
 def load_vms() -> List[VirtualMachine]:
@@ -78,13 +128,16 @@ def get_vnc_info(name: str) -> dict:
 
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
-              network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
+              network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False, 
+              cloud_init: str | None = None, storage_path: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
     Supports optional cloud-init user-data (string). If `cloud_init` is provided
     a small seed ISO will be created and attached as a CD-ROM.
     network_mode: "nat" (virbr0), "bridge" (direct to physical), or "none" (no network)
     bridge_interface: physical interface name for bridge mode (e.g. "wlp3s0", "enp0s31f6")
+    storage_path: optional path to mounted drive for VM disks (e.g., /mnt/ssd1)
+                  VM disks will be stored in {storage_path}/vms/{vm_name}/
     """
     if shutil.which("virt-install") is None:
         raise Exception("virt-install not installed")
@@ -96,14 +149,37 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
     if shutil.which("qemu-img") is None:
         raise Exception("qemu-img not installed")
 
+    # Determine base directory for VM disks
+    if storage_path and os.path.isdir(storage_path):
+        # Use custom storage path with vms subdirectory
+        vms_root = os.path.join(storage_path, "vms")
+        base_dir = os.path.join(vms_root, name)
+        
+        # Ensure parent directories are accessible for libvirt-qemu
+        ensure_parent_permissions(vms_root)
+        
+        # Create vms root directory if it doesn't exist
+        if not os.path.exists(vms_root):
+            os.makedirs(vms_root, exist_ok=True)
+            set_libvirt_permissions(vms_root)
+        
+        # Create VM directory
+        os.makedirs(base_dir, exist_ok=True)
+        set_libvirt_permissions(base_dir)
+    else:
+        # Use default libvirt images directory
+        base_dir = "/var/lib/libvirt/images"
+
     disk_args = []
     disk_paths = []
     for idx, size in enumerate(disks or [20], start=1):
-        disk_path = f"/var/lib/libvirt/images/{name}_{idx}.qcow2"
+        disk_path = os.path.join(base_dir, f"{name}_{idx}.qcow2")
         disk_paths.append(disk_path)
         r = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
         if r.returncode != 0:
             raise Exception(r.stderr.strip() or "failed to create disk")
+        # Set correct permissions for libvirt-qemu
+        set_libvirt_permissions(disk_path)
         disk_args.extend(["--disk", f"path={disk_path},size={size}"])
 
     seed_iso_path = None
@@ -120,7 +196,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             with open(meta_data_path, "w") as f:
                 f.write(f"instance-id: {name}\nlocal-hostname: {name}\n")
 
-            seed_iso_path = f"/var/lib/libvirt/images/{name}_seed.iso"
+            seed_iso_path = os.path.join(base_dir, f"{name}_seed.iso")
             # prefer cloud-localds if available
             if shutil.which("cloud-localds"):
                 r = subprocess.run(["cloud-localds", seed_iso_path, user_data_path, meta_data_path], capture_output=True, text=True)
@@ -132,6 +208,9 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 
             if r.returncode != 0:
                 raise Exception(r.stderr.strip() or "failed to create cloud-init iso")
+
+            # Set correct permissions for libvirt-qemu
+            set_libvirt_permissions(seed_iso_path)
 
             # attach as CD-ROM
             disk_args.extend(["--disk", f"path={seed_iso_path},device=cdrom"])
@@ -203,6 +282,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             autostart=autostart,
             network_bridge=network_bridge,
             cloud_init_iso=seed_iso_path,
+            storage_path=storage_path,
         )
         vms.append(vm)
         save_vms(vms)
@@ -219,8 +299,13 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
              iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", 
              autostart: bool | None = None, remove_disks: List[str] | None = None, 
-             network_mode: str | None = None, bridge_interface: str | None = None) -> VirtualMachine:
-    """Update an existing virtual machine configuration."""
+             network_mode: str | None = None, bridge_interface: str | None = None,
+             storage_path: str | None = None) -> VirtualMachine:
+    """Update an existing virtual machine configuration.
+    
+    storage_path: optional path to mounted drive for new VM disks (e.g., /mnt/ssd1)
+                  New disks will be stored in {storage_path}/vms/{vm_name}/
+    """
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
     
@@ -294,12 +379,52 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         vm.iso = iso
     
     if add_disks:
+        # Determine base directory for new VM disks
+        # Use provided storage_path, or fall back to VM's existing storage_path, or use default
+        if storage_path and os.path.isdir(storage_path):
+            vms_root = os.path.join(storage_path, "vms")
+            base_dir = os.path.join(vms_root, name)
+            
+            # Ensure parent directories are accessible for libvirt-qemu
+            ensure_parent_permissions(vms_root)
+            
+            # Create vms root directory if it doesn't exist
+            if not os.path.exists(vms_root):
+                os.makedirs(vms_root, exist_ok=True)
+                set_libvirt_permissions(vms_root)
+            
+            # Create VM directory
+            os.makedirs(base_dir, exist_ok=True)
+            set_libvirt_permissions(base_dir)
+            # Update VM's storage_path
+            vm.storage_path = storage_path
+        elif vm.storage_path and os.path.isdir(vm.storage_path):
+            vms_root = os.path.join(vm.storage_path, "vms")
+            base_dir = os.path.join(vms_root, name)
+            
+            # Ensure parent directories are accessible for libvirt-qemu
+            ensure_parent_permissions(vms_root)
+            
+            # Create vms root directory if it doesn't exist
+            if not os.path.exists(vms_root):
+                os.makedirs(vms_root, exist_ok=True)
+                set_libvirt_permissions(vms_root)
+            
+            # Create VM directory
+            os.makedirs(base_dir, exist_ok=True)
+            set_libvirt_permissions(base_dir)
+        else:
+            base_dir = "/var/lib/libvirt/images"
+        
         # Filter out 0 or invalid disk sizes
         valid_disks = [size for size in add_disks if size and size > 0]
         for size in valid_disks:
-            disk_path = f"/var/lib/libvirt/images/{name}_{len(vm.disks) + 1}.qcow2"
+            disk_path = os.path.join(base_dir, f"{name}_{len(vm.disks) + 1}.qcow2")
             result = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
             if result.returncode == 0:
+                # Set correct permissions for libvirt-qemu
+                set_libvirt_permissions(disk_path)
+                
                 # Determine next available virtio device (vda is primary, use vdb, vdc, etc.)
                 # Count existing disks to determine target device
                 target_idx = len(vm.disks) + 1  # +1 because vda is disk 1

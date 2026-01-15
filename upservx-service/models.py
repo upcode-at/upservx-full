@@ -211,6 +211,7 @@ class VirtualMachine(BaseModel):
     network_bridge: str | None = None
     graphics: str | None = None
     cloud_init_iso: str | None = None
+    storage_path: str | None = None
 
 
 class VirtualMachineCreate(BaseModel):
@@ -223,6 +224,7 @@ class VirtualMachineCreate(BaseModel):
     bridge_interface: str | None = None  # physical interface for bridge mode
     autostart: bool = False
     cloud_init: str | None = None
+    storage_path: str | None = None  # path to mounted drive for VM disks (e.g., /mnt/ssd1)
 
 
 class VirtualMachineUpdate(BaseModel):
@@ -234,6 +236,7 @@ class VirtualMachineUpdate(BaseModel):
     network_mode: Optional[str] = None
     bridge_interface: Optional[str] = None
     remove_disks: List[str] = []
+    storage_path: Optional[str] = None  # path to mounted drive for new VM disks
 
 
 class BackupServer(BaseModel):

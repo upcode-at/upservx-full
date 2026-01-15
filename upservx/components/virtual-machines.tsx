@@ -37,6 +37,8 @@ export function VirtualMachines() {
 
   const [vms, setVms] = useState<VMData[]>([])
   const [isos, setIsos] = useState<string[]>([])
+  const [drives, setDrives] = useState<Array<{device: string, mountpoint: string, mounted: boolean, name: string}>>([])
+  const [storagePath, setStoragePath] = useState<string>("")
   const [name, setName] = useState("")
   const [cpu, setCpu] = useState(1)
   const [memory, setMemory] = useState(2048)
@@ -112,6 +114,25 @@ export function VirtualMachines() {
   }, [])
 
   useEffect(() => {
+    const loadDrives = async () => {
+      try {
+        const res = await fetch(apiUrl("/drives"))
+        if (res.ok) {
+          const data = await res.json()
+          // Filter only mounted drives
+          const mountedDrives = (data.drives || []).filter((d: { mounted: boolean, mountpoint: string }) => 
+            d.mounted && d.mountpoint && d.mountpoint !== "/"
+          )
+          setDrives(mountedDrives)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    loadDrives()
+  }, [])
+
+  useEffect(() => {
     const loadInterfaces = async () => {
       try {
         const res = await fetch(apiUrl("/network/interfaces"))
@@ -143,8 +164,8 @@ export function VirtualMachines() {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = editing ? editing.name : name
@@ -246,6 +267,7 @@ export function VirtualMachines() {
     setDisksToRemove([])
     setAutostart(!!vm.autostart)
     setCloudInit("")
+    setStoragePath("")
     // Determine network mode from network_bridge
     const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : "bridge"
     setNetworkMode(mode)
@@ -271,7 +293,7 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setStoragePath(""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -382,6 +404,27 @@ export function VirtualMachines() {
                   </div>
                 </TabsContent>
                 <TabsContent value="storage" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vm-storage-path">Storage Location</Label>
+                    <Select value={storagePath || "default"} onValueChange={(val) => setStoragePath(val === "default" ? "" : val)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Default (/var/lib/libvirt/images)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default (/var/lib/libvirt/images)</SelectItem>
+                        {drives.map(drive => (
+                          <SelectItem key={drive.device} value={drive.mountpoint}>
+                            {drive.name} - {drive.mountpoint}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {storagePath 
+                        ? `VM disks will be stored in ${storagePath}/vms/${name || editing?.name || '[vm-name]'}/` 
+                        : "VM disks will be stored in /var/lib/libvirt/images/"}
+                    </p>
+                  </div>
                   {editing && editing.disks && editing.disks.length > 0 && (
                     <div className="space-y-2">
                       <Label>Existing Disks</Label>

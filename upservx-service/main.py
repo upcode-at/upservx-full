@@ -383,6 +383,7 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
             bridge_interface=getattr(payload, "bridge_interface", None),
             autostart=getattr(payload, "autostart", False),
             cloud_init=getattr(payload, "cloud_init", None),
+            storage_path=getattr(payload, "storage_path", None),
         )
         return vm.dict()
     except Exception as e:
@@ -403,7 +404,8 @@ def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
             autostart=getattr(payload, "autostart", None),
             remove_disks=getattr(payload, "remove_disks", []),
             network_mode=getattr(payload, "network_mode", None),
-            bridge_interface=getattr(payload, "bridge_interface", None)
+            bridge_interface=getattr(payload, "bridge_interface", None),
+            storage_path=getattr(payload, "storage_path", None),
         )
         return vm.dict()
     except Exception as e:
