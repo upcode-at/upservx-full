@@ -148,7 +148,14 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
         ]
 
         if iso_path:
-            cmd.extend(["--cdrom", iso_path])
+            # Attach ISO as persistent CDROM and set boot order
+            cmd.extend([
+                "--disk", f"path={iso_path},device=cdrom,readonly=on",
+                "--boot", "cdrom,hd"
+            ])
+        else:
+            # No ISO, boot from HD
+            cmd.extend(["--boot", "hd"])
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -189,7 +196,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
-             iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "") -> VirtualMachine:
+             iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", autostart: bool | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
@@ -199,13 +206,50 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if not vm:
         raise Exception("vm not found")
     
-    if cpu is not None:
-        subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True)
+    # Check if VM is running
+    statuses = parse_virsh_list()
+    is_running = statuses.get(name) == "running"
+    
+    if cpu is not None and cpu != vm.cpu:
+        # Set maximum vcpus first
+        result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Warning: setvcpus maximum failed: {result.stderr}")
+        # Set current vcpus
+        result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(f"Failed to set CPU: {result.stderr.strip()}")
+        # If running, also update live
+        if is_running:
+            result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--live"], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Warning: live CPU update failed: {result.stderr}")
         vm.cpu = cpu
     
-    if memory is not None:
-        subprocess.run(["virsh", "setmem", name, str(memory * 1024), "--config"], capture_output=True)
+    if memory is not None and memory != vm.memory:
+        # Memory in MB, virsh expects KiB
+        memory_kib = memory * 1024
+        # Set maximum memory
+        result = subprocess.run(["virsh", "setmaxmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Warning: setmaxmem failed: {result.stderr}")
+        # Set current memory  
+        result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(f"Failed to set memory: {result.stderr.strip()}")
+        # If running, also update live
+        if is_running:
+            result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--live"], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Warning: live memory update failed: {result.stderr}")
         vm.memory = memory
+    
+    if autostart is not None:
+        if autostart:
+            subprocess.run(["virsh", "autostart", name], capture_output=True)
+        else:
+            subprocess.run(["virsh", "autostart", name, "--disable"], capture_output=True)
+        vm.autostart = autostart
     
     if iso is not None:
         iso_path = os.path.join(iso_dir, iso)
@@ -258,13 +302,39 @@ def delete_vm(name: str) -> None:
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
     
+    # Get VM info to delete only VM-specific disks
+    vms = load_vms()
+    vm = next((v for v in vms if v.name == name), None)
+    
+    # Stop VM if running
     subprocess.run(["virsh", "destroy", name], capture_output=True)
-    result = subprocess.run(["virsh", "undefine", name, "--remove-all-storage"], capture_output=True, text=True)
+    
+    # Undefine VM without removing storage (we'll do it selectively)
+    result = subprocess.run(["virsh", "undefine", name, "--nvram"], capture_output=True, text=True)
     if result.returncode != 0:
-        raise Exception(result.stderr.strip() or "failed to delete")
+        # Try without --nvram if it fails
+        result = subprocess.run(["virsh", "undefine", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr.strip() or "failed to delete")
+    
+    # Delete only VM-specific disk files (qcow2 images, not ISOs)
+    if vm and vm.disks:
+        for disk in vm.disks:
+            if os.path.exists(disk) and disk.endswith('.qcow2'):
+                try:
+                    os.remove(disk)
+                except Exception as e:
+                    print(f"Warning: Could not delete disk {disk}: {e}")
+    
+    # Delete cloud-init ISO if exists
+    if vm and vm.cloud_init_iso and os.path.exists(vm.cloud_init_iso):
+        try:
+            os.remove(vm.cloud_init_iso)
+        except Exception as e:
+            print(f"Warning: Could not delete cloud-init ISO: {e}")
     
     # Remove from our storage
-    vms = [vm for vm in load_vms() if vm.name != name]
+    vms = [v for v in load_vms() if v.name != name]
     save_vms(vms)
 
 

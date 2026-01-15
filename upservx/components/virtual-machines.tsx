@@ -212,7 +212,12 @@ export function VirtualMachines() {
     setCpu(vm.cpu)
     setMemory(vm.memory)
     setIso(vm.iso)
-    setDisks([])
+    // Parse disk sizes from disk paths (for display only, can't edit existing disks)
+    const diskSizes = vm.disks?.map(disk => {
+      // Extract size from path or default to 0 (existing disks)
+      return 0
+    }) || []
+    setDisks(diskSizes)
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setOpen(true)
@@ -315,6 +320,17 @@ export function VirtualMachines() {
                 </TabsContent>
                 <TabsContent value="storage" className="space-y-4">
                   <Label>Disks (GB)</Label>
+                  {editing && editing.disks && editing.disks.length > 0 && (
+                    <div className="mb-4 p-3 bg-muted rounded-md">
+                      <p className="text-sm font-medium mb-2">Existing Disks:</p>
+                      {editing.disks.map((disk, idx) => (
+                        <div key={idx} className="text-sm text-muted-foreground">
+                          • Disk {idx + 1}: {disk}
+                        </div>
+                      ))}
+                      <p className="text-xs text-muted-foreground mt-2">Add new disks below:</p>
+                    </div>
+                  )}
                   {disks.map((d, idx) => (
                     <div key={idx} className="flex space-x-2 items-center">
                       <Input type="number" value={d} onChange={e => { const arr = [...disks]; arr[idx] = parseInt(e.target.value); setDisks(arr) }} />

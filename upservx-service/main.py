@@ -392,7 +392,15 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
 def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
     """Update virtual machine configuration."""
     try:
-        vm = update_vm(name, payload.cpu, payload.memory, payload.iso, payload.add_disks, get_iso_dir())
+        vm = update_vm(
+            name, 
+            payload.cpu, 
+            payload.memory, 
+            payload.iso, 
+            payload.add_disks, 
+            get_iso_dir(),
+            autostart=getattr(payload, "autostart", None)
+        )
         return vm.dict()
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
