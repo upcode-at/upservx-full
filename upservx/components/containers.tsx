@@ -1049,7 +1049,7 @@ volumes:
 
       {logsOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-5xl h-[80vh] flex flex-col">
+          <Card className="w-[98vw] !max-w-[98vw] h-[98vh] flex flex-col" style={{ maxWidth: '98vw', width: '98vw' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b">
               <div>
                 <CardTitle className="text-sm font-medium">Container Logs: {logsContainer}</CardTitle>
