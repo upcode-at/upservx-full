@@ -300,9 +300,26 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
             disk_path = f"/var/lib/libvirt/images/{name}_{len(vm.disks) + 1}.qcow2"
             result = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
             if result.returncode == 0:
-                # Attach disk to VM
-                subprocess.run(["virsh", "attach-disk", name, disk_path, "--driver", "qemu", "--subdriver", "qcow2", "--targetbus", "virtio", "--persistent"], capture_output=True)
-                vm.disks.append(disk_path)
+                # Determine next available virtio device (vda is primary, use vdb, vdc, etc.)
+                # Count existing disks to determine target device
+                target_idx = len(vm.disks) + 1  # +1 because vda is disk 1
+                target_device = f"vd{chr(ord('a') + target_idx)}"  # vdb, vdc, vdd, etc.
+                
+                # Attach disk to VM with explicit target device
+                result = subprocess.run(["virsh", "attach-disk", name, disk_path, target_device, 
+                                       "--driver", "qemu", "--subdriver", "qcow2", 
+                                       "--targetbus", "virtio", "--persistent"], 
+                                      capture_output=True, text=True)
+                if result.returncode == 0:
+                    vm.disks.append(disk_path)
+                else:
+                    print(f"Warning: Could not attach disk {disk_path}: {result.stderr}")
+                    # Clean up created disk file if attach failed
+                    if os.path.exists(disk_path):
+                        try:
+                            os.remove(disk_path)
+                        except Exception:
+                            pass
     
     # Remove disks
     if remove_disks:
