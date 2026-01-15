@@ -187,6 +187,9 @@ export function VirtualMachines() {
     setOpen(true)
   }
 
+  const statusClass = (status: string) =>
+    status === "running" ? "bg-green-600 text-white" : status === "stopped" ? "bg-red-600 text-white" : "bg-gray-600 text-white"
+
   return (
     <div className="space-y-6">
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
@@ -308,7 +311,9 @@ export function VirtualMachines() {
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="flex items-center gap-2">
                   {vm.name}
-                  <Badge className={vm.status.includes("running") ? "bg-green-600 text-white" : "bg-red-600 text-white"}>{vm.status}</Badge>
+                  <Badge className={statusClass(vm.status)}>
+                    {vm.status === "running" ? "Running" : vm.status === "stopped" ? "Stopped" : vm.status}
+                  </Badge>
                 </CardTitle>
                 <CardDescription>{vm.iso}</CardDescription>
               </CardHeader>
@@ -329,7 +334,7 @@ export function VirtualMachines() {
                 </div>
               </CardContent>
               <div className="p-3 pt-0 mt-auto flex justify-end space-x-2">
-                {vm.status.includes("running") ? (
+                {vm.status === "running" ? (
                   <Button variant="destructive" size="icon" onClick={() => handleStop(vm.name)}>
                     <Square className="h-4 w-4" />
                   </Button>
@@ -374,14 +379,18 @@ export function VirtualMachines() {
                   vms.map((vm) => (
                     <TableRow key={vm.id}>
                       <TableCell className="py-2">{vm.name}</TableCell>
-                      <TableCell>{vm.status}</TableCell>
+                      <TableCell>
+                        <Badge className={statusClass(vm.status)}>
+                          {vm.status === "running" ? "Running" : vm.status === "stopped" ? "Stopped" : vm.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-sm">{vm.iso}</TableCell>
                       <TableCell>{vm.cpu}</TableCell>
                       <TableCell>{vm.memory}</TableCell>
                       <TableCell className="text-sm">{vm.created}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {vm.status.includes("running") ? (
+                          {vm.status === "running" ? (
                             <Button variant="destructive" size="icon" onClick={() => handleStop(vm.name)}>
                               <Square className="h-4 w-4" />
                             </Button>

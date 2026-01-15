@@ -44,7 +44,15 @@ def parse_virsh_list() -> dict[str, str]:
     for line in result.stdout.splitlines()[2:]:
         parts = line.split()
         if len(parts) >= 3:
-            statuses[parts[1]] = parts[2]
+            # Normalize status to English
+            status = " ".join(parts[2:])
+            if status in ["laufend", "läuft", "running"]:
+                status = "running"
+            elif status in ["ausgeschaltet", "shut off", "shut", "off"]:
+                status = "stopped"
+            elif status == "pausiert":
+                status = "paused"
+            statuses[parts[1]] = status
     return statuses
 
 
