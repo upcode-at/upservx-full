@@ -459,16 +459,16 @@ export function VirtualMachines() {
 
       {/* VNC Console Dialog */}
       <Dialog open={consoleOpen} onOpenChange={setConsoleOpen}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] w-full h-full">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle>Console - {consoleVm}</DialogTitle>
             <DialogDescription>Virtual Machine Console (VNC)</DialogDescription>
           </DialogHeader>
-          <div className="w-full h-[calc(90vh-120px)]">
+          <div className="w-full h-[calc(95vh-100px)] px-6 pb-6">
             {vncUrl && (
               <iframe
                 src={vncUrl}
-                className="w-full h-full border-0"
+                className="w-full h-full border-0 rounded"
                 title={`Console for ${consoleVm}`}
               />
             )}
