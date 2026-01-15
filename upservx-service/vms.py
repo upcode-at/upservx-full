@@ -78,12 +78,13 @@ def get_vnc_info(name: str) -> dict:
 
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
-              network_mode: str = "nat", autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
+              network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
     Supports optional cloud-init user-data (string). If `cloud_init` is provided
     a small seed ISO will be created and attached as a CD-ROM.
-    network_mode: "nat" (virbr0), "bridge" (br0), or "none" (no network)
+    network_mode: "nat" (virbr0), "bridge" (direct to physical), or "none" (no network)
+    bridge_interface: physical interface name for bridge mode (e.g. "wlp3s0", "enp0s31f6")
     """
     if shutil.which("virt-install") is None:
         raise Exception("virt-install not installed")
@@ -139,16 +140,19 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
         network_args = []
         network_bridge = "virbr0"  # default for storage
         if network_mode == "nat":
-            network_args = ["--network", "bridge=virbr0"]
+            network_args = ["--network", "network=default"]
             network_bridge = "virbr0"
         elif network_mode == "bridge":
-            network_args = ["--network", "bridge=br0"]
-            network_bridge = "br0"
+            # Use macvtap for direct connection to physical interface
+            if not bridge_interface:
+                raise Exception("bridge_interface required for bridge mode")
+            network_args = ["--network", f"type=direct,source={bridge_interface},source_mode=bridge"]
+            network_bridge = bridge_interface
         elif network_mode == "none":
             network_args = ["--network", "none"]
             network_bridge = "none"
         else:
-            network_args = ["--network", "bridge=virbr0"]
+            network_args = ["--network", "network=default"]
             network_bridge = "virbr0"
 
         cmd = [
@@ -214,7 +218,8 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
              iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", 
-             autostart: bool | None = None, remove_disks: List[str] | None = None, network_mode: str | None = None) -> VirtualMachine:
+             autostart: bool | None = None, remove_disks: List[str] | None = None, 
+             network_mode: str | None = None, bridge_interface: str | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
@@ -321,7 +326,10 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         if network_mode == "nat":
             vm.network_bridge = "virbr0"
         elif network_mode == "bridge":
-            vm.network_bridge = "br0"
+            if bridge_interface:
+                vm.network_bridge = bridge_interface
+            else:
+                raise Exception("bridge_interface required for bridge mode")
         elif network_mode == "none":
             vm.network_bridge = "none"
         print(f"Network mode updated to {network_mode} (bridge: {vm.network_bridge})")

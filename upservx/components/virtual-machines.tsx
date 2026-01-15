@@ -49,6 +49,8 @@ export function VirtualMachines() {
   const [autostart, setAutostart] = useState(false)
   const [cloudInit, setCloudInit] = useState("")
   const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none">("nat")
+  const [bridgeInterface, setBridgeInterface] = useState<string>("")
+  const [networkInterfaces, setNetworkInterfaces] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("list")
@@ -109,14 +111,42 @@ export function VirtualMachines() {
     loadIsos()
   }, [])
 
+  useEffect(() => {
+    const loadInterfaces = async () => {
+      try {
+        const res = await fetch(apiUrl("/network/interfaces"))
+        if (res.ok) {
+          const data = await res.json()
+          console.log("Network interfaces loaded:", data)
+          // Filter physical interfaces (exclude lo, docker, virbr, veth, etc.)
+          const physical = data
+            .filter((iface: any) => 
+              !iface.name.startsWith('lo') && 
+              !iface.name.startsWith('docker') && 
+              !iface.name.startsWith('virbr') && 
+              !iface.name.startsWith('veth') &&
+              !iface.name.startsWith('lxc')
+            )
+            .map((iface: any) => iface.name)
+          console.log("Filtered physical interfaces:", physical)
+          setNetworkInterfaces(physical)
+          if (physical.length > 0) setBridgeInterface(physical[0])
+        }
+      } catch (e) {
+        console.error("Error loading interfaces:", e)
+      }
+    }
+    loadInterfaces()
+  }, [])
+
 
 
   const handleSave = async () => {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = name
@@ -222,6 +252,9 @@ export function VirtualMachines() {
     // Determine network mode from network_bridge
     const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : "bridge"
     setNetworkMode(mode)
+    if (mode === "bridge" && vm.network_bridge) {
+      setBridgeInterface(vm.network_bridge)
+    }
     setOpen(true)
   }
 
@@ -241,7 +274,7 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -289,10 +322,25 @@ export function VirtualMachines() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="nat">NAT (virbr0)</SelectItem>
-                        <SelectItem value="bridge">Bridge (br0)</SelectItem>
+                        <SelectItem value="bridge">Bridge (Direct)</SelectItem>
                         <SelectItem value="none">No Network</SelectItem>
                       </SelectContent>
                     </Select>
+                    {networkMode === "bridge" && (
+                      <div className="mt-2">
+                        <Label htmlFor="bridge-interface">Network Interface</Label>
+                        <Select value={bridgeInterface} onValueChange={setBridgeInterface}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select interface" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {networkInterfaces.map(iface => (
+                              <SelectItem key={iface} value={iface}>{iface}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       NAT: Internet access via host NAT | Bridge: Direct network access | None: No network
                     </p>

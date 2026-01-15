@@ -220,6 +220,7 @@ class VirtualMachineCreate(BaseModel):
     iso: str
     disks: List[int] = []
     network_mode: str = "nat"  # "nat", "bridge", "none"
+    bridge_interface: str | None = None  # physical interface for bridge mode
     autostart: bool = False
     cloud_init: str | None = None
 
@@ -231,6 +232,7 @@ class VirtualMachineUpdate(BaseModel):
     add_disks: List[int] = []
     autostart: Optional[bool] = None
     network_mode: Optional[str] = None
+    bridge_interface: Optional[str] = None
     remove_disks: List[str] = []
 
 
