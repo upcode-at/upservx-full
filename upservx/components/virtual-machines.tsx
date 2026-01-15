@@ -139,7 +139,7 @@ export function VirtualMachines() {
         if (res.ok) {
           const data = await res.json()
           // Filter physical interfaces (exclude lo, docker, virbr, veth, etc.)
-          const physical = data
+          const physical = (data.interfaces || [])
             .filter((iface: { name: string }) => 
               !iface.name.startsWith('lo') && 
               !iface.name.startsWith('docker') && 
