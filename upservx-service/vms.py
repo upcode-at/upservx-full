@@ -65,6 +65,72 @@ def ensure_parent_permissions(path: str) -> None:
         print(f"Warning: Could not ensure parent permissions for {path}: {e}")
 
 
+def ensure_bridge_for_interface(interface: str) -> str:
+    """Ensure a Linux bridge exists for the given physical interface.
+    Returns the bridge name (e.g., br0).
+    Transfers IP configuration from interface to bridge.
+    """
+    bridge_name = f"br-{interface}"
+    
+    # Check if bridge already exists
+    result = subprocess.run(["ip", "link", "show", bridge_name], capture_output=True, text=True)
+    if result.returncode == 0:
+        # Bridge already exists
+        return bridge_name
+    
+    try:
+        # Get current IP configuration of physical interface
+        ip_info = subprocess.run(["ip", "addr", "show", interface], capture_output=True, text=True, check=True)
+        
+        # Extract IP addresses (both IPv4 and IPv6)
+        import re
+        ip_addresses = []
+        for line in ip_info.stdout.splitlines():
+            match = re.search(r'inet6?\s+([^\s]+)', line)
+            if match:
+                ip_addresses.append(match.group(1))
+        
+        # Get current default gateway
+        route_info = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True)
+        gateway = None
+        for line in route_info.stdout.splitlines():
+            if f"dev {interface}" in line:
+                match = re.search(r'via\s+([^\s]+)', line)
+                if match:
+                    gateway = match.group(1)
+        
+        # Create bridge
+        subprocess.run(["ip", "link", "add", "name", bridge_name, "type", "bridge"], check=True, capture_output=True)
+        
+        # Remove IP addresses from physical interface
+        for ip_addr in ip_addresses:
+            subprocess.run(["ip", "addr", "del", ip_addr, "dev", interface], capture_output=True)
+        
+        # Add physical interface to bridge (must be done before bringing bridge up)
+        subprocess.run(["ip", "link", "set", interface, "master", bridge_name], check=True, capture_output=True)
+        
+        # Bring bridge up
+        subprocess.run(["ip", "link", "set", bridge_name, "up"], check=True, capture_output=True)
+        
+        # Bring physical interface up
+        subprocess.run(["ip", "link", "set", interface, "up"], check=True, capture_output=True)
+        
+        # Assign IP addresses to bridge
+        for ip_addr in ip_addresses:
+            subprocess.run(["ip", "addr", "add", ip_addr, "dev", bridge_name], capture_output=True)
+        
+        # Restore default gateway if it existed
+        if gateway:
+            subprocess.run(["ip", "route", "add", "default", "via", gateway, "dev", bridge_name], capture_output=True)
+        
+        print(f"Created bridge {bridge_name} for interface {interface} with IP configuration transferred")
+        return bridge_name
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Could not create bridge for {interface}: {e}")
+        # Fallback to direct interface
+        return interface
+
+
 def load_vms() -> List[VirtualMachine]:
     """Load virtual machines from the JSON file."""
     if os.path.exists(VM_FILE):
@@ -222,11 +288,14 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             network_args = ["--network", "network=default"]
             network_bridge = "virbr0"
         elif network_mode == "bridge":
-            # Use macvtap for direct connection to physical interface
+            # Create/use Linux bridge for true bridged networking
             if not bridge_interface:
                 raise Exception("bridge_interface required for bridge mode")
-            network_args = ["--network", f"type=direct,source={bridge_interface},source_mode=bridge"]
-            network_bridge = bridge_interface
+            
+            # Ensure bridge exists for the interface
+            actual_bridge = ensure_bridge_for_interface(bridge_interface)
+            network_args = ["--network", f"bridge={actual_bridge}"]
+            network_bridge = actual_bridge
         elif network_mode == "none":
             network_args = ["--network", "none"]
             network_bridge = "none"
