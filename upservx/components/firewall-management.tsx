@@ -72,7 +72,7 @@ export default function FirewallManagement() {
   const getApiUrl = (path: string) => {
     if (typeof window === "undefined") return path
     const { protocol, hostname, port } = window.location
-    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":8000"
+    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":9500"
     return `${protocol}//${hostname}${apiPort}${path}`
   }
 

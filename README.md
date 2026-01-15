@@ -70,8 +70,8 @@ The installation script automatically installs all dependencies and creates the 
 
 ### Access
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
+- **Frontend**: http://localhost:9200
+- **Backend API**: http://localhost:9500
 
 ## 🏗️ Technology Stack
 

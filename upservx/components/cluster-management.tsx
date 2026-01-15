@@ -55,13 +55,13 @@ export default function ClusterManagement() {
   // Form states
   const [clusterName, setClusterName] = useState("")
   const [masterIp, setMasterIp] = useState("")
-  const [masterPort, setMasterPort] = useState("8000")
+  const [masterPort, setMasterPort] = useState("9500")
   const [joinToken, setJoinToken] = useState("")
 
   const getApiUrl = (path: string) => {
     if (typeof window === "undefined") return path
     const { protocol, hostname, port } = window.location
-    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":8000"
+    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":9500"
     return `${protocol}//${hostname}${apiPort}${path}`
   }
 
@@ -149,7 +149,7 @@ export default function ClusterManagement() {
       setSuccess("Successfully joined cluster")
       setJoinClusterOpen(false)
       setMasterIp("")
-      setMasterPort("8000")
+      setMasterPort("9500")
       setJoinToken("")
       loadClusterInfo()
     } catch (err) {
@@ -309,7 +309,7 @@ export default function ClusterManagement() {
                       <Input
                         id="master-port"
                         type="number"
-                        placeholder="8000"
+                        placeholder="9500"
                         value={masterPort}
                         onChange={(e) => setMasterPort(e.target.value)}
                       />
@@ -432,7 +432,7 @@ export default function ClusterManagement() {
                     <TableRow key={node.id}>
                       <TableCell className="font-medium">{node.hostname}</TableCell>
                       <TableCell>{node.ip_address}</TableCell>
-                      <TableCell>{node.port ?? 8000}</TableCell>
+                      <TableCell>{node.port ?? 9500}</TableCell>
                       <TableCell>{getRoleBadge(node.role)}</TableCell>
                       <TableCell>{getStatusBadge(node.status)}</TableCell>
                       <TableCell>{node.resources?.cpu_usage?.toFixed(1) ?? 0}%</TableCell>

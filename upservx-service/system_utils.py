@@ -233,12 +233,12 @@ def get_server_addresses() -> list[str]:
     """Get all IP addresses and hostnames of the server for CORS configuration.
     
     Returns a list of origins including:
-    - All network interface IPs with common ports (3000, 8000, 80, 443, 5173)
+    - All network interface IPs with common ports (9200, 9500, 80, 443, 5173)
     - Hostname with common ports
     - localhost and 127.0.0.1 for development
     """
     origins = []
-    ports = [3000, 8000, 80, 443, 5173, 3001]
+    ports = [9200, 9500, 80, 443, 5173, 3001]
     protocols = ["http", "https"]
     
     # Add localhost

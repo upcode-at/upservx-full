@@ -56,7 +56,7 @@ export function apiUrl(path: string): string {
     
     // Otherwise, direct access to backend port
     // Always use the same hostname as the frontend for consistency
-    const apiPort = ":8000"
+    const apiPort = ":9500"
     return `${protocol}//${hostname}${apiPort}${path}`
   }
   
@@ -83,9 +83,9 @@ export function wsUrl(path: string): string {
     }
     
     // Otherwise, direct access to backend port
-    return `${wsProtocol}//${hostname}:8000${path}`
+    return `${wsProtocol}//${hostname}:9500${path}`
   }
-  return `ws://localhost:8000${path}`
+  return `ws://localhost:9500${path}`
 }
 
 // Get authorization header with Basic auth

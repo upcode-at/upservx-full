@@ -102,8 +102,8 @@ class ReverseProxyManager:
         self,
         domain: str,
         backend_host: str = "127.0.0.1",
-        backend_port: int = 8000,
-        frontend_port: int = 3000,
+        backend_port: int = 9500,
+        frontend_port: int = 9200,
         ssl_enabled: bool = False,
         force_ssl: bool = False
     ) -> Dict:

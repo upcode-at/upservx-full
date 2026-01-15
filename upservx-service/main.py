@@ -74,7 +74,7 @@ app = FastAPI(
 )
 
 # Configure CORS. For development, set FRONTEND_ORIGINS env to a comma-separated
-# list (e.g. "http://localhost:3000,http://127.0.0.1:3000"). If not set, automatically
+# list (e.g. "http://localhost:9200,http://127.0.0.1:9200"). If not set, automatically
 # detect all server IP addresses, hostnames, and common dev origins.
 frontend_origins = os.getenv("FRONTEND_ORIGINS")
 if frontend_origins:
@@ -1235,4 +1235,4 @@ def revoke_certificate(domain: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9500)

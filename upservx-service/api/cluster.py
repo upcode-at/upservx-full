@@ -23,7 +23,7 @@ class ClusterCreateRequest(BaseModel):
 class ClusterJoinRequest(BaseModel):
     master_ip: str
     token: str
-    port: int = 8000
+    port: int = 9500
 
 class NodeRegistrationRequest(BaseModel):
     hostname: str
@@ -201,7 +201,7 @@ async def get_cluster_info():
             "id": get_hostname(),
             "hostname": get_hostname(),
             "ip_address": get_local_ip(),
-            "port": 8000,
+            "port": 9500,
             "status": "online",
             "role": "master",
             "resources": get_system_resources(),
@@ -216,7 +216,7 @@ async def get_cluster_info():
                 # Fetch current metrics from child node
                 resources = await fetch_node_metrics(
                     node.get("ip_address"),
-                    node.get("port", 8000),
+                    node.get("port", 9500),
                     cluster_token
                 )
                 
@@ -232,7 +232,7 @@ async def get_cluster_info():
                     "id": node.get("hostname"),
                     "hostname": node.get("hostname"),
                     "ip_address": node.get("ip_address"),
-                    "port": node.get("port", 8000),
+                    "port": node.get("port", 9500),
                     "status": "online" if is_online else "offline",
                     "role": "child",
                     "resources": resources,
@@ -249,7 +249,7 @@ async def get_cluster_info():
             "id": get_hostname(),
             "hostname": get_hostname(),
             "ip_address": get_local_ip(),
-            "port": 8000,
+            "port": 9500,
             "status": "online",
             "role": "child",
             "resources": get_system_resources(),
@@ -290,7 +290,7 @@ async def create_cluster(request: ClusterCreateRequest):
     master_node_config = {
         "hostname": get_hostname(),
         "ip_address": get_local_ip(),
-        "port": 8000,
+        "port": 9500,
         "resources": get_system_resources(),
         "last_seen": datetime.now().isoformat()
     }
@@ -316,7 +316,7 @@ async def join_cluster(request: ClusterJoinRequest):
     node_data = {
         "hostname": get_hostname(),
         "ip_address": get_local_ip(),
-        "port": 8000,
+        "port": 9500,
         "cluster_key": request.token
     }
     
