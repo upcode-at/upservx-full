@@ -49,10 +49,11 @@ from settings import (
     load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
 )
-from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm
+from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
+from vnc_proxy import ensure_proxy_running
 from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
@@ -89,6 +90,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Start VNC proxy on startup
+ensure_proxy_running()
 
 pam_auth = pam.pam()
 
@@ -410,6 +414,15 @@ def shutdown_vm_endpoint(name: str):
     try:
         shutdown_vm(name)
         return {"detail": "shutting down"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/vms/{name}/vnc")
+def get_vm_vnc_info(name: str):
+    """Get VNC connection info for a VM."""
+    try:
+        return get_vnc_info(name)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

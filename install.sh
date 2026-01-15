@@ -5,7 +5,7 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms"
+PACKAGES="python3 python3-pip python3-venv python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc"
 
 # === Colors & Spinner ========================================================
 GREEN="\e[32m"
@@ -192,6 +192,16 @@ step "Copy app store templates"
   sudo mkdir -p /opt/upservx/app-store
   sudo cp -r "$APP_DIR/app-store-templates/"* /opt/upservx/app-store/
   sudo chown -R $USER:$USER /opt/upservx/app-store
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 6.6. Install noVNC for VM console =======================================
+step "Install noVNC"
+{
+  sudo mkdir -p "$APP_DIR/upservx/public/novnc"
+  sudo cp -r /usr/share/novnc/* "$APP_DIR/upservx/public/novnc/"
+  sudo chown -R $USER:$USER "$APP_DIR/upservx/public/novnc"
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi

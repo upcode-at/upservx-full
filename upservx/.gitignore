@@ -48,3 +48,6 @@ __pycache__/
 # Backup files
 backup_key
 backup.db
+
+# noVNC (installed via installer)
+/public/novnc/

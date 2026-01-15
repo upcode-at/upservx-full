@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
@@ -53,6 +53,9 @@ export function VirtualMachines() {
   const [view, setView] = useState<"grid" | "list">("list")
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleVm, setConsoleVm] = useState<string | null>(null)
+  const [vncUrl, setVncUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -181,6 +184,25 @@ export function VirtualMachines() {
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const handleConsole = async (name: string) => {
+    try {
+      const res = await fetch(apiUrl(`/vms/${name}/vnc`))
+      if (res.ok) {
+        const data = await res.json()
+        // Use websockify proxy on port 6080 with noVNC from public/novnc/
+        const url = `/novnc/vnc.html?host=${window.location.hostname}&port=6080&path=websockify&autoconnect=true&resize=scale`
+        setVncUrl(url)
+        setConsoleVm(name)
+        setConsoleOpen(true)
+      } else {
+        setError("VM is not running or VNC not configured")
+      }
+    } catch (e) {
+      console.error(e)
+      setError("Failed to connect to console")
     }
   }
 
@@ -352,6 +374,11 @@ export function VirtualMachines() {
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
+                {vm.status === "running" && (
+                  <Button variant="outline" size="icon" onClick={() => handleConsole(vm.name)}>
+                    <Monitor className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -408,6 +435,11 @@ export function VirtualMachines() {
                               <Play className="h-4 w-4" />
                             </Button>
                           )}
+                          {vm.status === "running" && (
+                            <Button variant="outline" size="icon" onClick={() => handleConsole(vm.name)}>
+                              <Monitor className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -424,6 +456,25 @@ export function VirtualMachines() {
           </CardContent>
         </Card>
       )}
+
+      {/* VNC Console Dialog */}
+      <Dialog open={consoleOpen} onOpenChange={setConsoleOpen}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] w-full h-full">
+          <DialogHeader>
+            <DialogTitle>Console - {consoleVm}</DialogTitle>
+            <DialogDescription>Virtual Machine Console (VNC)</DialogDescription>
+          </DialogHeader>
+          <div className="w-full h-[calc(90vh-120px)]">
+            {vncUrl && (
+              <iframe
+                src={vncUrl}
+                className="w-full h-full border-0"
+                title={`Console for ${consoleVm}`}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

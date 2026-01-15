@@ -56,6 +56,27 @@ def parse_virsh_list() -> dict[str, str]:
     return statuses
 
 
+def get_vnc_info(name: str) -> dict:
+    """Get VNC connection info for a VM."""
+    if shutil.which("virsh") is None:
+        raise Exception("virsh not installed")
+    
+    result = subprocess.run(["virsh", "domdisplay", name], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception("VM not running or no display configured")
+    
+    display = result.stdout.strip()
+    if not display.startswith("vnc://"):
+        raise Exception("No VNC display configured")
+    
+    # Parse vnc://127.0.0.1:5900 format
+    parts = display.replace("vnc://", "").split(":")
+    host = parts[0]
+    port = int(parts[1]) if len(parts) > 1 else 5900
+    
+    return {"host": host, "port": port, "display": display}
+
+
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
               network_bridge: str = "virbr0", autostart: bool = False, cloud_init: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
