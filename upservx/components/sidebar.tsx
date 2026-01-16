@@ -85,12 +85,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     <div className="w-64 upservx-sidebar flex flex-col">
       <div className="p-6 border-b border-sidebar-border/30">
         <div className="flex items-center space-x-3 mb-2">
-          <div className="w-8 h-8 rounded-lg upservx-gradient flex items-center justify-center">
-            <span className="text-white font-bold text-sm">US</span>
-          </div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            UpServX
-          </h1>
+          <img src="/logo.png" alt="UpServX Logo" className="h-16 w-auto object-contain" />
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>

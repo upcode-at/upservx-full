@@ -45,8 +45,8 @@ export default function LoginPage() {
         />
         <div className="absolute inset-0 z-20 flex items-center justify-center">
           <div className="text-center text-white p-8">
-            <div className="w-16 h-16 rounded-2xl upservx-gradient flex items-center justify-center mx-auto mb-6">
-              <span className="text-white font-bold text-2xl">US</span>
+            <div className="flex items-center justify-center mx-auto mb-6">
+              <img src="/logo.png" alt="UpServX Logo" className="h-24 w-auto object-contain" />
             </div>
             <h1 className="text-4xl font-bold mb-4">Welcome to UpServX</h1>
             <p className="text-xl opacity-90">Professional Server Management Platform</p>
