@@ -296,6 +296,10 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             actual_bridge = ensure_bridge_for_interface(bridge_interface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
+        elif network_mode == "unconfigured":
+            # Create unconfigured network interface - requires manual configuration
+            network_args = ["--network", "type=direct,source=none,model=virtio"]
+            network_bridge = "unconfigured"
         elif network_mode == "none":
             network_args = ["--network", "none"]
             network_bridge = "none"
@@ -543,6 +547,8 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 vm.network_bridge = bridge_interface
             else:
                 raise Exception("bridge_interface required for bridge mode")
+        elif network_mode == "unconfigured":
+            vm.network_bridge = "unconfigured"
         elif network_mode == "none":
             vm.network_bridge = "none"
     

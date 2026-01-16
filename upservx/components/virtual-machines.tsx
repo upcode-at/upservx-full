@@ -50,7 +50,7 @@ export function VirtualMachines() {
   const [disks, setDisks] = useState<number[]>([20])
   const [autostart, setAutostart] = useState(false)
   const [cloudInit, setCloudInit] = useState("")
-  const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none">("nat")
+  const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none" | "unconfigured">("nat")
   const [bridgeInterface, setBridgeInterface] = useState<string>("")
   const [networkInterfaces, setNetworkInterfaces] = useState<string[]>([])
   const [open, setOpen] = useState(false)
@@ -335,13 +335,14 @@ export function VirtualMachines() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-network">Network</Label>
-                    <Select value={networkMode} onValueChange={(v) => setNetworkMode(v as "bridge" | "nat" | "none")}>
+                    <Select value={networkMode} onValueChange={(v) => setNetworkMode(v as "bridge" | "nat" | "none" | "unconfigured")}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select network mode" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="nat">NAT (virbr0)</SelectItem>
                         <SelectItem value="bridge">Bridge (Direct)</SelectItem>
+                        <SelectItem value="unconfigured">Unconfigured Interface</SelectItem>
                         <SelectItem value="none">No Network</SelectItem>
                       </SelectContent>
                     </Select>
@@ -361,7 +362,7 @@ export function VirtualMachines() {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      NAT: Internet access via host NAT | Bridge: Direct network access | None: No network
+                      NAT: Internet access via host NAT | Bridge: Direct network access | Unconfigured: Manual network setup required | None: No network
                     </p>
                   </div>
                   <div className="space-y-2">
