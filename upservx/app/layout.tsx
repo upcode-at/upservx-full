@@ -7,7 +7,7 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Server Management Tool",
+  title: "UpServX",
   description: "Comprehensive server management dashboard",
 }
 

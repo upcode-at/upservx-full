@@ -166,7 +166,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
                 </div>
               </div>
               <div className="p-3 text-sm">
-                <p>Server Management Tool</p>
+                <p>UpServX</p>
                 <p>RDP Verbindung aktiv...</p>
               </div>
             </div>
