@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
+import { useTheme } from "next-themes"
 
 interface SidebarProps {
   activeSection: string
@@ -27,6 +28,7 @@ interface SidebarProps {
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
+  const { theme } = useTheme()
 
   useEffect(() => {
     const loadHostname = async () => {
@@ -85,7 +87,11 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     <div className="w-64 upservx-sidebar flex flex-col">
       <div className="p-6 border-b border-sidebar-border/30">
         <div className="flex items-center space-x-3 mb-2">
-          <img src="/logo.png" alt="UpServX Logo" className="h-16 w-auto object-contain" />
+          <img 
+            src={theme === "dark" ? "/logo_light.png" : "/logo.png"} 
+            alt="UpServX Logo" 
+            className="h-16 w-auto object-contain" 
+          />
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>

@@ -298,7 +298,8 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             network_bridge = actual_bridge
         elif network_mode == "unconfigured":
             # Create unconfigured network interface - requires manual configuration
-            network_args = ["--network", "type=direct,source=none,model=virtio"]
+            # Using type=ethernet creates a network interface without automatic configuration
+            network_args = ["--network", "type=ethernet,model=virtio"]
             network_bridge = "unconfigured"
         elif network_mode == "none":
             network_args = ["--network", "none"]
