@@ -1,5 +1,9 @@
 # UpservX - Server Management Platform
 
+<p align="center">
+  <img src="upservx/public/logo.png" alt="UpServX Logo" width="400">
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Next.js](https://img.shields.io/badge/Next.js-15.2+-black.svg)](https://nextjs.org/)
