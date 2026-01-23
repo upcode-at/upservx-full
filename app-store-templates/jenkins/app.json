@@ -1,0 +1,18 @@
+{
+  "name": "Jenkins",
+  "description": "Leading open source automation server for CI/CD. Build, test, and deploy your software with powerful automation pipelines.",
+  "version": "lts",
+  "category": "development",
+  "icon": "🔧",
+  "author": "Jenkins Project",
+  "ports": [
+    "8080:8080",
+    "50000:50000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/jenkins:/var/jenkins_home"
+  ],
+  "environment": {
+    "JENKINS_OPTS": "--prefix=/jenkins"
+  }
+}
