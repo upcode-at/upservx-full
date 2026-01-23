@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  jupyter:
+    image: jupyter/datascience-notebook:latest
+    container_name: jupyter-notebook
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=changeme
+    volumes:
+      - /opt/upservx/data/jupyter:/home/jovyan/work
+    user: root
+    command: start-notebook.sh --NotebookApp.token='changeme' --NotebookApp.password='' --NotebookApp.allow_origin='*'
