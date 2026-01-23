@@ -1,0 +1,21 @@
+{
+  "name": "Domain Locker",
+  "description": "Domain and DNS management tool with security features. Protect and manage your domains with DNSSEC, monitoring, and access control.",
+  "version": "latest",
+  "category": "security",
+  "icon": "🔒",
+  "author": "Domain Locker Team",
+  "ports": [
+    "8081:80",
+    "53:53/udp",
+    "53:53/tcp"
+  ],
+  "volumes": [
+    "/opt/upservx/data/domain-locker:/data"
+  ],
+  "environment": {
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "changeme",
+    "SECRET_KEY": "changeme_random_secret"
+  }
+}
