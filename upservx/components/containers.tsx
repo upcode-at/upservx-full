@@ -794,11 +794,12 @@ volumes:
                   {projectContainers.map((container) => (
                     <div key={container.id} className="flex items-center justify-between p-2 border rounded">
                       <div className="flex items-center gap-2">
+                        <Container className="h-4 w-4" />
+                        <span className="font-medium">{container.name.split("/")[1]}</span>
+                        <span className="text-sm text-muted-foreground">{container.image}</span>
                         <Badge className={statusClass(container.status)}>
                           {container.status}
                         </Badge>
-                        <span className="font-medium">{container.name.split("/")[1]}</span>
-                        <span className="text-sm text-muted-foreground">{container.image}</span>
                       </div>
                       <div className="flex space-x-2">
                         {container.status === "running" && (
@@ -860,7 +861,7 @@ volumes:
                 <CardHeader className="p-3 pb-2">
                   <CardTitle className="flex items-center gap-2">
                     <Container className="h-5 w-5" />
-                    {container.name}
+                    <span className="font-medium">{container.name}</span>
                     <Badge className={statusClass(container.status)}>
                       {container.status === "running" ? "Running" : "Stopped"}
                     </Badge>
@@ -968,8 +969,11 @@ volumes:
                 ) : (
                   filteredContainers.map((container) => (
                     <TableRow key={container.id}>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <Container className="h-4 w-4" /> {container.name}
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Container className="h-4 w-4" />
+                          <span className="font-medium">{container.name}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge className={statusClass(container.status)}>
