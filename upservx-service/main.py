@@ -1235,4 +1235,6 @@ def revoke_certificate(domain: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9500)
+    # Use import string so uvicorn can enable workers/reload when started
+    # via `python main.py`.
+    uvicorn.run("main:app", host="0.0.0.0", port=9500, workers=4)
