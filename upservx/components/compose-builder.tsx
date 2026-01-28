@@ -32,7 +32,6 @@ import {
   FolderOpen,
   Save,
   Edit,
-  Grid3X3,
 } from "lucide-react"
 
 import { apiUrl } from "@/lib/api"
@@ -675,27 +674,7 @@ export function ComposeBuilder() {
         {projects.length === 0 ? (
           // Empty State
           <div className="text-center py-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="p-3 bg-indigo-100 rounded-full">
-                      <Grid3X3 className="h-8 w-8 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Use Template</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Start with a pre-configured template
-                      </p>
-                    </div>
-                    <Button className="w-full" variant="outline">
-                      <Grid3X3 className="mr-2 h-4 w-4" />
-                      Browse Templates
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
+            <div className="grid grid-cols-1 gap-6 max-w-4xl mx-auto">
               <Card className="cursor-pointer hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center space-y-4">
