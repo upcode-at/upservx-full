@@ -67,7 +67,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Username</label>
                 <input
-                  className="w-full h-12 px-4 rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
+                  className="w-full h-12 px-4 border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your username"
@@ -77,7 +77,7 @@ export default function LoginPage() {
                 <label className="text-sm font-semibold text-foreground">Password</label>
                 <input
                   type="password"
-                  className="w-full h-12 px-4 rounded-xl border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
+                  className="w-full h-12 px-4 border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
@@ -90,7 +90,7 @@ export default function LoginPage() {
               )}
               <button 
                 type="submit" 
-                className="w-full upservx-button-primary text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+                className="w-full upservx-button-primary text-white font-semibold py-3 px-4 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
               >
                 Sign In
               </button>
