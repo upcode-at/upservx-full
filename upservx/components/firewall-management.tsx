@@ -389,7 +389,7 @@ export default function FirewallManagement() {
       )}
 
       <Tabs defaultValue="rules" className="space-y-4">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="rules">Firewall Rules</TabsTrigger>
           <TabsTrigger value="chains">Chain Policies</TabsTrigger>
           <TabsTrigger value="nat">NAT & Port Forwarding</TabsTrigger>

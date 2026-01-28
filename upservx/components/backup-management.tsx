@@ -454,7 +454,7 @@ export default function BackupManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="servers" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             Backup Servers

@@ -249,7 +249,7 @@ export function Settings() {
       </Dialog>
 
       <Tabs defaultValue="system" className="space-y-6">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="vpn">VPN</TabsTrigger>
           <TabsTrigger value="proxy">Reverse Proxy & SSL</TabsTrigger>
