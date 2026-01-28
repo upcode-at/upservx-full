@@ -457,16 +457,11 @@ export function ComposeBuilder() {
   return (
     <div className="space-y-4">
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Docker Compose Builder</CardTitle>
-          <CardDescription>
-            Create and manage Docker Compose projects with a visual interface
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
+      <div>
+            <h1 className="text-3xl font-bold">Docker Compose Builder</h1>
+            <p className="text-muted-foreground">Create and manage Docker Compose projects with a visual interface</p>
+      </div>
+      <div className="flex gap-2">
             <Dialog open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -497,10 +492,7 @@ export function ComposeBuilder() {
                 </div>
               </DialogContent>
             </Dialog>
-
-          </div>
-        </CardContent>
-      </Card>
+        </div>
 
           {/* Service Dialog */}
           <Dialog open={addServiceOpen || editServiceOpen} onOpenChange={(open) => {
