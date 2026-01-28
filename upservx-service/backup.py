@@ -378,7 +378,7 @@ class BackupManager:
         
     def _get_or_create_encryption_key(self) -> bytes:
         """Get or create encryption key for sensitive data."""
-        key_file = './backup_key'
+        key_file = '/etc/upservx/backup_key'
         try:
             os.makedirs(os.path.dirname(key_file), exist_ok=True)
             if os.path.exists(key_file):

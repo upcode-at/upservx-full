@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DATABASE_PATH = "./backup.db"
+DATABASE_PATH = "/etc/upservx/backup.db"
 
 class BackupDatabase:
     """SQLite database manager for backup system."""

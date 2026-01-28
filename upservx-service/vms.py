@@ -14,7 +14,7 @@ from datetime import datetime
 from models import VirtualMachine
 
 
-VM_FILE = os.path.join(os.path.dirname(__file__), "vms.json")
+VM_FILE = "/etc/upservx/vms.json"
 
 
 def set_libvirt_permissions(path: str) -> None:
