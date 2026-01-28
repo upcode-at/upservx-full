@@ -953,15 +953,15 @@ export function ComposeBuilder() {
                 </div>
               </CardHeader>
               <CardContent>
-                {project.services.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold">Services</h4>
-                      <Button size="sm" variant="outline" onClick={() => setAddServiceOpen(true)}>
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Service
-                      </Button>
-                    </div>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold">Services</h4>
+                    <Button size="sm" variant="outline" onClick={() => setAddServiceOpen(true)}>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Service
+                    </Button>
+                  </div>
+                  {project.services.length > 0 ? (
                     <div className="border overflow-hidden">
                       <Table>
                         <TableHeader>
@@ -1033,8 +1033,13 @@ export function ComposeBuilder() {
                         </TableBody>
                       </Table>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="mb-4">No services configured yet.</p>
+                      <p className="text-sm">Click "Add Service" to get started.</p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex justify-between items-center pt-2 border-t">
                   <div className="flex space-x-2">
