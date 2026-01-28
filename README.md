@@ -49,7 +49,7 @@ All templates are located in the `app-store-templates/` folder and can be easily
 
 ## 📋 Prerequisites
 
-- **Operating System**: Linux (Ubuntu 20.04+ recommended)
+- **Operating System**: Linux Debian
 - **Python**: 3.8 or higher
 - **Node.js**: 18.0 or higher
 - **Docker**: Latest version (for container management)
@@ -77,22 +77,6 @@ The installation script automatically installs all dependencies and creates the 
 - **Frontend**: http://localhost:9200
 - **Backend API**: http://localhost:9500
 
-## 🏗️ Technology Stack
-
-**Frontend:**
-- Next.js 15.2+ with React 19
-- TypeScript & Tailwind CSS
-- shadcn/ui components
-
-**Backend:**
-- FastAPI with Python 3.8+
-- SQLite with SQLAlchemy ORM
-- PAM authentication
-
-**Infrastructure:**
-- Docker for container management
-- SystemD for service management
-- Crontab for backup automation
 
 ## 💝 Support
 
