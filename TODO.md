@@ -9,20 +9,7 @@ This file tracks ongoing work, planned features, and areas where contributors ca
 
 The VM management feature exists but requires thorough testing and completion:
 
-- [ ] **Test VM Creation**
-  - Test with different ISO images (Ubuntu, Debian, Windows)
-  - Verify resource allocation (CPU, RAM, Disk)
-  - Test with various storage backends
-  - Validate network configuration options
-
-- [ ] **Test VM Lifecycle Management**
-  - Start/Stop/Restart functionality
-  - Pause/Resume operations
-  - Proper state transitions
-  - Graceful shutdown vs force stop
-
 - [ ] **Complete VM Features**
-  - [ ] VM Console/VNC access implementation
   - [ ] VM Snapshots (create, restore, delete)
   - [ ] VM Cloning functionality
   - [ ] VM Migration between hosts
@@ -36,15 +23,11 @@ The VM management feature exists but requires thorough testing and completion:
   - Resource usage history/graphs
 
 - [ ] **VM Networking**
-  - Bridge network configuration
-  - NAT configuration
   - Port forwarding rules
   - VLAN support
   - Multiple network interfaces per VM
 
 - [ ] **Storage Management**
-  - Multiple disk support per VM
-  - Disk resizing
   - Disk snapshots
   - Different storage formats (qcow2, raw, vmdk)
   - Storage pool management
@@ -106,22 +89,15 @@ The VM management feature exists but requires thorough testing and completion:
 - [ ] **New App Templates Needed**
   - [ ] Heimdall
   - [ ] Traefik
-  - [ ] Home Assistant
   - [ ] Zigbee2MQTT
   - [ ] PhotoPrism
-  - [ ] Paperless-ngx
   - [ ] Calibre-Web
   - [ ] Seafile
   - [ ] Authentik
-  - [ ] Uptime Kuma
 
 - [ ] **App Store Features**
-  - App categories and tags
-  - Search functionality
-  - App ratings and reviews
   - One-click updates
   - App dependency management
-  - Custom app repository support
 
 ## 🌐 Networking
 
@@ -167,14 +143,9 @@ The VM management feature exists but requires thorough testing and completion:
   - Integration tests
 
 - [ ] **Documentation**
-  - API documentation (OpenAPI/Swagger)
   - User manual
   - Video tutorials
   - Architecture documentation
-
-- [ ] **CI/CD**
-  - Automated testing pipeline
-  - Automated releases
 
 ## 🔒 Security
 
@@ -224,7 +195,7 @@ The VM management feature exists but requires thorough testing and completion:
 
 ---
 
-**Last Updated:** January 1, 2026
+**Last Updated:** January 28, 2026
 
 **Priority Legend:**
 - 🚨 High Priority - Critical functionality
