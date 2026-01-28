@@ -643,7 +643,9 @@ export default function BackupManagement() {
                       <Badge variant="outline">{server.type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{server.status}</Badge>
+                      <Badge className={server.status === "active" ? "bg-green-600 text-white" : "bg-gray-600 text-white"}>
+                        {server.status}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
                       {server.type === 'remote' ? server.host : server.local_path}
@@ -898,7 +900,9 @@ export default function BackupManagement() {
                       <Badge variant="outline">{job.backup_type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{job.status}</Badge>
+                      <Badge className={job.status === "active" ? "bg-green-600 text-white" : job.status === "error" ? "bg-red-600 text-white" : "bg-gray-600 text-white"}>
+                        {job.status}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-sm">{job.schedule}</TableCell>
                     <TableCell className="text-sm">{getServerName(job.server_id)}</TableCell>

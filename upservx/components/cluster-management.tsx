@@ -204,8 +204,8 @@ export default function ClusterManagement() {
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive"> = {
-      online: "default",
+    const variants: Record<string, "success" | "secondary" | "destructive"> = {
+      online: "success",
       offline: "destructive",
       syncing: "secondary"
     }
@@ -214,7 +214,7 @@ export default function ClusterManagement() {
 
   const getRoleBadge = (role: string) => {
     return (
-      <Badge variant={role === "master" ? "default" : "secondary"}>
+      <Badge variant="secondary">
         {role}
       </Badge>
     )

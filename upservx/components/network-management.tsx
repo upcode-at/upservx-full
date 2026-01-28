@@ -76,7 +76,7 @@ export function NetworkManagement() {
     switch (status) {
       case "up":
       case "connected":
-        return "default"
+        return "success"
       case "down":
       case "disconnected":
         return "secondary"
