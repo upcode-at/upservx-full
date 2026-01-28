@@ -51,9 +51,9 @@ export function SystemOverview() {
   const [drives, setDrives] = useState<Drive[]>([])
 
   const getUsageColor = (usage: number) => {
-    if (usage >= 90) return "bg-red-500"
-    if (usage >= 80) return "bg-yellow-400"
-    return undefined
+    if (usage > 85) return "bg-red-500"
+    if (usage >= 76) return "bg-orange-500"
+    return "bg-green-500"
   }
 
   const toggleService = async (serviceName: string, displayName: string, running: boolean) => {

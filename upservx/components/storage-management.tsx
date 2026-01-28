@@ -87,6 +87,12 @@ export function StorageManagement() {
   const [raidLevel, setRaidLevel] = useState("mirror")
   const [poolDevices, setPoolDevices] = useState<string[]>([])
 
+  const getUsageColor = (usage: number) => {
+    if (usage > 85) return "bg-red-500"
+    if (usage >= 76) return "bg-orange-500"
+    return "bg-green-500"
+  }
+
   const handleFormatCancel = () => {
     setActiveDrive(null)
     setFormatFs("")
@@ -272,7 +278,7 @@ export function StorageManagement() {
                   <div className="text-sm text-muted-foreground mb-2">
                     Mountpoint: {p.mountpoint || "-"}
                   </div>
-                  <Progress value={getUsagePercentage(p.used, p.size)} />
+                  <Progress value={getUsagePercentage(p.used, p.size)} indicatorClassName={getUsageColor(getUsagePercentage(p.used, p.size))} />
                   <div className="text-xs text-muted-foreground mt-1">
                     {p.used}GB / {p.size}GB
                   </div>
@@ -441,7 +447,7 @@ export function StorageManagement() {
                     <span>Storage usage</span>
                     <span>{getUsagePercentage(drive.used, drive.size)}%</span>
                   </div>
-                  <Progress value={getUsagePercentage(drive.used, drive.size)} className="h-2" />
+                  <Progress value={getUsagePercentage(drive.used, drive.size)} className="h-2" indicatorClassName={getUsageColor(getUsagePercentage(drive.used, drive.size))} />
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
                   {drive.mounted ? (
