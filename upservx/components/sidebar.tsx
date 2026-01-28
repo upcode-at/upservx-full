@@ -113,20 +113,20 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                     key={item.id}
                     variant="ghost"
                     className={cn(
-                      "w-full justify-start rounded-xl h-11 font-medium transition-all duration-200",
+                      "w-full justify-start h-11 font-medium transition-all duration-200 rounded-none",
                       isActive 
-                        ? "bg-gradient-to-r from-primary/15 to-purple-600/15 text-primary border border-primary/20 shadow-sm" 
-                        : "hover:bg-accent/60 hover:scale-105 hover:shadow-sm"
+                        ? "bg-red-500/70 text-white shadow-sm" 
+                        : "hover:bg-red-500/50 hover:border-l-4 hover:border-red-500 hover:text-white"
                     )}
                     onClick={() => onSectionChange(item.id)}
                   >
                     <Icon className={cn(
                       "mr-3 h-4 w-4 transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground"
+                      isActive ? "text-white" : "text-muted-foreground"
                     )} />
                     {item.label}
                     {isActive && (
-                      <div className="ml-auto w-2 h-2 bg-primary rounded-full"></div>
+                      <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
                     )}
                   </Button>
                 )
