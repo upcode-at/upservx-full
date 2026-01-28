@@ -32,7 +32,6 @@ import {
   FolderOpen,
   Save,
   Edit,
-  Upload,
   Grid3X3,
 } from "lucide-react"
 
@@ -457,18 +456,18 @@ export function ComposeBuilder() {
   return (
     <div className="space-y-4">
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
-      <div>
-            <h1 className="text-3xl font-bold">Docker Compose Builder</h1>
-            <p className="text-muted-foreground">Create and manage Docker Compose projects with a visual interface</p>
-      </div>
-      <div className="flex gap-2">
-            <Dialog open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Project
-                </Button>
-              </DialogTrigger>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Docker Compose Builder</h1>
+          <p className="text-muted-foreground">Create and manage Docker Compose projects with a visual interface</p>
+        </div>
+        <Dialog open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Create Compose Project</DialogTitle>
@@ -492,7 +491,7 @@ export function ComposeBuilder() {
                 </div>
               </DialogContent>
             </Dialog>
-        </div>
+      </div>
 
           {/* Service Dialog */}
           <Dialog open={addServiceOpen || editServiceOpen} onOpenChange={(open) => {
@@ -676,27 +675,7 @@ export function ComposeBuilder() {
         {projects.length === 0 ? (
           // Empty State
           <div className="text-center py-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="p-3 bg-red-100 rounded-full">
-                      <FileCode className="h-8 w-8 text-red-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Import YAML</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Upload an existing docker-compose.yml file
-                      </p>
-                    </div>
-                    <Button className="w-full" variant="outline">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Import File
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
               <Card className="cursor-pointer hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center space-y-4">
