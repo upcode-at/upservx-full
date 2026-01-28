@@ -341,7 +341,7 @@ export function SystemOverview() {
               <span className="text-sm font-medium">{systemStats.gpu}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Architektur:</span>
+              <span className="text-sm text-muted-foreground">Architecture:</span>
               <span className="text-sm font-medium">{systemStats.architecture}</span>
             </div>
           </CardContent>

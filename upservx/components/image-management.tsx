@@ -542,7 +542,7 @@ export function ImageManagement() {
                     <TableHead>Name</TableHead>
                     <TableHead>Typ</TableHead>
                     <TableHead>Version</TableHead>
-                    <TableHead>Architektur</TableHead>
+                    <TableHead>Architecture</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Status</TableHead>
