@@ -16,6 +16,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
   Play,
   Square,
   Plus,
@@ -23,6 +31,9 @@ import {
   FileCode,
   FolderOpen,
   Save,
+  Edit,
+  Upload,
+  Grid3X3,
 } from "lucide-react"
 
 import { apiUrl } from "@/lib/api"
@@ -31,9 +42,18 @@ import { NotificationContainer } from "@/components/ui/notification"
 interface ComposeProject {
   name: string
   path: string
-  services: string[]
+  services: ServiceDetails[]
   service_count: number
   status: string
+}
+
+interface ServiceDetails {
+  name: string
+  image: string
+  ports: string[]
+  restart: string
+  volumes: string[]
+  environment: { [key: string]: string }
 }
 
 interface ServiceForm {
@@ -837,84 +857,215 @@ export function ComposeBuilder() {
       </Card>
 
       <div className="grid gap-4">
-        {projects.map((project) => (
-          <Card key={project.name}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="h-5 w-5" />
-                    {project.name}
-                  </CardTitle>
-                  <CardDescription>{project.path}</CardDescription>
+        {projects.length === 0 ? (
+          // Empty State
+          <div className="text-center py-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="p-3 bg-red-100 rounded-full">
+                      <FileCode className="h-8 w-8 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Import YAML</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Upload an existing docker-compose.yml file
+                      </p>
+                    </div>
+                    <Button className="w-full" variant="outline">
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import File
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="p-3 bg-indigo-100 rounded-full">
+                      <Grid3X3 className="h-8 w-8 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Use Template</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Start with a pre-configured template
+                      </p>
+                    </div>
+                    <Button className="w-full" variant="outline">
+                      <Grid3X3 className="mr-2 h-4 w-4" />
+                      Browse Templates
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="p-3 bg-green-100 rounded-full">
+                      <Plus className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Create New</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Build a custom docker-compose project
+                      </p>
+                    </div>
+                    <Button className="w-full" onClick={() => setCreateProjectOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      New Project
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          projects.map((project) => (
+            <Card key={project.name} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <FolderOpen className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl pl-2">{project.name}</CardTitle>
+                      <CardDescription className="font-mono text-sm pl-2">{project.path}</CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge
+                      variant={project.status === "running" ? "default" : "secondary"}
+                      className={project.status === "running" ? "bg-green-100 text-green-800 hover:bg-green-200" : ""}
+                    >
+                      <div className="flex items-center space-x-1">
+                        <div className={`w-2 h-2 rounded-full ${project.status === "running" ? "bg-green-500" : "bg-gray-400"}`}></div>
+                        <span>{project.status}</span>
+                      </div>
+                    </Badge>
+                    <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                      {project.service_count} services
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={project.status === "running" ? "default" : "secondary"}>
-                    {project.status}
-                  </Badge>
-                  <Badge variant="outline">{project.service_count} services</Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+              </CardHeader>
+              <CardContent>
                 {project.services.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Services</h4>
-                    <div className="space-y-2">
-                      {project.services.map((service) => (
-                        <div key={service} className="flex items-center justify-between p-2 border rounded">
-                          <Badge variant="outline">{service}</Badge>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEditService(project.name, service)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleRemoveService(project.name, service)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold">Services</h4>
+                      <Button size="sm" variant="outline" onClick={() => setAddServiceOpen(true)}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Service
+                      </Button>
+                    </div>
+                    <div className="border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-[200px]">Name</TableHead>
+                            <TableHead className="w-[250px]">Image</TableHead>
+                            <TableHead className="w-[150px]">Ports</TableHead>
+                            <TableHead className="w-[120px]">Restart</TableHead>
+                            <TableHead className="w-[120px]">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {project.services.map((service) => (
+                            <TableRow key={service.name} className="hover:bg-muted/30">
+                              <TableCell className="font-medium pl-4">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span>{service.name}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {service.image || "N/A"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {service.ports && service.ports.length > 0 ? (
+                                    service.ports.slice(0, 2).map((port, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        {port}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">None</span>
+                                  )}
+                                  {service.ports && service.ports.length > 2 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      +{service.ports.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {service.restart || "no"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex space-x-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEditService(project.name, service.name)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleRemoveService(project.name, service.name)}
+                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 )}
-                
-                <div className="flex gap-2 pt-2">
-                  {project.status !== "running" ? (
-                    <Button
-                      size="sm"
-                      variant="success"
-                      onClick={() => handleStartProject(project.name)}
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      Start
-                    </Button>
-                  ) : (
+
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <div className="flex space-x-2">
+                    {project.status !== "running" ? (
+                      <Button
+                        size="sm"
+                        variant="success"
+                        onClick={() => handleStartProject(project.name)}
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Start Project
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="destructive-outline"
+                        onClick={() => handleStopProject(project.name)}
+                      >
+                        <Square className="mr-2 h-4 w-4" />
+                        Stop Project
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleStopProject(project.name)}
+                      onClick={() => handleViewCompose(project.name)}
                     >
-                      <Square className="mr-2 h-4 w-4" />
-                      Stop
+                      <FileCode className="mr-2 h-4 w-4" />
+                      View YAML
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleViewCompose(project.name)}
-                  >
-                    <FileCode className="mr-2 h-4 w-4" />
-                    View YAML
-                  </Button>
+                  </div>
                   <Button
                     size="sm"
                     variant="destructive"
@@ -924,10 +1075,10 @@ export function ComposeBuilder() {
                     Delete
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       <Dialog open={viewComposeOpen} onOpenChange={setViewComposeOpen}>

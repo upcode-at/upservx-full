@@ -47,7 +47,7 @@ class ComposeManager:
         os.makedirs(COMPOSE_BASE_DIR, exist_ok=True)
     
     def list_projects(self) -> List[Dict]:
-        """List all compose projects."""
+        """List all compose projects with detailed service information."""
         projects = []
         
         if not os.path.exists(COMPOSE_BASE_DIR):
@@ -62,7 +62,13 @@ class ComposeManager:
                     try:
                         with open(compose_file, 'r') as f:
                             compose_data = yaml.safe_load(f)
-                            services = list(compose_data.get('services', {}).keys())
+                            services_data = compose_data.get('services', {})
+                            
+                            # Extract detailed service information
+                            services = []
+                            for service_name, service_config in services_data.items():
+                                service_details = self._extract_service_details(service_name, service_config)
+                                services.append(service_details)
                             
                             # Get running status
                             status = self._get_project_status(project_name, project_dir)
@@ -85,6 +91,45 @@ class ComposeManager:
                         })
         
         return projects
+    
+    def _extract_service_details(self, service_name: str, service_config: Dict) -> Dict:
+        """Extract detailed information from a service configuration."""
+        details = {
+            "name": service_name,
+            "image": service_config.get("image", ""),
+            "ports": [],
+            "restart": service_config.get("restart", "no"),
+            "volumes": [],
+            "environment": {}
+        }
+        
+        # Extract ports
+        if "ports" in service_config:
+            ports = service_config["ports"]
+            if isinstance(ports, list):
+                details["ports"] = ports
+            elif isinstance(ports, dict):
+                # Handle long syntax ports
+                details["ports"] = list(ports.keys())
+        
+        # Extract volumes
+        if "volumes" in service_config:
+            volumes = service_config["volumes"]
+            if isinstance(volumes, list):
+                details["volumes"] = volumes
+        
+        # Extract environment
+        if "environment" in service_config:
+            env = service_config["environment"]
+            if isinstance(env, list):
+                for item in env:
+                    if "=" in item:
+                        key, value = item.split("=", 1)
+                        details["environment"][key] = value
+            elif isinstance(env, dict):
+                details["environment"] = env
+        
+        return details
     
     def _get_project_status(self, project_name: str, project_dir: str) -> str:
         """Get the status of a compose project."""
