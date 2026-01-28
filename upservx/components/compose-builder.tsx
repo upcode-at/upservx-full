@@ -74,6 +74,7 @@ export function ComposeBuilder() {
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
   const [addServiceOpen, setAddServiceOpen] = useState(false)
   const [editServiceOpen, setEditServiceOpen] = useState(false)
+  const [isAddMode, setIsAddMode] = useState(false)
   const [editingService, setEditingService] = useState<string | null>(null)
   const [viewComposeOpen, setViewComposeOpen] = useState(false)
   const [composeContent, setComposeContent] = useState("")
@@ -190,6 +191,7 @@ export function ComposeBuilder() {
         setSuccess(`Service ${serviceName} added to ${selectedProject}`)
         resetServiceForm()
         setAddServiceOpen(false)
+        setIsAddMode(false)
         loadProjects()
       } else {
         const data = await res.json()
@@ -496,187 +498,27 @@ export function ComposeBuilder() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={addServiceOpen} onOpenChange={setAddServiceOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={!selectedProject}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Service
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add Service to {selectedProject}</DialogTitle>
-                  <DialogDescription>
-                    Configure a new service for your compose project
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Service Name</Label>
-                    <Input
-                      value={serviceName}
-                      onChange={(e) => setServiceName(e.target.value)}
-                      placeholder="web"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Image</Label>
-                    <Input
-                      value={serviceImage}
-                      onChange={(e) => setServiceImage(e.target.value)}
-                      placeholder="nginx:latest"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>CPU Cores</Label>
-                    <Input
-                      type="number"
-                      value={serviceCpu}
-                      onChange={(e) => setServiceCpu(parseFloat(e.target.value))}
-                      step="0.1"
-                      min="0.1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Memory (MB)</Label>
-                    <Input
-                      type="number"
-                      value={serviceMemory}
-                      onChange={(e) => setServiceMemory(parseInt(e.target.value))}
-                      min="128"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Restart Policy</Label>
-                    <Select value={serviceRestart} onValueChange={setServiceRestart}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="no">No</SelectItem>
-                        <SelectItem value="always">Always</SelectItem>
-                        <SelectItem value="on-failure">On Failure</SelectItem>
-                        <SelectItem value="unless-stopped">Unless Stopped</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Ports</Label>
-                      <Button size="sm" variant="outline" onClick={addPort}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    {servicePorts.map((port, idx) => (
-                      <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
-                        <Input
-                          placeholder="Host Port (8080)"
-                          value={port.host}
-                          onChange={(e) => {
-                            const newPorts = [...servicePorts]
-                            newPorts[idx].host = e.target.value
-                            setServicePorts(newPorts)
-                          }}
-                        />
-                        <Input
-                          placeholder="Container Port (80)"
-                          value={port.container}
-                          onChange={(e) => {
-                            const newPorts = [...servicePorts]
-                            newPorts[idx].container = e.target.value
-                            setServicePorts(newPorts)
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Volumes</Label>
-                      <Button size="sm" variant="outline" onClick={addVolume}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    {serviceVolumes.map((volume, idx) => (
-                      <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
-                        <Input
-                          placeholder="Host Path (/data)"
-                          value={volume.host}
-                          onChange={(e) => {
-                            const newVolumes = [...serviceVolumes]
-                            newVolumes[idx].host = e.target.value
-                            setServiceVolumes(newVolumes)
-                          }}
-                        />
-                        <Input
-                          placeholder="Container Path (/app/data)"
-                          value={volume.container}
-                          onChange={(e) => {
-                            const newVolumes = [...serviceVolumes]
-                            newVolumes[idx].container = e.target.value
-                            setServiceVolumes(newVolumes)
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Environment Variables</Label>
-                      <Button size="sm" variant="outline" onClick={addEnv}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    {serviceEnvs.map((env, idx) => (
-                      <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
-                        <Input
-                          placeholder="Variable Name"
-                          value={env.name}
-                          onChange={(e) => {
-                            const newEnvs = [...serviceEnvs]
-                            newEnvs[idx].name = e.target.value
-                            setServiceEnvs(newEnvs)
-                          }}
-                        />
-                        <Input
-                          placeholder="Value"
-                          value={env.value}
-                          onChange={(e) => {
-                            const newEnvs = [...serviceEnvs]
-                            newEnvs[idx].value = e.target.value
-                            setServiceEnvs(newEnvs)
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button onClick={handleAddService}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Service
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Edit Service Dialog */}
-          <Dialog open={editServiceOpen} onOpenChange={(open) => {
-            setEditServiceOpen(open)
-            if (!open) resetServiceForm()
+          {/* Service Dialog */}
+          <Dialog open={addServiceOpen || editServiceOpen} onOpenChange={(open) => {
+            if (addServiceOpen) setAddServiceOpen(open)
+            if (editServiceOpen) setEditServiceOpen(open)
+            if (!open) {
+              resetServiceForm()
+              setIsAddMode(false)
+            }
           }}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Edit Service</DialogTitle>
+                <DialogTitle>{isAddMode ? 'Add Service' : 'Edit Service'}</DialogTitle>
                 <DialogDescription>
-                  Update the configuration of {editingService}
+                  {isAddMode 
+                    ? `Add a new service to ${selectedProject}` 
+                    : `Update the configuration of ${editingService}`
+                  }
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -830,31 +672,13 @@ export function ComposeBuilder() {
                   ))}
                 </div>
 
-                <Button onClick={handleUpdateService}>
+                <Button onClick={isAddMode ? handleAddService : handleUpdateService}>
                   <Save className="mr-2 h-4 w-4" />
-                  Update Service
+                  {isAddMode ? 'Add Service' : 'Update Service'}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
-
-          <div>
-            <Label>Active Project</Label>
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.name} value={project.name}>
-                    {project.name} ({project.service_count} services)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="grid gap-4">
         {projects.length === 0 ? (
@@ -956,7 +780,11 @@ export function ComposeBuilder() {
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold">Services</h4>
-                    <Button size="sm" variant="outline" onClick={() => setAddServiceOpen(true)}>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setSelectedProject(project.name)
+                      setIsAddMode(true)
+                      setAddServiceOpen(true)
+                    }}>
                       <Plus className="h-3 w-3 mr-1" />
                       Add Service
                     </Button>
@@ -1013,7 +841,10 @@ export function ComposeBuilder() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleEditService(project.name, service.name)}
+                                    onClick={() => {
+                                      setIsAddMode(false)
+                                      handleEditService(project.name, service.name)
+                                    }}
                                     className="h-8 w-8 p-0"
                                   >
                                     <Edit className="h-3 w-3" />
@@ -1036,7 +867,7 @@ export function ComposeBuilder() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <p className="mb-4">No services configured yet.</p>
-                      <p className="text-sm">Click "Add Service" to get started.</p>
+                      <p className="text-sm">Click &quot;Add Service&quot; to get started.</p>
                     </div>
                   )}
                 </div>
@@ -1055,7 +886,8 @@ export function ComposeBuilder() {
                     ) : (
                       <Button
                         size="sm"
-                        variant="destructive-outline"
+                        variant="outline"
+                        className="border-red-200 text-red-600 hover:bg-red-50"
                         onClick={() => handleStopProject(project.name)}
                       >
                         <Square className="mr-2 h-4 w-4" />
