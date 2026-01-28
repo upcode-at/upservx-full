@@ -616,7 +616,7 @@ export default function BackupManagement() {
           
           <div className="grid gap-4">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 bg-background/80 backdrop-blur border-b">
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
@@ -628,7 +628,7 @@ export default function BackupManagement() {
               </TableHeader>
               <TableBody>
                 {backupServers.map((server) => (
-                  <TableRow key={server.id}>
+                  <TableRow key={server.id} className="hover:bg-muted/40">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {server.type === 'local' ? (

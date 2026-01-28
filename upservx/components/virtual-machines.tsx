@@ -528,7 +528,7 @@ export function VirtualMachines() {
         <Card>
           <CardContent className="py-0 pl-6 pr-0">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 bg-background/80 backdrop-blur border-b">
                 <TableRow>
                   <TableHead className="font-normal">Name</TableHead>
                   <TableHead className="font-normal">Status</TableHead>
@@ -548,7 +548,7 @@ export function VirtualMachines() {
                   </TableRow>
                 ) : (
                   vms.map((vm) => (
-                    <TableRow key={vm.id}>
+                    <TableRow key={vm.id} className="hover:bg-muted/40">
                       <TableCell className="py-2">{vm.name}</TableCell>
                       <TableCell>
                         <Badge className={statusClass(vm.status)}>

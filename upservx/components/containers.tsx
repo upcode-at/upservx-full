@@ -946,7 +946,7 @@ volumes:
         <Card>
             <CardContent className="py-0 pl-6 pr-0">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-background/80 backdrop-blur border-b">
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
@@ -968,7 +968,7 @@ volumes:
                   </TableRow>
                 ) : (
                   filteredContainers.map((container) => (
-                    <TableRow key={container.id}>
+                    <TableRow key={container.id} className="hover:bg-muted/40">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Container className="h-4 w-4" />

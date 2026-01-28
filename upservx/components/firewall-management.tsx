@@ -503,7 +503,7 @@ export default function FirewallManagement() {
                 <p className="text-muted-foreground text-center py-8">No rules configured</p>
               ) : (
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 bg-background/80 backdrop-blur border-b">
                     <TableRow>
                       <TableHead>Chain</TableHead>
                       <TableHead>Rule</TableHead>
@@ -514,7 +514,7 @@ export default function FirewallManagement() {
                   </TableHeader>
                   <TableBody>
                     {rules.map((rule, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={idx} className="hover:bg-muted/40">
                         <TableCell>
                           <Badge variant="outline">{rule.chain}</Badge>
                         </TableCell>

@@ -504,7 +504,7 @@ export function UserManagement() {
             </CardHeader>
             <CardContent>
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-background/80 backdrop-blur border-b">
                   <TableRow>
                     <TableHead>User</TableHead>
                     <TableHead>UID</TableHead>
@@ -515,7 +515,7 @@ export function UserManagement() {
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
-                    <TableRow key={user.username}>
+                    <TableRow key={user.username} className="hover:bg-muted/40">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
