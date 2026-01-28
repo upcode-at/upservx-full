@@ -11,6 +11,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface BackupServer {
   id: number
@@ -607,28 +615,41 @@ export default function BackupManagement() {
           </div>
           
           <div className="grid gap-4">
-            {backupServers.map((server) => (
-              <Card key={server.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {backupServers.map((server) => (
+                  <TableRow key={server.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
                         {server.type === 'local' ? (
-                          <HardDrive className="h-5 w-5 text-blue-600" />
+                          <HardDrive className="h-4 w-4" />
                         ) : (
-                          <Server className="h-5 w-5 text-blue-600" />
+                          <Server className="h-4 w-4" />
                         )}
+                        {server.name}
                       </div>
-                      <div>
-                        <h3 className="font-medium">{server.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {server.type === 'remote' ? server.host : server.local_path}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{server.status}</Badge>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="outline">{server.type}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{server.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {server.type === 'remote' ? server.host : server.local_path}
+                    </TableCell>
+                    <TableCell className="text-sm">{server.created}</TableCell>
+                    <TableCell>
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -637,11 +658,11 @@ export default function BackupManagement() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </TabsContent>
 
@@ -852,42 +873,55 @@ export default function BackupManagement() {
           </div>
 
           <div className="grid gap-4">
-            {backupJobs.map((job) => (
-              <Card key={job.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded">
-                        <Clock className="h-5 w-5 text-green-600" />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Schedule</TableHead>
+                  <TableHead>Server</TableHead>
+                  <TableHead>Last Run</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {backupJobs.map((job) => (
+                  <TableRow key={job.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        {job.name}
                       </div>
-                      <div>
-                        <h3 className="font-medium">{job.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {job.backup_type} • {getServerName(job.server_id)} • {job.schedule}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Targets: {job.targets.join(', ')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{job.backup_type}</Badge>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="secondary">{job.status}</Badge>
-                      <Button variant="outline" size="sm" onClick={() => handleExecuteJob(job.id)}>
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDeleteClick('job', job.id, job.name)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </TableCell>
+                    <TableCell className="text-sm">{job.schedule}</TableCell>
+                    <TableCell className="text-sm">{getServerName(job.server_id)}</TableCell>
+                    <TableCell className="text-sm">{job.last_run || 'Never'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="outline" size="sm" onClick={() => handleExecuteJob(job.id)}>
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteClick('job', job.id, job.name)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </TabsContent>
       </Tabs>
