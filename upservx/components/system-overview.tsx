@@ -357,7 +357,7 @@ export function SystemOverview() {
               {systemStats.services.map((service) => (
                 <div key={service.name} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Badge variant={service.status === "running" ? "default" : "destructive"}>
+                    <Badge className={service.status === "running" ? "bg-green-600 text-white" : "bg-red-600 text-white"}>
                       {service.status === "running" ? "Running" : service.status === "not found" ? "Not found" : "Stopped"}
                     </Badge>
                     <span className="text-sm font-medium">{service.name}</span>
