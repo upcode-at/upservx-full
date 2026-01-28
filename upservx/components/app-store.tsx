@@ -185,7 +185,7 @@ export function AppStore() {
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      media: "bg-purple-500/10 text-purple-500",
+      media: "bg-red-500/10 text-white",
       productivity: "bg-blue-500/10 text-blue-500",
       management: "bg-green-500/10 text-green-500",
       security: "bg-red-500/10 text-red-500",

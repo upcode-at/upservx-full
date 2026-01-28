@@ -57,7 +57,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="upservx-card p-8 space-y-6">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-2">
+              <h2 className="text-3xl font-bold text-white mb-2">
                 Sign In
               </h2>
               <p className="text-muted-foreground">Access your server dashboard</p>
