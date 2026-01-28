@@ -115,8 +115,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                     className={cn(
                       "w-full justify-start h-11 font-medium transition-all duration-200 rounded-none",
                       isActive 
-                        ? "bg-red-500/70 text-white shadow-sm" 
-                        : "hover:bg-red-500/50 hover:border-l-4 hover:border-red-500 hover:text-white"
+                        ? "bg-primary/70 text-white shadow-sm" 
+                        : "hover:bg-primary/50 hover:border-l-4 hover:border-primary hover:text-white"
                     )}
                     onClick={() => onSectionChange(item.id)}
                   >

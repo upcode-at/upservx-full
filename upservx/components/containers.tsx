@@ -830,7 +830,7 @@ volumes:
                           </Button>
                         ) : (
                           <Button
-                            variant="default"
+                            variant="success"
                             size="icon"
                             onClick={() => handleStart(container.name)}
                           >
@@ -922,7 +922,7 @@ volumes:
                     ) : (
                       <>
                         <Button
-                          className="bg-green-600 text-white hover:bg-green-700"
+                          variant="success"
                           size="icon"
                           onClick={() => handleStart(container.name)}
                         >
@@ -1021,7 +1021,7 @@ volumes:
                           ) : (
                             <>
                               <Button
-                                className="bg-green-600 text-white hover:bg-green-700"
+                                variant="success"
                                 size="icon"
                                 onClick={() => handleStart(container.name)}
                               >

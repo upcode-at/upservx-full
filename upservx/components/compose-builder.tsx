@@ -891,6 +891,7 @@ export function ComposeBuilder() {
                   {project.status !== "running" ? (
                     <Button
                       size="sm"
+                      variant="success"
                       onClick={() => handleStartProject(project.name)}
                     >
                       <Play className="mr-2 h-4 w-4" />

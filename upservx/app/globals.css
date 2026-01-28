@@ -51,18 +51,18 @@
   --card-foreground: #1e293b;
   --popover: #ffffff;
   --popover-foreground: #1e293b;
-  --primary: #6366f1;
+  --primary: #ef4444;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #334155;
   --muted: #f8fafc;
   --muted-foreground: #64748b;
-  --accent: #e0e7ff;
+  --accent: #6366f1;
   --accent-foreground: #4338ca;
   --destructive: #ef4444;
   --border: #e2e8f0;
   --input: #f1f5f9;
-  --ring: #6366f1;
+  --ring: #ef4444;
   --chart-1: #3b82f6;
   --chart-2: #10b981;
   --chart-3: #f59e0b;
@@ -70,12 +70,12 @@
   --chart-5: #ef4444;
   --sidebar: #ffffff;
   --sidebar-foreground: #1e293b;
-  --sidebar-primary: #6366f1;
+  --sidebar-primary: #ef4444;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f8fafc;
   --sidebar-accent-foreground: #4338ca;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #6366f1;
+  --sidebar-ring: #ef4444;
 }
 
 .dark {
@@ -85,18 +85,18 @@
   --card-foreground: #f1f5f9;
   --popover: #1e293b;
   --popover-foreground: #f1f5f9;
-  --primary: #818cf8;
+  --primary: #f87171;
   --primary-foreground: #1e1b4b;
   --secondary: #334155;
   --secondary-foreground: #e2e8f0;
   --muted: #334155;
   --muted-foreground: #94a3b8;
-  --accent: #475569;
-  --accent-foreground: #e0e7ff;
+  --accent: #818cf8;
+  --accent-foreground: #1e1b4b;
   --destructive: #f87171;
   --border: #334155;
   --input: #475569;
-  --ring: #818cf8;
+  --ring: #f87171;
   --chart-1: #60a5fa;
   --chart-2: #34d399;
   --chart-3: #fbbf24;
@@ -104,12 +104,12 @@
   --chart-5: #f87171;
   --sidebar: #1e293b;
   --sidebar-foreground: #f1f5f9;
-  --sidebar-primary: #818cf8;
+  --sidebar-primary: #f87171;
   --sidebar-primary-foreground: #1e1b4b;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #e0e7ff;
+  --sidebar-accent: #818cf8;
+  --sidebar-accent-foreground: #1e1b4b;
   --sidebar-border: #334155;
-  --sidebar-ring: #818cf8;
+  --sidebar-ring: #f87171;
 }
 
 @layer base {
@@ -126,7 +126,7 @@
 /* Custom styling to differentiate from standard shadcn */
 @layer components {
   .upservx-gradient {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   }
   
   .upservx-card {
@@ -149,9 +149,9 @@
 
   .upservx-button-primary {
     @apply relative overflow-hidden;
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     box-shadow: 
-      0 4px 14px 0 rgba(99, 102, 241, 0.35),
+      0 4px 14px 0 rgba(239, 68, 68, 0.35),
       0 0 0 1px rgba(255, 255, 255, 0.2) inset;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -159,7 +159,7 @@
   .upservx-button-primary:hover {
     transform: translateY(-1px);
     box-shadow: 
-      0 8px 25px 0 rgba(99, 102, 241, 0.4),
+      0 8px 25px 0 rgba(239, 68, 68, 0.4),
       0 0 0 1px rgba(255, 255, 255, 0.3) inset;
   }
 

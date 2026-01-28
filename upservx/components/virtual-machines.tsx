@@ -505,7 +505,7 @@ export function VirtualMachines() {
                     <Square className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button className="bg-green-600 text-white hover:bg-green-700" size="icon" onClick={() => handleStart(vm.name)}>
+                  <Button variant="success" size="icon" onClick={() => handleStart(vm.name)}>
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
@@ -566,7 +566,7 @@ export function VirtualMachines() {
                               <Square className="h-4 w-4" />
                             </Button>
                           ) : (
-                            <Button className="bg-green-600 text-white hover:bg-green-700" size="icon" onClick={() => handleStart(vm.name)}>
+                            <Button variant="success" size="icon" onClick={() => handleStart(vm.name)}>
                               <Play className="h-4 w-4" />
                             </Button>
                           )}

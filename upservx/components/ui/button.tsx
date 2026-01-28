@@ -13,6 +13,8 @@ const buttonVariants = cva(
           "upservx-button-primary text-white shadow-lg hover:shadow-xl border-0 font-medium tracking-wide",
         destructive:
           "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-xl hover:from-red-600 hover:to-red-700 transform hover:-translate-y-0.5 transition-all duration-200",
+        success:
+          "!bg-green-600 !text-white !shadow-lg !hover:shadow-xl !hover:bg-green-700 !border-0 !font-medium !tracking-wide !transition-all !duration-300",
         outline:
           "border-2 border-primary/20 bg-background/60 backdrop-blur-sm hover:bg-primary/5 hover:border-primary/40 text-white shadow-sm hover:shadow-md",
         secondary:
