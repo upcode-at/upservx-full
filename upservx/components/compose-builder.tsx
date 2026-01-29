@@ -95,9 +95,11 @@ export function ComposeBuilder() {
   
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dockerVolumes, setDockerVolumes] = useState<string[]>([])
 
   useEffect(() => {
     loadProjects()
+    loadDockerVolumes()
   }, [])
 
   const loadProjects = async () => {
@@ -106,6 +108,18 @@ export function ComposeBuilder() {
       if (res.ok) {
         const data = await res.json()
         setProjects(data)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const loadDockerVolumes = async () => {
+    try {
+      const res = await fetch(apiUrl("/containers/volumes"))
+      if (res.ok) {
+        const volumes = await res.json()
+        setDockerVolumes(volumes.map((v: any) => v.name))
       }
     } catch (e) {
       console.error(e)
@@ -490,7 +504,7 @@ export function ComposeBuilder() {
                 </div>
               </DialogContent>
             </Dialog>
-      </div>
+          </div>
 
           {/* Service Dialog */}
           <Dialog open={addServiceOpen || editServiceOpen} onOpenChange={(open) => {
@@ -608,25 +622,58 @@ export function ComposeBuilder() {
                     </Button>
                   </div>
                   {serviceVolumes.map((volume, idx) => (
-                    <div key={idx} className="grid grid-cols-2 gap-2 mb-2">
-                      <Input
-                        placeholder="Host Path (/data)"
-                        value={volume.host}
-                        onChange={(e) => {
-                          const newVolumes = [...serviceVolumes]
-                          newVolumes[idx].host = e.target.value
-                          setServiceVolumes(newVolumes)
-                        }}
-                      />
-                      <Input
-                        placeholder="Container Path (/app/data)"
-                        value={volume.container}
-                        onChange={(e) => {
-                          const newVolumes = [...serviceVolumes]
-                          newVolumes[idx].container = e.target.value
-                          setServiceVolumes(newVolumes)
-                        }}
-                      />
+                    <div key={idx} className="mb-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select
+                          value={volume.host.startsWith('/') ? 'custom' : (volume.host || 'none')}
+                          onValueChange={(value) => {
+                            const newVolumes = [...serviceVolumes]
+                            if (value === 'custom') {
+                              newVolumes[idx].host = '/'
+                            } else if (value === 'none') {
+                              newVolumes[idx].host = ''
+                            } else {
+                              newVolumes[idx].host = value
+                            }
+                            setServiceVolumes(newVolumes)
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select volume or path" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No volume</SelectItem>
+                            <SelectItem value="custom">Custom Path...</SelectItem>
+                            {dockerVolumes.map((vol) => (
+                              <SelectItem key={vol} value={vol}>
+                                {vol}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Container Path (/app/data)"
+                          value={volume.container}
+                          onChange={(e) => {
+                            const newVolumes = [...serviceVolumes]
+                            newVolumes[idx].container = e.target.value
+                            setServiceVolumes(newVolumes)
+                          }}
+                        />
+                      </div>
+                      {volume.host.startsWith('/') && (
+                        <div className="mt-2">
+                          <Input
+                            placeholder="Host Path (/data)"
+                            value={volume.host}
+                            onChange={(e) => {
+                              const newVolumes = [...serviceVolumes]
+                              newVolumes[idx].host = e.target.value
+                              setServiceVolumes(newVolumes)
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

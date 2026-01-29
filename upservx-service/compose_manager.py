@@ -239,6 +239,20 @@ class ComposeManager:
             # Add volumes
             if service_config.get("volumes"):
                 service_def["volumes"] = service_config["volumes"]
+                
+                # Ensure named volumes are defined at the top level
+                if "volumes" not in compose_data:
+                    compose_data["volumes"] = {}
+                
+                for volume in service_config["volumes"]:
+                    # Check if volume is in format "name:path" or just "name"
+                    if isinstance(volume, str):
+                        volume_parts = volume.split(":")
+                        if len(volume_parts) >= 1:
+                            volume_name = volume_parts[0].strip()
+                            # If it's a named volume (no path separators), add it to top-level volumes
+                            if "/" not in volume_name and "\\" not in volume_name and volume_name not in compose_data["volumes"]:
+                                compose_data["volumes"][volume_name] = None
             
             # Add environment variables
             if service_config.get("environment"):
