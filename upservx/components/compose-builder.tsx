@@ -119,7 +119,7 @@ export function ComposeBuilder() {
       const res = await fetch(apiUrl("/containers/volumes"))
       if (res.ok) {
         const volumes = await res.json()
-        setDockerVolumes(volumes.map((v: any) => v.name))
+        setDockerVolumes(volumes.map((v: {name: string}) => v.name))
       }
     } catch (e) {
       console.error(e)
