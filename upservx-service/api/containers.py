@@ -858,11 +858,21 @@ def create_docker_volume(payload: DockerVolumeCreate):
     raise HTTPException(status_code=400, detail="Failed to create volume")
 
 
-@router.post("/storages")
-def create_lxc_storage(payload: LXCStorageCreate):
-    """Create a new LXC storage pool."""
-    from containers import create_lxc_storage
-    success = create_lxc_storage(payload.name, payload.driver, payload.source)
+@router.delete("/volumes/{name}")
+def delete_docker_volume(name: str):
+    """Delete a Docker volume."""
+    from containers import delete_docker_volume
+    success = delete_docker_volume(name)
     if success:
-        return {"message": "Storage pool created successfully"}
-    raise HTTPException(status_code=400, detail="Failed to create storage pool")
+        return {"message": "Volume deleted successfully"}
+    raise HTTPException(status_code=400, detail="Failed to delete volume")
+
+
+@router.delete("/storages/{name}")
+def delete_lxc_storage(name: str):
+    """Delete an LXC storage pool."""
+    from containers import delete_lxc_storage
+    success = delete_lxc_storage(name)
+    if success:
+        return {"message": "Storage pool deleted successfully"}
+    raise HTTPException(status_code=400, detail="Failed to delete storage pool")

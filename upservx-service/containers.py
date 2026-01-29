@@ -458,3 +458,35 @@ def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> bool
         return result.returncode == 0
     except Exception:
         return False
+
+
+def delete_docker_volume(name: str) -> bool:
+    """Delete a Docker volume."""
+    if shutil.which("docker") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["docker", "volume", "rm", name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def delete_lxc_storage(name: str) -> bool:
+    """Delete an LXC storage pool."""
+    if shutil.which("lxc") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["lxc", "storage", "delete", name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False

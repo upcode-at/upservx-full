@@ -24,7 +24,6 @@ import {
 import { HardDrive, Database, Trash2, Plus } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
-import { useToast } from "@/hooks/use-toast"
 
 interface DockerVolume {
   name: string
@@ -55,6 +54,8 @@ export function ContainerStorage() {
   const [newStorageName, setNewStorageName] = useState("")
   const [newStorageDriver, setNewStorageDriver] = useState("dir")
   const [newStorageSource, setNewStorageSource] = useState("")
+  const [success, setSuccess] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -97,13 +98,13 @@ export function ContainerStorage() {
         setNewVolumeName("")
         setCreateVolumeOpen(false)
         loadData()
-        alert("Docker volume created successfully")
+        setSuccess("Docker volume created successfully")
       } else {
-        alert("Failed to create Docker volume")
+        setError("Failed to create Docker volume")
       }
     } catch (err) {
       console.error(err)
-      alert("Error creating Docker volume")
+      setError("Error creating Docker volume")
     }
   }
 
@@ -129,13 +130,53 @@ export function ContainerStorage() {
         setNewStorageSource("")
         setCreateStorageOpen(false)
         loadData()
-        alert("LXC storage pool created successfully")
+        setSuccess("LXC storage pool created successfully")
       } else {
-        alert("Failed to create LXC storage pool")
+        setError("Failed to create LXC storage pool")
       }
     } catch (err) {
       console.error(err)
-      alert("Error creating LXC storage pool")
+      setError("Error creating LXC storage pool")
+    }
+  }
+
+  const deleteDockerVolume = async (name: string) => {
+    if (!confirm(`Are you sure you want to delete Docker volume "${name}"?`)) return
+
+    try {
+      const response = await fetch(apiUrl(`/containers/volumes/${name}`), {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        loadData()
+        setSuccess(`Docker volume "${name}" deleted successfully`)
+      } else {
+        setError(`Failed to delete Docker volume "${name}"`)
+      }
+    } catch (err) {
+      console.error(err)
+      setError(`Error deleting Docker volume "${name}"`)
+    }
+  }
+
+  const deleteLXCStorage = async (name: string) => {
+    if (!confirm(`Are you sure you want to delete LXC storage pool "${name}"?`)) return
+
+    try {
+      const response = await fetch(apiUrl(`/containers/storages/${name}`), {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        loadData()
+        setSuccess(`LXC storage pool "${name}" deleted successfully`)
+      } else {
+        setError(`Failed to delete LXC storage pool "${name}"`)
+      }
+    } catch (err) {
+      console.error(err)
+      setError(`Error deleting LXC storage pool "${name}"`)
     }
   }
 
@@ -163,6 +204,8 @@ export function ContainerStorage() {
           <p className="text-muted-foreground">Manage Docker volumes and LXC storage pools</p>
         </div>
       </div>
+
+      <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
 
       <Tabs defaultValue="docker" className="space-y-4">
         <TabsList>
@@ -206,7 +249,7 @@ export function ContainerStorage() {
                         {volume.used && <p>Used: {formatSize(volume.used)}</p>}
                       </div>
                       <div className="flex gap-2 mt-4">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => deleteDockerVolume(volume.name)}>
                           <Trash2 className="h-4 w-4 mr-1" />
                           Remove
                         </Button>
@@ -257,7 +300,7 @@ export function ContainerStorage() {
                         {storage.description && <p>Description: {storage.description}</p>}
                       </div>
                       <div className="flex gap-2 mt-4">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => deleteLXCStorage(storage.name)}>
                           <Trash2 className="h-4 w-4 mr-1" />
                           Remove
                         </Button>
@@ -355,8 +398,6 @@ export function ContainerStorage() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <NotificationContainer />
     </div>
   )
 }
