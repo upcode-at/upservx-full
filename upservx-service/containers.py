@@ -423,3 +423,38 @@ def get_lxc_storages() -> List[LXCStorageInfo]:
             description=description
         ))
     return storages
+
+
+def create_docker_volume(name: str) -> bool:
+    """Create a new Docker volume."""
+    if shutil.which("docker") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["docker", "volume", "create", name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> bool:
+    """Create a new LXC storage pool."""
+    if shutil.which("lxc") is None:
+        return False
+    try:
+        cmd = ["lxc", "storage", "create", name, driver]
+        if source:
+            cmd.extend(["source", source])
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False

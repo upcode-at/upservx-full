@@ -846,3 +846,23 @@ def list_lxc_storages():
     from containers import get_lxc_storages
     storages = get_lxc_storages()
     return [s.dict() for s in storages]
+
+
+@router.post("/volumes")
+def create_docker_volume(name: str):
+    """Create a new Docker volume."""
+    from containers import create_docker_volume
+    success = create_docker_volume(name)
+    if success:
+        return {"message": "Volume created successfully"}
+    raise HTTPException(status_code=400, detail="Failed to create volume")
+
+
+@router.post("/storages")
+def create_lxc_storage(name: str, driver: str = "dir", source: str = ""):
+    """Create a new LXC storage pool."""
+    from containers import create_lxc_storage
+    success = create_lxc_storage(name, driver, source)
+    if success:
+        return {"message": "Storage pool created successfully"}
+    raise HTTPException(status_code=400, detail="Failed to create storage pool")

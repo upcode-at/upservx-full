@@ -5,9 +5,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { HardDrive, Database, Trash2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { HardDrive, Database, Trash2, Plus } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
+import { useToast } from "@/hooks/use-toast"
 
 interface DockerVolume {
   name: string
@@ -32,6 +49,12 @@ export function ContainerStorage() {
   const [dockerVolumes, setDockerVolumes] = useState<DockerVolume[]>([])
   const [lxcStorages, setLxcStorages] = useState<LXCStorage[]>([])
   const [loading, setLoading] = useState(true)
+  const [createVolumeOpen, setCreateVolumeOpen] = useState(false)
+  const [createStorageOpen, setCreateStorageOpen] = useState(false)
+  const [newVolumeName, setNewVolumeName] = useState("")
+  const [newStorageName, setNewStorageName] = useState("")
+  const [newStorageDriver, setNewStorageDriver] = useState("dir")
+  const [newStorageSource, setNewStorageSource] = useState("")
 
   useEffect(() => {
     loadData()
@@ -55,6 +78,64 @@ export function ContainerStorage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const createDockerVolume = async () => {
+    if (!newVolumeName.trim()) return
+
+    try {
+      const response = await fetch(apiUrl("/containers/volumes"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: newVolumeName }),
+      })
+
+      if (response.ok) {
+        setNewVolumeName("")
+        setCreateVolumeOpen(false)
+        loadData()
+        alert("Docker volume created successfully")
+      } else {
+        alert("Failed to create Docker volume")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("Error creating Docker volume")
+    }
+  }
+
+  const createLXCStorage = async () => {
+    if (!newStorageName.trim()) return
+
+    try {
+      const response = await fetch(apiUrl("/containers/storages"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newStorageName,
+          driver: newStorageDriver,
+          source: newStorageSource
+        }),
+      })
+
+      if (response.ok) {
+        setNewStorageName("")
+        setNewStorageDriver("dir")
+        setNewStorageSource("")
+        setCreateStorageOpen(false)
+        loadData()
+        alert("LXC storage pool created successfully")
+      } else {
+        alert("Failed to create LXC storage pool")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("Error creating LXC storage pool")
     }
   }
 
@@ -92,13 +173,21 @@ export function ContainerStorage() {
         <TabsContent value="docker" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Docker Volumes ({dockerVolumes.length})
-              </CardTitle>
-              <CardDescription>
-                Persistent storage volumes for Docker containers
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Docker Volumes ({dockerVolumes.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Persistent storage volumes for Docker containers
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setCreateVolumeOpen(true)} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Volume
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {dockerVolumes.length === 0 ? (
@@ -133,13 +222,21 @@ export function ContainerStorage() {
         <TabsContent value="lxc" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <HardDrive className="h-5 w-5" />
-                LXC Storage Pools ({lxcStorages.length})
-              </CardTitle>
-              <CardDescription>
-                Storage pools for LXC containers
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <HardDrive className="h-5 w-5" />
+                    LXC Storage Pools ({lxcStorages.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Storage pools for LXC containers
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setCreateStorageOpen(true)} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Storage Pool
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {lxcStorages.length === 0 ? (
@@ -173,6 +270,91 @@ export function ContainerStorage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Docker Volume Dialog */}
+      <Dialog open={createVolumeOpen} onOpenChange={setCreateVolumeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Docker Volume</DialogTitle>
+            <DialogDescription>
+              Create a new persistent storage volume for Docker containers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="volume-name">Volume Name</Label>
+              <Input
+                id="volume-name"
+                value={newVolumeName}
+                onChange={(e) => setNewVolumeName(e.target.value)}
+                placeholder="Enter volume name"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateVolumeOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createDockerVolume}>
+              Create Volume
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create LXC Storage Dialog */}
+      <Dialog open={createStorageOpen} onOpenChange={setCreateStorageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create LXC Storage Pool</DialogTitle>
+            <DialogDescription>
+              Create a new storage pool for LXC containers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="storage-name">Storage Pool Name</Label>
+              <Input
+                id="storage-name"
+                value={newStorageName}
+                onChange={(e) => setNewStorageName(e.target.value)}
+                placeholder="Enter storage pool name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="storage-driver">Driver</Label>
+              <Select value={newStorageDriver} onValueChange={setNewStorageDriver}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dir">Directory</SelectItem>
+                  <SelectItem value="zfs">ZFS</SelectItem>
+                  <SelectItem value="btrfs">Btrfs</SelectItem>
+                  <SelectItem value="lvm">LVM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="storage-source">Source (optional)</Label>
+              <Input
+                id="storage-source"
+                value={newStorageSource}
+                onChange={(e) => setNewStorageSource(e.target.value)}
+                placeholder="Path or device for storage"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateStorageOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createLXCStorage}>
+              Create Storage Pool
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <NotificationContainer />
     </div>
