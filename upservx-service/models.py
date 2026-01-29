@@ -436,3 +436,13 @@ class LXCStorageInfo(BaseModel):
     used: Optional[float] = None
     available: Optional[float] = None
     description: Optional[str] = None
+
+
+class DockerVolumeCreate(BaseModel):
+    name: str
+
+
+class LXCStorageCreate(BaseModel):
+    name: str
+    driver: str = "dir"
+    source: str = ""

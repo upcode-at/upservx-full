@@ -14,7 +14,7 @@ import fcntl
 import json
 from datetime import datetime
 
-from models import ContainerCreate, Container, ImagePullRequest
+from models import ContainerCreate, Container, ImagePullRequest, DockerVolumeCreate, LXCStorageCreate
 from containers import (
     list_all_containers, get_docker_images, get_lxc_images,
     get_docker_image_details, get_lxc_image_details,
@@ -849,20 +849,20 @@ def list_lxc_storages():
 
 
 @router.post("/volumes")
-def create_docker_volume(name: str):
+def create_docker_volume(payload: DockerVolumeCreate):
     """Create a new Docker volume."""
     from containers import create_docker_volume
-    success = create_docker_volume(name)
+    success = create_docker_volume(payload.name)
     if success:
         return {"message": "Volume created successfully"}
     raise HTTPException(status_code=400, detail="Failed to create volume")
 
 
 @router.post("/storages")
-def create_lxc_storage(name: str, driver: str = "dir", source: str = ""):
+def create_lxc_storage(payload: LXCStorageCreate):
     """Create a new LXC storage pool."""
     from containers import create_lxc_storage
-    success = create_lxc_storage(name, driver, source)
+    success = create_lxc_storage(payload.name, payload.driver, payload.source)
     if success:
         return {"message": "Storage pool created successfully"}
     raise HTTPException(status_code=400, detail="Failed to create storage pool")
