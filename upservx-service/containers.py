@@ -441,10 +441,10 @@ def create_docker_volume(name: str) -> bool:
         return False
 
 
-def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> bool:
+def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> tuple[bool, str]:
     """Create a new LXC storage pool."""
     if shutil.which("lxc") is None:
-        return False
+        return False, "LXC not found in PATH"
     try:
         cmd = ["lxc", "storage", "create", name, driver]
         if source:
@@ -455,9 +455,12 @@ def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> bool
             text=True,
             timeout=30
         )
-        return result.returncode == 0
-    except Exception:
-        return False
+        if result.returncode == 0:
+            return True, "Storage pool created successfully"
+        else:
+            return False, result.stderr.strip() or "Command failed"
+    except Exception as e:
+        return False, str(e)
 
 
 def delete_docker_volume(name: str) -> bool:

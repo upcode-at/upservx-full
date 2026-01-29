@@ -848,6 +848,17 @@ def list_lxc_storages():
     return [s.dict() for s in storages]
 
 
+@router.post("/storages")
+def create_lxc_storage(payload: LXCStorageCreate):
+    """Create a new LXC storage pool."""
+    from containers import create_lxc_storage
+    success, message = create_lxc_storage(payload.name, payload.driver, payload.source)
+    if success:
+        return {"message": message}
+    else:
+        raise HTTPException(status_code=400, detail=message)
+
+
 @router.post("/volumes")
 def create_docker_volume(payload: DockerVolumeCreate):
     """Create a new Docker volume."""
