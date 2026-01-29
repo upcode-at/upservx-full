@@ -19,6 +19,7 @@ import { ComposeBuilder } from "@/components/compose-builder"
 import { AppStore } from "@/components/app-store"
 import FirewallManagement from "@/components/firewall-management"
 import ClusterManagement from "@/components/cluster-management"
+import { ContainerStorage } from "@/components/container-storage"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -57,6 +58,8 @@ export function Dashboard() {
         return <FirewallManagement />
       case "cluster":
         return <ClusterManagement />
+      case "container-storage":
+        return <ContainerStorage />
       default:
         return <SystemOverview />
     }

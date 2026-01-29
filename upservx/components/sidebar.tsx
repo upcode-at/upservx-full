@@ -16,6 +16,8 @@ import {
   Terminal,
   Store,
   GitBranch,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -29,6 +31,7 @@ interface SidebarProps {
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
   const { theme } = useTheme()
+  const [storageExpanded, setStorageExpanded] = useState(false)
 
   useEffect(() => {
     const loadHostname = async () => {
@@ -66,7 +69,15 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       title: "Resources",
       items: [
         { id: "images", label: "Images & ISOs", icon: Disc },
-        { id: "storage", label: "Storage", icon: HardDrive },
+        {
+          id: "storage",
+          label: "Storage",
+          icon: HardDrive,
+          subItems: [
+            { id: "storage", label: "Physical Storage" },
+            { id: "container-storage", label: "Container Storage" },
+          ]
+        },
       ],
     },
     {
@@ -108,27 +119,73 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
               {category.items.map((item) => {
                 const Icon = item.icon
                 const isActive = activeSection === item.id
+                const hasSubItems = item.subItems && item.subItems.length > 0
+                const isExpanded = item.id === "storage" ? storageExpanded : false
+
                 return (
-                  <Button
-                    key={item.id}
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start h-11 font-medium transition-all duration-200 rounded-none",
-                      isActive 
-                        ? "bg-primary/70 text-white shadow-sm" 
-                        : "hover:bg-primary/50 hover:border-l-4 hover:border-primary hover:text-white"
+                  <div key={item.id}>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start h-11 font-medium transition-all duration-200 rounded-none",
+                        isActive 
+                          ? "bg-primary/70 text-white shadow-sm" 
+                          : "hover:bg-primary/50 hover:border-l-4 hover:border-primary hover:text-white"
+                      )}
+                      onClick={() => {
+                        if (hasSubItems) {
+                          if (item.id === "storage") {
+                            setStorageExpanded(!storageExpanded)
+                          }
+                        } else {
+                          onSectionChange(item.id)
+                        }
+                      }}
+                    >
+                      <Icon className={cn(
+                        "mr-3 h-4 w-4 transition-colors",
+                        isActive ? "text-white" : "text-muted-foreground"
+                      )} />
+                      {item.label}
+                      {hasSubItems && (
+                        <div className="ml-auto">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </div>
+                      )}
+                      {!hasSubItems && isActive && (
+                        <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
+                      )}
+                    </Button>
+                    {hasSubItems && isExpanded && (
+                      <div className="ml-6 space-y-1 mt-1">
+                        {item.subItems.map((subItem) => {
+                          const subIsActive = activeSection === subItem.id
+                          return (
+                            <Button
+                              key={subItem.id}
+                              variant="ghost"
+                              className={cn(
+                                "w-full justify-start h-9 font-normal text-sm transition-all duration-200 rounded-none",
+                                subIsActive 
+                                  ? "bg-primary/50 text-white" 
+                                  : "hover:bg-primary/30 hover:text-white"
+                              )}
+                              onClick={() => onSectionChange(subItem.id)}
+                            >
+                              {subItem.label}
+                              {subIsActive && (
+                                <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
+                              )}
+                            </Button>
+                          )
+                        })}
+                      </div>
                     )}
-                    onClick={() => onSectionChange(item.id)}
-                  >
-                    <Icon className={cn(
-                      "mr-3 h-4 w-4 transition-colors",
-                      isActive ? "text-white" : "text-muted-foreground"
-                    )} />
-                    {item.label}
-                    {isActive && (
-                      <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
-                    )}
-                  </Button>
+                  </div>
                 )
               })}
             </div>

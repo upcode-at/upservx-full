@@ -830,3 +830,19 @@ def uninstall_app_from_store(project_name: str):
     if result["success"]:
         return result
     raise HTTPException(status_code=400, detail=result["message"])
+
+
+@router.get("/volumes")
+def list_docker_volumes():
+    """List Docker volumes."""
+    from containers import get_docker_volumes
+    volumes = get_docker_volumes()
+    return [v.dict() for v in volumes]
+
+
+@router.get("/storages")
+def list_lxc_storages():
+    """List LXC storage pools."""
+    from containers import get_lxc_storages
+    storages = get_lxc_storages()
+    return [s.dict() for s in storages]

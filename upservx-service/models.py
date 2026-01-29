@@ -417,3 +417,22 @@ class PortForwardCreate(BaseModel):
 
 class MasqueradeCreate(BaseModel):
     interface: str
+
+
+class DockerVolumeInfo(BaseModel):
+    name: str
+    driver: str
+    mountpoint: str
+    size: Optional[float] = None
+    used: Optional[float] = None
+    created: Optional[str] = None
+
+
+class LXCStorageInfo(BaseModel):
+    name: str
+    type: str
+    source: str
+    size: Optional[float] = None
+    used: Optional[float] = None
+    available: Optional[float] = None
+    description: Optional[str] = None

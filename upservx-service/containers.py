@@ -7,7 +7,7 @@ import json
 import shutil
 from typing import List
 from datetime import datetime
-from models import Container, ContainerImageInfo
+from models import Container, ContainerImageInfo, DockerVolumeInfo, LXCStorageInfo
 
 
 # Containers that are created via the API are stored here in-memory. Containers
@@ -363,3 +363,63 @@ def create_api_container(container_data: dict) -> Container:
     next_container_id += 1
     containers.append(container)
     return container
+
+
+def get_docker_volumes() -> List[DockerVolumeInfo]:
+    """Return a list of Docker volumes."""
+    if shutil.which("docker") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            ["docker", "volume", "ls", "--format", "{{.Name}}||{{.Driver}}||{{.Mountpoint}}"],
+            text=True,
+            timeout=10
+        ).strip()
+    except Exception:
+        return []
+
+    volumes = []
+    for line in output.splitlines():
+        parts = line.split("||")
+        if len(parts) != 3:
+            continue
+        name, driver, mountpoint = parts
+        volumes.append(DockerVolumeInfo(
+            name=name,
+            driver=driver,
+            mountpoint=mountpoint,
+            size=None,
+            used=None
+        ))
+    return volumes
+
+
+def get_lxc_storages() -> List[LXCStorageInfo]:
+    """Return a list of LXC storage pools."""
+    if shutil.which("lxc") is None:
+        return []
+    try:
+        output = subprocess.check_output(
+            ["lxc", "storage", "list", "--format", "csv"],
+            text=True,
+            timeout=10
+        ).strip()
+    except Exception:
+        return []
+
+    storages = []
+    for line in output.splitlines():
+        parts = line.split(",")
+        if len(parts) < 4:
+            continue
+        name, driver, source, description = parts[0], parts[1], parts[2], parts[3] if len(parts) > 3 else ""
+        storages.append(LXCStorageInfo(
+            name=name,
+            type=driver,
+            source=source,
+            size=None,
+            used=None,
+            available=None,
+            description=description
+        ))
+    return storages
