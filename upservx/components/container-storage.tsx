@@ -207,8 +207,8 @@ export function ContainerStorage() {
 
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
 
-      <Tabs defaultValue="docker" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="docker" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="docker">Docker Volumes</TabsTrigger>
           <TabsTrigger value="lxc">LXC Storages</TabsTrigger>
         </TabsList>
