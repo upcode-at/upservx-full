@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Download, CheckCircle } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
@@ -206,8 +207,8 @@ export function AppStore() {
 
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search apps..."
@@ -216,6 +217,7 @@ export function AppStore() {
             className="pl-10"
           />
         </div>
+        {/* Category buttons that wrap on smaller screens */}
         <div className="flex gap-2 flex-wrap">
           {categories.map((category) => (
             <Button
