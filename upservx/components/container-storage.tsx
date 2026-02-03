@@ -236,7 +236,7 @@ export function ContainerStorage() {
               {dockerVolumes.length === 0 ? (
                 <p className="text-muted-foreground">No Docker volumes found</p>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-4">
                   {dockerVolumes.map((volume) => (
                     <Card key={volume.name} className="p-4">
                       <div className="flex items-center justify-between mb-2">
@@ -285,7 +285,7 @@ export function ContainerStorage() {
               {lxcStorages.length === 0 ? (
                 <p className="text-muted-foreground">No LXC storage pools found</p>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-4">
                   {lxcStorages.map((storage) => (
                     <Card key={storage.name} className="p-4">
                       <div className="flex items-center justify-between mb-2">
