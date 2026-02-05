@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Card,
   CardContent,
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Download, CheckCircle } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
@@ -68,11 +67,6 @@ export function AppStore() {
     return `${protocol}//${hostname}${apiPort}${path}`
   }
 
-  useEffect(() => {
-    loadApps()
-    loadCategories()
-  }, [])
-
   const filterApps = () => {
     let filtered = apps
 
@@ -98,7 +92,7 @@ export function AppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apps, selectedCategory, searchQuery])
 
-  const loadApps = async () => {
+  const loadApps = useCallback(async () => {
     try {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
@@ -113,9 +107,9 @@ export function AppStore() {
     } catch (e) {
       console.error("Failed to load apps:", e)
     }
-  }
+  }, [])
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
@@ -130,7 +124,12 @@ export function AppStore() {
     } catch (e) {
       console.error("Failed to load categories:", e)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadApps()
+    loadCategories()
+  }, [loadApps, loadCategories])
 
   const handleShowDetails = async (appId: string) => {
     try {
