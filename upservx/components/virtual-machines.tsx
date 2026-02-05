@@ -33,6 +33,9 @@ export function VirtualMachines() {
     created: string
     autostart?: boolean
     network_bridge?: string
+    graphics?: string
+    cloud_init_iso?: string
+    storage_path?: string
     cpu_usage?: number
     memory_usage?: number
   }
