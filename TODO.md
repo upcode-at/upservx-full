@@ -10,17 +10,17 @@ This file tracks ongoing work, planned features, and areas where contributors ca
 The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Complete VM Features**
+  - [x] VM Cloning functionality ✅ **IMPLEMENTED** - Duplicate button with full disk cloning
   - [ ] VM Snapshots (create, restore, delete)
-  - [ ] VM Cloning functionality
   - [ ] VM Migration between hosts
   - [ ] VM Templates for quick deployment
   - [ ] Cloud-init integration for automated setup
 
 - [ ] **VM Monitoring**
-  - Real-time performance metrics (CPU, RAM, Disk I/O)
-  - Network traffic monitoring per VM
-  - Integration with system overview dashboard
-  - Resource usage history/graphs
+  - [x] Real-time performance metrics (CPU, RAM) ✅ **IMPLEMENTED** - Live CPU/RAM usage with color coding
+  - [ ] Network traffic monitoring per VM
+  - [ ] Integration with system overview dashboard
+  - [ ] Resource usage history/graphs
 
 - [ ] **VM Networking**
   - Port forwarding rules
@@ -195,7 +195,7 @@ The VM management feature exists but requires thorough testing and completion:
 
 ---
 
-**Last Updated:** January 28, 2026
+**Last Updated:** February 6, 2026
 
 **Priority Legend:**
 - 🚨 High Priority - Critical functionality
