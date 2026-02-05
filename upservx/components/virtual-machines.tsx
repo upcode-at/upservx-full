@@ -251,18 +251,11 @@ export function VirtualMachines() {
     
     try {
       const payload = {
-        name: duplicateName,
-        cpu: duplicateVm.cpu,
-        memory: duplicateVm.memory,
-        iso: duplicateVm.iso,
-        disks: [20], // Start with one default disk
-        autostart: duplicateVm.autostart || false,
-        network_mode: duplicateVm.network_bridge === "virbr0" ? "nat" : duplicateVm.network_bridge === "none" ? "none" : "bridge",
-        bridge_interface: duplicateVm.network_bridge && duplicateVm.network_bridge !== "virbr0" && duplicateVm.network_bridge !== "none" ? duplicateVm.network_bridge : undefined,
+        new_name: duplicateName,
         storage_path: duplicateVm.storage_path || undefined
       }
       
-      const res = await fetch(apiUrl("/vms"), {
+      const res = await fetch(apiUrl(`/vms/${duplicateVm.name}/clone`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -277,15 +270,15 @@ export function VirtualMachines() {
         setDuplicateOpen(false)
         setDuplicateVm(null)
         setDuplicateName("")
-        setSuccess(`VM ${duplicateName} created as duplicate of ${duplicateVm.name}`)
+        setSuccess(`VM ${duplicateName} created as clone of ${duplicateVm.name}`)
       } else {
         const data = await res.json().catch(() => null)
-        setError(data?.detail || "Error duplicating VM")
+        setError(data?.detail || "Error cloning VM")
       }
     } catch (e) {
       console.error(e)
       if (e instanceof Error) setError(e.message)
-      else setError("Failed to duplicate VM")
+      else setError("Failed to clone VM")
     }
   }
 
@@ -699,7 +692,7 @@ export function VirtualMachines() {
           <DialogHeader>
             <DialogTitle>Duplicate Virtual Machine</DialogTitle>
             <DialogDescription>
-              Create a copy of {duplicateVm?.name} with the same configuration
+              Create a complete clone of {duplicateVm?.name} including all disk data
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -714,14 +707,15 @@ export function VirtualMachines() {
             </div>
             {duplicateVm && (
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>Configuration to be copied:</p>
+                <p>Configuration to be cloned:</p>
                 <ul className="list-disc list-inside pl-2">
                   <li>CPU: {duplicateVm.cpu} cores</li>
                   <li>Memory: {duplicateVm.memory} MB</li>
                   <li>ISO: {duplicateVm.iso}</li>
                   <li>Network: {duplicateVm.network_bridge || "default"}</li>
+                  <li>Disks: {duplicateVm.disks?.length || 0} disk(s) will be copied</li>
                 </ul>
-                <p className="mt-2 text-xs">Note: Disk files will be created new (not copied)</p>
+                <p className="mt-2 text-xs font-semibold">Note: All disk files will be cloned (full copy)</p>
               </div>
             )}
           </div>

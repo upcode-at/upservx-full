@@ -760,3 +760,100 @@ def list_vms_with_status() -> List[VirtualMachine]:
         vm.id = idx
     
     return existing
+
+
+def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -> VirtualMachine:
+    """Clone an existing virtual machine including its disks.
+    
+    Args:
+        source_name: Name of the VM to clone
+        new_name: Name for the new cloned VM
+        storage_path: Optional custom storage path for the clone
+    """
+    if shutil.which("virt-clone") is None:
+        raise Exception("virt-clone is not installed. Install libvirt-clients package.")
+    
+    # Get source VM info
+    vms = load_vms()
+    source_vm = None
+    for vm in vms:
+        if vm.name == source_name:
+            source_vm = vm
+            break
+    
+    if not source_vm:
+        raise Exception(f"Source VM '{source_name}' not found")
+    
+    # Check if new name already exists
+    for vm in vms:
+        if vm.name == new_name:
+            raise Exception(f"VM '{new_name}' already exists")
+    
+    # Determine storage location for clone
+    if storage_path:
+        ensure_parent_permissions(storage_path)
+        vm_storage_dir = os.path.join(storage_path, "vms", new_name)
+    else:
+        vm_storage_dir = f"/var/lib/libvirt/images/{new_name}"
+    
+    os.makedirs(vm_storage_dir, exist_ok=True)
+    set_libvirt_permissions(vm_storage_dir)
+    ensure_parent_permissions(vm_storage_dir)
+    
+    # Build virt-clone command
+    # virt-clone will automatically copy all disks from the source VM
+    cmd = [
+        "virt-clone",
+        "--original", source_name,
+        "--name", new_name,
+        "--auto-clone"  # Automatically clone all disks
+    ]
+    
+    # If custom storage path, specify new disk locations
+    if storage_path:
+        new_disks = []
+        for i, old_disk in enumerate(source_vm.disks):
+            disk_name = f"disk{i}.qcow2" if i > 0 else "disk.qcow2"
+            new_disk_path = os.path.join(vm_storage_dir, disk_name)
+            new_disks.append(new_disk_path)
+            cmd.extend(["--file", new_disk_path])
+        
+        # Remove --auto-clone if we specify files manually
+        cmd.remove("--auto-clone")
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        print(f"VM cloned successfully: {result.stdout}")
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Failed to clone VM: {e.stderr}")
+    
+    # Get the new disk paths from virsh
+    new_disks = []
+    domblklist = subprocess.run(["virsh", "domblklist", new_name], capture_output=True, text=True)
+    if domblklist.returncode == 0:
+        for line in domblklist.stdout.splitlines()[2:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].endswith('.qcow2'):
+                new_disks.append(parts[1])
+    
+    # Create new VM entry
+    new_vm = VirtualMachine(
+        id=len(vms) + 1,
+        name=new_name,
+        status="stopped",
+        cpu=source_vm.cpu,
+        memory=source_vm.memory,
+        iso=source_vm.iso,
+        disks=new_disks,
+        created=datetime.now().strftime("%Y-%m-%d"),
+        autostart=False,  # Don't autostart clones by default
+        network_bridge=source_vm.network_bridge,
+        graphics=source_vm.graphics,
+        storage_path=storage_path
+    )
+    
+    # Save to JSON
+    vms.append(new_vm)
+    save_vms(vms)
+    
+    return new_vm

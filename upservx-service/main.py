@@ -49,7 +49,7 @@ from settings import (
     load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
 )
-from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info
+from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
@@ -447,6 +447,22 @@ def delete_vm_endpoint(name: str):
     try:
         delete_vm(name)
         return {"detail": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/vms/{name}/clone")
+def clone_vm_endpoint(name: str, payload: dict):
+    """Clone a virtual machine including its disks."""
+    try:
+        new_name = payload.get("new_name")
+        storage_path = payload.get("storage_path")
+        
+        if not new_name:
+            raise HTTPException(status_code=400, detail="new_name is required")
+        
+        vm = clone_vm(name, new_name, storage_path)
+        return vm.dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
