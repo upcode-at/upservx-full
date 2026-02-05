@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
@@ -64,6 +64,9 @@ export function VirtualMachines() {
   const [consoleVm, setConsoleVm] = useState<string | null>(null)
   const [vncUrl, setVncUrl] = useState<string | null>(null)
   const [disksToRemove, setDisksToRemove] = useState<string[]>([])
+  const [duplicateOpen, setDuplicateOpen] = useState(false)
+  const [duplicateVm, setDuplicateVm] = useState<VMData | null>(null)
+  const [duplicateName, setDuplicateName] = useState("")
 
   useEffect(() => {
     const load = async () => {
@@ -238,6 +241,58 @@ export function VirtualMachines() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  const handleDuplicate = async () => {
+    if (!duplicateVm || !duplicateName.trim()) return
+    
+    setSuccess(null)
+    setError(null)
+    
+    try {
+      const payload = {
+        name: duplicateName,
+        cpu: duplicateVm.cpu,
+        memory: duplicateVm.memory,
+        iso: duplicateVm.iso,
+        disks: [20], // Start with one default disk
+        autostart: duplicateVm.autostart || false,
+        network_mode: duplicateVm.network_bridge === "virbr0" ? "nat" : duplicateVm.network_bridge === "none" ? "none" : "bridge",
+        bridge_interface: duplicateVm.network_bridge && duplicateVm.network_bridge !== "virbr0" && duplicateVm.network_bridge !== "none" ? duplicateVm.network_bridge : undefined,
+        storage_path: duplicateVm.storage_path || undefined
+      }
+      
+      const res = await fetch(apiUrl("/vms"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      
+      if (res.ok) {
+        const refreshRes = await fetch(apiUrl("/vms"))
+        if (refreshRes.ok) {
+          const allVms = await refreshRes.json()
+          setVms(allVms)
+        }
+        setDuplicateOpen(false)
+        setDuplicateVm(null)
+        setDuplicateName("")
+        setSuccess(`VM ${duplicateName} created as duplicate of ${duplicateVm.name}`)
+      } else {
+        const data = await res.json().catch(() => null)
+        setError(data?.detail || "Error duplicating VM")
+      }
+    } catch (e) {
+      console.error(e)
+      if (e instanceof Error) setError(e.message)
+      else setError("Failed to duplicate VM")
+    }
+  }
+
+  const openDuplicate = (vm: VMData) => {
+    setDuplicateVm(vm)
+    setDuplicateName(`${vm.name}-copy`)
+    setDuplicateOpen(true)
   }
 
   const handleConsole = async (name: string) => {
@@ -532,6 +587,9 @@ export function VirtualMachines() {
                 <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
+                <Button variant="outline" size="icon" onClick={() => openDuplicate(vm)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
                 <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -599,6 +657,9 @@ export function VirtualMachines() {
                           <Button variant="outline" size="icon" onClick={() => openEdit(vm)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
+                          <Button variant="outline" size="icon" onClick={() => openDuplicate(vm)}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
                           <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -628,6 +689,50 @@ export function VirtualMachines() {
                 title={`Console for ${consoleVm}`}
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate VM Dialog */}
+      <Dialog open={duplicateOpen} onOpenChange={setDuplicateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate Virtual Machine</DialogTitle>
+            <DialogDescription>
+              Create a copy of {duplicateVm?.name} with the same configuration
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="duplicate-name">New VM Name</Label>
+              <Input
+                id="duplicate-name"
+                value={duplicateName}
+                onChange={(e) => setDuplicateName(e.target.value)}
+                placeholder="Enter new VM name"
+              />
+            </div>
+            {duplicateVm && (
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>Configuration to be copied:</p>
+                <ul className="list-disc list-inside pl-2">
+                  <li>CPU: {duplicateVm.cpu} cores</li>
+                  <li>Memory: {duplicateVm.memory} MB</li>
+                  <li>ISO: {duplicateVm.iso}</li>
+                  <li>Network: {duplicateVm.network_bridge || "default"}</li>
+                </ul>
+                <p className="mt-2 text-xs">Note: Disk files will be created new (not copied)</p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setDuplicateOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDuplicate} disabled={!duplicateName.trim()}>
+              <Copy className="mr-2 h-4 w-4" />
+              Duplicate
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
