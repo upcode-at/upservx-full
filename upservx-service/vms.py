@@ -14,6 +14,9 @@ from datetime import datetime
 from models import VirtualMachine
 
 
+import time
+
+
 VM_FILE = "/etc/upservx/vms.json"
 
 
@@ -173,113 +176,112 @@ def parse_virsh_list() -> dict[str, str]:
 
 
 def get_vm_stats(name: str) -> dict[str, float]:
-    """Get VM resource usage statistics using virsh domstats."""
+    """Get VM resource usage statistics using virsh commands."""
     stats = {"cpu_usage": 0.0, "memory_usage": 0.0}
     
     if shutil.which("virsh") is None:
         return stats
     
     try:
-        # Get domain stats
-        result = subprocess.run(
-            ["virsh", "domstats", name, "--cpu-total", "--balloon"],
+        # Get memory stats using dommemstat
+        mem_result = subprocess.run(
+            ["virsh", "dommemstat", name],
             capture_output=True,
             text=True,
             timeout=5
         )
         
-        if result.returncode != 0:
-            return stats
+        if mem_result.returncode == 0:
+            available_mem = None
+            usable_mem = None
+            actual_mem = None
+            rss_mem = None
+            
+            for line in mem_result.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("available "):
+                    # Total memory as seen by the guest OS in KB
+                    available_mem = int(line.split()[1])
+                elif line.startswith("usable "):
+                    # Memory available for applications (free + reclaimable)
+                    usable_mem = int(line.split()[1])
+                elif line.startswith("actual "):
+                    # Total memory allocated to VM in KB
+                    actual_mem = int(line.split()[1])
+                elif line.startswith("rss "):
+                    # Resident set size - physical memory used on host
+                    rss_mem = int(line.split()[1])
+            
+            # Calculate memory usage with available data
+            # Prefer guest-reported values (available/usable) over host values (rss/actual)
+            if available_mem and usable_mem and available_mem > 0:
+                # Best case: guest agent is running
+                # usable = free + reclaimable, so used = available - usable
+                memory_used = available_mem - usable_mem
+                stats["memory_usage"] = round((memory_used / available_mem) * 100, 1)
+            elif actual_mem and rss_mem and actual_mem > 0:
+                # Fallback: use host-side RSS (less accurate but better than nothing)
+                # This shows how much physical RAM the QEMU process uses
+                stats["memory_usage"] = round((rss_mem / actual_mem) * 100, 1)
+            elif actual_mem:
+                # No data available, return 0
+                stats["memory_usage"] = 0.0
         
-        cpu_time = None
-        cpu_time_prev = None
-        memory_available = None
-        memory_usable = None
-        memory_unused = None
-        
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if "cpu.time=" in line:
-                cpu_time = int(line.split("=")[1])
-            elif "balloon.current=" in line:
-                memory_available = int(line.split("=")[1])
-            elif "balloon.usable=" in line:
-                memory_usable = int(line.split("=")[1])
-            elif "balloon.unused=" in line:
-                memory_unused = int(line.split("=")[1])
-        
-        # Calculate memory usage percentage
-        if memory_available and memory_usable:
-            # Memory usage = (available - usable) / available * 100
-            memory_used = memory_available - memory_usable
-            stats["memory_usage"] = round((memory_used / memory_available) * 100, 1)
-        elif memory_available and memory_unused:
-            # Alternative calculation: (available - unused) / available * 100
-            memory_used = memory_available - memory_unused
-            stats["memory_usage"] = round((memory_used / memory_available) * 100, 1)
-        
-        # Get CPU stats using dominfo for vCPU count
-        info_result = subprocess.run(
-            ["virsh", "dominfo", name],
+        # Get CPU usage by measuring CPU time difference
+        # Find qemu process PID
+        pidof_result = subprocess.run(
+            ["pgrep", "-f", f"guest={name},"],
             capture_output=True,
             text=True,
             timeout=5
         )
         
-        vcpus = 1
-        if info_result.returncode == 0:
-            for line in info_result.stdout.splitlines():
-                if "CPU(s):" in line:
-                    vcpus = int(line.split(":")[1].strip())
-                    break
+        if pidof_result.returncode != 0 or not pidof_result.stdout.strip():
+            pidof_result = subprocess.run(
+                ["pgrep", "-f", f"name={name}"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
         
-        # Try to get CPU usage using virsh cpu-stats
-        cpu_result = subprocess.run(
-            ["virsh", "cpu-stats", name, "--total"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        if cpu_result.returncode == 0:
-            for line in cpu_result.stdout.splitlines():
-                if "cpu_time" in line:
-                    # cpu_time is in nanoseconds
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        try:
-                            # This is total CPU time used
-                            # For percentage, we'd need to track over time
-                            # For now, we'll use a simpler approach
-                            pass
-                        except:
-                            pass
-        
-        # Alternative: Use domstats vcpu info
-        vcpu_result = subprocess.run(
-            ["virsh", "domstats", name, "--vcpu"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        total_vcpu_time = 0
-        vcpu_count = 0
-        if vcpu_result.returncode == 0:
-            for line in vcpu_result.stdout.splitlines():
-                if "vcpu.current=" in line:
-                    vcpu_count = int(line.split("=")[1])
-                elif ".time=" in line and "vcpu." in line:
-                    # vcpu.0.time, vcpu.1.time, etc.
-                    try:
-                        total_vcpu_time += int(line.split("=")[1])
-                    except:
-                        pass
-        
-        # CPU usage is difficult to calculate without historical data
-        # For now, return 0 and implement proper tracking later
-        # Or estimate based on vcpu states
-        stats["cpu_usage"] = 0.0
+        if pidof_result.returncode == 0 and pidof_result.stdout.strip():
+            pid = pidof_result.stdout.strip().split()[0]
+            
+            # Get CPU stats twice with a small delay to calculate current usage
+            try:
+                # First measurement
+                with open(f"/proc/{pid}/stat", "r") as f:
+                    stat1 = f.read().split()
+                    utime1 = int(stat1[13])
+                    stime1 = int(stat1[14])
+                
+                with open("/proc/stat", "r") as f:
+                    cpu_line1 = f.readline().split()
+                    cpu_total1 = sum(int(x) for x in cpu_line1[1:])
+                
+                # Small delay
+                time.sleep(0.1)
+                
+                # Second measurement
+                with open(f"/proc/{pid}/stat", "r") as f:
+                    stat2 = f.read().split()
+                    utime2 = int(stat2[13])
+                    stime2 = int(stat2[14])
+                
+                with open("/proc/stat", "r") as f:
+                    cpu_line2 = f.readline().split()
+                    cpu_total2 = sum(int(x) for x in cpu_line2[1:])
+                
+                # Calculate CPU usage percentage
+                process_time = (utime2 + stime2) - (utime1 + stime1)
+                total_time = cpu_total2 - cpu_total1
+                
+                if total_time > 0:
+                    cpu_usage = (process_time / total_time) * 100
+                    stats["cpu_usage"] = round(cpu_usage, 1)
+                    
+            except (FileNotFoundError, ValueError, IndexError, ZeroDivisionError):
+                pass
         
     except (subprocess.TimeoutExpired, Exception) as e:
         print(f"Warning: Could not get stats for VM {name}: {e}")
