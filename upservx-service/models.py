@@ -212,6 +212,8 @@ class VirtualMachine(BaseModel):
     graphics: str | None = None
     cloud_init_iso: str | None = None
     storage_path: str | None = None
+    cpu_usage: float | None = None  # CPU usage percentage
+    memory_usage: float | None = None  # Memory usage percentage
 
 
 class VirtualMachineCreate(BaseModel):

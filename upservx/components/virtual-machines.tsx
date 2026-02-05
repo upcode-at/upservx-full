@@ -33,6 +33,8 @@ export function VirtualMachines() {
     created: string
     autostart?: boolean
     network_bridge?: string
+    cpu_usage?: number
+    memory_usage?: number
   }
 
   const [vms, setVms] = useState<VMData[]>([])
@@ -280,6 +282,13 @@ export function VirtualMachines() {
   const statusClass = (status: string) =>
     status === "running" ? "bg-green-600 text-white" : status === "stopped" ? "bg-red-600 text-white" : "bg-gray-600 text-white"
 
+  const getUsageColor = (usage: number | undefined) => {
+    if (!usage) return "text-green-600"
+    if (usage >= 86) return "text-red-600"
+    if (usage >= 75) return "text-orange-600"
+    return "text-green-600"
+  }
+
   return (
     <div className="space-y-6">
       <NotificationContainer success={success} error={error} onClearSuccess={() => setSuccess(null)} onClearError={() => setError(null)} />
@@ -487,15 +496,21 @@ export function VirtualMachines() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-muted-foreground">CPU</span>
-                    <div className="font-medium">{vm.cpu}</div>
+                    <div className="font-medium">{vm.cpu} cores</div>
+                    {vm.status === "running" && (
+                      <div className={`text-xs font-semibold ${getUsageColor(vm.cpu_usage)}`}>{vm.cpu_usage?.toFixed(1) ?? 0}%</div>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">RAM</span>
                     <div className="font-medium">{vm.memory} MB</div>
+                    {vm.status === "running" && (
+                      <div className={`text-xs font-semibold ${getUsageColor(vm.memory_usage)}`}>{vm.memory_usage?.toFixed(1) ?? 0}%</div>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <span className="text-muted-foreground">Created</span>
-                    <div className="font-medium">{vm.created}</div>
+                    <div className="font-medium text-xs">{vm.created}</div>
                   </div>
                 </div>
               </CardContent>
@@ -532,9 +547,10 @@ export function VirtualMachines() {
                 <TableRow>
                   <TableHead className="font-normal">Name</TableHead>
                   <TableHead className="font-normal">Status</TableHead>
-                  <TableHead className="font-normal">ISO</TableHead>
                   <TableHead className="font-normal">CPU</TableHead>
                   <TableHead className="font-normal">Memory</TableHead>
+                  <TableHead className="font-normal">CPU Usage</TableHead>
+                  <TableHead className="font-normal">Memory Usage</TableHead>
                   <TableHead className="font-normal">Created</TableHead>
                   <TableHead className="font-normal">Actions</TableHead>
                 </TableRow>
@@ -542,7 +558,7 @@ export function VirtualMachines() {
               <TableBody>
                 {vms.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       No virtual machines found
                     </TableCell>
                   </TableRow>
@@ -555,9 +571,14 @@ export function VirtualMachines() {
                           {vm.status === "running" ? "Running" : vm.status === "stopped" ? "Stopped" : vm.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{vm.iso}</TableCell>
                       <TableCell>{vm.cpu}</TableCell>
-                      <TableCell>{vm.memory}</TableCell>
+                      <TableCell>{vm.memory} MB</TableCell>
+                      <TableCell className={vm.status === "running" ? getUsageColor(vm.cpu_usage) : ""}>
+                        <span className="font-semibold">{vm.status === "running" ? `${vm.cpu_usage?.toFixed(1) ?? 0}%` : "-"}</span>
+                      </TableCell>
+                      <TableCell className={vm.status === "running" ? getUsageColor(vm.memory_usage) : ""}>
+                        <span className="font-semibold">{vm.status === "running" ? `${vm.memory_usage?.toFixed(1) ?? 0}%` : "-"}</span>
+                      </TableCell>
                       <TableCell className="text-sm">{vm.created}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">

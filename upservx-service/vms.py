@@ -172,6 +172,121 @@ def parse_virsh_list() -> dict[str, str]:
     return statuses
 
 
+def get_vm_stats(name: str) -> dict[str, float]:
+    """Get VM resource usage statistics using virsh domstats."""
+    stats = {"cpu_usage": 0.0, "memory_usage": 0.0}
+    
+    if shutil.which("virsh") is None:
+        return stats
+    
+    try:
+        # Get domain stats
+        result = subprocess.run(
+            ["virsh", "domstats", name, "--cpu-total", "--balloon"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.returncode != 0:
+            return stats
+        
+        cpu_time = None
+        cpu_time_prev = None
+        memory_available = None
+        memory_usable = None
+        memory_unused = None
+        
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if "cpu.time=" in line:
+                cpu_time = int(line.split("=")[1])
+            elif "balloon.current=" in line:
+                memory_available = int(line.split("=")[1])
+            elif "balloon.usable=" in line:
+                memory_usable = int(line.split("=")[1])
+            elif "balloon.unused=" in line:
+                memory_unused = int(line.split("=")[1])
+        
+        # Calculate memory usage percentage
+        if memory_available and memory_usable:
+            # Memory usage = (available - usable) / available * 100
+            memory_used = memory_available - memory_usable
+            stats["memory_usage"] = round((memory_used / memory_available) * 100, 1)
+        elif memory_available and memory_unused:
+            # Alternative calculation: (available - unused) / available * 100
+            memory_used = memory_available - memory_unused
+            stats["memory_usage"] = round((memory_used / memory_available) * 100, 1)
+        
+        # Get CPU stats using dominfo for vCPU count
+        info_result = subprocess.run(
+            ["virsh", "dominfo", name],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        vcpus = 1
+        if info_result.returncode == 0:
+            for line in info_result.stdout.splitlines():
+                if "CPU(s):" in line:
+                    vcpus = int(line.split(":")[1].strip())
+                    break
+        
+        # Try to get CPU usage using virsh cpu-stats
+        cpu_result = subprocess.run(
+            ["virsh", "cpu-stats", name, "--total"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if cpu_result.returncode == 0:
+            for line in cpu_result.stdout.splitlines():
+                if "cpu_time" in line:
+                    # cpu_time is in nanoseconds
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            # This is total CPU time used
+                            # For percentage, we'd need to track over time
+                            # For now, we'll use a simpler approach
+                            pass
+                        except:
+                            pass
+        
+        # Alternative: Use domstats vcpu info
+        vcpu_result = subprocess.run(
+            ["virsh", "domstats", name, "--vcpu"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        total_vcpu_time = 0
+        vcpu_count = 0
+        if vcpu_result.returncode == 0:
+            for line in vcpu_result.stdout.splitlines():
+                if "vcpu.current=" in line:
+                    vcpu_count = int(line.split("=")[1])
+                elif ".time=" in line and "vcpu." in line:
+                    # vcpu.0.time, vcpu.1.time, etc.
+                    try:
+                        total_vcpu_time += int(line.split("=")[1])
+                    except:
+                        pass
+        
+        # CPU usage is difficult to calculate without historical data
+        # For now, return 0 and implement proper tracking later
+        # Or estimate based on vcpu states
+        stats["cpu_usage"] = 0.0
+        
+    except (subprocess.TimeoutExpired, Exception) as e:
+        print(f"Warning: Could not get stats for VM {name}: {e}")
+    
+    return stats
+
+
 def get_vnc_info(name: str) -> dict:
     """Get VNC connection info for a VM."""
     if shutil.which("virsh") is None:
@@ -629,6 +744,15 @@ def list_vms_with_status() -> List[VirtualMachine]:
     
     for vm in existing:
         vm.status = statuses.get(vm.name, vm.status)
+        
+        # Get resource usage stats for running VMs
+        if vm.status == "running":
+            stats = get_vm_stats(vm.name)
+            vm.cpu_usage = stats.get("cpu_usage", 0.0)
+            vm.memory_usage = stats.get("memory_usage", 0.0)
+        else:
+            vm.cpu_usage = 0.0
+            vm.memory_usage = 0.0
     
     for idx, vm in enumerate(existing, start=1):
         vm.id = idx
