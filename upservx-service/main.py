@@ -103,11 +103,6 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)
     
-    # Skip authentication for backup endpoints during development
-    # Note: This will be called directly at /backup/ or via reverse proxy
-    if request.url.path.startswith("/backup/"):
-        return await call_next(request)
-    
     # Skip authentication for app store icons (public assets)
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
