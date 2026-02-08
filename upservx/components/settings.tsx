@@ -335,7 +335,7 @@ export function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                This will run the install.sh script to update UpservX to the latest version from the repository.
+                This will run the update.sh script to update UpservX to the latest version from the repository.
               </p>
               <Button onClick={handleUpdate} disabled={isUpdating}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />

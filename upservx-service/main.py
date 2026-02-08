@@ -782,15 +782,15 @@ def vpn_stop():
 
 @app.post("/settings/update")
 async def run_update():
-    """Run the install.sh script to update the system."""
+    """Run the update.sh script to update the system."""
     try:
-        install_script = "/opt/upservx/install.sh"
-        if not os.path.exists(install_script):
-            raise HTTPException(status_code=404, detail="install.sh not found")
+        update_script = "/opt/upservx/update.sh"
+        if not os.path.exists(update_script):
+            raise HTTPException(status_code=404, detail="update.sh not found")
         
-        # Run the install script with sudo
+        # Run the update script with sudo
         result = subprocess.run(
-            ["sudo", "bash", install_script],
+            ["sudo", "bash", update_script],
             capture_output=True,
             text=True,
             timeout=600  # 10 minute timeout
