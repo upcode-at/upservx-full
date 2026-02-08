@@ -572,7 +572,10 @@ class BackupManager:
             print("=" * 60)
             print("BACKUP DEBUG: Starting backup execution")
             print(f"BACKUP DEBUG: Job data: {job}")
-            print(f"BACKUP DEBUG: Server data: {server}")
+            
+            # Mask sensitive data for logging
+            masked_server = {k: '***' if any(s in k.lower() for s in ['password', 'key', 'passphrase']) else v for k, v in server.items()}
+            print(f"BACKUP DEBUG: Server data: {masked_server}")
             
             logger.info(f"Starting backup execution for job: {job['name']}")
             
