@@ -137,10 +137,12 @@ class ReverseProxyManager:
         config_lines.append(f"")
         
         # Always allow Let's Encrypt ACME challenge (for certificate issuance/renewal)
+        # Use ^~ to give this location highest priority (stops further location processing)
         config_lines.append(f"    # Let's Encrypt ACME challenge")
-        config_lines.append(f"    location /.well-known/acme-challenge/ {{")
+        config_lines.append(f"    location ^~ /.well-known/acme-challenge/ {{")
         config_lines.append(f"        root /var/www/html;")
         config_lines.append(f"        allow all;")
+        config_lines.append(f"        default_type text/plain;")
         config_lines.append(f"    }}")
         config_lines.append(f"")
         
