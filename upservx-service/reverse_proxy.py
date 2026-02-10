@@ -318,18 +318,20 @@ class ReverseProxyManager:
             return {"success": False, "message": "Certbot not installed"}
         
         try:
-            # Use standalone method (temporarily stops nginx on port 80)
-            # This works without nginx plugin being installed
+            # Ensure webroot directory exists
+            webroot_path = "/var/www/html"
+            os.makedirs(webroot_path, exist_ok=True)
+            
+            # Use webroot method (works with running nginx)
+            # This writes challenge files to /var/www/html which nginx serves
             cmd = [
                 "certbot", "certonly",
-                "--standalone",
-                "--preferred-challenges", "http",
+                "--webroot",
+                "--webroot-path", webroot_path,
                 "-d", domain,
                 "--email", email,
                 "--agree-tos",
-                "--non-interactive",
-                "--pre-hook", "systemctl stop nginx",
-                "--post-hook", "systemctl start nginx"
+                "--non-interactive"
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True)
