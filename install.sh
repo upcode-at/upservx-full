@@ -47,10 +47,10 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 step "Install system packages"
 {
   sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
-  sudo apt update
-  sudo apt install -y $PACKAGES
-  sudo apt update
-  sudo apt install -y zfsutils-linux
+  apt update
+  apt install -y $PACKAGES
+  apt update
+  apt install -y zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -58,15 +58,15 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === Install Docker from official repository ================================
 step "Install Docker"
 {
-  sudo apt-get update &&
-  sudo apt-get install -y ca-certificates curl &&
-  sudo install -m 0755 -d /etc/apt/keyrings &&
-  sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc &&
-  sudo chmod a+r /etc/apt/keyrings/docker.asc &&
+  apt-get update &&
+  apt-get install -y ca-certificates curl &&
+  install -m 0755 -d /etc/apt/keyrings &&
+  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc &&
+  chmod a+r /etc/apt/keyrings/docker.asc &&
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" | \
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null &&
-  sudo apt-get update &&
-  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    tee /etc/apt/sources.list.d/docker.list > /dev/null &&
+  apt-get update &&
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -74,7 +74,7 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === Initialize LXD ==========================================================
 step "Initialize LXD"
 {
-  sudo lxd init --auto
+  lxd init --auto
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -83,12 +83,12 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 step "Initialize K3s"
 {
   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-  sudo curl -sfL https://get.k3s.io | sh -
+  install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  curl -sfL https://get.k3s.io | sh -
   
   mkdir -p ~/.kube
-  sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-  sudo chown $USER:$USER ~/.kube/config
+  cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+  chown $USER:$USER ~/.kube/config
   chmod 600 ~/.kube/config
   
   export KUBECONFIG=~/.kube/config
@@ -100,9 +100,9 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === 2. Copy project files ===================================================
 step "Copy project to $APP_DIR"
 {
-  sudo mkdir -p "$APP_DIR" &&
-  sudo cp -R . "$APP_DIR" &&
-  sudo chown -R $USER:$USER "$APP_DIR"
+  mkdir -p "$APP_DIR" &&
+  cp -R . "$APP_DIR" &&
+  chown -R $USER:$USER "$APP_DIR"
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -179,9 +179,9 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === 6.4. Create ISO directory ==============================================
 step "Create ISO directory"
 {
-  sudo mkdir -p /var/lib/libvirt/isos
-  sudo chown libvirt-qemu:libvirt-qemu /var/lib/libvirt/isos
-  sudo chmod 755 /var/lib/libvirt/isos
+  mkdir -p /var/lib/libvirt/isos
+  chown libvirt-qemu:libvirt-qemu /var/lib/libvirt/isos
+  chmod 755 /var/lib/libvirt/isos
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -189,9 +189,9 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === 6.5. Copy app store templates ===========================================
 step "Copy app store templates"
 {
-  sudo mkdir -p /opt/upservx/app-store
-  sudo cp -r "$APP_DIR/app-store-templates/"* /opt/upservx/app-store/
-  sudo chown -R $USER:$USER /opt/upservx/app-store
+  mkdir -p /opt/upservx/app-store
+  cp -r "$APP_DIR/app-store-templates/"* /opt/upservx/app-store/
+  chown -R $USER:$USER /opt/upservx/app-store
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
@@ -199,16 +199,16 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === 6.6. Install noVNC for VM console =======================================
 step "Install noVNC"
 {
-  sudo mkdir -p "$APP_DIR/upservx/public/novnc"
-  sudo cp -r /usr/share/novnc/* "$APP_DIR/upservx/public/novnc/"
-  sudo chown -R $USER:$USER "$APP_DIR/upservx/public/novnc"
+  mkdir -p "$APP_DIR/upservx/public/novnc"
+  cp -r /usr/share/novnc/* "$APP_DIR/upservx/public/novnc/"
+  chown -R $USER:$USER "$APP_DIR/upservx/public/novnc"
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
 # === 7. Install systemd service =============================================
 step "Create systemd service"
-sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<EOF_SERVICE
+tee "/etc/systemd/system/${SERVICE_NAME}.service" >/dev/null <<EOF_SERVICE
 [Unit]
 Description=upservx Next.js + Python Service
 After=network.target
@@ -230,9 +230,9 @@ ok
 # === 8. Enable service =======================================================
 step "Enable and start service"
 {
-  sudo systemctl daemon-reload &&
-  sudo systemctl enable "${SERVICE_NAME}" &&
-  sudo systemctl start "${SERVICE_NAME}"
+  systemctl daemon-reload &&
+  systemctl enable "${SERVICE_NAME}" &&
+  systemctl start "${SERVICE_NAME}"
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
