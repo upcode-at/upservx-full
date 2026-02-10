@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { apiUrl } from "@/lib/api"
 import {
   Card,
   CardContent,
@@ -59,13 +60,8 @@ export function AppStore() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Helper function to build API URL at runtime
-  const getApiUrl = (path: string) => {
-    if (typeof window === "undefined") return path
-    const { protocol, hostname, port } = window.location
-    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":9500"
-    return `${protocol}//${hostname}${apiPort}${path}`
-  }
+  // Use the global apiUrl function
+  const getApiUrl = apiUrl
 
   const filterApps = () => {
     let filtered = apps

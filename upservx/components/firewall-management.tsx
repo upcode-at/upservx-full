@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { apiUrl } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,12 +70,8 @@ export default function FirewallManagement() {
   const [masqueradeIface, setMasqueradeIface] = useState("")
   const [policyChange, setPolicyChange] = useState({ chain: "input", policy: "accept" })
 
-  const getApiUrl = (path: string) => {
-    if (typeof window === "undefined") return path
-    const { protocol, hostname, port } = window.location
-    const apiPort = (port === "" || port === "80" || port === "443") ? "" : ":9500"
-    return `${protocol}//${hostname}${apiPort}${path}`
-  }
+  // Use the global apiUrl function
+  const getApiUrl = apiUrl
 
   const loadFirewallData = async () => {
     try {
