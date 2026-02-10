@@ -49,12 +49,20 @@ export function apiUrl(path: string): string {
     // We're in the browser, build URL dynamically at runtime
     const { protocol, hostname, port } = window.location
     
-    // If accessing via standard ports (80/443), assume reverse proxy with /api/ path
+    // If accessing via standard ports (80/443), use reverse proxy with /api/ path
+    // This ensures HTTPS works correctly and avoids mixed content issues
     if (port === "" || port === "80" || port === "443") {
       return `/api${path}`
     }
     
-    // Otherwise, direct access to backend port
+    // Check if hostname is a domain name (not an IP address)
+    // If it's a domain, always use /api/ path for consistency
+    const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
+    if (!isIP) {
+      return `/api${path}`
+    }
+    
+    // Otherwise, direct access to backend port (development only)
     // Always use the same hostname as the frontend for consistency
     const apiPort = ":9500"
     return `${protocol}//${hostname}${apiPort}${path}`
@@ -77,12 +85,19 @@ export function wsUrl(path: string): string {
     const { protocol, hostname, port } = window.location
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:"
     
-    // If accessing via standard ports, assume reverse proxy with /ws/ path
+    // If accessing via standard ports, use reverse proxy with /ws/ path
     if (port === "" || port === "80" || port === "443") {
       return `${wsProtocol}//${hostname}/ws${path}`
     }
     
-    // Otherwise, direct access to backend port
+    // Check if hostname is a domain name (not an IP address)
+    // If it's a domain, always use /ws/ path for consistency
+    const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
+    if (!isIP) {
+      return `${wsProtocol}//${hostname}/ws${path}`
+    }
+    
+    // Otherwise, direct access to backend port (development only)
     return `${wsProtocol}//${hostname}:9500${path}`
   }
   return `ws://localhost:9500${path}`
