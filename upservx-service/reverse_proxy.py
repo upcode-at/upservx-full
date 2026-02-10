@@ -136,9 +136,20 @@ class ReverseProxyManager:
         config_lines.append(f"    server_name {domain};")
         config_lines.append(f"")
         
+        # Always allow Let's Encrypt ACME challenge (for certificate issuance/renewal)
+        config_lines.append(f"    # Let's Encrypt ACME challenge")
+        config_lines.append(f"    location /.well-known/acme-challenge/ {{")
+        config_lines.append(f"        root /var/www/html;")
+        config_lines.append(f"        allow all;")
+        config_lines.append(f"    }}")
+        config_lines.append(f"")
+        
         if ssl_enabled and force_ssl and certs_exist:
             # Redirect all HTTP to HTTPS (only if certificates exist)
-            config_lines.append(f"    return 301 https://$server_name$request_uri;")
+            # But exclude the ACME challenge location
+            config_lines.append(f"    location / {{")
+            config_lines.append(f"        return 301 https://$server_name$request_uri;")
+            config_lines.append(f"    }}")
         else:
             # Serve on HTTP (either no SSL, or SSL not forced, or certs don't exist yet)
             self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
