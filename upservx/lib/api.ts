@@ -37,69 +37,67 @@ interface BackupJobUpdate {
 }
 
 export function apiUrl(path: string): string {
-  // Check for environment variable first (set at build time)
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL
-  
-  if (apiBase) {
-    // Use configured API base URL
-    return `${apiBase}${path}`
-  }
-  
+  // ALWAYS check runtime location first (browser-side)
   if (typeof window !== "undefined") {
-    // We're in the browser, build URL dynamically at runtime
     const { protocol, hostname, port } = window.location
     
-    // If accessing via standard ports (80/443), use reverse proxy with /api/ path
+    // If accessing via standard ports (80/443), always use reverse proxy
     // This ensures HTTPS works correctly and avoids mixed content issues
     if (port === "" || port === "80" || port === "443") {
       return `/api${path}`
     }
     
     // Check if hostname is a domain name (not an IP address)
-    // If it's a domain, always use /api/ path for consistency
+    // Domain names always use reverse proxy for consistency
     const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
     if (!isIP) {
       return `/api${path}`
     }
     
-    // Otherwise, direct access to backend port (development only)
-    // Always use the same hostname as the frontend for consistency
+    // Only for IP addresses with custom ports: direct access (development)
     const apiPort = ":9500"
     return `${protocol}//${hostname}${apiPort}${path}`
   }
   
-  // During SSR, return empty string to avoid wrong URLs
-  // This should not be used as all fetch calls should be in useEffect (client-side only)
+  // Fallback for SSR: use environment variable if set
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL
+  if (apiBase) {
+    return `${apiBase}${path}`
+  }
+  
+  // Last resort fallback for SSR
   return ""
 }
 
 export function wsUrl(path: string): string {
-  // Check for environment variable first
-  const wsBase = process.env.NEXT_PUBLIC_WS_BASE_URL
-  
-  if (wsBase) {
-    return `${wsBase}${path}`
-  }
-  
+  // ALWAYS check runtime location first (browser-side)
   if (typeof window !== "undefined") {
     const { protocol, hostname, port } = window.location
     const wsProtocol = protocol === "https:" ? "wss:" : "ws:"
     
-    // If accessing via standard ports, use reverse proxy with /ws/ path
+    // If accessing via standard ports, always use reverse proxy
     if (port === "" || port === "80" || port === "443") {
       return `${wsProtocol}//${hostname}/ws${path}`
     }
     
     // Check if hostname is a domain name (not an IP address)
-    // If it's a domain, always use /ws/ path for consistency
+    // Domain names always use reverse proxy for consistency
     const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
     if (!isIP) {
       return `${wsProtocol}//${hostname}/ws${path}`
     }
     
-    // Otherwise, direct access to backend port (development only)
+    // Only for IP addresses with custom ports: direct access (development)
     return `${wsProtocol}//${hostname}:9500${path}`
   }
+  
+  // Fallback for SSR: use environment variable if set
+  const wsBase = process.env.NEXT_PUBLIC_WS_BASE_URL
+  if (wsBase) {
+    return `${wsBase}${path}`
+  }
+  
+  // Last resort fallback for SSR
   return `ws://localhost:9500${path}`
 }
 
