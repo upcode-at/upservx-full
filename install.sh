@@ -46,7 +46,7 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 # === 1. Install system dependencies ==========================================
 step "Install system packages"
 {
-  sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
+  #sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y $PACKAGES
