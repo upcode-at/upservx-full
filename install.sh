@@ -47,10 +47,11 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 step "Install system packages"
 {
   sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
-  apt update
-  apt install -y $PACKAGES
-  apt update
-  apt install -y zfsutils-linux
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y $PACKAGES
+  apt-get update
+  apt-get install -y zfsutils-linux
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
