@@ -56,6 +56,14 @@ export default function ReverseProxyManagement() {
   const [sslEnabled, setSslEnabled] = useState(false)
   const [forceSsl, setForceSsl] = useState(false)
   
+  // Proxy config states (without backend/frontend distinction)
+  const [proxyDomain, setProxyDomain] = useState("")
+  const [proxyBackendHost, setProxyBackendHost] = useState("127.0.0.1")
+  const [proxyPort, setProxyPort] = useState(80)
+  const [proxySslEnabled, setProxySslEnabled] = useState(false)
+  const [proxyForceSsl, setProxyForceSsl] = useState(false)
+  const [showAddProxyDialog, setShowAddProxyDialog] = useState(false)
+  
   const [certDomain, setCertDomain] = useState("")
   const [certEmail, setCertEmail] = useState("")
 
@@ -255,6 +263,55 @@ export default function ReverseProxyManagement() {
     setForceSsl(false)
   }
 
+  const resetProxyForm = () => {
+    setProxyDomain("")
+    setProxyBackendHost("127.0.0.1")
+    setProxyPort(80)
+    setProxySslEnabled(false)
+    setProxyForceSsl(false)
+  }
+
+  const createProxyConfiguration = async () => {
+    if (!proxyDomain) {
+      setError("Please enter a domain")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch(apiUrl("/proxy/configs"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain: proxyDomain,
+          backend_host: proxyBackendHost,
+          backend_port: proxyPort,
+          frontend_port: proxyPort,
+          ssl_enabled: proxySslEnabled,
+          force_ssl: proxyForceSsl
+        })
+      })
+
+      const data = await res.json()
+      
+      if (data.success) {
+        setMessage("Proxy configuration created successfully!")
+        setShowAddProxyDialog(false)
+        resetProxyForm()
+        await loadData()
+      } else {
+        const errorMsg = `Failed to create config: ${data.message}`
+        console.error(errorMsg)
+        setError(errorMsg)
+      }
+    } catch (err) {
+      console.error("Failed to create proxy configuration:", err)
+      setError("Failed to create proxy configuration")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Error and Success Messages */}
@@ -347,13 +404,13 @@ export default function ReverseProxyManagement() {
         </CardContent>
       </Card>
 
-      {/* Proxy Configurations */}
+      {/* Panel Configuration */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Proxy Configurations</CardTitle>
-              <CardDescription>Manage reverse proxy configurations for your domains</CardDescription>
+              <CardTitle>Panel Configuration</CardTitle>
+              <CardDescription>Manage panel configurations with separate backend and frontend ports</CardDescription>
             </div>
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
@@ -364,8 +421,8 @@ export default function ReverseProxyManagement() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Create Proxy Configuration</DialogTitle>
-                  <DialogDescription>Configure reverse proxy for a domain</DialogDescription>
+                  <DialogTitle>Create Panel Configuration</DialogTitle>
+                  <DialogDescription>Configure panel with separate backend and frontend ports</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -434,7 +491,7 @@ export default function ReverseProxyManagement() {
               {proxyConfigs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No proxy configurations
+                    No panel configurations
                   </TableCell>
                 </TableRow>
               ) : (
@@ -443,6 +500,117 @@ export default function ReverseProxyManagement() {
                     <TableCell className="font-medium">{config.domain}</TableCell>
                     <TableCell>{config.backend_host}:{config.backend_port}</TableCell>
                     <TableCell>{config.frontend_port}</TableCell>
+                    <TableCell>
+                      {config.ssl_enabled ? (
+                        <Badge variant="default">Enabled</Badge>
+                      ) : (
+                        <Badge variant="secondary">Disabled</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteProxyConfig(config.domain)}
+                        disabled={loading}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Proxy Configurations */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Proxy Configurations</CardTitle>
+              <CardDescription>Manage reverse proxy configurations for external domains</CardDescription>
+            </div>
+            <Dialog open={showAddProxyDialog} onOpenChange={setShowAddProxyDialog}>
+              <DialogTrigger asChild>
+                <Button disabled={!proxyStatus?.nginx.installed || !proxyStatus?.nginx.active}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Configuration
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Proxy Configuration</DialogTitle>
+                  <DialogDescription>Configure reverse proxy for an external domain</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Domain</Label>
+                    <Input
+                      placeholder="example.com"
+                      value={proxyDomain}
+                      onChange={(e) => setProxyDomain(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Backend Host</Label>
+                      <Input
+                        value={proxyBackendHost}
+                        onChange={(e) => setProxyBackendHost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Port</Label>
+                      <Input
+                        type="number"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label>SSL Enabled</Label>
+                    <Switch checked={proxySslEnabled} onCheckedChange={setProxySslEnabled} />
+                  </div>
+                  {proxySslEnabled && (
+                    <div className="flex items-center justify-between">
+                      <Label>Force HTTPS</Label>
+                      <Switch checked={proxyForceSsl} onCheckedChange={setProxyForceSsl} />
+                    </div>
+                  )}
+                  <Button onClick={createProxyConfiguration} disabled={loading} className="w-full">
+                    Create Configuration
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Domain</TableHead>
+                <TableHead>Backend</TableHead>
+                <TableHead>SSL</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {proxyConfigs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No proxy configurations
+                  </TableCell>
+                </TableRow>
+              ) : (
+                proxyConfigs.map((config) => (
+                  <TableRow key={config.domain}>
+                    <TableCell className="font-medium">{config.domain}</TableCell>
+                    <TableCell>{config.backend_host}:{config.backend_port}</TableCell>
                     <TableCell>
                       {config.ssl_enabled ? (
                         <Badge variant="default">Enabled</Badge>
