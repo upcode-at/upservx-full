@@ -47,16 +47,19 @@ export function apiUrl(path: string): string {
       return `/api${path}`
     }
     
-    // Check if hostname is a domain name (not an IP address)
-    // Domain names always use reverse proxy for consistency
+    // Check if hostname is localhost or an IP address
+    // These always use direct port access for development
     const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
-    if (!isIP) {
-      return `/api${path}`
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
+    
+    if (isIP || isLocalhost) {
+      // Direct access for IPs and localhost (development)
+      const apiPort = ":9500"
+      return `${protocol}//${hostname}${apiPort}${path}`
     }
     
-    // Only for IP addresses with custom ports: direct access (development)
-    const apiPort = ":9500"
-    return `${protocol}//${hostname}${apiPort}${path}`
+    // Domain names always use reverse proxy for consistency
+    return `/api${path}`
   }
   
   // Fallback for SSR: use environment variable if set
@@ -80,15 +83,18 @@ export function wsUrl(path: string): string {
       return `${wsProtocol}//${hostname}/ws${path}`
     }
     
-    // Check if hostname is a domain name (not an IP address)
-    // Domain names always use reverse proxy for consistency
+    // Check if hostname is localhost or an IP address
+    // These always use direct port access for development
     const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)
-    if (!isIP) {
-      return `${wsProtocol}//${hostname}/ws${path}`
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
+    
+    if (isIP || isLocalhost) {
+      // Direct access for IPs and localhost (development)
+      return `${wsProtocol}//${hostname}:9500${path}`
     }
     
-    // Only for IP addresses with custom ports: direct access (development)
-    return `${wsProtocol}//${hostname}:9500${path}`
+    // Domain names always use reverse proxy for consistency
+    return `${wsProtocol}//${hostname}/ws${path}`
   }
   
   // Fallback for SSR: use environment variable if set
