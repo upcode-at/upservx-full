@@ -272,6 +272,137 @@ When adding features, update:
 - Component/function comments
 - App template READMEs
 
+## 📦 Release Management & Documentation
+
+UpservX uses a structured approach for tracking versions, releases, and changes. Understanding this system helps maintain clear project history.
+
+### Documentation Files Overview
+
+The project uses several markdown files to manage releases and changes:
+
+| File | Purpose | Updated When |
+|------|---------|--------------|
+| **VERSION.md** | Contains the current version number (e.g., `0.1.0`) | Every release |
+| **RELEASE.md** | Release notes for the current version | Every release |
+| **CHANGELOG.md** | Tracks unreleased changes for the next version | As changes are made |
+| **README.md** | Project overview and documentation | As needed |
+| **TODO.md** | Planned features and known issues | As needed |
+| **CONTRIBUTING.md** | Contribution guidelines (this file) | As needed |
+
+### Release Workflow
+
+#### 1. During Development (Adding Changes)
+
+When you make changes, document them in **CHANGELOG.md**:
+
+```markdown
+# Changelog
+
+## Unreleased
+
+### Added
+- New feature: Automatic /etc/fstab management for mounted drives
+- Support for Unmount functionality in Storage Management UI
+
+### Fixed
+- Fixed issue with container stats not updating
+- Corrected API authentication for cluster nodes
+
+### Changed
+- Improved error handling in backup system
+- Optimized drive listing performance
+
+### Security
+- Updated dependencies to latest versions
+```
+
+**Categories to use:**
+- **Added** - New features
+- **Changed** - Changes to existing functionality
+- **Deprecated** - Features that will be removed
+- **Removed** - Removed features
+- **Fixed** - Bug fixes
+- **Security** - Security-related changes
+
+#### 2. Making a Release
+
+When preparing a new release (done by maintainers):
+
+1. **Update VERSION.md:**
+   ```bash
+   echo "0.2.0" > VERSION.md
+   ```
+
+2. **Move changes from CHANGELOG.md to RELEASE.md:**
+   - Copy content from `## Unreleased` section in CHANGELOG.md
+   - Update RELEASE.md with the new version information
+   - Clear the `## Unreleased` section in CHANGELOG.md
+
+3. **Create release in releases/ directory:**
+   ```bash
+   # Copy RELEASE.md to releases/
+   cp RELEASE.md releases/0.2.0.md
+   ```
+
+4. **Tag the release:**
+   ```bash
+   git tag -a v0.2.0 -m "Release version 0.2.0"
+   git push origin v0.2.0
+   ```
+
+### Example CHANGELOG.md Structure
+
+```markdown
+# Changelog
+
+All notable changes to UpservX will be documented here.
+
+## Unreleased
+
+### Added
+- Your new features here
+
+### Fixed
+- Your bug fixes here
+
+## [0.1.0] - 2026-02-15
+
+Initial release - see releases/0.1.0.md for details
+```
+
+### Contributing Changes
+
+When submitting a pull request:
+
+1. **Add your changes to CHANGELOG.md** under the `## Unreleased` section
+2. **Use the appropriate category** (Added, Fixed, Changed, etc.)
+3. **Write clear descriptions** of your changes
+4. **Don't modify VERSION.md or RELEASE.md** - these are updated during release
+
+**Example:**
+
+```markdown
+## Unreleased
+
+### Added
+- Automatic /etc/fstab management when mounting drives via Storage UI
+- Unmount button for mounted drives with fstab cleanup
+
+### Changed
+- Improved fstab formatting with aligned columns
+- Mount operation now uses UUID for device identification
+```
+
+### Best Practices
+
+- ✅ **Do** add all notable changes to CHANGELOG.md
+- ✅ **Do** use clear, user-facing language
+- ✅ **Do** reference issue numbers when applicable
+- ✅ **Do** categorize changes appropriately
+- ❌ **Don't** include internal refactoring unless user-facing
+- ❌ **Don't** use technical jargon without explanation
+- ❌ **Don't** modify VERSION.md in pull requests
+
 ## 🤝 Community
 
 - **GitHub Issues:** For bug reports and feature requests
