@@ -8,6 +8,7 @@ import subprocess
 import shutil
 import psutil
 from typing import List
+from datetime import datetime
 from models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
 
 
@@ -275,15 +276,20 @@ def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype:
     # Use UUID if available, otherwise use device path
     device_identifier = f"UUID={uuid}" if uuid else device
     
-    # Create fstab entry
-    fstab_entry = f"{device_identifier}\t{mountpoint}\t{fstype}\t{options}\t0\t2\n"
+    # Create fstab entry with proper formatting (aligned columns)
+    # Format: device_identifier<spaces>mountpoint<spaces>fstype<spaces>options<spaces>dump pass
+    device_col_width = 41
+    mount_col_width = 14
+    fstype_col_width = 7
+    
+    fstab_entry = f"{device_identifier:<{device_col_width}} {mountpoint:<{mount_col_width}} {fstype:<{fstype_col_width}} {options:<30} 0 2\n"
     
     # Append to fstab
     with open(fstab_path, 'a') as f:
         # Add newline if file doesn't end with one
         if existing_entries and not existing_entries[-1].endswith('\n'):
             f.write('\n')
-        f.write(f"# Added by UpservX on {subprocess.check_output(['date'], text=True).strip()}\n")
+        f.write(f"# Added by UpservX on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(fstab_entry)
 
 
@@ -316,15 +322,15 @@ def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
     if not os.path.exists(fstab_path):
         return
     
-    # Create backup of fstab
+    # Create backup of fstab with timestamp
     try:
         backup_path = f"{fstab_path}.backup"
         subprocess.run(["cp", fstab_path, backup_path], check=True)
     except Exception:
         pass
     
-    # Get UUID of device
-    uuid = _get_device_uuid(device)
+    # Get UUID of device if device is provided and not empty
+    uuid = _get_device_uuid(device) if device else None
     
     # Read current fstab
     with open(fstab_path, 'r') as f:
