@@ -481,7 +481,7 @@ export default function ReverseProxyManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Domain</TableHead>
-                <TableHead>Port</TableHead>
+                <TableHead>Backend Port</TableHead>
                 <TableHead>Frontend Port</TableHead>
                 <TableHead>SSL</TableHead>
                 <TableHead>Actions</TableHead>
