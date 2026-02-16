@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Import models
 from models import (
     VirtualMachineCreate, VirtualMachineUpdate,
-    DriveMountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
+    DriveMountRequest, DriveUnmountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
     UserCreateModel, UserUpdateModel, GroupCreateModel, GroupUpdateModel, SSHKeyListModel,
     ISODownloadRequest, NetworkSettingsModel, SettingsModel,
     InterfaceConfigModel,
@@ -38,7 +38,7 @@ from models import (
 
 # Import utilities
 from system_utils import collect_metrics, get_server_addresses
-from storage import get_drives, get_zfs_pools, mount_drive, format_drive, create_zfs_pool
+from storage import get_drives, get_zfs_pools, mount_drive, unmount_drive, format_drive, create_zfs_pool
 from network import get_network_interfaces, load_network_settings, save_network_settings, configure_interface
 from users import (
     list_system_users, list_system_groups, create_user, update_user, delete_user,
@@ -511,6 +511,18 @@ def mount_drive_endpoint(req: DriveMountRequest):
     try:
         mount_drive(req.device, req.mountpoint)
         return {"detail": "mounted"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/drives/unmount")
+def unmount_drive_endpoint(req: DriveUnmountRequest):
+    """Unmount a storage drive and remove from /etc/fstab."""
+    if not req.device and not req.mountpoint:
+        raise HTTPException(status_code=400, detail="Either device or mountpoint must be provided")
+    try:
+        unmount_drive(req.device, req.mountpoint)
+        return {"detail": "unmounted"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

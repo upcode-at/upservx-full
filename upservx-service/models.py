@@ -88,6 +88,11 @@ class DriveMountRequest(BaseModel):
     mountpoint: str
 
 
+class DriveUnmountRequest(BaseModel):
+    device: str | None = None
+    mountpoint: str | None = None
+
+
 class DriveFormatRequest(BaseModel):
     device: str
     filesystem: str

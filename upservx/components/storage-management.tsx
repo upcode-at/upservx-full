@@ -147,7 +147,7 @@ export function StorageManagement() {
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
       await loadDrives()
-      setSuccess("Drive mounted")
+      setSuccess("Drive mounted successfully and added to /etc/fstab")
     } catch (e) {
       console.error(e)
       setError("Mount failed")
@@ -155,6 +155,25 @@ export function StorageManagement() {
     setActiveDrive(null)
     setMountPath("")
     setMountOpen(false)
+  }
+
+  const handleUnmount = async (drive: Drive) => {
+    setSuccess(null)
+    setError(null)
+    
+    try {
+      const res = await fetch(apiUrl("/drives/unmount"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: drive.device, mountpoint: drive.mountpoint }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setSuccess("Drive unmounted and removed from /etc/fstab")
+      await loadDrives()
+    } catch (e) {
+      console.error(e)
+      setError("Unmount failed")
+    }
   }
 
   const handleCreatePool = async () => {
@@ -359,6 +378,15 @@ export function StorageManagement() {
                           </div>
                         </DialogContent>
                       </Dialog>
+                    )}
+                    {drive.mounted && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnmount(drive)}
+                      >
+                        Unmount
+                      </Button>
                     )}
                     <Dialog
                       open={formatOpen && activeDrive?.device === drive.device}
