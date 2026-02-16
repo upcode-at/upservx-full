@@ -481,7 +481,7 @@ export default function ReverseProxyManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Domain</TableHead>
-                <TableHead>Backend</TableHead>
+                <TableHead>Port</TableHead>
                 <TableHead>Frontend Port</TableHead>
                 <TableHead>SSL</TableHead>
                 <TableHead>Actions</TableHead>
@@ -498,7 +498,7 @@ export default function ReverseProxyManagement() {
                 proxyConfigs.map((config) => (
                   <TableRow key={config.domain}>
                     <TableCell className="font-medium">{config.domain}</TableCell>
-                    <TableCell>{config.backend_host}:{config.backend_port}</TableCell>
+                    <TableCell>{config.backend_port}</TableCell>
                     <TableCell>{config.frontend_port}</TableCell>
                     <TableCell>
                       {config.ssl_enabled ? (
@@ -594,7 +594,7 @@ export default function ReverseProxyManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Domain</TableHead>
-                <TableHead>Backend</TableHead>
+                <TableHead>Port</TableHead>
                 <TableHead>SSL</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -610,7 +610,7 @@ export default function ReverseProxyManagement() {
                 proxyConfigs.map((config) => (
                   <TableRow key={config.domain}>
                     <TableCell className="font-medium">{config.domain}</TableCell>
-                    <TableCell>{config.backend_host}:{config.backend_port}</TableCell>
+                    <TableCell>{config.backend_port}</TableCell>
                     <TableCell>
                       {config.ssl_enabled ? (
                         <Badge variant="default">Enabled</Badge>
