@@ -248,19 +248,6 @@ export default function ClusterHealthDashboard() {
                 </div>
                 <Progress value={loadDistribution.average_memory} />
               </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Disk Usage</span>
-                  <span className="font-medium">{loadDistribution.average_disk.toFixed(1)}%</span>
-                </div>
-                <Progress value={loadDistribution.average_disk} />
-              </div>
-              <div className="pt-2 border-t">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Capacity</span>
-                  <span className="text-lg font-bold">{loadDistribution.total_capacity.toFixed(0)}%</span>
-                </div>
-              </div>
             </CardContent>
           </Card>
         )}
