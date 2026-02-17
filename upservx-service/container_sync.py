@@ -10,7 +10,7 @@ import asyncio
 import httpx
 import json
 import os
-from compose_manager import list_all_services, get_service_status
+from compose_manager import ComposeManager
 from load_balancer import get_load_balancer, LoadBalancingStrategy
 
 # Paths for sync configuration
@@ -217,16 +217,19 @@ class ContainerSyncManager:
         # This is a placeholder - would need actual implementation
         # to read docker-compose files or app store configs
         try:
-            services = list_all_services()
-            for service in services:
-                if service.get("name") == service_name:
-                    return {
-                        "name": service_name,
-                        "image": service.get("image", ""),
-                        "environment": service.get("environment", {}),
-                        "volumes": service.get("volumes", []),
-                        "ports": service.get("ports", [])
-                    }
+            compose_manager = ComposeManager()
+            projects = compose_manager.list_projects()
+            
+            for project in projects:
+                for service in project.get("services", []):
+                    if service.get("name") == service_name or f"{project['name']}_{service.get('name')}" == service_name:
+                        return {
+                            "name": service_name,
+                            "image": service.get("image", ""),
+                            "environment": service.get("environment", {}),
+                            "volumes": service.get("volumes", []),
+                            "ports": service.get("ports", [])
+                        }
         except Exception as e:
             print(f"Error getting service config: {e}")
         
