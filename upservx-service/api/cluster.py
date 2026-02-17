@@ -222,6 +222,7 @@ async def get_cluster_debug():
         "master_config_exists": os.path.exists(MASTER_CONFIG_FILE),
         "child_config_exists": os.path.exists(CHILD_CONFIG_FILE),
         "nodes_dir_exists": os.path.exists(NODES_DIR),
+        "nodes_dir_path": NODES_DIR,
         "node_files": [],
         "master_config": None,
         "child_config": None
@@ -229,6 +230,14 @@ async def get_cluster_debug():
     
     if os.path.exists(NODES_DIR):
         debug_info["node_files"] = os.listdir(NODES_DIR)
+        # Read all node configs
+        debug_info["node_configs"] = {}
+        for filename in os.listdir(NODES_DIR):
+            if filename.endswith('.json'):
+                hostname = filename[:-5]  # Remove .json
+                node_config = read_node_config(hostname)
+                if node_config:
+                    debug_info["node_configs"][hostname] = node_config
     
     if is_master_node():
         debug_info["master_config"] = read_master_config()
@@ -415,6 +424,8 @@ async def create_cluster(request: ClusterCreateRequest):
 @router.post("/cluster/join")
 async def join_cluster(request: ClusterJoinRequest):
     """Join an existing cluster as child node"""
+    print(f"[CLUSTER] Attempting to join cluster at {request.master_ip}:{request.port}")
+    
     if is_master_node():
         raise HTTPException(status_code=400, detail="This node is already a master")
     
@@ -429,21 +440,31 @@ async def join_cluster(request: ClusterJoinRequest):
         "cluster_key": request.token
     }
     
+    print(f"[CLUSTER] Registering as {node_data['hostname']} with IP {node_data['ip_address']}")
+    
     # Register this node with the master
     try:
         master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
+        print(f"[CLUSTER] Sending registration to {master_url}")
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 master_url,
                 json=node_data
             )
             
+            print(f"[CLUSTER] Registration response: HTTP {response.status_code}")
+            
             if response.status_code != 200:
                 error_detail = response.json().get("detail", "Failed to register with master")
+                print(f"[CLUSTER] Registration failed: {error_detail}")
                 raise HTTPException(status_code=400, detail=f"Master rejected registration: {error_detail}")
+            
+            print(f"[CLUSTER] Successfully registered with master")
     except httpx.RequestError as e:
+        print(f"[CLUSTER] Connection error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to connect to master: {str(e)}")
     except httpx.TimeoutException:
+        print(f"[CLUSTER] Connection timeout")
         raise HTTPException(status_code=400, detail="Connection to master timed out")
     
     # Create child configuration
@@ -455,6 +476,7 @@ async def join_cluster(request: ClusterJoinRequest):
     }
     
     write_child_config(child_config)
+    print(f"[CLUSTER] Child configuration written")
     
     return {
         "message": "Successfully joined cluster",

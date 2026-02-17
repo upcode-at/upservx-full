@@ -107,8 +107,9 @@ async def pam_auth_middleware(request: Request, call_next):
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
     
-    # Skip authentication for cluster registration (validates token in request body)
-    if request.url.path == "/cluster/register" and request.method == "POST":
+    # Skip authentication for cluster communication endpoints
+    if request.url.path in ["/cluster/register", "/metrics"] and request.method in ["GET", "POST"]:
+        # These endpoints validate tokens internally or are cluster-only
         return await call_next(request)
     
     auth_header = request.headers.get("Authorization")
