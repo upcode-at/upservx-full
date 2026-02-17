@@ -220,7 +220,9 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
             if response.status_code == 200:
                 metrics = response.json()
                 print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
-                return {
+                print(f"[CLUSTER] Raw metrics response: {json.dumps(metrics, indent=2)}")
+                
+                extracted = {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
                     "cpu_count": metrics.get("cpu", {}).get("count", 0),
                     "memory_usage": metrics.get("memory", {}).get("usage", 0),
@@ -229,6 +231,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
                     "success": True
                 }
+                print(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
+                return extracted
             else:
                 print(f"[CLUSTER] Failed to fetch metrics from {ip_address}: HTTP {response.status_code}")
     except (httpx.RequestError, httpx.TimeoutException, Exception) as e:
