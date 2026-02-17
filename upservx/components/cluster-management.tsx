@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon } from "lucide-react"
+import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,8 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
+import ClusterHealthDashboard from "@/components/cluster-health-dashboard"
+import WorkloadDistribution from "@/components/workload-distribution"
 
 interface ClusterNode {
   id: string
@@ -348,122 +351,166 @@ export default function ClusterManagement() {
         onClearSuccess={() => setSuccess(null)}
       />
 
-      {/* Cluster Status Overview */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cluster Status</CardTitle>
-            <Network className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {clusterInfo?.is_member ? "Active" : "Not Connected"}
+      {clusterInfo?.is_member ? (
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="overview">
+              <Server className="h-4 w-4 mr-2" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="health">
+              <Activity className="h-4 w-4 mr-2" />
+              Health & Monitoring
+            </TabsTrigger>
+            <TabsTrigger value="workload">
+              <GitBranch className="h-4 w-4 mr-2" />
+              Workload Distribution
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            {/* Cluster Status Overview */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Cluster Status</CardTitle>
+                  <Network className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {clusterInfo?.is_member ? "Active" : "Not Connected"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {clusterInfo?.is_master ? "Master Node" : clusterInfo?.is_member ? "Child Node" : "Standalone"}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Nodes</CardTitle>
+                  <Server className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{clusterInfo?.nodes?.length ?? 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Connected Servers
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Cluster Token</CardTitle>
+                  <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {clusterInfo?.is_master && clusterInfo?.cluster_token ? (
+                    <>
+                      <div className="text-sm font-mono break-all">{clusterInfo.cluster_token}</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        For new nodes
+                      </p>
+                    </>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">N/A</div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {clusterInfo?.is_master ? "Master Node" : clusterInfo?.is_member ? "Child Node" : "Standalone"}
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Nodes</CardTitle>
-            <Server className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{clusterInfo?.nodes?.length ?? 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Connected Servers
-            </p>
-          </CardContent>
-        </Card>
+            {/* Cluster Nodes Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Cluster Nodes</CardTitle>
+                <CardDescription>
+                  Overview of all nodes in the cluster
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clusterInfo.nodes && clusterInfo.nodes.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Hostname</TableHead>
+                        <TableHead>IP Address</TableHead>
+                        <TableHead>Port</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>CPU</TableHead>
+                        <TableHead>Memory</TableHead>
+                        <TableHead>Disk</TableHead>
+                        <TableHead>Last Seen</TableHead>
+                        {clusterInfo.is_master && <TableHead>Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clusterInfo.nodes.map((node) => (
+                        <TableRow key={node.id}>
+                          <TableCell className="font-medium">{node.hostname}</TableCell>
+                          <TableCell>{node.ip_address}</TableCell>
+                          <TableCell>{node.port ?? 9500}</TableCell>
+                          <TableCell>{getRoleBadge(node.role)}</TableCell>
+                          <TableCell>{getStatusBadge(node.status)}</TableCell>
+                          <TableCell>{node.resources?.cpu_usage?.toFixed(1) ?? 0}%</TableCell>
+                          <TableCell>{node.resources?.memory_usage?.toFixed(1) ?? 0}%</TableCell>
+                          <TableCell>{node.resources?.disk_usage?.toFixed(1) ?? 0}%</TableCell>
+                          <TableCell>
+                            {node.last_seen ? new Date(node.last_seen).toLocaleString() : "N/A"}
+                          </TableCell>
+                          {clusterInfo.is_master && node.role !== "master" && (
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeNode(node.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No nodes found in cluster
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cluster Token</CardTitle>
-            <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {clusterInfo?.is_master && clusterInfo?.cluster_token ? (
-              <>
-                <div className="text-sm font-mono break-all">{clusterInfo.cluster_token}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  For new nodes
-                </p>
-              </>
+          <TabsContent value="health">
+            {clusterInfo.is_master ? (
+              <ClusterHealthDashboard />
             ) : (
-              <div className="text-sm text-muted-foreground">N/A</div>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-muted-foreground">
+                    Health monitoring is only available on the master node
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </TabsContent>
 
-      {/* Cluster Nodes Table */}
-      {clusterInfo?.is_member && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cluster Nodes</CardTitle>
-            <CardDescription>
-              Overview of all nodes in the cluster
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {clusterInfo.nodes && clusterInfo.nodes.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hostname</TableHead>
-                    <TableHead>IP Address</TableHead>
-                    <TableHead>Port</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>CPU</TableHead>
-                    <TableHead>Memory</TableHead>
-                    <TableHead>Disk</TableHead>
-                    <TableHead>Last Seen</TableHead>
-                    {clusterInfo.is_master && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clusterInfo.nodes.map((node) => (
-                    <TableRow key={node.id}>
-                      <TableCell className="font-medium">{node.hostname}</TableCell>
-                      <TableCell>{node.ip_address}</TableCell>
-                      <TableCell>{node.port ?? 9500}</TableCell>
-                      <TableCell>{getRoleBadge(node.role)}</TableCell>
-                      <TableCell>{getStatusBadge(node.status)}</TableCell>
-                      <TableCell>{node.resources?.cpu_usage?.toFixed(1) ?? 0}%</TableCell>
-                      <TableCell>{node.resources?.memory_usage?.toFixed(1) ?? 0}%</TableCell>
-                      <TableCell>{node.resources?.disk_usage?.toFixed(1) ?? 0}%</TableCell>
-                      <TableCell>
-                        {node.last_seen ? new Date(node.last_seen).toLocaleString() : "N/A"}
-                      </TableCell>
-                      {clusterInfo.is_master && node.role !== "master" && (
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeNode(node.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <TabsContent value="workload">
+            {clusterInfo.is_master ? (
+              <WorkloadDistribution />
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No nodes found in cluster
-              </div>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-muted-foreground">
+                    Workload distribution management is only available on the master node
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Standalone Server Info */}
-      {!clusterInfo?.is_member && (
+          </TabsContent>
+        </Tabs>
+      ) : (
         <Card>
           <CardHeader>
             <CardTitle>Standalone Mode</CardTitle>
