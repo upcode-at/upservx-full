@@ -1216,11 +1216,29 @@ async def get_cluster_health():
     total_cpu_cores = 0
     total_memory_gb = 0.0
     
+    print(f"[CLUSTER] ========== HEALTH CALCULATION ==========")
+    print(f"[CLUSTER] Total nodes: {len(nodes_dict)}")
+    
     for node in nodes_dict:
         resources = node.get("resources", {})
-        total_cpu_cores += resources.get("cpu_count", 0)
-        total_memory_bytes = resources.get("memory_total", 0)
-        total_memory_gb += total_memory_bytes / (1024**3)  # Convert bytes to GB
+        node_cores = resources.get("cpu_count", 0)
+        node_memory_bytes = resources.get("memory_total", 0)
+        node_memory_gb = node_memory_bytes / (1024**3)
+        
+        print(f"[CLUSTER] Node: {node.get('hostname')}")
+        print(f"[CLUSTER]   - Status: {node.get('status')}")
+        print(f"[CLUSTER]   - CPU Cores: {node_cores}")
+        print(f"[CLUSTER]   - Memory: {node_memory_gb:.2f} GB")
+        print(f"[CLUSTER]   - Resources: {resources}")
+        
+        total_cpu_cores += node_cores
+        total_memory_gb += node_memory_gb
+    
+    print(f"[CLUSTER] TOTALS:")
+    print(f"[CLUSTER]   - Total CPU Cores: {total_cpu_cores}")
+    print(f"[CLUSTER]   - Total Memory: {total_memory_gb:.2f} GB")
+    print(f"[CLUSTER] ==========================================")
+
     
     # Determine overall health
     health_status = "healthy"
