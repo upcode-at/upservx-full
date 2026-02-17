@@ -33,6 +33,7 @@ class NodeRegistrationRequest(BaseModel):
     ip_address: str
     port: int
     cluster_key: str
+    resources: dict = {}
 
 class ClusterNode(BaseModel):
     id: str
@@ -541,11 +542,13 @@ async def join_cluster(request: ClusterJoinRequest):
     print(f"[CLUSTER] My IP: {my_ip}")
     
     # Prepare node data to register with master
+    my_resources = get_system_resources()
     node_data = {
         "hostname": my_hostname,
         "ip_address": my_ip,
         "port": 9500,
-        "cluster_key": request.token
+        "cluster_key": request.token,
+        "resources": my_resources
     }
     
     print(f"[CLUSTER] Node data prepared: {node_data}")
@@ -661,7 +664,7 @@ async def register_node(request: NodeRegistrationRequest):
         same_ip_node["hostname"] = existing_hostname  # Keep the original hostname
         same_ip_node["ip_address"] = request.ip_address
         same_ip_node["port"] = request.port
-        same_ip_node["resources"] = {}
+        same_ip_node["resources"] = request.resources
         same_ip_node["last_seen"] = datetime.now().isoformat()
         try:
             write_node_config(existing_hostname, same_ip_node)
@@ -684,7 +687,7 @@ async def register_node(request: NodeRegistrationRequest):
         "original_hostname": original_hostname,
         "ip_address": request.ip_address,
         "port": request.port,
-        "resources": {},
+        "resources": request.resources,
         "last_seen": datetime.now().isoformat(),
         "registered_at": datetime.now().isoformat()
     }
