@@ -177,13 +177,31 @@ def get_local_ip():
 def get_system_resources():
     """Get current system resource usage"""
     mem = psutil.virtual_memory()
+    
+    # Get container counts
+    try:
+        compose_manager = ComposeManager()
+        running_containers = 0
+        total_containers = 0
+        
+        for service in compose_manager.list_services():
+            total_containers += 1
+            if service.get("status") == "running":
+                running_containers += 1
+    except Exception as e:
+        print(f"[RESOURCES] Error counting containers: {e}")
+        running_containers = 0
+        total_containers = 0
+    
     return {
         "cpu_usage": psutil.cpu_percent(interval=1),
         "cpu_count": psutil.cpu_count(),
         "memory_usage": mem.percent,
         "memory_total": mem.total,
         "memory_available": mem.available,
-        "disk_usage": psutil.disk_usage('/').percent
+        "disk_usage": psutil.disk_usage('/').percent,
+        "running_containers": running_containers,
+        "total_containers": total_containers
     }
 
 def get_hostname():
@@ -241,6 +259,11 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                         memory_used = int(memory_used * (1024**3))
                     memory_available = memory_total - memory_used
                 
+                # Extract container information
+                containers = metrics.get("containers", {})
+                running_containers = containers.get("running", 0)
+                total_containers = containers.get("total", 0)
+                
                 extracted = {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
                     "cpu_count": cpu_count,
@@ -248,6 +271,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                     "memory_total": memory_total,
                     "memory_available": memory_available,
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
+                    "running_containers": running_containers,
+                    "total_containers": total_containers,
                     "success": True
                 }
                 print(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
@@ -264,12 +289,29 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
         "memory_total": 0,
         "memory_available": 0,
         "disk_usage": 0,
+        "running_containers": 0,
+        "total_containers": 0,
         "success": False
     }
 
 @router.get("/metrics")
 async def get_node_metrics():
     """Get current node metrics (for cluster communication)"""
+    # Get container counts
+    try:
+        compose_manager = ComposeManager()
+        running_containers = 0
+        total_containers = 0
+        
+        for service in compose_manager.list_services():
+            total_containers += 1
+            if service.get("status") == "running":
+                running_containers += 1
+    except Exception as e:
+        print(f"[METRICS] Error counting containers: {e}")
+        running_containers = 0
+        total_containers = 0
+    
     return {
         "hostname": get_hostname(),
         "cpu": {
@@ -285,6 +327,10 @@ async def get_node_metrics():
             "usage": psutil.disk_usage('/').percent,
             "total": psutil.disk_usage('/').total,
             "free": psutil.disk_usage('/').free
+        },
+        "containers": {
+            "running": running_containers,
+            "total": total_containers
         },
         "timestamp": datetime.now().isoformat()
     }
@@ -455,7 +501,9 @@ async def get_cluster_info():
                             "memory_usage": master_metrics.get("memory", {}).get("usage", 0),
                             "memory_total": master_metrics.get("memory", {}).get("total", 0),
                             "memory_available": master_metrics.get("memory", {}).get("available", 0),
-                            "disk_usage": master_metrics.get("storage", {}).get("usage", 0)
+                            "disk_usage": master_metrics.get("storage", {}).get("usage", 0),
+                            "running_containers": master_metrics.get("containers", {}).get("running", 0),
+                            "total_containers": master_metrics.get("containers", {}).get("total", 0)
                         },
                         "last_seen": datetime.now().isoformat()
                     })
@@ -478,7 +526,9 @@ async def get_cluster_info():
                     "memory_usage": 0,
                     "memory_total": 0,
                     "memory_available": 0,
-                    "disk_usage": 0
+                    "disk_usage": 0,
+                    "running_containers": 0,
+                    "total_containers": 0
                 },
                 "last_seen": ""
             })
@@ -1228,9 +1278,25 @@ async def get_cluster_health():
     lb = get_load_balancer()
     load_distribution = lb.get_cluster_load_distribution(nodes_dict)
     
-    # Get sync status
+    # Calculate total containers across all nodes
+    total_running_containers = 0
+    total_synced_containers = 0
+    
+    for node in nodes_dict:
+        if node.get("status") == "online":
+            resources = node.get("resources", {})
+            total_running_containers += resources.get("running_containers", 0)
+            total_synced_containers += resources.get("total_containers", 0)
+    
+    # Get sync status (rules count)
     sync_manager = get_sync_manager()
-    sync_status = sync_manager.get_sync_status()
+    sync_rules_count = len(sync_manager.sync_rules)
+    
+    sync_status = {
+        "total_synced_containers": total_synced_containers,
+        "running_containers": total_running_containers,
+        "sync_rules_count": sync_rules_count
+    }
     
     # Get active alerts
     metrics_collector = get_metrics_collector()
