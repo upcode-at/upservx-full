@@ -222,12 +222,31 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                 print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 print(f"[CLUSTER] Raw metrics response: {json.dumps(metrics, indent=2)}")
                 
+                # Support both formats: new format with cpu.count OR old format with cpu.cores
+                cpu_count = metrics.get("cpu", {}).get("count", 0)
+                if cpu_count == 0:
+                    cpu_count = metrics.get("cpu", {}).get("cores", 0)
+                
+                # Support both formats: memory.total in bytes OR memory.total in GB
+                memory_total = metrics.get("memory", {}).get("total", 0)
+                if isinstance(memory_total, float) and memory_total < 1000:
+                    # Looks like GB value, convert to bytes
+                    memory_total = int(memory_total * (1024**3))
+                
+                memory_available = metrics.get("memory", {}).get("available", 0)
+                if memory_available == 0:
+                    # Calculate from used if available not provided
+                    memory_used = metrics.get("memory", {}).get("used", 0)
+                    if isinstance(memory_used, float) and memory_used < 1000:
+                        memory_used = int(memory_used * (1024**3))
+                    memory_available = memory_total - memory_used
+                
                 extracted = {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
-                    "cpu_count": metrics.get("cpu", {}).get("count", 0),
+                    "cpu_count": cpu_count,
                     "memory_usage": metrics.get("memory", {}).get("usage", 0),
-                    "memory_total": metrics.get("memory", {}).get("total", 0),
-                    "memory_available": metrics.get("memory", {}).get("available", 0),
+                    "memory_total": memory_total,
+                    "memory_available": memory_available,
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
                     "success": True
                 }
