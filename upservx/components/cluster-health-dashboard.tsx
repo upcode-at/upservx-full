@@ -19,6 +19,8 @@ interface ClusterHealth {
     average_memory: number
     average_disk: number
     total_capacity: number
+    total_cpu_cores: number
+    total_memory_gb: number
   }
   sync: {
     total_synced_containers: number
@@ -177,7 +179,7 @@ export default function ClusterHealthDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3 mb-4">
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Nodes Online</div>
                 <div className="text-2xl font-bold">
@@ -188,6 +190,18 @@ export default function ClusterHealthDashboard() {
                   className="mt-2"
                 />
               </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Total CPU Cores</div>
+                <div className="text-2xl font-bold">{health.load.total_cpu_cores}</div>
+                <div className="text-xs text-muted-foreground mt-1">Across all nodes</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Total Memory</div>
+                <div className="text-2xl font-bold">{health.load.total_memory_gb} GB</div>
+                <div className="text-xs text-muted-foreground mt-1">Across all nodes</div>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Average CPU</div>
                 <div className="text-2xl font-bold">{health.load.average_cpu.toFixed(1)}%</div>

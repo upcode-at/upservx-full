@@ -175,9 +175,13 @@ def get_local_ip():
 
 def get_system_resources():
     """Get current system resource usage"""
+    mem = psutil.virtual_memory()
     return {
         "cpu_usage": psutil.cpu_percent(interval=1),
-        "memory_usage": psutil.virtual_memory().percent,
+        "cpu_count": psutil.cpu_count(),
+        "memory_usage": mem.percent,
+        "memory_total": mem.total,
+        "memory_available": mem.available,
         "disk_usage": psutil.disk_usage('/').percent
     }
 
@@ -1196,6 +1200,16 @@ async def get_cluster_health():
     critical_alerts = [a for a in alerts if a.get("level") == "critical"]
     warning_alerts = [a for a in alerts if a.get("level") == "warning"]
     
+    # Calculate total cores and RAM across cluster
+    total_cpu_cores = 0
+    total_memory_gb = 0.0
+    
+    for node in nodes_dict:
+        resources = node.get("resources", {})
+        total_cpu_cores += resources.get("cpu_count", 0)
+        total_memory_bytes = resources.get("memory_total", 0)
+        total_memory_gb += total_memory_bytes / (1024**3)  # Convert bytes to GB
+    
     # Determine overall health
     health_status = "healthy"
     if offline_nodes > 0 or len(critical_alerts) > 0:
@@ -1214,7 +1228,9 @@ async def get_cluster_health():
             "average_cpu": load_distribution["average_cpu"],
             "average_memory": load_distribution["average_memory"],
             "average_disk": load_distribution["average_disk"],
-            "total_capacity": load_distribution["total_capacity"]
+            "total_capacity": load_distribution["total_capacity"],
+            "total_cpu_cores": total_cpu_cores,
+            "total_memory_gb": round(total_memory_gb, 2)
         },
         "sync": sync_status,
         "alerts": {
