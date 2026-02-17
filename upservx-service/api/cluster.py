@@ -97,6 +97,18 @@ def read_node_config(hostname: str):
             return json.load(f)
     return None
 
+def find_unique_hostname(base_hostname: str) -> str:
+    """Find a unique hostname by appending -2, -3, etc. if hostname already exists"""
+    hostname = base_hostname
+    counter = 2
+    
+    while read_node_config(hostname) is not None:
+        hostname = f"{base_hostname}-{counter}"
+        counter += 1
+        print(f"[CLUSTER] Hostname {base_hostname} exists, trying {hostname}")
+    
+    return hostname
+
 def write_node_config(hostname: str, config: dict):
     """Write node configuration file"""
     ensure_config_dir()
@@ -493,63 +505,98 @@ async def create_cluster(request: ClusterCreateRequest):
 @router.post("/cluster/join")
 async def join_cluster(request: ClusterJoinRequest):
     """Join an existing cluster as child node"""
-    print(f"[CLUSTER] Attempting to join cluster at {request.master_ip}:{request.port}")
+    print(f"[CLUSTER] ========================================")
+    print(f"[CLUSTER] JOIN REQUEST INITIATED")
+    print(f"[CLUSTER] Target Master: {request.master_ip}:{request.port}")
+    print(f"[CLUSTER] Token: {request.token[:15]}...")
     
     if is_master_node():
+        print(f"[CLUSTER] ERROR: This node is already a master")
         raise HTTPException(status_code=400, detail="This node is already a master")
     
     if is_child_node():
+        print(f"[CLUSTER] ERROR: Already part of a cluster")
         raise HTTPException(status_code=400, detail="Already part of a cluster")
+    
+    my_hostname = get_hostname()
+    my_ip = get_local_ip()
+    
+    print(f"[CLUSTER] My hostname: {my_hostname}")
+    print(f"[CLUSTER] My IP: {my_ip}")
     
     # Prepare node data to register with master
     node_data = {
-        "hostname": get_hostname(),
-        "ip_address": get_local_ip(),
+        "hostname": my_hostname,
+        "ip_address": my_ip,
         "port": 9500,
         "cluster_key": request.token
     }
     
-    print(f"[CLUSTER] Registering as {node_data['hostname']} with IP {node_data['ip_address']}")
+    print(f"[CLUSTER] Node data prepared: {node_data}")
+    print(f"[CLUSTER] Attempting registration with master...")
     
     # Register this node with the master
     try:
         master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
-        print(f"[CLUSTER] Sending registration to {master_url}")
+        print(f"[CLUSTER] POST {master_url}")
+        print(f"[CLUSTER] Payload: {json.dumps(node_data, indent=2)}")
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 master_url,
                 json=node_data
             )
             
-            print(f"[CLUSTER] Registration response: HTTP {response.status_code}")
+            print(f"[CLUSTER] Response status: {response.status_code}")
+            print(f"[CLUSTER] Response body: {response.text}")
             
             if response.status_code != 200:
-                error_detail = response.json().get("detail", "Failed to register with master")
-                print(f"[CLUSTER] Registration failed: {error_detail}")
+                try:
+                    error_detail = response.json().get("detail", "Failed to register with master")
+                except:
+                    error_detail = response.text
+                print(f"[CLUSTER] Registration FAILED: {error_detail}")
                 raise HTTPException(status_code=400, detail=f"Master rejected registration: {error_detail}")
             
-            print(f"[CLUSTER] Successfully registered with master")
+            response_data = response.json()
+            assigned_hostname = response_data.get("hostname", my_hostname)
+            
+            print(f"[CLUSTER] Registration SUCCESSFUL")
+            print(f"[CLUSTER] Assigned hostname: {assigned_hostname}")
+            
+    except HTTPException:
+        raise
     except httpx.RequestError as e:
-        print(f"[CLUSTER] Connection error: {str(e)}")
+        print(f"[CLUSTER] Connection error: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to connect to master: {str(e)}")
     except httpx.TimeoutException:
-        print(f"[CLUSTER] Connection timeout")
+        print(f"[CLUSTER] Connection timeout to {request.master_ip}:{request.port}")
         raise HTTPException(status_code=400, detail="Connection to master timed out")
+    except Exception as e:
+        print(f"[CLUSTER] Unexpected error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Unexpected error during registration: {str(e)}")
     
     # Create child configuration
     child_config = {
         "key": request.token,
         "master_ip": request.master_ip,
         "master_port": request.port,
-        "joined_at": datetime.now().isoformat()
+        "joined_at": datetime.now().isoformat(),
+        "assigned_hostname": assigned_hostname
     }
     
+    print(f"[CLUSTER] Writing child configuration...")
     write_child_config(child_config)
-    print(f"[CLUSTER] Child configuration written")
+    print(f"[CLUSTER] Child configuration written to {CHILD_CONFIG_FILE}")
+    print(f"[CLUSTER] JOIN COMPLETED SUCCESSFULLY")
+    print(f"[CLUSTER] ========================================")
     
     return {
         "message": "Successfully joined cluster",
-        "master_ip": request.master_ip
+        "master_ip": request.master_ip,
+        "assigned_hostname": assigned_hostname
     }
 
 @router.post("/cluster/register")
@@ -580,27 +627,45 @@ async def register_node(request: NodeRegistrationRequest):
     
     print(f"[CLUSTER] Cluster key verified successfully")
     
-    # Check if node already exists
-    existing_node = read_node_config(request.hostname)
-    if existing_node:
-        # Update existing node
-        print(f"[CLUSTER] Node {request.hostname} already exists, updating...")
-        existing_node["ip_address"] = request.ip_address
-        existing_node["port"] = request.port
-        existing_node["resources"] = {}
-        existing_node["last_seen"] = datetime.now().isoformat()
+    # Check if this is the same node (same IP) updating itself
+    original_hostname = request.hostname
+    all_nodes = list_all_nodes()
+    
+    # Check if a node with this IP already exists
+    same_ip_node = None
+    for node in all_nodes:
+        if node.get("ip_address") == request.ip_address:
+            same_ip_node = node
+            break
+    
+    if same_ip_node:
+        # Same IP, just update the existing entry
+        existing_hostname = same_ip_node.get("hostname")
+        print(f"[CLUSTER] Node with IP {request.ip_address} already exists as {existing_hostname}, updating...")
+        same_ip_node["hostname"] = existing_hostname  # Keep the original hostname
+        same_ip_node["ip_address"] = request.ip_address
+        same_ip_node["port"] = request.port
+        same_ip_node["resources"] = {}
+        same_ip_node["last_seen"] = datetime.now().isoformat()
         try:
-            write_node_config(request.hostname, existing_node)
-            print(f"[CLUSTER] Node {request.hostname} updated successfully")
-            return {"message": "Node updated successfully", "hostname": request.hostname}
+            write_node_config(existing_hostname, same_ip_node)
+            print(f"[CLUSTER] Node {existing_hostname} updated successfully")
+            return {"message": "Node updated successfully", "hostname": existing_hostname}
         except Exception as e:
             print(f"[CLUSTER] ERROR updating node: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to update node: {str(e)}")
     
+    # Find a unique hostname (append -2, -3, etc. if needed)
+    unique_hostname = find_unique_hostname(original_hostname)
+    
+    if unique_hostname != original_hostname:
+        print(f"[CLUSTER] Hostname {original_hostname} already exists, using {unique_hostname} instead")
+    
     # Create new node configuration
-    print(f"[CLUSTER] Creating new node config for {request.hostname}")
+    print(f"[CLUSTER] Creating new node config for {unique_hostname}")
     node_config = {
-        "hostname": request.hostname,
+        "hostname": unique_hostname,
+        "original_hostname": original_hostname,
         "ip_address": request.ip_address,
         "port": request.port,
         "resources": {},
@@ -611,12 +676,12 @@ async def register_node(request: NodeRegistrationRequest):
     print(f"[CLUSTER] Node config: {node_config}")
     
     try:
-        write_node_config(request.hostname, node_config)
-        print(f"[CLUSTER] Node {request.hostname} registered successfully")
+        write_node_config(unique_hostname, node_config)
+        print(f"[CLUSTER] Node {unique_hostname} registered successfully")
         print(f"[CLUSTER] ========================================")
         
         # Verify registration
-        verification = read_node_config(request.hostname)
+        verification = read_node_config(unique_hostname)
         if verification:
             print(f"[CLUSTER] Verification: Node config readable after write")
         else:
@@ -624,7 +689,8 @@ async def register_node(request: NodeRegistrationRequest):
         
         return {
             "message": "Node registered successfully",
-            "hostname": request.hostname
+            "hostname": unique_hostname,
+            "original_hostname": original_hostname if unique_hostname != original_hostname else None
         }
     except Exception as e:
         print(f"[CLUSTER] ERROR registering node: {e}")
