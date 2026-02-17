@@ -159,6 +159,7 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     """Fetch metrics from a child node"""
     try:
         url = f"http://{ip_address}:{port}/metrics"
+        print(f"[CLUSTER] Fetching metrics from {url}")
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 url,
@@ -167,14 +168,17 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
             
             if response.status_code == 200:
                 metrics = response.json()
+                print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 return {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
                     "memory_usage": metrics.get("memory", {}).get("usage", 0),
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
                     "success": True
                 }
-    except (httpx.RequestError, httpx.TimeoutException, Exception):
-        pass
+            else:
+                print(f"[CLUSTER] Failed to fetch metrics from {ip_address}: HTTP {response.status_code}")
+    except (httpx.RequestError, httpx.TimeoutException, Exception) as e:
+        print(f"[CLUSTER] Error fetching metrics from {ip_address}: {e}")
     
     return {
         "cpu_usage": 0,
@@ -182,6 +186,58 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
         "disk_usage": 0,
         "success": False
     }
+
+@router.get("/metrics")
+async def get_node_metrics():
+    """Get current node metrics (for cluster communication)"""
+    return {
+        "hostname": get_hostname(),
+        "cpu": {
+            "usage": psutil.cpu_percent(interval=1),
+            "count": psutil.cpu_count()
+        },
+        "memory": {
+            "usage": psutil.virtual_memory().percent,
+            "total": psutil.virtual_memory().total,
+            "available": psutil.virtual_memory().available
+        },
+        "storage": {
+            "usage": psutil.disk_usage('/').percent,
+            "total": psutil.disk_usage('/').total,
+            "free": psutil.disk_usage('/').free
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+@router.get("/cluster/debug")
+async def get_cluster_debug():
+    """Debug information for cluster troubleshooting"""
+    import os
+    
+    debug_info = {
+        "is_master": is_master_node(),
+        "is_child": is_child_node(),
+        "hostname": get_hostname(),
+        "local_ip": get_local_ip(),
+        "master_config_exists": os.path.exists(MASTER_CONFIG_FILE),
+        "child_config_exists": os.path.exists(CHILD_CONFIG_FILE),
+        "nodes_dir_exists": os.path.exists(NODES_DIR),
+        "node_files": [],
+        "master_config": None,
+        "child_config": None
+    }
+    
+    if os.path.exists(NODES_DIR):
+        debug_info["node_files"] = os.listdir(NODES_DIR)
+    
+    if is_master_node():
+        debug_info["master_config"] = read_master_config()
+        debug_info["stored_nodes"] = list_all_nodes()
+    
+    if is_child_node():
+        debug_info["child_config"] = read_child_config()
+    
+    return debug_info
 
 @router.get("/cluster/info")
 async def get_cluster_info():
@@ -214,7 +270,9 @@ async def get_cluster_info():
         
         # Add all child nodes from nodes directory and fetch their metrics
         child_nodes = list_all_nodes()
+        print(f"[CLUSTER] Master node found {len(child_nodes)} nodes in directory")
         for node in child_nodes:
+            print(f"[CLUSTER] Processing node: {node.get('hostname')}")
             if node.get("hostname") != get_hostname():
                 # Fetch current metrics from child node
                 resources = await fetch_node_metrics(
@@ -245,7 +303,55 @@ async def get_cluster_info():
     elif is_child:
         child_config = read_child_config()
         master_ip = child_config.get("master_ip")
+        master_port = child_config.get("master_port", 9500)
         cluster_token = child_config.get("key")
+        
+        print(f"[CLUSTER] Child node trying to fetch master info from {master_ip}:{master_port}")
+        
+        # Try to fetch master node info
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(
+                    f"http://{master_ip}:{master_port}/metrics",
+                    headers={"Authorization": f"Bearer {cluster_token}"}
+                )
+                if response.status_code == 200:
+                    master_metrics = response.json()
+                    print(f"[CLUSTER] Successfully fetched master metrics")
+                    nodes.append({
+                        "id": master_metrics.get("hostname", "master"),
+                        "hostname": master_metrics.get("hostname", "master"),
+                        "ip_address": master_ip,
+                        "port": master_port,
+                        "status": "online",
+                        "role": "master",
+                        "resources": {
+                            "cpu_usage": master_metrics.get("cpu", {}).get("usage", 0),
+                            "memory_usage": master_metrics.get("memory", {}).get("usage", 0),
+                            "disk_usage": master_metrics.get("storage", {}).get("usage", 0)
+                        },
+                        "last_seen": datetime.now().isoformat()
+                    })
+                else:
+                    print(f"[CLUSTER] Failed to fetch master metrics: HTTP {response.status_code}")
+                    raise Exception("Master unreachable")
+        except Exception as e:
+            # Master unreachable, show as offline
+            print(f"[CLUSTER] Master unreachable: {e}")
+            nodes.append({
+                "id": "master",
+                "hostname": "master",
+                "ip_address": master_ip,
+                "port": master_port,
+                "status": "offline",
+                "role": "master",
+                "resources": {
+                    "cpu_usage": 0,
+                    "memory_usage": 0,
+                    "disk_usage": 0
+                },
+                "last_seen": ""
+            })
         
         # Add self as child node
         child_node = {
@@ -358,26 +464,31 @@ async def join_cluster(request: ClusterJoinRequest):
 @router.post("/cluster/register")
 async def register_node(request: NodeRegistrationRequest):
     """Register a child node with the master (master only)"""
+    print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
+    
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can register nodes")
     
     # Verify the cluster key
     master_config = read_master_config()
     if not master_config or master_config.get("key") != request.cluster_key:
+        print(f"[CLUSTER] Invalid cluster key from {request.hostname}")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     # Check if node already exists
     existing_node = read_node_config(request.hostname)
     if existing_node:
         # Update existing node
+        print(f"[CLUSTER] Updating existing node {request.hostname}")
         existing_node["ip_address"] = request.ip_address
         existing_node["port"] = request.port
-        existing_node["resources"] = get_system_resources()
+        existing_node["resources"] = {}
         existing_node["last_seen"] = datetime.now().isoformat()
         write_node_config(request.hostname, existing_node)
         return {"message": "Node updated successfully", "hostname": request.hostname}
     
     # Create new node configuration
+    print(f"[CLUSTER] Registering new node {request.hostname}")
     node_config = {
         "hostname": request.hostname,
         "ip_address": request.ip_address,
@@ -388,6 +499,7 @@ async def register_node(request: NodeRegistrationRequest):
     }
     
     write_node_config(request.hostname, node_config)
+    print(f"[CLUSTER] Node {request.hostname} registered successfully")
     
     return {
         "message": "Node registered successfully",

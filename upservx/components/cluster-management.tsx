@@ -55,6 +55,8 @@ export default function ClusterManagement() {
   // Dialog states
   const [createClusterOpen, setCreateClusterOpen] = useState(false)
   const [joinClusterOpen, setJoinClusterOpen] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   // Form states
   const [clusterName, setClusterName] = useState("")
@@ -203,6 +205,22 @@ export default function ClusterManagement() {
     }
   }
 
+  const loadDebugInfo = async () => {
+    try {
+      const response = await fetch(getApiUrl("/cluster/debug"), {
+        credentials: "include"
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDebugInfo(data)
+        setDebugOpen(true)
+      }
+    } catch (err) {
+      setError("Failed to load debug information")
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "success" | "secondary" | "destructive"> = {
       online: "success",
@@ -242,6 +260,9 @@ export default function ClusterManagement() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button onClick={loadDebugInfo} variant="outline" size="sm">
+            Debug Info
+          </Button>
           {!clusterInfo?.is_member && (
             <>
               <Dialog open={createClusterOpen} onOpenChange={setCreateClusterOpen}>
@@ -556,6 +577,25 @@ export default function ClusterManagement() {
           </CardContent>
         </Card>
       )}
+
+      {/* Debug Dialog */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Cluster Debug Information</DialogTitle>
+            <DialogDescription>
+              Technical information for troubleshooting cluster issues
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {debugInfo && (
+              <pre className="bg-muted p-4 rounded-lg text-xs overflow-auto">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
