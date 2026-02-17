@@ -221,7 +221,10 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                 print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 return {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
+                    "cpu_count": metrics.get("cpu", {}).get("count", 0),
                     "memory_usage": metrics.get("memory", {}).get("usage", 0),
+                    "memory_total": metrics.get("memory", {}).get("total", 0),
+                    "memory_available": metrics.get("memory", {}).get("available", 0),
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
                     "success": True
                 }
@@ -232,7 +235,10 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     
     return {
         "cpu_usage": 0,
+        "cpu_count": 0,
         "memory_usage": 0,
+        "memory_total": 0,
+        "memory_available": 0,
         "disk_usage": 0,
         "success": False
     }
@@ -421,7 +427,10 @@ async def get_cluster_info():
                         "role": "master",
                         "resources": {
                             "cpu_usage": master_metrics.get("cpu", {}).get("usage", 0),
+                            "cpu_count": master_metrics.get("cpu", {}).get("count", 0),
                             "memory_usage": master_metrics.get("memory", {}).get("usage", 0),
+                            "memory_total": master_metrics.get("memory", {}).get("total", 0),
+                            "memory_available": master_metrics.get("memory", {}).get("available", 0),
                             "disk_usage": master_metrics.get("storage", {}).get("usage", 0)
                         },
                         "last_seen": datetime.now().isoformat()
@@ -441,7 +450,10 @@ async def get_cluster_info():
                 "role": "master",
                 "resources": {
                     "cpu_usage": 0,
+                    "cpu_count": 0,
                     "memory_usage": 0,
+                    "memory_total": 0,
+                    "memory_available": 0,
                     "disk_usage": 0
                 },
                 "last_seen": ""
