@@ -53,8 +53,15 @@ class ClusterInfo(BaseModel):
 
 def ensure_config_dir():
     """Ensure configuration directory exists"""
-    os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
-    os.makedirs(NODES_DIR, exist_ok=True)
+    try:
+        os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
+        os.makedirs(NODES_DIR, exist_ok=True)
+        print(f"[CLUSTER] Config directories ensured: {UPSERVX_CONFIG_DIR}, {NODES_DIR}")
+        print(f"[CLUSTER] NODES_DIR exists: {os.path.exists(NODES_DIR)}")
+        print(f"[CLUSTER] NODES_DIR is writable: {os.access(NODES_DIR, os.W_OK)}")
+    except Exception as e:
+        print(f"[CLUSTER] ERROR creating config directories: {e}")
+        raise
 
 def read_master_config():
     """Read master configuration file"""
@@ -94,8 +101,19 @@ def write_node_config(hostname: str, config: dict):
     """Write node configuration file"""
     ensure_config_dir()
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
-    with open(node_file, 'w') as f:
-        json.dump(config, f, indent=2)
+    print(f"[CLUSTER] Writing node config to {node_file}")
+    try:
+        with open(node_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"[CLUSTER] Successfully wrote node config for {hostname}")
+        # Verify it was written
+        if os.path.exists(node_file):
+            print(f"[CLUSTER] File {node_file} exists and has {os.path.getsize(node_file)} bytes")
+        else:
+            print(f"[CLUSTER] WARNING: File {node_file} does not exist after write!")
+    except Exception as e:
+        print(f"[CLUSTER] ERROR writing node config: {e}")
+        raise
 
 def delete_node_config(hostname: str):
     """Delete node configuration file"""
@@ -107,13 +125,29 @@ def list_all_nodes():
     """List all node configurations"""
     nodes = []
     if not os.path.exists(NODES_DIR):
+        print(f"[CLUSTER] NODES_DIR does not exist: {NODES_DIR}")
         return nodes
     
-    for filename in os.listdir(NODES_DIR):
-        if filename.endswith('.json'):
-            node_file = os.path.join(NODES_DIR, filename)
-            with open(node_file, 'r') as f:
-                nodes.append(json.load(f))
+    print(f"[CLUSTER] Listing nodes from {NODES_DIR}")
+    try:
+        files = os.listdir(NODES_DIR)
+        print(f"[CLUSTER] Found {len(files)} files in NODES_DIR: {files}")
+        
+        for filename in files:
+            if filename.endswith('.json'):
+                node_file = os.path.join(NODES_DIR, filename)
+                print(f"[CLUSTER] Reading node config: {node_file}")
+                try:
+                    with open(node_file, 'r') as f:
+                        node_data = json.load(f)
+                        nodes.append(node_data)
+                        print(f"[CLUSTER] Loaded node: {node_data.get('hostname', 'unknown')}")
+                except Exception as e:
+                    print(f"[CLUSTER] ERROR reading {node_file}: {e}")
+    except Exception as e:
+        print(f"[CLUSTER] ERROR listing nodes: {e}")
+    
+    print(f"[CLUSTER] Total nodes loaded: {len(nodes)}")
     return nodes
 
 def get_local_ip():
@@ -223,6 +257,7 @@ async def get_cluster_debug():
         "child_config_exists": os.path.exists(CHILD_CONFIG_FILE),
         "nodes_dir_exists": os.path.exists(NODES_DIR),
         "nodes_dir_path": NODES_DIR,
+        "nodes_dir_writable": os.access(NODES_DIR, os.W_OK) if os.path.exists(NODES_DIR) else False,
         "node_files": [],
         "master_config": None,
         "child_config": None
@@ -247,6 +282,40 @@ async def get_cluster_debug():
         debug_info["child_config"] = read_child_config()
     
     return debug_info
+
+@router.post("/cluster/test-write")
+async def test_write_permissions():
+    """Test if we can write to the nodes directory"""
+    ensure_config_dir()
+    
+    test_file = os.path.join(NODES_DIR, "test_write.json")
+    test_data = {"test": "data", "timestamp": datetime.now().isoformat()}
+    
+    try:
+        with open(test_file, 'w') as f:
+            json.dump(test_data, f, indent=2)
+        
+        # Try to read it back
+        with open(test_file, 'r') as f:
+            read_data = json.load(f)
+        
+        # Clean up
+        os.remove(test_file)
+        
+        return {
+            "success": True,
+            "message": "Write test successful",
+            "data_written": test_data,
+            "data_read": read_data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "nodes_dir": NODES_DIR,
+            "nodes_dir_exists": os.path.exists(NODES_DIR),
+            "nodes_dir_writable": os.access(NODES_DIR, os.W_OK) if os.path.exists(NODES_DIR) else False
+        }
 
 @router.get("/cluster/info")
 async def get_cluster_info():
@@ -486,31 +555,50 @@ async def join_cluster(request: ClusterJoinRequest):
 @router.post("/cluster/register")
 async def register_node(request: NodeRegistrationRequest):
     """Register a child node with the master (master only)"""
+    print(f"[CLUSTER] ========================================")
     print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
+    print(f"[CLUSTER] Cluster key provided: {request.cluster_key[:10]}...")
     
     if not is_master_node():
+        print(f"[CLUSTER] ERROR: This node is not a master")
         raise HTTPException(status_code=403, detail="Only master node can register nodes")
+    
+    print(f"[CLUSTER] This is a master node, proceeding...")
     
     # Verify the cluster key
     master_config = read_master_config()
-    if not master_config or master_config.get("key") != request.cluster_key:
-        print(f"[CLUSTER] Invalid cluster key from {request.hostname}")
+    if not master_config:
+        print(f"[CLUSTER] ERROR: Master config not found")
+        raise HTTPException(status_code=500, detail="Master configuration not found")
+    
+    expected_key = master_config.get("key")
+    print(f"[CLUSTER] Expected key: {expected_key[:10]}...")
+    
+    if expected_key != request.cluster_key:
+        print(f"[CLUSTER] ERROR: Invalid cluster key from {request.hostname}")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    print(f"[CLUSTER] Cluster key verified successfully")
     
     # Check if node already exists
     existing_node = read_node_config(request.hostname)
     if existing_node:
         # Update existing node
-        print(f"[CLUSTER] Updating existing node {request.hostname}")
+        print(f"[CLUSTER] Node {request.hostname} already exists, updating...")
         existing_node["ip_address"] = request.ip_address
         existing_node["port"] = request.port
         existing_node["resources"] = {}
         existing_node["last_seen"] = datetime.now().isoformat()
-        write_node_config(request.hostname, existing_node)
-        return {"message": "Node updated successfully", "hostname": request.hostname}
+        try:
+            write_node_config(request.hostname, existing_node)
+            print(f"[CLUSTER] Node {request.hostname} updated successfully")
+            return {"message": "Node updated successfully", "hostname": request.hostname}
+        except Exception as e:
+            print(f"[CLUSTER] ERROR updating node: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to update node: {str(e)}")
     
     # Create new node configuration
-    print(f"[CLUSTER] Registering new node {request.hostname}")
+    print(f"[CLUSTER] Creating new node config for {request.hostname}")
     node_config = {
         "hostname": request.hostname,
         "ip_address": request.ip_address,
@@ -520,13 +608,29 @@ async def register_node(request: NodeRegistrationRequest):
         "registered_at": datetime.now().isoformat()
     }
     
-    write_node_config(request.hostname, node_config)
-    print(f"[CLUSTER] Node {request.hostname} registered successfully")
+    print(f"[CLUSTER] Node config: {node_config}")
     
-    return {
-        "message": "Node registered successfully",
-        "hostname": request.hostname
-    }
+    try:
+        write_node_config(request.hostname, node_config)
+        print(f"[CLUSTER] Node {request.hostname} registered successfully")
+        print(f"[CLUSTER] ========================================")
+        
+        # Verify registration
+        verification = read_node_config(request.hostname)
+        if verification:
+            print(f"[CLUSTER] Verification: Node config readable after write")
+        else:
+            print(f"[CLUSTER] WARNING: Node config not readable after write!")
+        
+        return {
+            "message": "Node registered successfully",
+            "hostname": request.hostname
+        }
+    except Exception as e:
+        print(f"[CLUSTER] ERROR registering node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to register node: {str(e)}")
 
 @router.post("/cluster/leave")
 async def leave_cluster():
