@@ -112,6 +112,13 @@ async def pam_auth_middleware(request: Request, call_next):
         # These endpoints validate tokens internally or are cluster-only
         return await call_next(request)
     
+    # Skip middleware auth for cluster replication endpoints - they handle auth internally
+    if request.url.path.startswith("/cluster/export") or \
+       request.url.path.startswith("/cluster/download") or \
+       request.url.path.startswith("/cluster/upload") or \
+       request.url.path.startswith("/cluster/import"):
+        return await call_next(request)
+    
     auth_header = request.headers.get("Authorization")
     # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
     if not auth_header:
