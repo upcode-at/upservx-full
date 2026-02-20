@@ -21,7 +21,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import ClusterHealthDashboard from "@/components/cluster-health-dashboard"
-import WorkloadDistribution from "@/components/workload-distribution"
 
 interface ClusterNode {
   id: string
@@ -573,7 +572,19 @@ export default function ClusterManagement() {
 
           <TabsContent value="workload">
             {clusterInfo.is_master ? (
-              <WorkloadDistribution />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Workload Distribution</CardTitle>
+                  <CardDescription>
+                    Manage workload distribution across cluster nodes
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-muted-foreground">
+                    Content coming soon
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="pt-6">
