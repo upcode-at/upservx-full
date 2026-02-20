@@ -40,6 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 401 Unauthorized errors on child nodes when master initiates replication upload
 - `bytes` object has no attribute `encode` error during VM/container import (`text=True` removed from `subprocess.run` when binary input is used)
 
+### Security
+- **WebSocket shell auth**: `/system/shell` WebSocket endpoint now authenticates via PAM before accepting the connection — previously any unauthenticated client could open an interactive root shell
+- **Debug endpoint removed**: `/debug/echo` endpoint replaced with a 404 — previously exposed arbitrary request reflection  
+- **Path traversal (ISO)**: `isos.py` — `_safe_iso_path()` helper added; all ISO path operations now use `os.path.realpath()` to prevent `../../etc/passwd`-style traversal
+- **SSRF (ISO download)**: `download_iso()` now rejects non-http/https schemes and blocks private/loopback/RFC-1918 address ranges
+- **Path traversal (tarfile)**: `cluster.py` — `_safe_tar_extractall()` strips path components and rejects entries that would escape the extract directory (CVE-2007-4559 class)
+- **Exception detail leak**: `/auth/login` no longer forwards exception messages to the client; internal errors return a generic "invalid credentials" message
+- **Rate limiting**: `/auth/login` is now rate-limited to 10 attempts per IP per 60 seconds to slow brute-force attacks
+- **Stale middleware bypass removed**: `/metrics` was incorrectly excluded from PAM auth (the actual cluster metrics route is `/cluster/node/metrics` and is authenticated)
+- **Input validation (users)**: `users.py` — `_validate_name()` regex guard added and called in every user/group management function (`create_user`, `update_user`, `delete_user`, `create_group`, `update_group`, `delete_group`); rejected names containing shell metacharacters prevent command injection through subprocess calls
+- **Path traversal (SSH keys)**: `ssh_keys.py` — `_safe_key_path()` helper added; `key_name` is validated against `^[a-zA-Z0-9_\-\.]{1,64}$` and path is verified to stay within `./ssh_keys/` in `generate_ssh_key_pair`, `store_ssh_key`, `delete_ssh_key`, `get_ssh_key` and `setup_authorized_keys`
+- **Shell input validation (users)**: Shell path validated against `LOGIN_SHELLS` allowlist in `create_user` / `update_user`
+- **`/auth/logout` response bug**: Fixed `Response(content=dict(...))` which serialised to `None`; now returns proper JSON string
+
 ---
 
 ## [0.1.0] - 2026-02-15

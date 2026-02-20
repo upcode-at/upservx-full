@@ -1812,6 +1812,16 @@ async def get_node_resources(hostname: str):
 # Replication Export/Import Endpoints
 TEMP_EXPORT_DIR = "/tmp/upservx_exports"
 
+
+def _safe_tar_extractall(tar, dest_dir: str):
+    """Extract tar archive, rejecting any members that escape dest_dir (path traversal)."""
+    dest_real = os.path.realpath(dest_dir)
+    for member in tar.getmembers():
+        member_path = os.path.realpath(os.path.join(dest_real, member.name))
+        if not member_path.startswith(dest_real + os.sep) and member_path != dest_real:
+            raise Exception(f"Path traversal detected in archive member: {member.name}")
+    tar.extractall(dest_dir)
+
 @router.post("/cluster/export/{resource_type}/{resource_name}")
 async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
     """Export a container or VM with all volumes/storage"""
@@ -2143,7 +2153,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             # Extract archive
             print(f"[IMPORT] Extracting archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
-                tar.extractall(extract_dir)
+                _safe_tar_extractall(tar, extract_dir)
             
             # Read metadata
             metadata_file = os.path.join(extract_dir, "metadata.json")
@@ -2282,7 +2292,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             
             print(f"[IMPORT] Extracting VM archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
-                tar.extractall(extract_dir)
+                _safe_tar_extractall(tar, extract_dir)
             
             # Read VM metadata
             metadata_file = os.path.join(extract_dir, "vm_metadata.json")

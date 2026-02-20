@@ -3,6 +3,7 @@ SSH Key management utilities for backup servers.
 """
 
 import os
+import re
 import stat
 import subprocess
 from pathlib import Path
@@ -15,6 +16,19 @@ logger = logging.getLogger(__name__)
 
 SSH_KEY_DIR = "./ssh_keys"
 AUTHORIZED_KEYS_DIR = "./authorized_keys"
+
+_KEY_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,64}$')
+
+
+def _safe_key_path(key_name: str, base_dir: str) -> str:
+    """Return the absolute path for key_name inside base_dir, raising on traversal."""
+    if not _KEY_NAME_RE.match(key_name):
+        raise ValueError(f"Invalid key name: {key_name!r}")
+    abs_base = os.path.realpath(base_dir)
+    candidate = os.path.realpath(os.path.join(abs_base, key_name))
+    if not candidate.startswith(abs_base + os.sep) and candidate != abs_base:
+        raise ValueError(f"Path traversal detected for key name: {key_name!r}")
+    return candidate
 
 
 class SSHKeyManager:
@@ -47,7 +61,7 @@ class SSHKeyManager:
             Dictionary containing private key, public key, and paths
         """
         try:
-            private_key_path = os.path.join(SSH_KEY_DIR, f"{key_name}")
+            private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
             public_key_path = f"{private_key_path}.pub"
             
             if key_type.lower() == "rsa":
@@ -119,8 +133,8 @@ class SSHKeyManager:
             Dictionary with key information
         """
         try:
-            private_key_path = os.path.join(SSH_KEY_DIR, f"{key_name}")
-            
+            private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
+
             # Validate the key by trying to load it
             try:
                 key_bytes = private_key_content.encode()
@@ -204,7 +218,7 @@ class SSHKeyManager:
     def delete_ssh_key(self, key_name: str) -> bool:
         """Delete an SSH key pair."""
         try:
-            private_key_path = os.path.join(SSH_KEY_DIR, key_name)
+            private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
             public_key_path = f"{private_key_path}.pub"
             
             deleted = False
@@ -221,7 +235,7 @@ class SSHKeyManager:
     def get_ssh_key(self, key_name: str) -> Optional[Dict[str, str]]:
         """Get SSH key information by name."""
         try:
-            private_key_path = os.path.join(SSH_KEY_DIR, key_name)
+            private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
             public_key_path = f"{private_key_path}.pub"
             
             if not os.path.exists(private_key_path):
@@ -310,6 +324,7 @@ class SSHKeyManager:
                             public_keys: List[str]) -> bool:
         """Setup authorized_keys file for a user."""
         try:
+            _safe_key_path(username, AUTHORIZED_KEYS_DIR)  # validate username before path use
             auth_keys_path = os.path.join(AUTHORIZED_KEYS_DIR, f"{username}_authorized_keys")
             
             with open(auth_keys_path, 'w') as f:

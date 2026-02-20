@@ -16,7 +16,9 @@ import uvicorn
 import os
 import subprocess
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
+import threading
 
 # Setup logging
 LOG_FILE = "/etc/upservx.log"
@@ -131,6 +133,26 @@ ensure_proxy_running()
 
 pam_auth = pam.pam()
 
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter for the login endpoint
+# ---------------------------------------------------------------------------
+_login_attempts: dict = defaultdict(list)   # ip -> [datetime, ...]
+_login_attempts_lock = threading.Lock()
+_LOGIN_WINDOW_SECONDS = 60
+_LOGIN_MAX_ATTEMPTS = 10
+
+def _check_login_rate_limit(ip: str) -> bool:
+    """Return True if the IP is allowed to attempt login, False if rate-limited."""
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=_LOGIN_WINDOW_SECONDS)
+    with _login_attempts_lock:
+        attempts = [t for t in _login_attempts[ip] if t > cutoff]
+        _login_attempts[ip] = attempts
+        if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+            return False
+        _login_attempts[ip].append(now)
+        return True
+
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
@@ -142,9 +164,12 @@ async def pam_auth_middleware(request: Request, call_next):
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
     
-    # Skip authentication for cluster communication endpoints
-    if request.url.path in ["/cluster/register", "/metrics"] and request.method in ["GET", "POST"]:
-        # These endpoints validate tokens internally or are cluster-only
+    # Skip authentication for /auth/login (credentials arrive in the body)
+    if request.url.path == "/auth/login" and request.method == "POST":
+        return await call_next(request)
+
+    # Skip authentication for /cluster/register (validates cluster key internally)
+    if request.url.path == "/cluster/register" and request.method == "POST":
         return await call_next(request)
     
     # Skip middleware auth for cluster replication endpoints - they handle auth internally
@@ -220,23 +245,29 @@ async def auth_login(payload: dict, request: Request):
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
 
-    # authenticate via PAM or API key
+    # Rate-limit by client IP
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_login_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="too many login attempts")
+
+    # Authenticate via PAM
     try:
         if pam_auth.authenticate(username, password):
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
-            resp = Response(content={"detail": "logged_in"}, media_type="application/json")
-            # For local development we set SameSite=Lax; do not set Secure so it works over HTTP
+            resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
             resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
             return resp
         else:
             raise HTTPException(status_code=401, detail="invalid credentials")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid credentials")
 
 
 @app.post("/auth/logout")
 async def auth_logout():
-    resp = Response(content={"detail": "logged_out"}, media_type="application/json")
+    resp = Response(content='{"detail": "logged_out"}', media_type="application/json")
     resp.delete_cookie("auth")
     return resp
 
@@ -253,8 +284,32 @@ app.include_router(cluster_router)
 @app.websocket("/system/shell")
 async def system_shell_websocket(websocket: WebSocket):
     """Provide interactive shell access to the system via websocket."""
-    import asyncio
-    import pty
+    # Authenticate via cookie or query param before accepting
+    auth_token = websocket.cookies.get("auth") or websocket.query_params.get("token")
+    
+    authenticated = False
+    if auth_token:
+        try:
+            if auth_token.lower().startswith("basic "):
+                auth_token = auth_token[6:]
+            decoded = base64.b64decode(auth_token).decode()
+            ws_user, ws_password = decoded.split(":", 1)
+            if pam_auth.authenticate(ws_user, ws_password):
+                authenticated = True
+        except Exception:
+            pass
+    
+    if not authenticated:
+        # Also accept Bearer token (API key)
+        bearer = websocket.query_params.get("token")
+        if bearer:
+            settings = load_settings()
+            if settings.api_key and bearer == settings.api_key:
+                authenticated = True
+    
+    if not authenticated:
+        await websocket.close(code=4401)
+        return
     import os
     import fcntl
     import struct
@@ -376,12 +431,8 @@ async def upload_iso(file: UploadFile = File(...)):
 
 @app.post("/debug/echo")
 async def debug_echo(request: Request):
-    """Return request headers and a simple note to help debug whether Authorization header arrives."""
-    try:
-        headers = dict(request.headers)
-    except Exception:
-        headers = {}
-    return {"note": "echo headers", "headers": headers}
+    """Disabled in production – returns 404."""
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 @app.delete("/isos/{name}")

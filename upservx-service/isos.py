@@ -11,6 +11,16 @@ from typing import List
 from models import ISOInfo
 
 
+def _safe_iso_path(name: str, iso_dir: str) -> str:
+    """Return a validated path that is guaranteed to be inside iso_dir."""
+    # Strip path separators so names like '../../etc/passwd' are rejected
+    safe_name = os.path.basename(name)
+    resolved = os.path.realpath(os.path.join(iso_dir, safe_name))
+    if not resolved.startswith(os.path.realpath(iso_dir)):
+        raise Exception("Invalid ISO name")
+    return resolved
+
+
 def get_iso_dir() -> str:
     """Get the ISO directory path."""
     iso_dir = "/var/lib/libvirt/isos"
@@ -71,12 +81,20 @@ def download_iso(url: str, name: str = None) -> ISOInfo:
     if not url:
         raise Exception("url required")
     
-    filename = name or os.path.basename(urllib.parse.urlparse(url).path) or "download.iso"
+    # Block SSRF: only allow http/https with public destinations
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise Exception("Only http/https URLs are allowed")
+    hostname = parsed.hostname or ""
+    if hostname in ("localhost", "127.0.0.1", "::1") or hostname.startswith("192.168.") or hostname.startswith("10.") or hostname.startswith("172."):
+        raise Exception("Downloads from private/local addresses are not allowed")
+    
+    filename = name or os.path.basename(parsed.path) or "download.iso"
     if not filename.lower().endswith(".iso"):
         filename += ".iso"
     
     iso_dir = get_iso_dir()
-    dest = os.path.join(iso_dir, filename)
+    dest = _safe_iso_path(filename, iso_dir)
     
     try:
         with urllib.request.urlopen(url) as resp, open(dest, "wb") as out:
@@ -108,7 +126,7 @@ def save_uploaded_iso(file_content: bytes, filename: str) -> ISOInfo:
         raise Exception("invalid iso file")
     
     iso_dir = get_iso_dir()
-    dest = os.path.join(iso_dir, filename)
+    dest = _safe_iso_path(filename, iso_dir)
     
     with open(dest, "wb") as f:
         f.write(file_content)
@@ -132,7 +150,7 @@ def save_uploaded_iso(file_content: bytes, filename: str) -> ISOInfo:
 def delete_iso(name: str) -> None:
     """Delete an ISO file."""
     iso_dir = get_iso_dir()
-    path = os.path.join(iso_dir, name)
+    path = _safe_iso_path(name, iso_dir)
     
     if not os.path.isfile(path):
         raise Exception("iso not found")
@@ -143,7 +161,7 @@ def delete_iso(name: str) -> None:
 def get_iso_path(name: str) -> str:
     """Get the full path to an ISO file."""
     iso_dir = get_iso_dir()
-    path = os.path.join(iso_dir, name)
+    path = _safe_iso_path(name, iso_dir)
     
     if not os.path.isfile(path):
         raise Exception("iso not found")
