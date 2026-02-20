@@ -1817,8 +1817,35 @@ async def get_node_resources(hostname: str):
 TEMP_EXPORT_DIR = "/tmp/upservx_exports"
 
 @router.post("/cluster/export/{resource_type}/{resource_name}")
-async def export_resource(resource_type: str, resource_name: str, _auth: bool = Depends(verify_cluster_auth)):
+async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None)):
     """Export a container or VM with all volumes/storage"""
+    # Verify authentication
+    print(f"[EXPORT] Authorization header received: {authorization}")
+    
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    provided_key = authorization[7:]
+    
+    # Check master or child config
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config and child_config.get("cluster_key") == provided_key:
+        valid_key = True
+    
+    if not valid_key:
+        print(f"[EXPORT] Invalid key provided")
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    print(f"[EXPORT] Authentication successful")
+    
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
         import uuid
@@ -1964,8 +1991,20 @@ async def export_resource(resource_type: str, resource_name: str, _auth: bool = 
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/cluster/download/{filename}")
-async def download_export(filename: str, _auth: bool = Depends(verify_cluster_auth)):
+async def download_export(filename: str, authorization: str = Header(None)):
     """Download an exported archive"""
+    # Verify authentication
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    if not ((master_config and master_config.get("key") == provided_key) or 
+            (child_config and child_config.get("cluster_key") == provided_key)):
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
     file_path = os.path.join(TEMP_EXPORT_DIR, filename)
     
     if not os.path.exists(file_path):
@@ -1981,8 +2020,20 @@ async def download_export(filename: str, _auth: bool = Depends(verify_cluster_au
     )
 
 @router.post("/cluster/upload")
-async def upload_archive(file: UploadFile = File(...), _auth: bool = Depends(verify_cluster_auth)):
+async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None)):
     """Upload an archive for import"""
+    # Verify authentication
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    if not ((master_config and master_config.get("key") == provided_key) or 
+            (child_config and child_config.get("cluster_key") == provided_key)):
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
         
@@ -2008,8 +2059,20 @@ async def upload_archive(file: UploadFile = File(...), _auth: bool = Depends(ver
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/cluster/import/{resource_type}")
-async def import_resource(resource_type: str, archive_path: str = "", name: str = "", _auth: bool = Depends(verify_cluster_auth)):
+async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None)):
     """Import a container or VM from archive"""
+    # Verify authentication
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    if not ((master_config and master_config.get("key") == provided_key) or 
+            (child_config and child_config.get("cluster_key") == provided_key)):
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
     try:
         if not os.path.exists(archive_path):
             raise HTTPException(status_code=404, detail="Archive not found")
