@@ -180,6 +180,7 @@ def get_system_resources():
     
     # Get container counts
     try:
+        from compose_manager import ComposeManager
         compose_manager = ComposeManager()
         running_containers = 0
         total_containers = 0
@@ -188,8 +189,12 @@ def get_system_resources():
             total_containers += 1
             if service.get("status") == "running":
                 running_containers += 1
+        
+        print(f"[RESOURCES] Containers: {running_containers}/{total_containers}")
     except Exception as e:
         print(f"[RESOURCES] Error counting containers: {e}")
+        import traceback
+        traceback.print_exc()
         running_containers = 0
         total_containers = 0
     
@@ -199,12 +204,15 @@ def get_system_resources():
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
+        print(f"[RESOURCES] VMs: {running_vms}/{total_vms}")
     except Exception as e:
         print(f"[RESOURCES] Error counting VMs: {e}")
+        import traceback
+        traceback.print_exc()
         running_vms = 0
         total_vms = 0
     
-    return {
+    result = {
         "cpu_usage": psutil.cpu_percent(interval=1),
         "cpu_count": psutil.cpu_count(),
         "memory_usage": mem.percent,
@@ -216,6 +224,9 @@ def get_system_resources():
         "running_vms": running_vms,
         "total_vms": total_vms
     }
+    
+    print(f"[RESOURCES] Returning: containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
+    return result
 
 def get_hostname():
     """Get system hostname"""
@@ -321,6 +332,7 @@ async def get_node_metrics():
     """Get current node metrics (for cluster communication)"""
     # Get container counts
     try:
+        from compose_manager import ComposeManager
         compose_manager = ComposeManager()
         running_containers = 0
         total_containers = 0
@@ -329,8 +341,12 @@ async def get_node_metrics():
             total_containers += 1
             if service.get("status") == "running":
                 running_containers += 1
+        
+        print(f"[METRICS] Containers: {running_containers}/{total_containers}")
     except Exception as e:
         print(f"[METRICS] Error counting containers: {e}")
+        import traceback
+        traceback.print_exc()
         running_containers = 0
         total_containers = 0
     
@@ -340,12 +356,15 @@ async def get_node_metrics():
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
+        print(f"[METRICS] VMs: {running_vms}/{total_vms}")
     except Exception as e:
         print(f"[METRICS] Error counting VMs: {e}")
+        import traceback
+        traceback.print_exc()
         running_vms = 0
         total_vms = 0
     
-    return {
+    result = {
         "hostname": get_hostname(),
         "cpu": {
             "usage": psutil.cpu_percent(interval=1),
@@ -371,6 +390,9 @@ async def get_node_metrics():
         },
         "timestamp": datetime.now().isoformat()
     }
+    
+    print(f"[METRICS] Returning metrics with containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
+    return result
 
 @router.get("/cluster/debug")
 async def get_cluster_debug():
@@ -463,6 +485,9 @@ async def get_cluster_info():
         master_ip = get_local_ip()
         
         # Add master node
+        master_resources = get_system_resources()
+        print(f"[CLUSTER] Master node resources: {json.dumps(master_resources, indent=2)}")
+        
         master_node = {
             "id": get_hostname(),
             "hostname": get_hostname(),
@@ -470,10 +495,12 @@ async def get_cluster_info():
             "port": 9500,
             "status": "online",
             "role": "master",
-            "resources": get_system_resources(),
+            "resources": master_resources,
             "last_seen": datetime.now().isoformat()
         }
         nodes.append(master_node)
+        
+        print(f"[CLUSTER] Master node added with containers: {master_resources.get('total_containers')}/{master_resources.get('running_containers')}, vms: {master_resources.get('total_vms')}/{master_resources.get('running_vms')}")
         
         # Add all child nodes from nodes directory and fetch their metrics
         child_nodes = list_all_nodes()

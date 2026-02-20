@@ -244,20 +244,30 @@ export default function ClusterManagement() {
 
   // Calculate total containers and VMs across all nodes
   const totalContainers = clusterInfo?.nodes?.reduce((sum, node) => {
-    return sum + (node.resources?.total_containers || 0)
+    const count = node.resources?.total_containers || 0
+    console.log(`[CLUSTER] Node ${node.hostname}: total_containers=${count}`, node.resources)
+    return sum + count
   }, 0) || 0
 
   const runningContainers = clusterInfo?.nodes?.reduce((sum, node) => {
-    return sum + (node.resources?.running_containers || 0)
+    const count = node.resources?.running_containers || 0
+    console.log(`[CLUSTER] Node ${node.hostname}: running_containers=${count}`)
+    return sum + count
   }, 0) || 0
 
   const totalVMs = clusterInfo?.nodes?.reduce((sum, node) => {
-    return sum + (node.resources?.total_vms || 0)
+    const count = node.resources?.total_vms || 0
+    console.log(`[CLUSTER] Node ${node.hostname}: total_vms=${count}`)
+    return sum + count
   }, 0) || 0
 
   const runningVMs = clusterInfo?.nodes?.reduce((sum, node) => {
-    return sum + (node.resources?.running_vms || 0)
+    const count = node.resources?.running_vms || 0
+    console.log(`[CLUSTER] Node ${node.hostname}: running_vms=${count}`)
+    return sum + count
   }, 0) || 0
+
+  console.log(`[CLUSTER] Totals: containers=${totalContainers}/${runningContainers}, vms=${totalVMs}/${runningVMs}`)
 
   if (loading) {
     return (
