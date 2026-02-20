@@ -284,7 +284,8 @@ def get_cluster_key():
     if is_child_node():
         child_config = read_child_config()
         if child_config:
-            return child_config.get("key")
+            # Try cluster_key first (new format), fall back to key (old format)
+            return child_config.get("cluster_key") or child_config.get("key")
     return None
 
 async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
