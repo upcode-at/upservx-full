@@ -250,7 +250,7 @@ def get_cluster_key():
 async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     """Fetch metrics from a child node"""
     try:
-        url = f"http://{ip_address}:{port}/metrics"
+        url = f"http://{ip_address}:{port}/cluster/node/metrics"
         print(f"[CLUSTER] Fetching metrics from {url}")
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
@@ -326,7 +326,7 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
         "success": False
     }
 
-@router.get("/metrics")
+@router.get("/cluster/node/metrics")
 async def get_node_metrics():
     """Get current node metrics (for cluster communication)"""
     # Get container counts (same logic as dashboard - include_compose=False to avoid double counting)
@@ -544,7 +544,7 @@ async def get_cluster_info():
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
-                    f"http://{master_ip}:{master_port}/metrics",
+                    f"http://{master_ip}:{master_port}/cluster/node/metrics",
                     headers={"Authorization": f"Bearer {cluster_token}"}
                 )
                 if response.status_code == 200:
