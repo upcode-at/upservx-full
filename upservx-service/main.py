@@ -156,12 +156,52 @@ def _check_login_rate_limit(ip: str) -> bool:
         return True
 
 
+# ---------------------------------------------------------------------------
+# One-time WebSocket tickets
+# Browsers can't attach custom headers or send cookies cross-origin on WS
+# upgrades, so we issue a short-lived one-time token via a normal HTTP request
+# (which does carry the auth cookie) and the client passes it as ?token=.
+# ---------------------------------------------------------------------------
+import uuid
+_ws_tickets: dict = {}          # ticket -> (username, expiry_datetime)
+_ws_tickets_lock = threading.Lock()
+_WS_TICKET_TTL_SECONDS = 30
+
+def _create_ws_ticket(username: str) -> str:
+    ticket = str(uuid.uuid4())
+    expiry = datetime.utcnow() + timedelta(seconds=_WS_TICKET_TTL_SECONDS)
+    with _ws_tickets_lock:
+        # Prune expired tickets while we're at it
+        now = datetime.utcnow()
+        expired = [k for k, (_, exp) in _ws_tickets.items() if exp < now]
+        for k in expired:
+            del _ws_tickets[k]
+        _ws_tickets[ticket] = (username, expiry)
+    return ticket
+
+def _consume_ws_ticket(ticket: str) -> str | None:
+    """Validate and consume (delete) a ticket. Returns username or None."""
+    with _ws_tickets_lock:
+        entry = _ws_tickets.pop(ticket, None)
+    if entry is None:
+        return None
+    username, expiry = entry
+    if datetime.utcnow() > expiry:
+        return None
+    return username
+
+
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
     """Authentication middleware using PAM or API key."""
     if request.method == "OPTIONS":
         return await call_next(request)
-    
+
+    # WebSocket upgrades: let the handler authenticate itself — returning a
+    # plain HTTP 401 from middleware kills the connection before the handler runs.
+    if request.headers.get("upgrade", "").lower() == "websocket":
+        return await call_next(request)
+
     # Skip authentication for app store icons (public assets)
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
@@ -278,6 +318,20 @@ async def auth_logout():
     return resp
 
 
+@app.get("/auth/ws-ticket")
+async def get_ws_ticket(request: Request):
+    """Issue a short-lived one-time token for WebSocket authentication.
+
+    Call this endpoint (which carries normal cookie/bearer auth) immediately
+    before opening a WebSocket connection, then pass the returned ticket as
+    ?token=<ticket> in the WebSocket URL.  The ticket is valid for 30 seconds
+    and is consumed on first use.
+    """
+    username = getattr(request.state, "user", None) or "authenticated"
+    ticket = _create_ws_ticket(username)
+    return {"ticket": ticket}
+
+
 # Include API routers
 app.include_router(system_router)
 app.include_router(containers_router)
@@ -290,119 +344,143 @@ app.include_router(cluster_router)
 @app.websocket("/system/shell")
 async def system_shell_websocket(websocket: WebSocket):
     """Provide interactive shell access to the system via websocket."""
-    # Authenticate via cookie or query param before accepting
-    auth_token = websocket.cookies.get("auth") or websocket.query_params.get("token")
-    
+    # Authenticate via:
+    # 1. ?token=<ws-ticket>  – one-time ticket obtained from GET /auth/ws-ticket
+    # 2. ?token=<api-key>    – raw API key
+    # 3. Basic auth cookie   – only works same-origin (cookie sent by browser)
     authenticated = False
-    if auth_token:
-        try:
-            if auth_token.lower().startswith("basic "):
-                auth_token = auth_token[6:]
-            decoded = base64.b64decode(auth_token).decode()
-            ws_user, ws_password = decoded.split(":", 1)
-            if pam_auth.authenticate(ws_user, ws_password):
-                authenticated = True
-        except Exception:
-            pass
-    
-    if not authenticated:
-        # Also accept Bearer token (API key)
-        bearer = websocket.query_params.get("token")
-        if bearer:
+
+    # --- WS ticket (preferred for cross-origin) ---
+    raw_token = websocket.query_params.get("token")
+    if raw_token:
+        username = _consume_ws_ticket(raw_token)
+        if username:
+            authenticated = True
+        else:
+            # Fallback: maybe it's a raw API key
             settings = load_settings()
-            if settings.api_key and bearer == settings.api_key:
+            if settings.api_key and raw_token == settings.api_key:
                 authenticated = True
+
+    # --- Basic auth cookie (same-origin fallback) ---
+    if not authenticated:
+        auth_token = websocket.cookies.get("auth")
+        if auth_token:
+            try:
+                if auth_token.lower().startswith("basic "):
+                    auth_token = auth_token[6:]
+                decoded = base64.b64decode(auth_token).decode()
+                ws_user, ws_password = decoded.split(":", 1)
+                ws_pam = pam.pam()
+                loop = asyncio.get_event_loop()
+                if await loop.run_in_executor(None, ws_pam.authenticate, ws_user, ws_password):
+                    authenticated = True
+            except Exception:
+                pass
     
     if not authenticated:
         await websocket.accept()
         await websocket.close(code=4401)
         return
+
     import fcntl
     import struct
     import termios
-    
+
     await websocket.accept()
-    
+    loop = asyncio.get_event_loop()
+    master_fd: int | None = None
+    pid: int | None = None
+
     try:
         # Create a pseudo-terminal
         master_fd, slave_fd = pty.openpty()
-        
-        # Start bash shell in the PTY
+
+        # Fork a bash process attached to the slave end
         pid = os.fork()
-        
-        if pid == 0:  # Child process
+
+        if pid == 0:  # Child process — replace with bash immediately
             os.close(master_fd)
             os.setsid()
-            
-            # Make the slave the controlling terminal
             fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
-            
-            # Redirect stdin, stdout, stderr to slave
             os.dup2(slave_fd, 0)
             os.dup2(slave_fd, 1)
             os.dup2(slave_fd, 2)
-            
             if slave_fd > 2:
                 os.close(slave_fd)
-            
-            # Set TERM environment variable
             os.environ['TERM'] = 'xterm-256color'
-            
-            # Start bash
             os.execvp("bash", ["bash", "-l"])
-        
+            # execvp never returns on success; if it does, exit hard
+            os._exit(1)
+
         # Parent process
         os.close(slave_fd)
-        
-        # Set non-blocking mode
-        flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
-        fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-        
-        # Set terminal size (80x24 default)
+
+        # Set initial terminal size (80×24)
         winsize = struct.pack("HHHH", 24, 80, 0, 0)
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
-        
-        # Task to read from PTY and send to websocket
+
+        # Read PTY output in a thread (os.read blocks until data arrives —
+        # much more reliable than polling with O_NONBLOCK + asyncio.sleep)
         async def read_from_pty():
             while True:
                 try:
-                    await asyncio.sleep(0.01)
-                    data = os.read(master_fd, 1024)
-                    if data:
-                        await websocket.send_text(data.decode('utf-8', errors='ignore'))
-                except BlockingIOError:
-                    pass
+                    data = await loop.run_in_executor(None, os.read, master_fd, 4096)
+                    if not data:
+                        break
+                    await websocket.send_text(data.decode('utf-8', errors='ignore'))
                 except OSError:
                     break
-                except WebSocketDisconnect:
+                except Exception:
                     break
-        
-        # Task to read from websocket and write to PTY
+
+        # Write WS input to PTY
         async def write_to_pty():
             try:
                 while True:
-                    data = await websocket.receive_text()
-                    os.write(master_fd, data.encode('utf-8'))
+                    msg = await websocket.receive_text()
+                    # Handle resize message {"type":"resize","rows":N,"cols":M}
+                    if msg.startswith("{"):
+                        try:
+                            import json
+                            obj = json.loads(msg)
+                            if obj.get("type") == "resize":
+                                rows = int(obj.get("rows", 24))
+                                cols = int(obj.get("cols", 80))
+                                ws_size = struct.pack("HHHH", rows, cols, 0, 0)
+                                fcntl.ioctl(master_fd, termios.TIOCSWINSZ, ws_size)
+                                continue
+                        except Exception:
+                            pass
+                    os.write(master_fd, msg.encode('utf-8'))
             except WebSocketDisconnect:
                 pass
-        
-        # Run both tasks concurrently
-        await asyncio.gather(
-            read_from_pty(),
-            write_to_pty(),
-            return_exceptions=True
-        )
-        
+            except Exception:
+                pass
+
+        await asyncio.gather(read_from_pty(), write_to_pty(), return_exceptions=True)
+
     except Exception as e:
-        await websocket.send_text(f"Error: {str(e)}\r\n")
-    finally:
         try:
-            os.close(master_fd)
-            os.kill(pid, 9)
-            os.waitpid(pid, 0)
-        except:
+            await websocket.send_text(f"Shell error: {str(e)}\r\n")
+        except Exception:
             pass
-        await websocket.close()
+    finally:
+        if master_fd is not None:
+            try:
+                os.close(master_fd)
+            except Exception:
+                pass
+        if pid is not None:
+            try:
+                os.kill(pid, 9)
+                os.waitpid(pid, 0)
+            except Exception:
+                pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 # ISO Management Routes

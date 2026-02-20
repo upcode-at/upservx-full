@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Terminal as TerminalIcon } from "lucide-react"
-import { wsUrl } from "@/lib/api"
+import { apiUrl, wsUrl } from "@/lib/api"
 import { Terminal } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 
@@ -33,34 +33,45 @@ export function SystemShell() {
       term.focus()
     }
 
-    const ws = new WebSocket(wsUrl(`/system/shell`))
-    wsRef.current = ws
-    
-    ws.onopen = () => {
-      term.write('Connected to system shell\r\n')
-    }
-    
-    ws.onmessage = (ev) => {
-      const text = (typeof ev.data === "string" ? ev.data : "").replace(/\n/g, "\r\n")
-      term.write(text)
-    }
-    
-    ws.onclose = () => {
-      term.write("\r\n[Connection closed]")
-    }
-    
-    ws.onerror = () => {
-      term.write("\r\n[Connection error]")
-    }
+    // Fetch a one-time WS ticket via the normal HTTP session (cookie is sent
+    // reliably on HTTP requests), then pass it as ?token= in the WS URL
+    // because browsers don't include cross-origin cookies on WS upgrades.
+    fetch(apiUrl("/auth/ws-ticket"), { credentials: "include" })
+      .then(r => r.json())
+      .then(({ ticket }) => {
+        const ws = new WebSocket(wsUrl(`/system/shell`) + `?token=${encodeURIComponent(ticket)}`)
+        wsRef.current = ws
 
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
-      }
-    })
+        ws.onopen = () => {
+          term.write('Connected to system shell\r\n')
+        }
+
+        ws.onmessage = (ev) => {
+          const text = (typeof ev.data === "string" ? ev.data : "").replace(/\n/g, "\r\n")
+          term.write(text)
+        }
+
+        ws.onclose = () => {
+          term.write("\r\n[Connection closed]")
+        }
+
+        ws.onerror = () => {
+          term.write("\r\n[Connection error]")
+        }
+
+        term.onData((data) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(data)
+          }
+        })
+      })
+      .catch(() => {
+        term.write("\r\n[Failed to obtain session token — are you logged in?]")
+      })
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close()
       }
       term.dispose()
