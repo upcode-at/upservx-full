@@ -1948,6 +1948,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                             })
                 
                 # Save metadata
+                host_config = container_info.get("HostConfig", {})
                 metadata = {
                     "name": resource_name,
                     "image": container_info.get("Config", {}).get("Image"),
@@ -1955,7 +1956,9 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                     "cmd": container_info.get("Config", {}).get("Cmd"),
                     "volumes": volumes_info,
                     "ports": container_info.get("NetworkSettings", {}).get("Ports", {}),
-                    "restart_policy": container_info.get("HostConfig", {}).get("RestartPolicy", {})
+                    "port_bindings": host_config.get("PortBindings", {}),
+                    "restart_policy": host_config.get("RestartPolicy", {}),
+                    "exposed_ports": container_info.get("Config", {}).get("ExposedPorts", {})
                 }
                 
                 metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_metadata.json")
@@ -1963,6 +1966,24 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                     json.dump(metadata, f, indent=2)
                 
                 tar.add(metadata_file, arcname="metadata.json")
+                
+                # Export Docker image
+                image_name = container_info.get("Config", {}).get("Image")
+                if image_name:
+                    print(f"[EXPORT] Exporting Docker image: {image_name}")
+                    image_export_result = subprocess.run(
+                        ["docker", "save", image_name],
+                        capture_output=True,
+                        check=True
+                    )
+                    
+                    image_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_image.tar")
+                    with open(image_temp, 'wb') as f:
+                        f.write(image_export_result.stdout)
+                    
+                    tar.add(image_temp, arcname="image.tar")
+                    os.remove(image_temp)
+                    print(f"[EXPORT] Image exported successfully")
                 
                 # Cleanup temp files
                 os.remove(fs_temp)
@@ -2174,20 +2195,37 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
             
-            # Import container filesystem
-            print(f"[IMPORT] Importing container filesystem...")
-            fs_path = os.path.join(extract_dir, "filesystem.tar")
-            
-            with open(fs_path, 'rb') as f:
-                import_result = subprocess.run(
-                    ["docker", "import", "-", name],
-                    input=f.read(),
-                    capture_output=True,
-                    check=True
-                )
-            
-            image_id = import_result.stdout.decode().strip()
-            print(f"[IMPORT] Created image: {image_id}")
+            # Load Docker image if present
+            image_path = os.path.join(extract_dir, "image.tar")
+            if os.path.exists(image_path):
+                print(f"[IMPORT] Loading Docker image...")
+                with open(image_path, 'rb') as f:
+                    load_result = subprocess.run(
+                        ["docker", "load"],
+                        input=f.read(),
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                print(f"[IMPORT] Image loaded: {load_result.stdout.strip()}")
+                
+                # Use the original image name from metadata
+                image_to_use = metadata.get("image")
+            else:
+                # Fallback: Import container filesystem as image
+                print(f"[IMPORT] No image.tar found, importing container filesystem...")
+                fs_path = os.path.join(extract_dir, "filesystem.tar")
+                
+                with open(fs_path, 'rb') as f:
+                    import_result = subprocess.run(
+                        ["docker", "import", "-", name],
+                        input=f.read(),
+                        capture_output=True,
+                        check=True
+                    )
+                
+                image_to_use = import_result.stdout.decode().strip()
+                print(f"[IMPORT] Created image from filesystem: {image_to_use}")
             
             # Restore volumes
             volumes_info = metadata.get("volumes", [])
@@ -2230,9 +2268,24 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 volume_mounts.append(f"{volume_name}:{mount_point}")
             
             # Create container with restored volumes
-            print(f"[IMPORT] Creating container with volumes...")
+            print(f"[IMPORT] Creating container with volumes and port mappings...")
             
             create_cmd = ["docker", "create", "--name", name]
+            
+            # Add port bindings
+            port_bindings = metadata.get("port_bindings", {})
+            if port_bindings:
+                for container_port, host_bindings in port_bindings.items():
+                    if host_bindings:
+                        for binding in host_bindings:
+                            host_port = binding.get("HostPort")
+                            host_ip = binding.get("HostIp", "")
+                            if host_port:
+                                if host_ip:
+                                    create_cmd.extend(["-p", f"{host_ip}:{host_port}:{container_port}"])
+                                else:
+                                    create_cmd.extend(["-p", f"{host_port}:{container_port}"])
+                                print(f"[IMPORT] Adding port mapping: {host_port}:{container_port}")
             
             # Add volume mounts
             for mount in volume_mounts:
@@ -2249,7 +2302,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 create_cmd.extend(["--restart", policy_name])
             
             # Add image
-            create_cmd.append(image_id)
+            create_cmd.append(image_to_use)
             
             # Add command
             if metadata.get("cmd"):
