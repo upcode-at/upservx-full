@@ -11,6 +11,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import json
+import io
 import tarfile
 import tempfile
 import shutil
@@ -694,14 +695,101 @@ class BackupManager:
                     if target.startswith('vm:'):
                         print(f"TAR DEBUG: Processing VM target: {target}")
                         vm_name = target[3:]
-                        vm_path = f"/var/lib/libvirt/images/{vm_name}"
-                        print(f"TAR DEBUG: VM path: {vm_path}")
-                        
-                        if os.path.exists(vm_path):
-                            print(f"TAR DEBUG: VM path exists, adding to archive")
-                            tar.add(vm_path, arcname=f"vms/{vm_name}")
-                        else:
-                            print(f"TAR DEBUG: VM path does not exist: {vm_path}")
+                        vm_disk_paths = []
+                        xml_content = None
+                        vm_was_running = False
+
+                        # Load actual disk paths from vms.json
+                        try:
+                            from vms import load_vms
+                            vms_list = load_vms()
+                            vm_obj = next((v for v in vms_list if v.name == vm_name), None)
+                            if vm_obj:
+                                vm_disk_paths = [p for p in vm_obj.disks if p and os.path.exists(p)]
+                                print(f"TAR DEBUG: Found VM '{vm_name}' in vms.json with {len(vm_disk_paths)} disk(s)")
+                            else:
+                                print(f"TAR DEBUG: VM '{vm_name}' not found in vms.json, trying virsh")
+                        except Exception as e:
+                            print(f"TAR DEBUG: Could not load vms.json: {e}")
+
+                        # Fallback: get disk paths from virsh domblklist
+                        if not vm_disk_paths:
+                            try:
+                                bl_result = subprocess.run(
+                                    ["virsh", "domblklist", vm_name, "--details"],
+                                    capture_output=True, text=True
+                                )
+                                if bl_result.returncode == 0:
+                                    for line in bl_result.stdout.splitlines():
+                                        parts = line.split()
+                                        if len(parts) >= 4 and parts[1] == "disk":
+                                            disk_path = parts[3]
+                                            if disk_path != "-" and os.path.exists(disk_path):
+                                                vm_disk_paths.append(disk_path)
+                                    print(f"TAR DEBUG: Found {len(vm_disk_paths)} disk(s) via virsh domblklist")
+                                else:
+                                    print(f"TAR DEBUG: virsh domblklist failed: {bl_result.stderr.strip()}")
+                            except Exception as e:
+                                print(f"TAR DEBUG: virsh domblklist error: {e}")
+
+                        # Export VM XML definition via virsh dumpxml
+                        try:
+                            xml_result = subprocess.run(
+                                ["virsh", "dumpxml", vm_name],
+                                capture_output=True, text=True
+                            )
+                            if xml_result.returncode == 0:
+                                xml_content = xml_result.stdout
+                                print(f"TAR DEBUG: Exported VM XML definition ({len(xml_content)} bytes)")
+                            else:
+                                print(f"TAR DEBUG: virsh dumpxml failed: {xml_result.stderr.strip()}")
+                        except Exception as e:
+                            print(f"TAR DEBUG: Could not export VM XML: {e}")
+
+                        # Suspend running VM during backup for consistency
+                        try:
+                            state_result = subprocess.run(
+                                ["virsh", "domstate", vm_name],
+                                capture_output=True, text=True
+                            )
+                            if state_result.returncode == 0 and "running" in state_result.stdout.lower():
+                                vm_was_running = True
+                                print(f"TAR DEBUG: VM '{vm_name}' is running, suspending for consistent backup...")
+                                subprocess.run(["virsh", "suspend", vm_name], capture_output=True, text=True)
+                        except Exception as e:
+                            print(f"TAR DEBUG: Could not check/suspend VM: {e}")
+
+                        try:
+                            if vm_disk_paths:
+                                for disk_path in vm_disk_paths:
+                                    disk_name = os.path.basename(disk_path)
+                                    arcname = f"vms/{vm_name}/{disk_name}"
+                                    print(f"TAR DEBUG: Adding disk {disk_path} as {arcname}")
+                                    disk_size = os.path.getsize(disk_path)
+                                    total_size += disk_size
+                                    file_count += 1
+                                    tar.add(disk_path, arcname=arcname)
+                                    print(f"TAR DEBUG: Added disk ({disk_size} bytes)")
+                            else:
+                                print(f"TAR DEBUG: No disk files found for VM '{vm_name}'")
+                                logger.warning(f"No disk files found for VM '{vm_name}'")
+
+                            # Add XML definition to archive
+                            if xml_content:
+                                xml_bytes = xml_content.encode('utf-8')
+                                xml_info = tarfile.TarInfo(name=f"vms/{vm_name}/{vm_name}.xml")
+                                xml_info.size = len(xml_bytes)
+                                xml_info.mtime = int(datetime.now().timestamp())
+                                tar.addfile(xml_info, io.BytesIO(xml_bytes))
+                                print(f"TAR DEBUG: Added VM XML definition to archive")
+                        finally:
+                            # Always resume VM if it was suspended
+                            if vm_was_running:
+                                try:
+                                    subprocess.run(["virsh", "resume", vm_name], capture_output=True, text=True)
+                                    print(f"TAR DEBUG: VM '{vm_name}' resumed after backup")
+                                except Exception as e:
+                                    print(f"TAR DEBUG: Could not resume VM '{vm_name}': {e}")
                             
                     elif target.startswith('container:'):
                         print(f"TAR DEBUG: Processing container target: {target}")
