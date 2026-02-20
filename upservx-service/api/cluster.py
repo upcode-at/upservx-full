@@ -2019,7 +2019,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/cluster/download/{filename}")
-async def download_export(filename: str, authorization: str = Header(None)):
+async def download_export(filename: str, authorization: str = Header(None, alias="Authorization")):
     """Download an exported archive"""
     # Verify authentication
     if not authorization or not authorization.startswith("Bearer "):
@@ -2048,18 +2048,39 @@ async def download_export(filename: str, authorization: str = Header(None)):
     )
 
 @router.post("/cluster/upload")
-async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None)):
+async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None, alias="Authorization")):
     """Upload an archive for import"""
     # Verify authentication
+    print(f"[UPLOAD] Authorization header: {authorization}")
+    
     if not authorization or not authorization.startswith("Bearer "):
+        print(f"[UPLOAD] Invalid authorization format")
         raise HTTPException(status_code=401, detail="Invalid authorization")
     
     provided_key = authorization[7:]
+    print(f"[UPLOAD] Provided key: {provided_key[:20]}...")
+    
     master_config = read_master_config()
     child_config = read_child_config()
     
+    print(f"[UPLOAD] Master config exists: {master_config is not None}")
+    print(f"[UPLOAD] Child config exists: {child_config is not None}")
+    
+    if master_config:
+        master_key = master_config.get("key")
+        print(f"[UPLOAD] Master key: {master_key[:20] if master_key else 'None'}...")
+        if master_key == provided_key:
+            print("[UPLOAD] Master key matched!")
+    
+    if child_config:
+        child_key = child_config.get("cluster_key")
+        print(f"[UPLOAD] Child cluster_key: {child_key[:20] if child_key else 'None'}...")
+        if child_key == provided_key:
+            print("[UPLOAD] Child key matched!")
+    
     if not ((master_config and master_config.get("key") == provided_key) or 
             (child_config and child_config.get("cluster_key") == provided_key)):
+        print("[UPLOAD] No matching key found - authentication failed")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     try:
@@ -2087,7 +2108,7 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/cluster/import/{resource_type}")
-async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None)):
+async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None, alias="Authorization")):
     """Import a container or VM from archive"""
     # Verify authentication
     if not authorization or not authorization.startswith("Bearer "):
