@@ -24,25 +24,39 @@ NODES_DIR = os.path.join(UPSERVX_CONFIG_DIR, "nodes")
 
 def verify_cluster_auth(authorization: str = Header(None)):
     """Verify cluster authentication from Authorization header"""
+    print(f"[AUTH] Authorization header: {authorization}")
+    
     if not authorization:
+        print("[AUTH] No authorization header provided")
         raise HTTPException(status_code=401, detail="Authorization header missing")
     
     # Extract token from "Bearer <token>" format
     if not authorization.startswith("Bearer "):
+        print(f"[AUTH] Invalid format: {authorization}")
         raise HTTPException(status_code=401, detail="Invalid authorization format")
     
     provided_key = authorization[7:]  # Remove "Bearer " prefix
+    print(f"[AUTH] Provided key: {provided_key[:20]}...")
     
     # Check master config
     master_config = read_master_config()
-    if master_config and master_config.get("key") == provided_key:
-        return True
+    if master_config:
+        stored_key = master_config.get("key")
+        print(f"[AUTH] Master key: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[AUTH] Master key matched")
+            return True
     
     # Check child config
     child_config = read_child_config()
-    if child_config and child_config.get("cluster_key") == provided_key:
-        return True
+    if child_config:
+        stored_key = child_config.get("cluster_key")
+        print(f"[AUTH] Child key: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[AUTH] Child key matched")
+            return True
     
+    print("[AUTH] No matching key found")
     raise HTTPException(status_code=401, detail="Invalid cluster key")
 
 
