@@ -34,6 +34,10 @@ interface ClusterNode {
     cpu_usage: number
     memory_usage: number
     disk_usage: number
+    running_containers?: number
+    total_containers?: number
+    running_vms?: number
+    total_vms?: number
   }
   last_seen: string
 }
@@ -238,6 +242,23 @@ export default function ClusterManagement() {
     )
   }
 
+  // Calculate total containers and VMs across all nodes
+  const totalContainers = clusterInfo?.nodes?.reduce((sum, node) => {
+    return sum + (node.resources?.total_containers || 0)
+  }, 0) || 0
+
+  const runningContainers = clusterInfo?.nodes?.reduce((sum, node) => {
+    return sum + (node.resources?.running_containers || 0)
+  }, 0) || 0
+
+  const totalVMs = clusterInfo?.nodes?.reduce((sum, node) => {
+    return sum + (node.resources?.total_vms || 0)
+  }, 0) || 0
+
+  const runningVMs = clusterInfo?.nodes?.reduce((sum, node) => {
+    return sum + (node.resources?.running_vms || 0)
+  }, 0) || 0
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -391,7 +412,7 @@ export default function ClusterManagement() {
 
           <TabsContent value="overview" className="space-y-4">
             {/* Cluster Status Overview */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-5">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Cluster Status</CardTitle>
@@ -416,6 +437,32 @@ export default function ClusterManagement() {
                   <div className="text-2xl font-bold">{clusterInfo?.nodes?.length ?? 0}</div>
                   <p className="text-xs text-muted-foreground">
                     Connected Servers
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">All Containers</CardTitle>
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalContainers}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {runningContainers} running
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">All VMs</CardTitle>
+                  <Server className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalVMs}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {runningVMs} running
                   </p>
                 </CardContent>
               </Card>

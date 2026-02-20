@@ -193,6 +193,17 @@ def get_system_resources():
         running_containers = 0
         total_containers = 0
     
+    # Get VM counts
+    try:
+        from vms import list_vms_with_status
+        vms = list_vms_with_status()
+        running_vms = sum(1 for vm in vms if vm.status == "running")
+        total_vms = len(vms)
+    except Exception as e:
+        print(f"[RESOURCES] Error counting VMs: {e}")
+        running_vms = 0
+        total_vms = 0
+    
     return {
         "cpu_usage": psutil.cpu_percent(interval=1),
         "cpu_count": psutil.cpu_count(),
@@ -201,7 +212,9 @@ def get_system_resources():
         "memory_available": mem.available,
         "disk_usage": psutil.disk_usage('/').percent,
         "running_containers": running_containers,
-        "total_containers": total_containers
+        "total_containers": total_containers,
+        "running_vms": running_vms,
+        "total_vms": total_vms
     }
 
 def get_hostname():
@@ -264,6 +277,11 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                 running_containers = containers.get("running", 0)
                 total_containers = containers.get("total", 0)
                 
+                # Extract VM information
+                vms = metrics.get("vms", {})
+                running_vms = vms.get("running", 0)
+                total_vms = vms.get("total", 0)
+                
                 extracted = {
                     "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
                     "cpu_count": cpu_count,
@@ -273,6 +291,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                     "disk_usage": metrics.get("storage", {}).get("usage", 0),
                     "running_containers": running_containers,
                     "total_containers": total_containers,
+                    "running_vms": running_vms,
+                    "total_vms": total_vms,
                     "success": True
                 }
                 print(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
@@ -291,6 +311,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
         "disk_usage": 0,
         "running_containers": 0,
         "total_containers": 0,
+        "running_vms": 0,
+        "total_vms": 0,
         "success": False
     }
 
@@ -312,6 +334,17 @@ async def get_node_metrics():
         running_containers = 0
         total_containers = 0
     
+    # Get VM counts
+    try:
+        from vms import list_vms_with_status
+        vms = list_vms_with_status()
+        running_vms = sum(1 for vm in vms if vm.status == "running")
+        total_vms = len(vms)
+    except Exception as e:
+        print(f"[METRICS] Error counting VMs: {e}")
+        running_vms = 0
+        total_vms = 0
+    
     return {
         "hostname": get_hostname(),
         "cpu": {
@@ -331,6 +364,10 @@ async def get_node_metrics():
         "containers": {
             "running": running_containers,
             "total": total_containers
+        },
+        "vms": {
+            "running": running_vms,
+            "total": total_vms
         },
         "timestamp": datetime.now().isoformat()
     }
@@ -503,7 +540,9 @@ async def get_cluster_info():
                             "memory_available": master_metrics.get("memory", {}).get("available", 0),
                             "disk_usage": master_metrics.get("storage", {}).get("usage", 0),
                             "running_containers": master_metrics.get("containers", {}).get("running", 0),
-                            "total_containers": master_metrics.get("containers", {}).get("total", 0)
+                            "total_containers": master_metrics.get("containers", {}).get("total", 0),
+                            "running_vms": master_metrics.get("vms", {}).get("running", 0),
+                            "total_vms": master_metrics.get("vms", {}).get("total", 0)
                         },
                         "last_seen": datetime.now().isoformat()
                     })
@@ -528,7 +567,9 @@ async def get_cluster_info():
                     "memory_available": 0,
                     "disk_usage": 0,
                     "running_containers": 0,
-                    "total_containers": 0
+                    "total_containers": 0,
+                    "running_vms": 0,
+                    "total_vms": 0
                 },
                 "last_seen": ""
             })
@@ -1278,15 +1319,19 @@ async def get_cluster_health():
     lb = get_load_balancer()
     load_distribution = lb.get_cluster_load_distribution(nodes_dict)
     
-    # Calculate total containers across all nodes
+    # Calculate total containers and VMs across all nodes
     total_running_containers = 0
     total_synced_containers = 0
+    total_running_vms = 0
+    total_vms = 0
     
     for node in nodes_dict:
         if node.get("status") == "online":
             resources = node.get("resources", {})
             total_running_containers += resources.get("running_containers", 0)
             total_synced_containers += resources.get("total_containers", 0)
+            total_running_vms += resources.get("running_vms", 0)
+            total_vms += resources.get("total_vms", 0)
     
     # Get sync status (rules count)
     sync_manager = get_sync_manager()
@@ -1295,6 +1340,8 @@ async def get_cluster_health():
     sync_status = {
         "total_synced_containers": total_synced_containers,
         "running_containers": total_running_containers,
+        "total_vms": total_vms,
+        "running_vms": total_running_vms,
         "sync_rules_count": sync_rules_count
     }
     

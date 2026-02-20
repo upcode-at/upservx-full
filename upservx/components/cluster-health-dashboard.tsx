@@ -25,6 +25,8 @@ interface ClusterHealth {
   sync: {
     total_synced_containers: number
     running_containers: number
+    total_vms: number
+    running_vms: number
     sync_rules_count: number
   }
   alerts: {
