@@ -145,7 +145,6 @@ class ReverseProxyManager:
         config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
         enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
         
-        # Remove old config files if they exist (to avoid conflicts with old syntax)
         try:
             if os.path.exists(enabled_path):
                 os.remove(enabled_path)
@@ -154,23 +153,17 @@ class ReverseProxyManager:
         except Exception:
             pass
         
-        # Build nginx config
         config_lines = []
-        
-        # Check if certificates exist
         cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
         key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
         certs_exist = os.path.exists(cert_path) and os.path.exists(key_path)
         
-        # HTTP server block (always needed for Let's Encrypt or redirect)
         config_lines.append(f"server {{")
         config_lines.append(f"    listen 80;")
         config_lines.append(f"    listen [::]:80;")
         config_lines.append(f"    server_name {domain};")
         config_lines.append(f"")
         
-        # Always allow Let's Encrypt ACME challenge (for certificate issuance/renewal)
-        # Use ^~ to give this location highest priority (stops further location processing)
         config_lines.append(f"    # Let's Encrypt ACME challenge")
         config_lines.append(f"    location ^~ /.well-known/acme-challenge/ {{")
         config_lines.append(f"        root /var/www/html;")
@@ -180,19 +173,15 @@ class ReverseProxyManager:
         config_lines.append(f"")
         
         if ssl_enabled and force_ssl and certs_exist:
-            # Redirect all HTTP to HTTPS (only if certificates exist)
-            # But exclude the ACME challenge location
             config_lines.append(f"    location / {{")
             config_lines.append(f"        return 301 https://$server_name$request_uri;")
             config_lines.append(f"    }}")
         else:
-            # Serve on HTTP (either no SSL, or SSL not forced, or certs don't exist yet)
             self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
         
         config_lines.append(f"}}")
         config_lines.append(f"")
         
-        # HTTPS server block if SSL is enabled and certificates exist
         if ssl_enabled and certs_exist:
             config_lines.append(f"server {{")
             config_lines.append(f"    listen 443 ssl;")
@@ -211,33 +200,23 @@ class ReverseProxyManager:
             
             config_lines.append(f"}}")
         
-        # Write config file
         try:
             with open(config_path, 'w') as f:
                 f.write('\n'.join(config_lines))
-            
-            # Create symlink in sites-enabled
             if os.path.exists(enabled_path):
                 os.remove(enabled_path)
             os.symlink(config_path, enabled_path)
-            
-            # Test nginx config
             test_result = subprocess.run(
                 ["nginx", "-t"],
                 capture_output=True,
                 text=True
             )
-            
             if test_result.returncode != 0:
                 return {
                     "success": False,
                     "message": f"Nginx config test failed: {test_result.stderr}"
                 }
-            
-            # Reload nginx
             subprocess.run(["systemctl", "reload", "nginx"], check=True)
-            
-            # Save to our config
             config = self._load_config()
             config[domain] = {
                 "backend_host": backend_host,
@@ -259,7 +238,6 @@ class ReverseProxyManager:
     
     def _add_proxy_locations(self, config_lines: List[str], backend_host: str, backend_port: int, frontend_port: int):
         """Add proxy location blocks to config."""
-        # API proxy location
         config_lines.append(f"    # API Backend")
         config_lines.append(f"    location /api/ {{")
         config_lines.append(f"        proxy_pass http://{backend_host}:{backend_port}/;")
@@ -275,11 +253,8 @@ class ReverseProxyManager:
         config_lines.append(f"        proxy_hide_header WWW-Authenticate;")
         config_lines.append(f"    }}")
         config_lines.append(f"")
-        
-        # WebSocket support for terminal
         config_lines.append(f"    # WebSocket Support")
         config_lines.append(f"    location /ws/ {{")
-        config_lines.append(f"        # Remove /ws prefix when proxying to backend")
         config_lines.append(f"        rewrite ^/ws/(.*)$ /$1 break;")
         config_lines.append(f"        proxy_pass http://{backend_host}:{backend_port};")
         config_lines.append(f"        proxy_http_version 1.1;")
@@ -293,8 +268,6 @@ class ReverseProxyManager:
         config_lines.append(f"        proxy_send_timeout 3600s;")
         config_lines.append(f"    }}")
         config_lines.append(f"")
-        
-        # Frontend proxy
         config_lines.append(f"    # Frontend")
         config_lines.append(f"    location / {{")
         config_lines.append(f"        proxy_pass http://{backend_host}:{frontend_port};")
@@ -314,23 +287,15 @@ class ReverseProxyManager:
         enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
         
         try:
-            # Remove symlink
             if os.path.exists(enabled_path):
                 os.remove(enabled_path)
-            
-            # Remove config file
             if os.path.exists(config_path):
                 os.remove(config_path)
-            
-            # Remove from our config
             config = self._load_config()
             if domain in config:
                 del config[domain]
                 self._save_config(config)
-            
-            # Reload nginx
             subprocess.run(["systemctl", "reload", "nginx"], check=True)
-            
             return {"success": True, "message": "Proxy configuration deleted"}
         except Exception as e:
             return {"success": False, "message": str(e)}
@@ -355,12 +320,8 @@ class ReverseProxyManager:
             return {"success": False, "message": "Certbot not installed"}
         
         try:
-            # Ensure webroot directory exists
             webroot_path = "/var/www/html"
             os.makedirs(webroot_path, exist_ok=True)
-            
-            # Use webroot method (works with running nginx)
-            # This writes challenge files to /var/www/html which nginx serves
             cmd = [
                 "certbot", "certonly",
                 "--webroot",
@@ -374,13 +335,10 @@ class ReverseProxyManager:
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                # Update config to enable SSL
                 config = self._load_config()
                 if domain in config:
                     config[domain]["ssl_enabled"] = True
                     self._save_config(config)
-                    
-                    # Recreate nginx config with SSL
                     self.create_proxy_config(
                         domain=domain,
                         backend_host=config[domain]["backend_host"],
@@ -413,7 +371,6 @@ class ReverseProxyManager:
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                # Reload nginx to use new certificates
                 subprocess.run(["systemctl", "reload", "nginx"], capture_output=True)
                 return {
                     "success": True,
@@ -437,7 +394,6 @@ class ReverseProxyManager:
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                # Parse output
                 certificates = []
                 lines = result.stdout.split('\n')
                 current_cert = {}
@@ -475,13 +431,10 @@ class ReverseProxyManager:
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                # Update our config
                 config = self._load_config()
                 if domain in config:
                     config[domain]["ssl_enabled"] = False
                     self._save_config(config)
-                    
-                    # Recreate nginx config without SSL
                     self.create_proxy_config(
                         domain=domain,
                         backend_host=config[domain]["backend_host"],
@@ -504,5 +457,4 @@ class ReverseProxyManager:
             return {"success": False, "message": str(e)}
 
 
-# Global instance
 reverse_proxy_manager = ReverseProxyManager()
