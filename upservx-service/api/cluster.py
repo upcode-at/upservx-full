@@ -178,10 +178,10 @@ def get_system_resources():
     """Get current system resource usage"""
     mem = psutil.virtual_memory()
     
-    # Get container counts
+    # Get container counts (same logic as dashboard - include_compose=False to avoid double counting)
     try:
         from containers import list_all_containers
-        all_containers = list_all_containers(include_compose=True)
+        all_containers = list_all_containers(include_compose=False)
         running_containers = 0
         total_containers = len(all_containers)
         
@@ -329,16 +329,15 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
 @router.get("/metrics")
 async def get_node_metrics():
     """Get current node metrics (for cluster communication)"""
-    # Get container counts
+    # Get container counts (same logic as dashboard - include_compose=False to avoid double counting)
     try:
-        from compose_manager import ComposeManager
-        compose_manager = ComposeManager()
+        from containers import list_all_containers
+        all_containers = list_all_containers(include_compose=False)
         running_containers = 0
-        total_containers = 0
+        total_containers = len(all_containers)
         
-        for service in compose_manager.list_services():
-            total_containers += 1
-            if service.get("status") == "running":
+        for container in all_containers:
+            if container.status.lower() in ["running", "up"]:
                 running_containers += 1
         
         print(f"[METRICS] Containers: {running_containers}/{total_containers}")
