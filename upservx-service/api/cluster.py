@@ -1859,7 +1859,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             print("[EXPORT] Master key matched!")
     
     if child_config:
-        stored_key = child_config.get("cluster_key")
+        stored_key = child_config.get("cluster_key") or child_config.get("key")
         print(f"[EXPORT] Child key from config: {stored_key[:20] if stored_key else 'None'}...")
         if stored_key == provided_key:
             print("[EXPORT] Child key matched!")
@@ -1867,8 +1867,10 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
     valid_key = False
     if master_config and master_config.get("key") == provided_key:
         valid_key = True
-    elif child_config and child_config.get("cluster_key") == provided_key:
-        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
     
     if not valid_key:
         print(f"[EXPORT] Invalid key provided - no match found")
@@ -2031,8 +2033,15 @@ async def download_export(filename: str, authorization: str = Header(None, alias
     master_config = read_master_config()
     child_config = read_child_config()
     
-    if not ((master_config and master_config.get("key") == provided_key) or 
-            (child_config and child_config.get("cluster_key") == provided_key)):
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     file_path = os.path.join(TEMP_EXPORT_DIR, filename)
@@ -2075,13 +2084,21 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
             print("[UPLOAD] Master key matched!")
     
     if child_config:
-        child_key = child_config.get("cluster_key")
-        print(f"[UPLOAD] Child cluster_key: {child_key[:20] if child_key else 'None'}...")
+        # Check both cluster_key (new) and key (old) for backwards compatibility
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        print(f"[UPLOAD] Child key (cluster_key or key): {child_key[:20] if child_key else 'None'}...")
         if child_key == provided_key:
             print("[UPLOAD] Child key matched!")
     
-    if not ((master_config and master_config.get("key") == provided_key) or 
-            (child_config and child_config.get("cluster_key") == provided_key)):
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
         print("[UPLOAD] No matching key found - authentication failed")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
@@ -2120,8 +2137,15 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
     master_config = read_master_config()
     child_config = read_child_config()
     
-    if not ((master_config and master_config.get("key") == provided_key) or 
-            (child_config and child_config.get("cluster_key") == provided_key)):
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     try:
