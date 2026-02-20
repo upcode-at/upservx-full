@@ -1577,7 +1577,16 @@ async def execute_replication(replication: dict):
         resource_type = replication['type']
         
         master_config = read_master_config()
+        if not master_config:
+            print(f"[REPLICATION] No master config found")
+            return
+        
         cluster_key = master_config.get("key")
+        if not cluster_key:
+            print(f"[REPLICATION] No cluster key found in config")
+            return
+        
+        print(f"[REPLICATION] Using cluster key: {cluster_key[:20]}...")
         
         # Get node configurations
         origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
@@ -1611,11 +1620,14 @@ async def execute_replication(replication: dict):
         async with httpx.AsyncClient(timeout=300.0) as client:
             export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
             print(f"[REPLICATION] Export URL: {export_url}")
+            print(f"[REPLICATION] Sending Authorization header with key: {cluster_key[:20]}...")
             
             export_response = await client.post(
                 export_url,
                 headers={"Authorization": f"Bearer {cluster_key}"}
             )
+            
+            print(f"[REPLICATION] Export response status: {export_response.status_code}")
             
             if export_response.status_code != 200:
                 print(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}")
