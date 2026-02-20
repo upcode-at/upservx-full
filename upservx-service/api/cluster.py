@@ -1653,13 +1653,6 @@ async def execute_replication(replication: dict):
             print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
             
     except Exception as e:
-        print(f"[REPLICATION] Replication failed: {e}")
-        import traceback
-        traceback.print_exc()
-            
-            print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
-            
-    except Exception as e:
         print(f"[REPLICATION] Error during replication: {e}")
         import traceback
         traceback.print_exc()
