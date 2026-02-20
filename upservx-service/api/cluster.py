@@ -1560,7 +1560,8 @@ async def get_node_resources(hostname: str):
                 print(f"[REPLICATION] Fetching containers from: {containers_url}")
                 containers_response = await client.get(
                     containers_url,
-                    params={"include_compose": "false"}
+                    params={"include_compose": "false"},
+                    headers={"Authorization": f"Bearer {cluster_key}"}
                 )
                 
                 print(f"[REPLICATION] Containers response status: {containers_response.status_code}")
@@ -1584,7 +1585,10 @@ async def get_node_resources(hostname: str):
             try:
                 vms_url = f"http://{node_ip}:{node_port}/vms"
                 print(f"[REPLICATION] Fetching VMs from: {vms_url}")
-                vms_response = await client.get(vms_url)
+                vms_response = await client.get(
+                    vms_url,
+                    headers={"Authorization": f"Bearer {cluster_key}"}
+                )
                 
                 print(f"[REPLICATION] VMs response status: {vms_response.status_code}")
                 
