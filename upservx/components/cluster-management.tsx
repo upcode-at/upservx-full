@@ -85,6 +85,7 @@ export default function ClusterManagement() {
   const [replicationResource, setReplicationResource] = useState("")
   const [replicationCronSchedule, setReplicationCronSchedule] = useState("0 2 * * *") // Daily at 2 AM
   const [availableResources, setAvailableResources] = useState<Array<{name: string, type: string}>>([])
+  const [loadingResources, setLoadingResources] = useState(false)
 
   // Use the global apiUrl function
   const getApiUrl = apiUrl
@@ -277,19 +278,28 @@ export default function ClusterManagement() {
 
   const loadResourcesFromNode = async (nodeHostname: string) => {
     try {
+      setLoadingResources(true)
+      console.log(`Loading resources from node: ${nodeHostname}`)
+      
       const response = await fetch(getApiUrl(`/cluster/nodes/${nodeHostname}/resources`), {
         credentials: "include"
       })
 
+      console.log(`Resources response status: ${response.status}`)
+
       if (response.ok) {
         const data = await response.json()
+        console.log(`Resources data:`, data)
         setAvailableResources(data.resources || [])
       } else {
+        console.error(`Failed to load resources: ${response.statusText}`)
         setAvailableResources([])
       }
     } catch (err) {
       console.error("Failed to load resources:", err)
       setAvailableResources([])
+    } finally {
+      setLoadingResources(false)
     }
   }
 
@@ -772,21 +782,32 @@ export default function ClusterManagement() {
                             <Select 
                               value={replicationResource} 
                               onValueChange={setReplicationResource}
-                              disabled={!replicationOriginNode || availableResources.length === 0}
+                              disabled={!replicationOriginNode || loadingResources}
                             >
                               <SelectTrigger id="resource">
-                                <SelectValue placeholder={replicationOriginNode ? "Select container or VM" : "Select origin node first"} />
+                                <SelectValue placeholder={
+                                  loadingResources 
+                                    ? "Loading resources..." 
+                                    : replicationOriginNode 
+                                      ? "Select container or VM" 
+                                      : "Select origin node first"
+                                } />
                               </SelectTrigger>
                               <SelectContent>
-                                {availableResources.map((resource) => (
-                                  <SelectItem key={resource.name} value={resource.name}>
-                                    {resource.name} ({resource.type})
-                                  </SelectItem>
-                                ))}
+                                {availableResources
+                                  .filter((resource) => resource.name && resource.name.trim() !== "")
+                                  .map((resource) => (
+                                    <SelectItem key={resource.name} value={resource.name}>
+                                      {resource.name} ({resource.type})
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
-                            {replicationOriginNode && availableResources.length === 0 && (
+                            {replicationOriginNode && !loadingResources && availableResources.length === 0 && (
                               <p className="text-sm text-muted-foreground mt-1">No containers or VMs found on selected node</p>
+                            )}
+                            {loadingResources && (
+                              <p className="text-sm text-muted-foreground mt-1">Loading available resources...</p>
                             )}
                           </div>
 

@@ -1503,6 +1503,8 @@ async def get_node_resources(hostname: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can query node resources")
     
+    print(f"[REPLICATION] Fetching resources from node: {hostname}")
+    
     # If it's the master node itself, get local resources
     if hostname == get_hostname():
         try:
@@ -1514,64 +1516,98 @@ async def get_node_resources(hostname: str):
             
             resources = []
             for container in containers:
-                resources.append({
-                    "name": container.name,
-                    "type": "container"
-                })
+                if container.name and container.name.strip():
+                    resources.append({
+                        "name": container.name,
+                        "type": "container"
+                    })
             
             for vm in vms:
-                resources.append({
-                    "name": vm.name,
-                    "type": "vm"
-                })
+                if vm.name and vm.name.strip():
+                    resources.append({
+                        "name": vm.name,
+                        "type": "vm"
+                    })
             
+            print(f"[REPLICATION] Found {len(resources)} resources on local node")
             return {"resources": resources}
         except Exception as e:
             print(f"[REPLICATION] Error getting local resources: {e}")
+            import traceback
+            traceback.print_exc()
             return {"resources": []}
     
     # For child nodes, fetch from their API
     node_config = read_node_config(hostname)
     if not node_config:
+        print(f"[REPLICATION] Node config not found for: {hostname}")
         raise HTTPException(status_code=404, detail="Node not found")
     
     try:
         master_config = read_master_config()
         cluster_key = master_config.get("key")
+        node_ip = node_config['ip_address']
+        node_port = node_config.get('port', 9500)
+        
+        print(f"[REPLICATION] Fetching from {node_ip}:{node_port}")
+        
+        resources = []
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Fetch containers
-            containers_response = await client.get(
-                f"http://{node_config['ip_address']}:{node_config.get('port', 9500)}/containers",
-                headers={"Authorization": f"Bearer {cluster_key}"}
-            )
+            try:
+                containers_url = f"http://{node_ip}:{node_port}/containers"
+                print(f"[REPLICATION] Fetching containers from: {containers_url}")
+                containers_response = await client.get(
+                    containers_url,
+                    params={"include_compose": "false"}
+                )
+                
+                print(f"[REPLICATION] Containers response status: {containers_response.status_code}")
+                
+                if containers_response.status_code == 200:
+                    containers = containers_response.json()
+                    print(f"[REPLICATION] Found {len(containers)} containers")
+                    for container in containers:
+                        name = container.get("name")
+                        if name and name.strip():
+                            resources.append({
+                                "name": name,
+                                "type": "container"
+                            })
+                else:
+                    print(f"[REPLICATION] Failed to fetch containers: {containers_response.text}")
+            except Exception as e:
+                print(f"[REPLICATION] Error fetching containers: {e}")
             
             # Fetch VMs
-            vms_response = await client.get(
-                f"http://{node_config['ip_address']}:{node_config.get('port', 9500)}/vms",
-                headers={"Authorization": f"Bearer {cluster_key}"}
-            )
-            
-            resources = []
-            
-            if containers_response.status_code == 200:
-                containers = containers_response.json()
-                for container in containers:
-                    resources.append({
-                        "name": container.get("name"),
-                        "type": "container"
-                    })
-            
-            if vms_response.status_code == 200:
-                vms = vms_response.json()
-                for vm in vms:
-                    resources.append({
-                        "name": vm.get("name"),
-                        "type": "vm"
-                    })
-            
-            return {"resources": resources}
+            try:
+                vms_url = f"http://{node_ip}:{node_port}/vms"
+                print(f"[REPLICATION] Fetching VMs from: {vms_url}")
+                vms_response = await client.get(vms_url)
+                
+                print(f"[REPLICATION] VMs response status: {vms_response.status_code}")
+                
+                if vms_response.status_code == 200:
+                    vms = vms_response.json()
+                    print(f"[REPLICATION] Found {len(vms)} VMs")
+                    for vm in vms:
+                        name = vm.get("name")
+                        if name and name.strip():
+                            resources.append({
+                                "name": name,
+                                "type": "vm"
+                            })
+                else:
+                    print(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}")
+            except Exception as e:
+                print(f"[REPLICATION] Error fetching VMs: {e}")
+        
+        print(f"[REPLICATION] Total resources found: {len(resources)}")
+        return {"resources": resources}
     except Exception as e:
         print(f"[REPLICATION] Error fetching resources from {hostname}: {e}")
+        import traceback
+        traceback.print_exc()
         return {"resources": []}
 
