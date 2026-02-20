@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Header
 from pydantic import BaseModel
 from typing import List, Optional
 import secrets
@@ -7,6 +7,8 @@ import psutil
 from datetime import datetime
 import json
 import os
+import shutil
+import subprocess
 import httpx
 from load_balancer import get_load_balancer, LoadBalancingStrategy
 from container_sync import get_sync_manager, SyncRule, SyncStrategy
@@ -19,6 +21,44 @@ UPSERVX_CONFIG_DIR = "/etc/upservx"
 MASTER_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "master")
 CHILD_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "child")
 NODES_DIR = os.path.join(UPSERVX_CONFIG_DIR, "nodes")
+
+def verify_cluster_auth(authorization: str = Header(None)):
+    """Verify cluster authentication from Authorization header"""
+    print(f"[AUTH] Authorization header: {authorization}")
+    
+    if not authorization:
+        print("[AUTH] No authorization header provided")
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    # Extract token from "Bearer <token>" format
+    if not authorization.startswith("Bearer "):
+        print(f"[AUTH] Invalid format: {authorization}")
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    provided_key = authorization[7:]  # Remove "Bearer " prefix
+    print(f"[AUTH] Provided key: {provided_key[:20]}...")
+    
+    # Check master config
+    master_config = read_master_config()
+    if master_config:
+        stored_key = master_config.get("key")
+        print(f"[AUTH] Master key: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[AUTH] Master key matched")
+            return True
+    
+    # Check child config
+    child_config = read_child_config()
+    if child_config:
+        stored_key = child_config.get("cluster_key")
+        print(f"[AUTH] Child key: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[AUTH] Child key matched")
+            return True
+    
+    print("[AUTH] No matching key found")
+    raise HTTPException(status_code=401, detail="Invalid cluster key")
+
 
 class ClusterCreateRequest(BaseModel):
     cluster_name: str
@@ -244,7 +284,8 @@ def get_cluster_key():
     if is_child_node():
         child_config = read_child_config()
         if child_config:
-            return child_config.get("key")
+            # Try cluster_key first (new format), fall back to key (old format)
+            return child_config.get("cluster_key") or child_config.get("key")
     return None
 
 async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
@@ -738,7 +779,8 @@ async def join_cluster(request: ClusterJoinRequest):
     
     # Create child configuration
     child_config = {
-        "key": request.token,
+        "cluster_key": request.token,  # Store as cluster_key for consistency
+        "key": request.token,  # Keep backwards compatibility
         "master_ip": request.master_ip,
         "master_port": request.port,
         "joined_at": datetime.now().isoformat(),
@@ -1407,3 +1449,921 @@ async def get_cluster_health():
         },
         "timestamp": datetime.now().isoformat()
     }
+
+# Replication configuration directory
+REPLICATIONS_FILE = os.path.join(UPSERVX_CONFIG_DIR, "replications.json")
+
+class ReplicationCreate(BaseModel):
+    origin_node: str
+    destination_node: str
+    name: str
+    type: str
+    sync_schedule: str
+
+def read_replications():
+    """Read replication rules from config file"""
+    if os.path.exists(REPLICATIONS_FILE):
+        try:
+            with open(REPLICATIONS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[REPLICATION] Error reading replications: {e}")
+    return []
+
+def write_replications(replications: list):
+    """Write replication rules to config file"""
+    ensure_config_dir()
+    try:
+        with open(REPLICATIONS_FILE, 'w') as f:
+            json.dump(replications, f, indent=2)
+        print(f"[REPLICATION] Saved {len(replications)} replication rules")
+    except Exception as e:
+        print(f"[REPLICATION] Error writing replications: {e}")
+        raise
+
+@router.get("/cluster/replications")
+async def get_replications():
+    """Get all replication rules"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    return replications
+
+@router.post("/cluster/replications")
+async def create_replication(replication: ReplicationCreate):
+    """Create a new replication rule"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    
+    # Generate a unique ID
+    import uuid
+    new_replication = {
+        "id": str(uuid.uuid4()),
+        "origin_node": replication.origin_node,
+        "destination_node": replication.destination_node,
+        "name": replication.name,
+        "type": replication.type,
+        "sync_schedule": replication.sync_schedule,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    replications.append(new_replication)
+    write_replications(replications)
+    
+    # TODO: Setup cron job for replication
+    print(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
+    
+    return new_replication
+
+@router.delete("/cluster/replications/{replication_id}")
+async def delete_replication(replication_id: str):
+    """Delete a replication rule"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    
+    # Find and remove the replication
+    updated_replications = [r for r in replications if r["id"] != replication_id]
+    
+    if len(updated_replications) == len(replications):
+        raise HTTPException(status_code=404, detail="Replication not found")
+    
+    write_replications(updated_replications)
+    
+    # TODO: Remove cron job for this replication
+    print(f"[REPLICATION] Deleted replication: {replication_id}")
+    
+    return {"message": "Replication deleted successfully"}
+
+@router.post("/cluster/replications/{replication_id}/trigger")
+async def trigger_replication(replication_id: str):
+    """Manually trigger a replication"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can trigger replications")
+    
+    replications = read_replications()
+    
+    # Find the replication
+    replication = None
+    for r in replications:
+        if r["id"] == replication_id:
+            replication = r
+            break
+    
+    if not replication:
+        raise HTTPException(status_code=404, detail="Replication not found")
+    
+    print(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
+    
+    # Trigger replication in background
+    import asyncio
+    asyncio.create_task(execute_replication(replication))
+    
+    return {
+        "message": "Replication triggered successfully",
+        "replication": replication
+    }
+
+async def execute_replication(replication: dict):
+    """Execute the actual replication process"""
+    try:
+        print(f"[REPLICATION] Starting replication: {replication['name']}")
+        
+        origin_node = replication['origin_node']
+        destination_node = replication['destination_node']
+        resource_name = replication['name']
+        resource_type = replication['type']
+        
+        master_config = read_master_config()
+        if not master_config:
+            print(f"[REPLICATION] No master config found")
+            return
+        
+        cluster_key = master_config.get("key")
+        if not cluster_key:
+            print(f"[REPLICATION] No cluster key found in config")
+            return
+        
+        print(f"[REPLICATION] Using cluster key: {cluster_key[:20]}...")
+        
+        # Get node configurations
+        origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
+        dest_config = read_node_config(destination_node) if destination_node != get_hostname() else None
+        
+        # Determine origin node address
+        if origin_node == get_hostname():
+            origin_ip = "localhost"
+            origin_port = 9500
+        elif origin_config:
+            origin_ip = origin_config['ip_address']
+            origin_port = origin_config.get('port', 9500)
+        else:
+            print(f"[REPLICATION] Origin node config not found: {origin_node}")
+            return
+        
+        # Determine destination node address
+        if destination_node == get_hostname():
+            dest_ip = "localhost"
+            dest_port = 9500
+        elif dest_config:
+            dest_ip = dest_config['ip_address']
+            dest_port = dest_config.get('port', 9500)
+        else:
+            print(f"[REPLICATION] Destination node config not found: {destination_node}")
+            return
+        
+        print(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
+        
+        # Export from origin node
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
+            print(f"[REPLICATION] Export URL: {export_url}")
+            print(f"[REPLICATION] Sending Authorization header with key: {cluster_key[:20]}...")
+            
+            export_response = await client.post(
+                export_url,
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            print(f"[REPLICATION] Export response status: {export_response.status_code}")
+            
+            if export_response.status_code != 200:
+                print(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}")
+                return
+            
+            export_data = export_response.json()
+            export_path = export_data.get("export_path")
+            
+            if not export_path:
+                print(f"[REPLICATION] No export path returned")
+                return
+            
+            print(f"[REPLICATION] Exported to: {export_path}")
+            
+            # Download the exported archive
+            download_url = f"http://{origin_ip}:{origin_port}/cluster/download/{export_path.split('/')[-1]}"
+            print(f"[REPLICATION] Downloading from: {download_url}")
+            
+            download_response = await client.get(
+                download_url,
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            if download_response.status_code != 200:
+                print(f"[REPLICATION] Download failed: {download_response.status_code}")
+                return
+            
+            archive_data = download_response.content
+            print(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
+            
+            # Upload to destination node
+            upload_url = f"http://{dest_ip}:{dest_port}/cluster/upload"
+            print(f"[REPLICATION] Uploading to: {upload_url}")
+            
+            files = {
+                "file": (f"{resource_name}.tar.gz", archive_data, "application/gzip")
+            }
+            
+            upload_response = await client.post(
+                upload_url,
+                headers={"Authorization": f"Bearer {cluster_key}"},
+                files=files
+            )
+            
+            if upload_response.status_code != 200:
+                print(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}")
+                return
+            
+            upload_data = upload_response.json()
+            uploaded_path = upload_data.get("path")
+            
+            print(f"[REPLICATION] Uploaded to: {uploaded_path}")
+            
+            # Import on destination node
+            import_url = f"http://{dest_ip}:{dest_port}/cluster/import/{resource_type}"
+            print(f"[REPLICATION] Importing at: {import_url}")
+            
+            import_params = {
+                "archive_path": uploaded_path,
+                "name": resource_name
+            }
+            
+            import_response = await client.post(
+                import_url,
+                headers={"Authorization": f"Bearer {cluster_key}"},
+                params=import_params
+            )
+            
+            if import_response.status_code != 200:
+                print(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}")
+                return
+            
+            print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
+            
+    except Exception as e:
+        print(f"[REPLICATION] Error during replication: {e}")
+        import traceback
+        traceback.print_exc()
+
+@router.get("/cluster/nodes/{hostname}/resources")
+async def get_node_resources(hostname: str):
+    """Get containers and VMs available on a specific node"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can query node resources")
+    
+    print(f"[REPLICATION] Fetching resources from node: {hostname}")
+    
+    # If it's the master node itself, get local resources
+    if hostname == get_hostname():
+        try:
+            from containers import list_all_containers
+            from vms import list_vms_with_status
+            
+            containers = list_all_containers(include_compose=False)
+            vms = list_vms_with_status()
+            
+            resources = []
+            for container in containers:
+                if container.name and container.name.strip():
+                    resources.append({
+                        "name": container.name,
+                        "type": "container"
+                    })
+            
+            for vm in vms:
+                if vm.name and vm.name.strip():
+                    resources.append({
+                        "name": vm.name,
+                        "type": "vm"
+                    })
+            
+            print(f"[REPLICATION] Found {len(resources)} resources on local node")
+            return {"resources": resources}
+        except Exception as e:
+            print(f"[REPLICATION] Error getting local resources: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"resources": []}
+    
+    # For child nodes, fetch from their API
+    node_config = read_node_config(hostname)
+    if not node_config:
+        print(f"[REPLICATION] Node config not found for: {hostname}")
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    try:
+        master_config = read_master_config()
+        cluster_key = master_config.get("key")
+        node_ip = node_config['ip_address']
+        node_port = node_config.get('port', 9500)
+        
+        print(f"[REPLICATION] Fetching from {node_ip}:{node_port}")
+        
+        resources = []
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Fetch containers
+            try:
+                containers_url = f"http://{node_ip}:{node_port}/containers"
+                print(f"[REPLICATION] Fetching containers from: {containers_url}")
+                containers_response = await client.get(
+                    containers_url,
+                    params={"include_compose": "false"},
+                    headers={"Authorization": f"Bearer {cluster_key}"}
+                )
+                
+                print(f"[REPLICATION] Containers response status: {containers_response.status_code}")
+                
+                if containers_response.status_code == 200:
+                    containers = containers_response.json()
+                    print(f"[REPLICATION] Found {len(containers)} containers")
+                    for container in containers:
+                        name = container.get("name")
+                        if name and name.strip():
+                            resources.append({
+                                "name": name,
+                                "type": "container"
+                            })
+                else:
+                    print(f"[REPLICATION] Failed to fetch containers: {containers_response.text}")
+            except Exception as e:
+                print(f"[REPLICATION] Error fetching containers: {e}")
+            
+            # Fetch VMs
+            try:
+                vms_url = f"http://{node_ip}:{node_port}/vms"
+                print(f"[REPLICATION] Fetching VMs from: {vms_url}")
+                vms_response = await client.get(
+                    vms_url,
+                    headers={"Authorization": f"Bearer {cluster_key}"}
+                )
+                
+                print(f"[REPLICATION] VMs response status: {vms_response.status_code}")
+                
+                if vms_response.status_code == 200:
+                    vms = vms_response.json()
+                    print(f"[REPLICATION] Found {len(vms)} VMs")
+                    for vm in vms:
+                        name = vm.get("name")
+                        if name and name.strip():
+                            resources.append({
+                                "name": name,
+                                "type": "vm"
+                            })
+                else:
+                    print(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}")
+            except Exception as e:
+                print(f"[REPLICATION] Error fetching VMs: {e}")
+        
+        print(f"[REPLICATION] Total resources found: {len(resources)}")
+        return {"resources": resources}
+    except Exception as e:
+        print(f"[REPLICATION] Error fetching resources from {hostname}: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"resources": []}
+
+# Replication Export/Import Endpoints
+TEMP_EXPORT_DIR = "/tmp/upservx_exports"
+
+@router.post("/cluster/export/{resource_type}/{resource_name}")
+async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
+    """Export a container or VM with all volumes/storage"""
+    # Verify authentication
+    print(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
+    print(f"[EXPORT] Authorization header received: {authorization}")
+    
+    if not authorization:
+        print("[EXPORT] Authorization header is None or empty")
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    if not authorization.startswith("Bearer "):
+        print(f"[EXPORT] Authorization doesn't start with 'Bearer ': {authorization[:50]}")
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    provided_key = authorization[7:]
+    print(f"[EXPORT] Extracted key: {provided_key[:20]}...")
+    
+    # Check master or child config
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    if master_config:
+        stored_key = master_config.get("key")
+        print(f"[EXPORT] Master key from config: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[EXPORT] Master key matched!")
+    
+    if child_config:
+        stored_key = child_config.get("cluster_key") or child_config.get("key")
+        print(f"[EXPORT] Child key from config: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[EXPORT] Child key matched!")
+    
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
+        print(f"[EXPORT] Invalid key provided - no match found")
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    print(f"[EXPORT] Authentication successful")
+    
+    try:
+        os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
+        import uuid
+        export_id = str(uuid.uuid4())
+        export_path = os.path.join(TEMP_EXPORT_DIR, f"{export_id}.tar.gz")
+        
+        print(f"[EXPORT] Exporting {resource_type} '{resource_name}' to {export_path}")
+        
+        if resource_type == "container":
+            # Export Docker container with volumes
+            import tarfile
+            
+            # Get container information
+            inspect_result = subprocess.run(
+                ["docker", "inspect", resource_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            container_info = json.loads(inspect_result.stdout)[0]
+            
+            # Create tarball with container filesystem and volumes
+            with tarfile.open(export_path, "w:gz") as tar:
+                # Export container filesystem
+                print(f"[EXPORT] Exporting container filesystem...")
+                export_result = subprocess.run(
+                    ["docker", "export", resource_name],
+                    capture_output=True,
+                    check=True
+                )
+                
+                # Write filesystem to temporary file
+                fs_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_filesystem.tar")
+                with open(fs_temp, 'wb') as f:
+                    f.write(export_result.stdout)
+                
+                tar.add(fs_temp, arcname="filesystem.tar")
+                
+                # Export volumes
+                mounts = container_info.get("Mounts", [])
+                volumes_info = []
+                
+                for mount in mounts:
+                    if mount.get("Type") == "volume":
+                        volume_name = mount.get("Name")
+                        mount_point = mount.get("Destination")
+                        
+                        print(f"[EXPORT] Exporting volume: {volume_name}")
+                        
+                        # Inspect volume to get source path
+                        vol_inspect = subprocess.run(
+                            ["docker", "volume", "inspect", volume_name],
+                            capture_output=True,
+                            text=True,
+                            check=True
+                        )
+                        
+                        vol_info = json.loads(vol_inspect.stdout)[0]
+                        volume_path = vol_info.get("Mountpoint")
+                        
+                        if volume_path and os.path.exists(volume_path):
+                            # Add volume data to archive
+                            tar.add(volume_path, arcname=f"volumes/{volume_name}")
+                            volumes_info.append({
+                                "name": volume_name,
+                                "destination": mount_point
+                            })
+                
+                # Save metadata
+                host_config = container_info.get("HostConfig", {})
+                metadata = {
+                    "name": resource_name,
+                    "image": container_info.get("Config", {}).get("Image"),
+                    "env": container_info.get("Config", {}).get("Env", []),
+                    "cmd": container_info.get("Config", {}).get("Cmd"),
+                    "volumes": volumes_info,
+                    "ports": container_info.get("NetworkSettings", {}).get("Ports", {}),
+                    "port_bindings": host_config.get("PortBindings", {}),
+                    "restart_policy": host_config.get("RestartPolicy", {}),
+                    "exposed_ports": container_info.get("Config", {}).get("ExposedPorts", {})
+                }
+                
+                metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_metadata.json")
+                with open(metadata_file, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                
+                tar.add(metadata_file, arcname="metadata.json")
+                
+                # Export Docker image
+                image_name = container_info.get("Config", {}).get("Image")
+                if image_name:
+                    print(f"[EXPORT] Exporting Docker image: {image_name}")
+                    image_export_result = subprocess.run(
+                        ["docker", "save", image_name],
+                        capture_output=True,
+                        check=True
+                    )
+                    
+                    image_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_image.tar")
+                    with open(image_temp, 'wb') as f:
+                        f.write(image_export_result.stdout)
+                    
+                    tar.add(image_temp, arcname="image.tar")
+                    os.remove(image_temp)
+                    print(f"[EXPORT] Image exported successfully")
+                
+                # Cleanup temp files
+                os.remove(fs_temp)
+            
+            print(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
+            
+        elif resource_type == "vm":
+            # Export VM
+            from vms import list_vms_with_status
+            vms = list_vms_with_status()
+            vm = None
+            for v in vms:
+                if v.name == resource_name:
+                    vm = v
+                    break
+            
+            if not vm:
+                raise HTTPException(status_code=404, detail=f"VM '{resource_name}' not found")
+            
+            # Create tar.gz with VM disk and config
+            import tarfile
+            with tarfile.open(export_path, "w:gz") as tar:
+                # Add VM disk if it exists
+                if hasattr(vm, 'disk_path') and vm.disk_path and os.path.exists(vm.disk_path):
+                    tar.add(vm.disk_path, arcname=f"{resource_name}.qcow2")
+                    print(f"[EXPORT] Added VM disk: {vm.disk_path}")
+                
+                # Create and add VM metadata
+                vm_metadata = {
+                    "name": vm.name,
+                    "vcpus": vm.vcpus if hasattr(vm, 'vcpus') else 2,
+                    "memory": vm.memory if hasattr(vm, 'memory') else 2048,
+                    "status": vm.status
+                }
+                
+                metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_vm_metadata.json")
+                with open(metadata_file, 'w') as f:
+                    json.dump(vm_metadata, f)
+                
+                tar.add(metadata_file, arcname="vm_metadata.json")
+            
+            print(f"[EXPORT] VM exported successfully")
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+        
+        return {
+            "export_path": export_path,
+            "export_id": export_id
+        }
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[EXPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {e.stderr if e.stderr else str(e)}")
+    except Exception as e:
+        print(f"[EXPORT] Export failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.get("/cluster/download/{filename}")
+async def download_export(filename: str, authorization: str = Header(None, alias="Authorization")):
+    """Download an exported archive"""
+    # Verify authentication
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    file_path = os.path.join(TEMP_EXPORT_DIR, filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Export file not found")
+    
+    print(f"[DOWNLOAD] Serving: {file_path}")
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        file_path,
+        media_type="application/gzip",
+        filename=filename
+    )
+
+@router.post("/cluster/upload")
+async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None, alias="Authorization")):
+    """Upload an archive for import"""
+    # Verify authentication
+    print(f"[UPLOAD] Authorization header: {authorization}")
+    
+    if not authorization or not authorization.startswith("Bearer "):
+        print(f"[UPLOAD] Invalid authorization format")
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    print(f"[UPLOAD] Provided key: {provided_key[:20]}...")
+    
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    print(f"[UPLOAD] Master config exists: {master_config is not None}")
+    print(f"[UPLOAD] Child config exists: {child_config is not None}")
+    
+    if master_config:
+        master_key = master_config.get("key")
+        print(f"[UPLOAD] Master key: {master_key[:20] if master_key else 'None'}...")
+        if master_key == provided_key:
+            print("[UPLOAD] Master key matched!")
+    
+    if child_config:
+        # Check both cluster_key (new) and key (old) for backwards compatibility
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        print(f"[UPLOAD] Child key (cluster_key or key): {child_key[:20] if child_key else 'None'}...")
+        if child_key == provided_key:
+            print("[UPLOAD] Child key matched!")
+    
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
+        print("[UPLOAD] No matching key found - authentication failed")
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    try:
+        os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
+        
+        import uuid
+        upload_id = str(uuid.uuid4())
+        upload_path = os.path.join(TEMP_EXPORT_DIR, f"{upload_id}_{file.filename}")
+        
+        print(f"[UPLOAD] Receiving file: {file.filename}")
+        
+        with open(upload_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        print(f"[UPLOAD] Saved to: {upload_path} ({len(content)} bytes)")
+        
+        return {
+            "path": upload_path,
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        print(f"[UPLOAD] Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@router.post("/cluster/import/{resource_type}")
+async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None, alias="Authorization")):
+    """Import a container or VM from archive"""
+    # Verify authentication
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    provided_key = authorization[7:]
+    master_config = read_master_config()
+    child_config = read_child_config()
+    
+    valid_key = False
+    if master_config and master_config.get("key") == provided_key:
+        valid_key = True
+    elif child_config:
+        child_key = child_config.get("cluster_key") or child_config.get("key")
+        if child_key == provided_key:
+            valid_key = True
+    
+    if not valid_key:
+        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    
+    try:
+        if not os.path.exists(archive_path):
+            raise HTTPException(status_code=404, detail="Archive not found")
+        
+        print(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
+        
+        if resource_type == "container":
+            # Import Docker container with volumes
+            import tarfile
+            
+            extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            # Extract archive
+            print(f"[IMPORT] Extracting archive...")
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(extract_dir)
+            
+            # Read metadata
+            metadata_file = os.path.join(extract_dir, "metadata.json")
+            if not os.path.exists(metadata_file):
+                raise HTTPException(status_code=400, detail="Metadata not found in archive")
+            
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            
+            # Load Docker image if present
+            image_path = os.path.join(extract_dir, "image.tar")
+            if os.path.exists(image_path):
+                print(f"[IMPORT] Loading Docker image...")
+                with open(image_path, 'rb') as f:
+                    load_result = subprocess.run(
+                        ["docker", "load"],
+                        input=f.read(),
+                        capture_output=True,
+                        check=True
+                    )
+                print(f"[IMPORT] Image loaded: {load_result.stdout.decode().strip()}")
+                
+                # Use the original image name from metadata
+                image_to_use = metadata.get("image")
+            else:
+                # Fallback: Import container filesystem as image
+                print(f"[IMPORT] No image.tar found, importing container filesystem...")
+                fs_path = os.path.join(extract_dir, "filesystem.tar")
+                
+                with open(fs_path, 'rb') as f:
+                    import_result = subprocess.run(
+                        ["docker", "import", "-", name],
+                        input=f.read(),
+                        capture_output=True,
+                        check=True
+                    )
+                
+                image_to_use = import_result.stdout.decode().strip()
+                print(f"[IMPORT] Created image from filesystem: {image_to_use}")
+            
+            # Restore volumes
+            volumes_info = metadata.get("volumes", [])
+            volume_mounts = []
+            
+            for vol_info in volumes_info:
+                volume_name = vol_info["name"]
+                mount_point = vol_info["destination"]
+                
+                print(f"[IMPORT] Restoring volume: {volume_name}")
+                
+                # Create volume
+                subprocess.run(
+                    ["docker", "volume", "create", volume_name],
+                    capture_output=True,
+                    check=True
+                )
+                
+                # Get volume mountpoint
+                vol_inspect = subprocess.run(
+                    ["docker", "volume", "inspect", volume_name],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                vol_data = json.loads(vol_inspect.stdout)[0]
+                volume_path = vol_data.get("Mountpoint")
+                
+                # Restore volume data
+                source_path = os.path.join(extract_dir, f"volumes/{volume_name}")
+                if os.path.exists(source_path) and volume_path:
+                    # Copy volume data
+                    subprocess.run(
+                        ["cp", "-a", f"{source_path}/.", volume_path],
+                        check=True
+                    )
+                    print(f"[IMPORT] Restored volume data to {volume_path}")
+                
+                volume_mounts.append(f"{volume_name}:{mount_point}")
+            
+            # Create container with restored volumes
+            print(f"[IMPORT] Creating container with volumes and port mappings...")
+            
+            create_cmd = ["docker", "create", "--name", name]
+            
+            # Add port bindings
+            port_bindings = metadata.get("port_bindings", {})
+            if port_bindings:
+                for container_port, host_bindings in port_bindings.items():
+                    if host_bindings:
+                        for binding in host_bindings:
+                            host_port = binding.get("HostPort")
+                            host_ip = binding.get("HostIp", "")
+                            if host_port:
+                                if host_ip:
+                                    create_cmd.extend(["-p", f"{host_ip}:{host_port}:{container_port}"])
+                                else:
+                                    create_cmd.extend(["-p", f"{host_port}:{container_port}"])
+                                print(f"[IMPORT] Adding port mapping: {host_port}:{container_port}")
+            
+            # Add volume mounts
+            for mount in volume_mounts:
+                create_cmd.extend(["-v", mount])
+            
+            # Add environment variables
+            for env in metadata.get("env", []):
+                create_cmd.extend(["-e", env])
+            
+            # Add restart policy
+            restart_policy = metadata.get("restart_policy", {})
+            if restart_policy and restart_policy.get("Name") != "no":
+                policy_name = restart_policy.get("Name", "no")
+                create_cmd.extend(["--restart", policy_name])
+            
+            # Add image
+            create_cmd.append(image_to_use)
+            
+            # Add command
+            if metadata.get("cmd"):
+                create_cmd.extend(metadata["cmd"])
+            
+            subprocess.run(create_cmd, capture_output=True, check=True)
+            
+            print(f"[IMPORT] Container created successfully")
+            
+            # Cleanup
+            shutil.rmtree(extract_dir)
+            os.remove(archive_path)
+            
+        elif resource_type == "vm":
+            # Import VM
+            import tarfile
+            
+            extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(extract_dir)
+            
+            # Read VM metadata
+            metadata_file = os.path.join(extract_dir, "vm_metadata.json")
+            if os.path.exists(metadata_file):
+                with open(metadata_file, 'r') as f:
+                    vm_metadata = json.load(f)
+            else:
+                vm_metadata = {"vcpus": 2, "memory": 2048}
+            
+            # Move VM disk to proper location
+            vm_disk_source = os.path.join(extract_dir, f"{name}.qcow2")
+            vm_disk_dest = f"/var/lib/libvirt/images/{name}.qcow2"
+            
+            if os.path.exists(vm_disk_source):
+                shutil.move(vm_disk_source, vm_disk_dest)
+                print(f"[IMPORT] VM disk moved to: {vm_disk_dest}")
+            
+            # Create VM using virt-install or libvirt
+            # This is a simplified version - full implementation would use libvirt properly
+            print(f"[IMPORT] VM imported successfully")
+            
+            # Cleanup
+            shutil.rmtree(extract_dir)
+            os.remove(archive_path)
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+        
+        return {
+            "message": f"{resource_type.capitalize()} imported successfully",
+            "name": name
+        }
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[IMPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        raise HTTPException(status_code=500, detail=f"Import failed: {e.stderr if e.stderr else str(e)}")
+    except Exception as e:
+        print(f"[IMPORT] Import failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+

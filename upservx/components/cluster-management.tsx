@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch } from "lucide-react"
+import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -49,15 +50,26 @@ interface ClusterInfo {
   nodes: ClusterNode[]
 }
 
+interface Replication {
+  id: string
+  origin_node: string
+  destination_node: string
+  name: string
+  type: string
+  sync_schedule: string
+}
+
 export default function ClusterManagement() {
   const [clusterInfo, setClusterInfo] = useState<ClusterInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [replications, setReplications] = useState<Replication[]>([])
 
   // Dialog states
   const [createClusterOpen, setCreateClusterOpen] = useState(false)
   const [joinClusterOpen, setJoinClusterOpen] = useState(false)
+  const [addReplicationOpen, setAddReplicationOpen] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
 
@@ -66,6 +78,14 @@ export default function ClusterManagement() {
   const [masterIp, setMasterIp] = useState("")
   const [masterPort, setMasterPort] = useState("9500")
   const [joinToken, setJoinToken] = useState("")
+
+  // Replication form states
+  const [replicationOriginNode, setReplicationOriginNode] = useState("")
+  const [replicationDestNode, setReplicationDestNode] = useState("")
+  const [replicationResource, setReplicationResource] = useState("")
+  const [replicationCronSchedule, setReplicationCronSchedule] = useState("0 2 * * *") // Daily at 2 AM
+  const [availableResources, setAvailableResources] = useState<Array<{name: string, type: string}>>([])
+  const [loadingResources, setLoadingResources] = useState(false)
 
   // Use the global apiUrl function
   const getApiUrl = apiUrl
@@ -102,6 +122,23 @@ export default function ClusterManagement() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (clusterInfo?.is_master) {
+      loadReplications()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clusterInfo?.is_master])
+
+  useEffect(() => {
+    if (replicationOriginNode) {
+      loadResourcesFromNode(replicationOriginNode)
+    } else {
+      setAvailableResources([])
+      setReplicationResource("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replicationOriginNode])
 
   const createCluster = async () => {
     try {
@@ -221,6 +258,139 @@ export default function ClusterManagement() {
       }
     } catch (err) {
       setError("Failed to load debug information")
+    }
+  }
+
+  const loadReplications = async () => {
+    try {
+      const response = await fetch(getApiUrl("/cluster/replications"), {
+        credentials: "include"
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setReplications(data)
+      }
+    } catch (err) {
+      console.error("Failed to load replications:", err)
+    }
+  }
+
+  const loadResourcesFromNode = async (nodeHostname: string) => {
+    try {
+      setLoadingResources(true)
+      console.log(`Loading resources from node: ${nodeHostname}`)
+      
+      const response = await fetch(getApiUrl(`/cluster/nodes/${nodeHostname}/resources`), {
+        credentials: "include"
+      })
+
+      console.log(`Resources response status: ${response.status}`)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`Resources data:`, data)
+        setAvailableResources(data.resources || [])
+      } else {
+        console.error(`Failed to load resources: ${response.statusText}`)
+        setAvailableResources([])
+      }
+    } catch (err) {
+      console.error("Failed to load resources:", err)
+      setAvailableResources([])
+    } finally {
+      setLoadingResources(false)
+    }
+  }
+
+  const addReplication = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+
+      if (!replicationOriginNode || !replicationDestNode || !replicationResource || !replicationCronSchedule) {
+        setError("Please fill in all fields")
+        return
+      }
+
+      const selectedResource = availableResources.find(r => r.name === replicationResource)
+      if (!selectedResource) {
+        setError("Invalid resource selected")
+        return
+      }
+
+      const response = await fetch(getApiUrl("/cluster/replications"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          origin_node: replicationOriginNode,
+          destination_node: replicationDestNode,
+          name: replicationResource,
+          type: selectedResource.type,
+          sync_schedule: replicationCronSchedule
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Failed to add replication")
+      }
+
+      setSuccess("Replication rule added successfully")
+      setAddReplicationOpen(false)
+      setReplicationOriginNode("")
+      setReplicationDestNode("")
+      setReplicationResource("")
+      setReplicationCronSchedule("0 2 * * *")
+      setAvailableResources([])
+      loadReplications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add replication")
+    }
+  }
+
+  const deleteReplication = async (replicationId: string) => {
+    if (!confirm("Are you sure you want to delete this replication rule?")) return
+
+    try {
+      setError(null)
+
+      const response = await fetch(getApiUrl(`/cluster/replications/${replicationId}`), {
+        method: "DELETE",
+        credentials: "include"
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Failed to delete replication")
+      }
+
+      setSuccess("Replication rule deleted successfully")
+      loadReplications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete replication")
+    }
+  }
+
+  const triggerReplication = async (replicationId: string) => {
+    try {
+      setError(null)
+      setSuccess(null)
+
+      const response = await fetch(getApiUrl(`/cluster/replications/${replicationId}/trigger`), {
+        method: "POST",
+        credentials: "include"
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Failed to trigger replication")
+      }
+
+      setSuccess("Replication triggered successfully")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to trigger replication")
     }
   }
 
@@ -574,15 +744,170 @@ export default function ClusterManagement() {
             {clusterInfo.is_master ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Workload Distribution</CardTitle>
-                  <CardDescription>
-                    Manage workload distribution across cluster nodes
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Replication</CardTitle>
+                      <CardDescription>
+                        Manage data replication between cluster nodes
+                      </CardDescription>
+                    </div>
+                    <Dialog open={addReplicationOpen} onOpenChange={setAddReplicationOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Replication
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Replication Rule</DialogTitle>
+                          <DialogDescription>
+                            Configure automatic replication between cluster nodes
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="origin-node">Origin Node</Label>
+                            <Select value={replicationOriginNode} onValueChange={setReplicationOriginNode}>
+                              <SelectTrigger id="origin-node">
+                                <SelectValue placeholder="Select origin node" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {clusterInfo?.nodes?.filter(n => n.status === "online").map((node) => (
+                                  <SelectItem key={node.id} value={node.hostname}>
+                                    {node.hostname} ({node.ip_address})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label htmlFor="dest-node">Destination Node</Label>
+                            <Select value={replicationDestNode} onValueChange={setReplicationDestNode}>
+                              <SelectTrigger id="dest-node">
+                                <SelectValue placeholder="Select destination node" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {clusterInfo?.nodes?.filter(n => n.status === "online" && n.hostname !== replicationOriginNode).map((node) => (
+                                  <SelectItem key={node.id} value={node.hostname}>
+                                    {node.hostname} ({node.ip_address})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label htmlFor="resource">Container/VM</Label>
+                            <Select 
+                              value={replicationResource} 
+                              onValueChange={setReplicationResource}
+                              disabled={!replicationOriginNode || loadingResources}
+                            >
+                              <SelectTrigger id="resource">
+                                <SelectValue placeholder={
+                                  loadingResources 
+                                    ? "Loading resources..." 
+                                    : replicationOriginNode 
+                                      ? "Select container or VM" 
+                                      : "Select origin node first"
+                                } />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableResources
+                                  .filter((resource) => resource.name && resource.name.trim() !== "")
+                                  .map((resource) => (
+                                    <SelectItem key={resource.name} value={resource.name}>
+                                      {resource.name} ({resource.type})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            {replicationOriginNode && !loadingResources && availableResources.length === 0 && (
+                              <p className="text-sm text-muted-foreground mt-1">No containers or VMs found on selected node</p>
+                            )}
+                            {loadingResources && (
+                              <p className="text-sm text-muted-foreground mt-1">Loading available resources...</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <Label htmlFor="schedule">Sync Schedule (Cron)</Label>
+                            <Input
+                              id="schedule"
+                              value={replicationCronSchedule}
+                              onChange={(e) => setReplicationCronSchedule(e.target.value)}
+                              placeholder="0 2 * * *"
+                            />
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Example: 0 2 * * * (Daily at 2:00 AM)
+                            </p>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setAddReplicationOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={addReplication}>
+                            Add Replication
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    Content coming soon
-                  </div>
+                  {replications.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Origin Node</TableHead>
+                          <TableHead>Destination Node</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Sync Schedule</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {replications.map((replication) => (
+                          <TableRow key={replication.id}>
+                            <TableCell className="font-medium">{replication.origin_node}</TableCell>
+                            <TableCell>{replication.destination_node}</TableCell>
+                            <TableCell>{replication.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{replication.type}</Badge>
+                            </TableCell>
+                            <TableCell>{replication.sync_schedule}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => triggerReplication(replication.id)}
+                                >
+                                  <Play className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => deleteReplication(replication.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No replication rules configured
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ) : (

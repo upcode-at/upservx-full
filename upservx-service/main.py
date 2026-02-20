@@ -112,6 +112,13 @@ async def pam_auth_middleware(request: Request, call_next):
         # These endpoints validate tokens internally or are cluster-only
         return await call_next(request)
     
+    # Skip middleware auth for cluster replication endpoints - they handle auth internally
+    if request.url.path.startswith("/cluster/export") or \
+       request.url.path.startswith("/cluster/download") or \
+       request.url.path.startswith("/cluster/upload") or \
+       request.url.path.startswith("/cluster/import"):
+        return await call_next(request)
+    
     auth_header = request.headers.get("Authorization")
     # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
     if not auth_header:
@@ -143,13 +150,19 @@ async def pam_auth_middleware(request: Request, call_next):
             # Check if it's the configured API key
             if settings.api_key and token == settings.api_key:
                 request.state.user = "api-key"
-            # Check if it's the cluster key (for child nodes)
             else:
+                # Check if it's the cluster key (for child nodes)
                 cluster_key = get_cluster_key()
                 if cluster_key and token == cluster_key:
                     request.state.user = "cluster-node"
                 else:
-                    return Response(status_code=401)
+                    # Check if it's the master cluster key
+                    from api.cluster import read_master_config
+                    master_config = read_master_config()
+                    if master_config and master_config.get("key") == token:
+                        request.state.user = "cluster-master"
+                    else:
+                        return Response(status_code=401)
         else:
             raise ValueError
     except Exception:
