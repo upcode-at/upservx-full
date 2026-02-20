@@ -2204,10 +2204,9 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                         ["docker", "load"],
                         input=f.read(),
                         capture_output=True,
-                        text=True,
                         check=True
                     )
-                print(f"[IMPORT] Image loaded: {load_result.stdout.strip()}")
+                print(f"[IMPORT] Image loaded: {load_result.stdout.decode().strip()}")
                 
                 # Use the original image name from metadata
                 image_to_use = metadata.get("image")
