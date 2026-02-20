@@ -4,6 +4,7 @@ Reverse Proxy and SSL Certificate Management using Nginx and Certbot.
 
 import os
 import json
+import re
 import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
@@ -26,6 +27,36 @@ class ReverseProxyManager:
     def _ensure_directories(self):
         """Ensure necessary directories exist."""
         os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+
+    # RFC-1123 hostname / domain label: letters, digits, hyphens; dot-separated.
+    # Wildcards (*.example.com) are intentionally excluded.
+    _DOMAIN_RE = re.compile(
+        r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+    )
+    # Backend host: IPv4 or a valid hostname (no port here — port is a separate int param)
+    _HOST_RE = re.compile(
+        r'^(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]{1,63}'
+        r'|(?:\d{1,3}\.){3}\d{1,3})$'
+    )
+
+    @classmethod
+    def _validate_domain(cls, domain: str) -> None:
+        """Raise ValueError if domain contains characters that could inject nginx config."""
+        if not domain or not cls._DOMAIN_RE.match(domain):
+            raise ValueError(
+                f"Invalid domain {domain!r}. Only RFC-1123 hostnames are accepted "
+                "(letters, digits, hyphens, dots; no wildcards or special characters)."
+            )
+        if len(domain) > 253:
+            raise ValueError(f"Domain name too long: {len(domain)} chars (max 253).")
+
+    @classmethod
+    def _validate_host(cls, host: str) -> None:
+        """Raise ValueError if backend_host contains characters that could inject nginx config."""
+        if not host or not cls._HOST_RE.match(host):
+            raise ValueError(
+                f"Invalid backend host {host!r}. Must be an IPv4 address or hostname."
+            )
     
     def _load_config(self) -> Dict:
         """Load proxy configuration from file."""
@@ -108,6 +139,8 @@ class ReverseProxyManager:
         force_ssl: bool = False
     ) -> Dict:
         """Create Nginx reverse proxy configuration."""
+        self._validate_domain(domain)
+        self._validate_host(backend_host)
         config_name = domain.replace(".", "_")
         config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
         enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
@@ -275,6 +308,7 @@ class ReverseProxyManager:
     
     def delete_proxy_config(self, domain: str) -> Dict:
         """Delete proxy configuration for a domain."""
+        self._validate_domain(domain)
         config_name = domain.replace(".", "_")
         config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
         enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
@@ -316,6 +350,7 @@ class ReverseProxyManager:
     
     def obtain_certificate(self, domain: str, email: str, webroot: bool = False) -> Dict:
         """Obtain Let's Encrypt SSL certificate for domain."""
+        self._validate_domain(domain)
         if not self.check_certbot_installed():
             return {"success": False, "message": "Certbot not installed"}
         
@@ -431,6 +466,7 @@ class ReverseProxyManager:
     
     def revoke_certificate(self, domain: str) -> Dict:
         """Revoke and delete a certificate."""
+        self._validate_domain(domain)
         if not self.check_certbot_installed():
             return {"success": False, "message": "Certbot not installed"}
         
