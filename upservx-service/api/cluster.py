@@ -778,7 +778,8 @@ async def join_cluster(request: ClusterJoinRequest):
     
     # Create child configuration
     child_config = {
-        "key": request.token,
+        "cluster_key": request.token,  # Store as cluster_key for consistency
+        "key": request.token,  # Keep backwards compatibility
         "master_ip": request.master_ip,
         "master_port": request.port,
         "joined_at": datetime.now().isoformat(),
