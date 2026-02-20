@@ -143,13 +143,19 @@ async def pam_auth_middleware(request: Request, call_next):
             # Check if it's the configured API key
             if settings.api_key and token == settings.api_key:
                 request.state.user = "api-key"
-            # Check if it's the cluster key (for child nodes)
             else:
+                # Check if it's the cluster key (for child nodes)
                 cluster_key = get_cluster_key()
                 if cluster_key and token == cluster_key:
                     request.state.user = "cluster-node"
                 else:
-                    return Response(status_code=401)
+                    # Check if it's the master cluster key
+                    from api.cluster import read_master_config
+                    master_config = read_master_config()
+                    if master_config and master_config.get("key") == token:
+                        request.state.user = "cluster-master"
+                    else:
+                        return Response(status_code=401)
         else:
             raise ValueError
     except Exception:
