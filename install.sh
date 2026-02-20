@@ -177,6 +177,16 @@ step "Generate encryption key"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === 6.31. Setup log file =====================================================
+step "Setup log file"
+{
+  touch /etc/upservx.log
+  chown $USER:$USER /etc/upservx.log
+  chmod 640 /etc/upservx.log
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 6.4. Create ISO directory ==============================================
 step "Create ISO directory"
 {

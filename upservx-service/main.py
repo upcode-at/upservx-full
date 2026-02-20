@@ -19,7 +19,42 @@ import logging
 from datetime import datetime
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+LOG_FILE = "/etc/upservx.log"
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+import sys
+
+_orig_stdout = sys.stdout
+_orig_stderr = sys.stderr
+
+class _TeeWriter:
+    """Writes to both terminal and log file, so print() output is captured."""
+    def __init__(self, original, log_path: str):
+        self._original = original
+        self._log = open(log_path, "a", buffering=1)
+    def write(self, msg: str):
+        self._original.write(msg)
+        if msg.strip():
+            self._log.write(msg if msg.endswith("\n") else msg + "\n")
+    def flush(self):
+        self._original.flush()
+        self._log.flush()
+    def fileno(self):
+        return self._original.fileno()
+    def isatty(self):
+        return self._original.isatty()
+
+sys.stdout = _TeeWriter(_orig_stdout, LOG_FILE)
+sys.stderr = _TeeWriter(_orig_stderr, LOG_FILE)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(_orig_stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Import models

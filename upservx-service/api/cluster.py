@@ -24,39 +24,26 @@ NODES_DIR = os.path.join(UPSERVX_CONFIG_DIR, "nodes")
 
 def verify_cluster_auth(authorization: str = Header(None)):
     """Verify cluster authentication from Authorization header"""
-    print(f"[AUTH] Authorization header: {authorization}")
-    
     if not authorization:
-        print("[AUTH] No authorization header provided")
         raise HTTPException(status_code=401, detail="Authorization header missing")
     
-    # Extract token from "Bearer <token>" format
     if not authorization.startswith("Bearer "):
-        print(f"[AUTH] Invalid format: {authorization}")
         raise HTTPException(status_code=401, detail="Invalid authorization format")
     
     provided_key = authorization[7:]  # Remove "Bearer " prefix
-    print(f"[AUTH] Provided key: {provided_key[:20]}...")
     
     # Check master config
     master_config = read_master_config()
-    if master_config:
-        stored_key = master_config.get("key")
-        print(f"[AUTH] Master key: {stored_key[:20] if stored_key else 'None'}...")
-        if stored_key == provided_key:
-            print("[AUTH] Master key matched")
-            return True
+    if master_config and master_config.get("key") == provided_key:
+        return True
     
     # Check child config
     child_config = read_child_config()
     if child_config:
-        stored_key = child_config.get("cluster_key")
-        print(f"[AUTH] Child key: {stored_key[:20] if stored_key else 'None'}...")
+        stored_key = child_config.get("cluster_key") or child_config.get("key")
         if stored_key == provided_key:
-            print("[AUTH] Child key matched")
             return True
     
-    print("[AUTH] No matching key found")
     raise HTTPException(status_code=401, detail="Invalid cluster key")
 
 
@@ -302,7 +289,7 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
             if response.status_code == 200:
                 metrics = response.json()
                 print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
-                print(f"[CLUSTER] Raw metrics response: {json.dumps(metrics, indent=2)}")
+                print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 
                 # Support both formats: new format with cpu.count OR old format with cpu.cores
                 cpu_count = metrics.get("cpu", {}).get("count", 0)
@@ -525,7 +512,7 @@ async def get_cluster_info():
         
         # Add master node
         master_resources = get_system_resources()
-        print(f"[CLUSTER] Master node resources: {json.dumps(master_resources, indent=2)}")
+
         
         master_node = {
             "id": get_hostname(),
@@ -705,7 +692,6 @@ async def join_cluster(request: ClusterJoinRequest):
     print(f"[CLUSTER] ========================================")
     print(f"[CLUSTER] JOIN REQUEST INITIATED")
     print(f"[CLUSTER] Target Master: {request.master_ip}:{request.port}")
-    print(f"[CLUSTER] Token: {request.token[:15]}...")
     
     if is_master_node():
         print(f"[CLUSTER] ERROR: This node is already a master")
@@ -731,14 +717,12 @@ async def join_cluster(request: ClusterJoinRequest):
         "resources": my_resources
     }
     
-    print(f"[CLUSTER] Node data prepared: {node_data}")
     print(f"[CLUSTER] Attempting registration with master...")
     
     # Register this node with the master
     try:
         master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
         print(f"[CLUSTER] POST {master_url}")
-        print(f"[CLUSTER] Payload: {json.dumps(node_data, indent=2)}")
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
@@ -747,7 +731,6 @@ async def join_cluster(request: ClusterJoinRequest):
             )
             
             print(f"[CLUSTER] Response status: {response.status_code}")
-            print(f"[CLUSTER] Response body: {response.text}")
             
             if response.status_code != 200:
                 try:
@@ -804,7 +787,7 @@ async def register_node(request: NodeRegistrationRequest):
     """Register a child node with the master (master only)"""
     print(f"[CLUSTER] ========================================")
     print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
-    print(f"[CLUSTER] Cluster key provided: {request.cluster_key[:10]}...")
+    print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
     
     if not is_master_node():
         print(f"[CLUSTER] ERROR: This node is not a master")
@@ -819,7 +802,6 @@ async def register_node(request: NodeRegistrationRequest):
         raise HTTPException(status_code=500, detail="Master configuration not found")
     
     expected_key = master_config.get("key")
-    print(f"[CLUSTER] Expected key: {expected_key[:10]}...")
     
     if expected_key != request.cluster_key:
         print(f"[CLUSTER] ERROR: Invalid cluster key from {request.hostname}")
@@ -1588,7 +1570,7 @@ async def execute_replication(replication: dict):
             print(f"[REPLICATION] No cluster key found in config")
             return
         
-        print(f"[REPLICATION] Using cluster key: {cluster_key[:20]}...")
+        print(f"[REPLICATION] Cluster key loaded successfully")
         
         # Get node configurations
         origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
@@ -1622,7 +1604,7 @@ async def execute_replication(replication: dict):
         async with httpx.AsyncClient(timeout=300.0) as client:
             export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
             print(f"[REPLICATION] Export URL: {export_url}")
-            print(f"[REPLICATION] Sending Authorization header with key: {cluster_key[:20]}...")
+
             
             export_response = await client.post(
                 export_url,
@@ -1835,34 +1817,13 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
     """Export a container or VM with all volumes/storage"""
     # Verify authentication
     print(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
-    print(f"[EXPORT] Authorization header received: {authorization}")
     
-    if not authorization:
-        print("[EXPORT] Authorization header is None or empty")
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    
-    if not authorization.startswith("Bearer "):
-        print(f"[EXPORT] Authorization doesn't start with 'Bearer ': {authorization[:50]}")
-        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header missing or invalid")
     
     provided_key = authorization[7:]
-    print(f"[EXPORT] Extracted key: {provided_key[:20]}...")
-    
-    # Check master or child config
     master_config = read_master_config()
     child_config = read_child_config()
-    
-    if master_config:
-        stored_key = master_config.get("key")
-        print(f"[EXPORT] Master key from config: {stored_key[:20] if stored_key else 'None'}...")
-        if stored_key == provided_key:
-            print("[EXPORT] Master key matched!")
-    
-    if child_config:
-        stored_key = child_config.get("cluster_key") or child_config.get("key")
-        print(f"[EXPORT] Child key from config: {stored_key[:20] if stored_key else 'None'}...")
-        if stored_key == provided_key:
-            print("[EXPORT] Child key matched!")
     
     valid_key = False
     if master_config and master_config.get("key") == provided_key:
@@ -1873,10 +1834,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             valid_key = True
     
     if not valid_key:
-        print(f"[EXPORT] Invalid key provided - no match found")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
-    
-    print(f"[EXPORT] Authentication successful")
     
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
@@ -2105,33 +2063,12 @@ async def download_export(filename: str, authorization: str = Header(None, alias
 async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None, alias="Authorization")):
     """Upload an archive for import"""
     # Verify authentication
-    print(f"[UPLOAD] Authorization header: {authorization}")
-    
     if not authorization or not authorization.startswith("Bearer "):
-        print(f"[UPLOAD] Invalid authorization format")
         raise HTTPException(status_code=401, detail="Invalid authorization")
     
     provided_key = authorization[7:]
-    print(f"[UPLOAD] Provided key: {provided_key[:20]}...")
-    
     master_config = read_master_config()
     child_config = read_child_config()
-    
-    print(f"[UPLOAD] Master config exists: {master_config is not None}")
-    print(f"[UPLOAD] Child config exists: {child_config is not None}")
-    
-    if master_config:
-        master_key = master_config.get("key")
-        print(f"[UPLOAD] Master key: {master_key[:20] if master_key else 'None'}...")
-        if master_key == provided_key:
-            print("[UPLOAD] Master key matched!")
-    
-    if child_config:
-        # Check both cluster_key (new) and key (old) for backwards compatibility
-        child_key = child_config.get("cluster_key") or child_config.get("key")
-        print(f"[UPLOAD] Child key (cluster_key or key): {child_key[:20] if child_key else 'None'}...")
-        if child_key == provided_key:
-            print("[UPLOAD] Child key matched!")
     
     valid_key = False
     if master_config and master_config.get("key") == provided_key:
@@ -2142,7 +2079,6 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
             valid_key = True
     
     if not valid_key:
-        print("[UPLOAD] No matching key found - authentication failed")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     try:
