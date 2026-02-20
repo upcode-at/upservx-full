@@ -1407,3 +1407,171 @@ async def get_cluster_health():
         },
         "timestamp": datetime.now().isoformat()
     }
+
+# Replication configuration directory
+REPLICATIONS_FILE = os.path.join(UPSERVX_CONFIG_DIR, "replications.json")
+
+class ReplicationCreate(BaseModel):
+    origin_node: str
+    destination_node: str
+    name: str
+    type: str
+    sync_schedule: str
+
+def read_replications():
+    """Read replication rules from config file"""
+    if os.path.exists(REPLICATIONS_FILE):
+        try:
+            with open(REPLICATIONS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[REPLICATION] Error reading replications: {e}")
+    return []
+
+def write_replications(replications: list):
+    """Write replication rules to config file"""
+    ensure_config_dir()
+    try:
+        with open(REPLICATIONS_FILE, 'w') as f:
+            json.dump(replications, f, indent=2)
+        print(f"[REPLICATION] Saved {len(replications)} replication rules")
+    except Exception as e:
+        print(f"[REPLICATION] Error writing replications: {e}")
+        raise
+
+@router.get("/cluster/replications")
+async def get_replications():
+    """Get all replication rules"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    return replications
+
+@router.post("/cluster/replications")
+async def create_replication(replication: ReplicationCreate):
+    """Create a new replication rule"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    
+    # Generate a unique ID
+    import uuid
+    new_replication = {
+        "id": str(uuid.uuid4()),
+        "origin_node": replication.origin_node,
+        "destination_node": replication.destination_node,
+        "name": replication.name,
+        "type": replication.type,
+        "sync_schedule": replication.sync_schedule,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    replications.append(new_replication)
+    write_replications(replications)
+    
+    # TODO: Setup cron job for replication
+    print(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
+    
+    return new_replication
+
+@router.delete("/cluster/replications/{replication_id}")
+async def delete_replication(replication_id: str):
+    """Delete a replication rule"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can manage replications")
+    
+    replications = read_replications()
+    
+    # Find and remove the replication
+    updated_replications = [r for r in replications if r["id"] != replication_id]
+    
+    if len(updated_replications) == len(replications):
+        raise HTTPException(status_code=404, detail="Replication not found")
+    
+    write_replications(updated_replications)
+    
+    # TODO: Remove cron job for this replication
+    print(f"[REPLICATION] Deleted replication: {replication_id}")
+    
+    return {"message": "Replication deleted successfully"}
+
+@router.get("/cluster/nodes/{hostname}/resources")
+async def get_node_resources(hostname: str):
+    """Get containers and VMs available on a specific node"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can query node resources")
+    
+    # If it's the master node itself, get local resources
+    if hostname == get_hostname():
+        try:
+            from containers import list_all_containers
+            from vms import list_vms_with_status
+            
+            containers = list_all_containers(include_compose=False)
+            vms = list_vms_with_status()
+            
+            resources = []
+            for container in containers:
+                resources.append({
+                    "name": container.name,
+                    "type": "container"
+                })
+            
+            for vm in vms:
+                resources.append({
+                    "name": vm.name,
+                    "type": "vm"
+                })
+            
+            return {"resources": resources}
+        except Exception as e:
+            print(f"[REPLICATION] Error getting local resources: {e}")
+            return {"resources": []}
+    
+    # For child nodes, fetch from their API
+    node_config = read_node_config(hostname)
+    if not node_config:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    try:
+        master_config = read_master_config()
+        cluster_key = master_config.get("key")
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Fetch containers
+            containers_response = await client.get(
+                f"http://{node_config['ip_address']}:{node_config.get('port', 9500)}/containers",
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            # Fetch VMs
+            vms_response = await client.get(
+                f"http://{node_config['ip_address']}:{node_config.get('port', 9500)}/vms",
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            resources = []
+            
+            if containers_response.status_code == 200:
+                containers = containers_response.json()
+                for container in containers:
+                    resources.append({
+                        "name": container.get("name"),
+                        "type": "container"
+                    })
+            
+            if vms_response.status_code == 200:
+                vms = vms_response.json()
+                for vm in vms:
+                    resources.append({
+                        "name": vm.get("name"),
+                        "type": "vm"
+                    })
+            
+            return {"resources": resources}
+    except Exception as e:
+        print(f"[REPLICATION] Error fetching resources from {hostname}: {e}")
+        return {"resources": []}
+
