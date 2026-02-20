@@ -291,9 +291,6 @@ export default function ClusterManagement() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={loadDebugInfo} variant="outline" size="sm">
-            Debug Info
-          </Button>
           {!clusterInfo?.is_member && (
             <>
               <Dialog open={createClusterOpen} onOpenChange={setCreateClusterOpen}>
