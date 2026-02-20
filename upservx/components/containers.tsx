@@ -21,6 +21,7 @@ import {
   Square,
   Plus,
   Terminal,
+  X,
   Container,
   Trash2,
   LayoutGrid,
@@ -1060,7 +1061,7 @@ volumes:
                 <p className="text-xs text-muted-foreground mt-1">Last 500 lines of logs</p>
               </div>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setLogsOpen(false)}>
-                <Terminal className="h-3 w-3" />
+                <X className="h-3 w-3" />
               </Button>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
