@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Header
 from pydantic import BaseModel
 from typing import List, Optional
 import secrets
@@ -21,6 +21,30 @@ UPSERVX_CONFIG_DIR = "/etc/upservx"
 MASTER_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "master")
 CHILD_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "child")
 NODES_DIR = os.path.join(UPSERVX_CONFIG_DIR, "nodes")
+
+def verify_cluster_auth(authorization: str = Header(None)):
+    """Verify cluster authentication from Authorization header"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    # Extract token from "Bearer <token>" format
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    provided_key = authorization[7:]  # Remove "Bearer " prefix
+    
+    # Check master config
+    master_config = read_master_config()
+    if master_config and master_config.get("key") == provided_key:
+        return True
+    
+    # Check child config
+    child_config = read_child_config()
+    if child_config and child_config.get("cluster_key") == provided_key:
+        return True
+    
+    raise HTTPException(status_code=401, detail="Invalid cluster key")
+
 
 class ClusterCreateRequest(BaseModel):
     cluster_name: str
@@ -1779,7 +1803,7 @@ async def get_node_resources(hostname: str):
 TEMP_EXPORT_DIR = "/tmp/upservx_exports"
 
 @router.post("/cluster/export/{resource_type}/{resource_name}")
-async def export_resource(resource_type: str, resource_name: str):
+async def export_resource(resource_type: str, resource_name: str, _auth: bool = Depends(verify_cluster_auth)):
     """Export a container or VM with all volumes/storage"""
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
@@ -1926,7 +1950,7 @@ async def export_resource(resource_type: str, resource_name: str):
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/cluster/download/{filename}")
-async def download_export(filename: str):
+async def download_export(filename: str, _auth: bool = Depends(verify_cluster_auth)):
     """Download an exported archive"""
     file_path = os.path.join(TEMP_EXPORT_DIR, filename)
     
@@ -1943,7 +1967,7 @@ async def download_export(filename: str):
     )
 
 @router.post("/cluster/upload")
-async def upload_archive(file: UploadFile = File(...)):
+async def upload_archive(file: UploadFile = File(...), _auth: bool = Depends(verify_cluster_auth)):
     """Upload an archive for import"""
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
@@ -1970,7 +1994,7 @@ async def upload_archive(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/cluster/import/{resource_type}")
-async def import_resource(resource_type: str, archive_path: str = "", name: str = ""):
+async def import_resource(resource_type: str, archive_path: str = "", name: str = "", _auth: bool = Depends(verify_cluster_auth)):
     """Import a container or VM from archive"""
     try:
         if not os.path.exists(archive_path):
