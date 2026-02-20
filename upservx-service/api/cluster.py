@@ -1991,41 +1991,63 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             print(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
             
         elif resource_type == "vm":
-            # Export VM
-            from vms import list_vms_with_status
-            vms = list_vms_with_status()
-            vm = None
-            for v in vms:
-                if v.name == resource_name:
-                    vm = v
-                    break
-            
-            if not vm:
-                raise HTTPException(status_code=404, detail=f"VM '{resource_name}' not found")
-            
-            # Create tar.gz with VM disk and config
             import tarfile
+            import xml.etree.ElementTree as ET
+            
+            # Get VM XML definition from virsh
+            print(f"[EXPORT] Getting VM XML definition for: {resource_name}")
+            xml_result = subprocess.run(
+                ["virsh", "dumpxml", resource_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            vm_xml = xml_result.stdout
+            
+            # Parse disk paths from XML
+            disk_paths = []
+            try:
+                root = ET.fromstring(vm_xml)
+                for disk in root.findall(".//disk[@type='file']"):
+                    source = disk.find("source")
+                    if source is not None:
+                        disk_file = source.get("file")
+                        if disk_file and os.path.exists(disk_file):
+                            disk_paths.append(disk_file)
+                            print(f"[EXPORT] Found disk: {disk_file}")
+            except Exception as e:
+                print(f"[EXPORT] Warning: Could not parse disk paths from XML: {e}")
+            
+            if not disk_paths:
+                raise HTTPException(status_code=404, detail=f"No disk images found for VM '{resource_name}'")
+            
             with tarfile.open(export_path, "w:gz") as tar:
-                # Add VM disk if it exists
-                if hasattr(vm, 'disk_path') and vm.disk_path and os.path.exists(vm.disk_path):
-                    tar.add(vm.disk_path, arcname=f"{resource_name}.qcow2")
-                    print(f"[EXPORT] Added VM disk: {vm.disk_path}")
+                # Add VM XML definition
+                xml_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_vm.xml")
+                with open(xml_temp, 'w') as f:
+                    f.write(vm_xml)
+                tar.add(xml_temp, arcname="vm.xml")
+                os.remove(xml_temp)
                 
-                # Create and add VM metadata
+                # Add all disk images
+                for i, disk_path in enumerate(disk_paths):
+                    disk_filename = os.path.basename(disk_path)
+                    print(f"[EXPORT] Adding disk image: {disk_path} ({os.path.getsize(disk_path) // 1024 // 1024} MB)")
+                    tar.add(disk_path, arcname=f"disks/{disk_filename}")
+                
+                # Add metadata
                 vm_metadata = {
-                    "name": vm.name,
-                    "vcpus": vm.vcpus if hasattr(vm, 'vcpus') else 2,
-                    "memory": vm.memory if hasattr(vm, 'memory') else 2048,
-                    "status": vm.status
+                    "name": resource_name,
+                    "disk_paths": disk_paths,
+                    "disk_filenames": [os.path.basename(p) for p in disk_paths]
                 }
-                
                 metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_vm_metadata.json")
                 with open(metadata_file, 'w') as f:
                     json.dump(vm_metadata, f)
-                
                 tar.add(metadata_file, arcname="vm_metadata.json")
+                os.remove(metadata_file)
             
-            print(f"[EXPORT] VM exported successfully")
+            print(f"[EXPORT] VM exported successfully with {len(disk_paths)} disk(s)")
         else:
             raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
         
@@ -2316,12 +2338,13 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             os.remove(archive_path)
             
         elif resource_type == "vm":
-            # Import VM
             import tarfile
+            import xml.etree.ElementTree as ET
             
             extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
             os.makedirs(extract_dir, exist_ok=True)
             
+            print(f"[IMPORT] Extracting VM archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
                 tar.extractall(extract_dir)
             
@@ -2331,23 +2354,74 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 with open(metadata_file, 'r') as f:
                     vm_metadata = json.load(f)
             else:
-                vm_metadata = {"vcpus": 2, "memory": 2048}
+                vm_metadata = {}
             
-            # Move VM disk to proper location
-            vm_disk_source = os.path.join(extract_dir, f"{name}.qcow2")
-            vm_disk_dest = f"/var/lib/libvirt/images/{name}.qcow2"
+            # Move disk images to libvirt images directory
+            disks_dir = os.path.join(extract_dir, "disks")
+            disk_map = {}  # old filename -> new path
             
-            if os.path.exists(vm_disk_source):
-                shutil.move(vm_disk_source, vm_disk_dest)
-                print(f"[IMPORT] VM disk moved to: {vm_disk_dest}")
+            if os.path.exists(disks_dir):
+                for disk_filename in os.listdir(disks_dir):
+                    src = os.path.join(disks_dir, disk_filename)
+                    dst = f"/var/lib/libvirt/images/{disk_filename}"
+                    shutil.move(src, dst)
+                    disk_map[disk_filename] = dst
+                    print(f"[IMPORT] Moved disk: {disk_filename} -> {dst}")
             
-            # Create VM using virt-install or libvirt
-            # This is a simplified version - full implementation would use libvirt properly
-            print(f"[IMPORT] VM imported successfully")
+            # Load and patch VM XML
+            xml_file = os.path.join(extract_dir, "vm.xml")
+            if not os.path.exists(xml_file):
+                raise HTTPException(status_code=400, detail="VM XML definition not found in archive")
+            
+            with open(xml_file, 'r') as f:
+                vm_xml = f.read()
+            
+            # Update disk paths in XML to point to new locations
+            try:
+                root = ET.fromstring(vm_xml)
+                for disk in root.findall(".//disk[@type='file']"):
+                    source = disk.find("source")
+                    if source is not None:
+                        old_path = source.get("file", "")
+                        old_filename = os.path.basename(old_path)
+                        if old_filename in disk_map:
+                            source.set("file", disk_map[old_filename])
+                            print(f"[IMPORT] Updated disk path: {old_path} -> {disk_map[old_filename]}")
+                
+                # Update VM name
+                name_el = root.find("name")
+                if name_el is not None:
+                    name_el.text = name
+                
+                # Remove UUID so libvirt generates a new one
+                uuid_el = root.find("uuid")
+                if uuid_el is not None:
+                    root.remove(uuid_el)
+                
+                vm_xml = ET.tostring(root, encoding='unicode')
+            except Exception as e:
+                print(f"[IMPORT] Warning: Could not patch VM XML: {e}")
+            
+            # Write patched XML
+            patched_xml_file = os.path.join(extract_dir, "vm_patched.xml")
+            with open(patched_xml_file, 'w') as f:
+                f.write(vm_xml)
+            
+            # Define VM in libvirt
+            print(f"[IMPORT] Defining VM in libvirt...")
+            define_result = subprocess.run(
+                ["virsh", "define", patched_xml_file],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            print(f"[IMPORT] VM defined: {define_result.stdout.strip()}")
             
             # Cleanup
             shutil.rmtree(extract_dir)
             os.remove(archive_path)
+            
+            print(f"[IMPORT] VM imported and defined successfully")
             
         else:
             raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
