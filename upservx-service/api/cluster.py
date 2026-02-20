@@ -1344,32 +1344,6 @@ async def get_cluster_health():
     lb = get_load_balancer()
     load_distribution = lb.get_cluster_load_distribution(nodes_dict)
     
-    # Calculate total containers and VMs across all nodes
-    total_running_containers = 0
-    total_synced_containers = 0
-    total_running_vms = 0
-    total_vms = 0
-    
-    for node in nodes_dict:
-        if node.get("status") == "online":
-            resources = node.get("resources", {})
-            total_running_containers += resources.get("running_containers", 0)
-            total_synced_containers += resources.get("total_containers", 0)
-            total_running_vms += resources.get("running_vms", 0)
-            total_vms += resources.get("total_vms", 0)
-    
-    # Get sync status (rules count)
-    sync_manager = get_sync_manager()
-    sync_rules_count = len(sync_manager.sync_rules)
-    
-    sync_status = {
-        "total_synced_containers": total_synced_containers,
-        "running_containers": total_running_containers,
-        "total_vms": total_vms,
-        "running_vms": total_running_vms,
-        "sync_rules_count": sync_rules_count
-    }
-    
     # Get active alerts
     metrics_collector = get_metrics_collector()
     alerts = metrics_collector.get_active_alerts()
@@ -1426,7 +1400,6 @@ async def get_cluster_health():
             "total_cpu_cores": total_cpu_cores,
             "total_memory_gb": round(total_memory_gb, 2)
         },
-        "sync": sync_status,
         "alerts": {
             "total": len(alerts),
             "critical": len(critical_alerts),
