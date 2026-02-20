@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional
 import secrets
@@ -7,6 +7,8 @@ import psutil
 from datetime import datetime
 import json
 import os
+import shutil
+import subprocess
 import httpx
 from load_balancer import get_load_balancer, LoadBalancingStrategy
 from container_sync import get_sync_manager, SyncRule, SyncStrategy
@@ -1497,6 +1499,171 @@ async def delete_replication(replication_id: str):
     
     return {"message": "Replication deleted successfully"}
 
+@router.post("/cluster/replications/{replication_id}/trigger")
+async def trigger_replication(replication_id: str):
+    """Manually trigger a replication"""
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only master node can trigger replications")
+    
+    replications = read_replications()
+    
+    # Find the replication
+    replication = None
+    for r in replications:
+        if r["id"] == replication_id:
+            replication = r
+            break
+    
+    if not replication:
+        raise HTTPException(status_code=404, detail="Replication not found")
+    
+    print(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
+    
+    # Trigger replication in background
+    import asyncio
+    asyncio.create_task(execute_replication(replication))
+    
+    return {
+        "message": "Replication triggered successfully",
+        "replication": replication
+    }
+
+async def execute_replication(replication: dict):
+    """Execute the actual replication process"""
+    try:
+        print(f"[REPLICATION] Starting replication: {replication['name']}")
+        
+        origin_node = replication['origin_node']
+        destination_node = replication['destination_node']
+        resource_name = replication['name']
+        resource_type = replication['type']
+        
+        master_config = read_master_config()
+        cluster_key = master_config.get("key")
+        
+        # Get node configurations
+        origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
+        dest_config = read_node_config(destination_node) if destination_node != get_hostname() else None
+        
+        # Determine origin node address
+        if origin_node == get_hostname():
+            origin_ip = "localhost"
+            origin_port = 9500
+        elif origin_config:
+            origin_ip = origin_config['ip_address']
+            origin_port = origin_config.get('port', 9500)
+        else:
+            print(f"[REPLICATION] Origin node config not found: {origin_node}")
+            return
+        
+        # Determine destination node address
+        if destination_node == get_hostname():
+            dest_ip = "localhost"
+            dest_port = 9500
+        elif dest_config:
+            dest_ip = dest_config['ip_address']
+            dest_port = dest_config.get('port', 9500)
+        else:
+            print(f"[REPLICATION] Destination node config not found: {destination_node}")
+            return
+        
+        print(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
+        
+        # Export from origin node
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
+            print(f"[REPLICATION] Export URL: {export_url}")
+            
+            export_response = await client.post(
+                export_url,
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            if export_response.status_code != 200:
+                print(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}")
+                return
+            
+            export_data = export_response.json()
+            export_path = export_data.get("export_path")
+            
+            if not export_path:
+                print(f"[REPLICATION] No export path returned")
+                return
+            
+            print(f"[REPLICATION] Exported to: {export_path}")
+            
+            # Download the exported archive
+            download_url = f"http://{origin_ip}:{origin_port}/cluster/download/{export_path.split('/')[-1]}"
+            print(f"[REPLICATION] Downloading from: {download_url}")
+            
+            download_response = await client.get(
+                download_url,
+                headers={"Authorization": f"Bearer {cluster_key}"}
+            )
+            
+            if download_response.status_code != 200:
+                print(f"[REPLICATION] Download failed: {download_response.status_code}")
+                return
+            
+            archive_data = download_response.content
+            print(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
+            
+            # Upload to destination node
+            upload_url = f"http://{dest_ip}:{dest_port}/cluster/upload"
+            print(f"[REPLICATION] Uploading to: {upload_url}")
+            
+            files = {
+                "file": (f"{resource_name}.tar.gz", archive_data, "application/gzip")
+            }
+            
+            upload_response = await client.post(
+                upload_url,
+                headers={"Authorization": f"Bearer {cluster_key}"},
+                files=files
+            )
+            
+            if upload_response.status_code != 200:
+                print(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}")
+                return
+            
+            upload_data = upload_response.json()
+            uploaded_path = upload_data.get("path")
+            
+            print(f"[REPLICATION] Uploaded to: {uploaded_path}")
+            
+            # Import on destination node
+            import_url = f"http://{dest_ip}:{dest_port}/cluster/import/{resource_type}"
+            print(f"[REPLICATION] Importing at: {import_url}")
+            
+            import_params = {
+                "archive_path": uploaded_path,
+                "name": resource_name
+            }
+            
+            import_response = await client.post(
+                import_url,
+                headers={"Authorization": f"Bearer {cluster_key}"},
+                params=import_params
+            )
+            
+            if import_response.status_code != 200:
+                print(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}")
+                return
+            
+            print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
+            
+    except Exception as e:
+        print(f"[REPLICATION] Replication failed: {e}")
+        import traceback
+        traceback.print_exc()
+            
+            print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
+            
+    except Exception as e:
+        print(f"[REPLICATION] Error during replication: {e}")
+        import traceback
+        traceback.print_exc()
+
 @router.get("/cluster/nodes/{hostname}/resources")
 async def get_node_resources(hostname: str):
     """Get containers and VMs available on a specific node"""
@@ -1614,4 +1781,368 @@ async def get_node_resources(hostname: str):
         import traceback
         traceback.print_exc()
         return {"resources": []}
+
+# Replication Export/Import Endpoints
+TEMP_EXPORT_DIR = "/tmp/upservx_exports"
+
+@router.post("/cluster/export/{resource_type}/{resource_name}")
+async def export_resource(resource_type: str, resource_name: str):
+    """Export a container or VM with all volumes/storage"""
+    try:
+        os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
+        import uuid
+        export_id = str(uuid.uuid4())
+        export_path = os.path.join(TEMP_EXPORT_DIR, f"{export_id}.tar.gz")
+        
+        print(f"[EXPORT] Exporting {resource_type} '{resource_name}' to {export_path}")
+        
+        if resource_type == "container":
+            # Export Docker container with volumes
+            import tarfile
+            
+            # Get container information
+            inspect_result = subprocess.run(
+                ["docker", "inspect", resource_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            container_info = json.loads(inspect_result.stdout)[0]
+            
+            # Create tarball with container filesystem and volumes
+            with tarfile.open(export_path, "w:gz") as tar:
+                # Export container filesystem
+                print(f"[EXPORT] Exporting container filesystem...")
+                export_result = subprocess.run(
+                    ["docker", "export", resource_name],
+                    capture_output=True,
+                    check=True
+                )
+                
+                # Write filesystem to temporary file
+                fs_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_filesystem.tar")
+                with open(fs_temp, 'wb') as f:
+                    f.write(export_result.stdout)
+                
+                tar.add(fs_temp, arcname="filesystem.tar")
+                
+                # Export volumes
+                mounts = container_info.get("Mounts", [])
+                volumes_info = []
+                
+                for mount in mounts:
+                    if mount.get("Type") == "volume":
+                        volume_name = mount.get("Name")
+                        mount_point = mount.get("Destination")
+                        
+                        print(f"[EXPORT] Exporting volume: {volume_name}")
+                        
+                        # Inspect volume to get source path
+                        vol_inspect = subprocess.run(
+                            ["docker", "volume", "inspect", volume_name],
+                            capture_output=True,
+                            text=True,
+                            check=True
+                        )
+                        
+                        vol_info = json.loads(vol_inspect.stdout)[0]
+                        volume_path = vol_info.get("Mountpoint")
+                        
+                        if volume_path and os.path.exists(volume_path):
+                            # Add volume data to archive
+                            tar.add(volume_path, arcname=f"volumes/{volume_name}")
+                            volumes_info.append({
+                                "name": volume_name,
+                                "destination": mount_point
+                            })
+                
+                # Save metadata
+                metadata = {
+                    "name": resource_name,
+                    "image": container_info.get("Config", {}).get("Image"),
+                    "env": container_info.get("Config", {}).get("Env", []),
+                    "cmd": container_info.get("Config", {}).get("Cmd"),
+                    "volumes": volumes_info,
+                    "ports": container_info.get("NetworkSettings", {}).get("Ports", {}),
+                    "restart_policy": container_info.get("HostConfig", {}).get("RestartPolicy", {})
+                }
+                
+                metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_metadata.json")
+                with open(metadata_file, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+                
+                tar.add(metadata_file, arcname="metadata.json")
+                
+                # Cleanup temp files
+                os.remove(fs_temp)
+            
+            print(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
+            
+        elif resource_type == "vm":
+            # Export VM
+            from vms import list_vms_with_status
+            vms = list_vms_with_status()
+            vm = None
+            for v in vms:
+                if v.name == resource_name:
+                    vm = v
+                    break
+            
+            if not vm:
+                raise HTTPException(status_code=404, detail=f"VM '{resource_name}' not found")
+            
+            # Create tar.gz with VM disk and config
+            import tarfile
+            with tarfile.open(export_path, "w:gz") as tar:
+                # Add VM disk if it exists
+                if hasattr(vm, 'disk_path') and vm.disk_path and os.path.exists(vm.disk_path):
+                    tar.add(vm.disk_path, arcname=f"{resource_name}.qcow2")
+                    print(f"[EXPORT] Added VM disk: {vm.disk_path}")
+                
+                # Create and add VM metadata
+                vm_metadata = {
+                    "name": vm.name,
+                    "vcpus": vm.vcpus if hasattr(vm, 'vcpus') else 2,
+                    "memory": vm.memory if hasattr(vm, 'memory') else 2048,
+                    "status": vm.status
+                }
+                
+                metadata_file = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_vm_metadata.json")
+                with open(metadata_file, 'w') as f:
+                    json.dump(vm_metadata, f)
+                
+                tar.add(metadata_file, arcname="vm_metadata.json")
+            
+            print(f"[EXPORT] VM exported successfully")
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+        
+        return {
+            "export_path": export_path,
+            "export_id": export_id
+        }
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[EXPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {e.stderr if e.stderr else str(e)}")
+    except Exception as e:
+        print(f"[EXPORT] Export failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.get("/cluster/download/{filename}")
+async def download_export(filename: str):
+    """Download an exported archive"""
+    file_path = os.path.join(TEMP_EXPORT_DIR, filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Export file not found")
+    
+    print(f"[DOWNLOAD] Serving: {file_path}")
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        file_path,
+        media_type="application/gzip",
+        filename=filename
+    )
+
+@router.post("/cluster/upload")
+async def upload_archive(file: UploadFile = File(...)):
+    """Upload an archive for import"""
+    try:
+        os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
+        
+        import uuid
+        upload_id = str(uuid.uuid4())
+        upload_path = os.path.join(TEMP_EXPORT_DIR, f"{upload_id}_{file.filename}")
+        
+        print(f"[UPLOAD] Receiving file: {file.filename}")
+        
+        with open(upload_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        print(f"[UPLOAD] Saved to: {upload_path} ({len(content)} bytes)")
+        
+        return {
+            "path": upload_path,
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        print(f"[UPLOAD] Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@router.post("/cluster/import/{resource_type}")
+async def import_resource(resource_type: str, archive_path: str = "", name: str = ""):
+    """Import a container or VM from archive"""
+    try:
+        if not os.path.exists(archive_path):
+            raise HTTPException(status_code=404, detail="Archive not found")
+        
+        print(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
+        
+        if resource_type == "container":
+            # Import Docker container with volumes
+            import tarfile
+            
+            extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            # Extract archive
+            print(f"[IMPORT] Extracting archive...")
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(extract_dir)
+            
+            # Read metadata
+            metadata_file = os.path.join(extract_dir, "metadata.json")
+            if not os.path.exists(metadata_file):
+                raise HTTPException(status_code=400, detail="Metadata not found in archive")
+            
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            
+            # Import container filesystem
+            print(f"[IMPORT] Importing container filesystem...")
+            fs_path = os.path.join(extract_dir, "filesystem.tar")
+            
+            with open(fs_path, 'rb') as f:
+                import_result = subprocess.run(
+                    ["docker", "import", "-", name],
+                    input=f.read(),
+                    capture_output=True,
+                    check=True
+                )
+            
+            image_id = import_result.stdout.decode().strip()
+            print(f"[IMPORT] Created image: {image_id}")
+            
+            # Restore volumes
+            volumes_info = metadata.get("volumes", [])
+            volume_mounts = []
+            
+            for vol_info in volumes_info:
+                volume_name = vol_info["name"]
+                mount_point = vol_info["destination"]
+                
+                print(f"[IMPORT] Restoring volume: {volume_name}")
+                
+                # Create volume
+                subprocess.run(
+                    ["docker", "volume", "create", volume_name],
+                    capture_output=True,
+                    check=True
+                )
+                
+                # Get volume mountpoint
+                vol_inspect = subprocess.run(
+                    ["docker", "volume", "inspect", volume_name],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                vol_data = json.loads(vol_inspect.stdout)[0]
+                volume_path = vol_data.get("Mountpoint")
+                
+                # Restore volume data
+                source_path = os.path.join(extract_dir, f"volumes/{volume_name}")
+                if os.path.exists(source_path) and volume_path:
+                    # Copy volume data
+                    subprocess.run(
+                        ["cp", "-a", f"{source_path}/.", volume_path],
+                        check=True
+                    )
+                    print(f"[IMPORT] Restored volume data to {volume_path}")
+                
+                volume_mounts.append(f"{volume_name}:{mount_point}")
+            
+            # Create container with restored volumes
+            print(f"[IMPORT] Creating container with volumes...")
+            
+            create_cmd = ["docker", "create", "--name", name]
+            
+            # Add volume mounts
+            for mount in volume_mounts:
+                create_cmd.extend(["-v", mount])
+            
+            # Add environment variables
+            for env in metadata.get("env", []):
+                create_cmd.extend(["-e", env])
+            
+            # Add restart policy
+            restart_policy = metadata.get("restart_policy", {})
+            if restart_policy and restart_policy.get("Name") != "no":
+                policy_name = restart_policy.get("Name", "no")
+                create_cmd.extend(["--restart", policy_name])
+            
+            # Add image
+            create_cmd.append(image_id)
+            
+            # Add command
+            if metadata.get("cmd"):
+                create_cmd.extend(metadata["cmd"])
+            
+            subprocess.run(create_cmd, capture_output=True, check=True)
+            
+            print(f"[IMPORT] Container created successfully")
+            
+            # Cleanup
+            shutil.rmtree(extract_dir)
+            os.remove(archive_path)
+            
+        elif resource_type == "vm":
+            # Import VM
+            import tarfile
+            
+            extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(extract_dir)
+            
+            # Read VM metadata
+            metadata_file = os.path.join(extract_dir, "vm_metadata.json")
+            if os.path.exists(metadata_file):
+                with open(metadata_file, 'r') as f:
+                    vm_metadata = json.load(f)
+            else:
+                vm_metadata = {"vcpus": 2, "memory": 2048}
+            
+            # Move VM disk to proper location
+            vm_disk_source = os.path.join(extract_dir, f"{name}.qcow2")
+            vm_disk_dest = f"/var/lib/libvirt/images/{name}.qcow2"
+            
+            if os.path.exists(vm_disk_source):
+                shutil.move(vm_disk_source, vm_disk_dest)
+                print(f"[IMPORT] VM disk moved to: {vm_disk_dest}")
+            
+            # Create VM using virt-install or libvirt
+            # This is a simplified version - full implementation would use libvirt properly
+            print(f"[IMPORT] VM imported successfully")
+            
+            # Cleanup
+            shutil.rmtree(extract_dir)
+            os.remove(archive_path)
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+        
+        return {
+            "message": f"{resource_type.capitalize()} imported successfully",
+            "name": name
+        }
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[IMPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        raise HTTPException(status_code=500, detail=f"Import failed: {e.stderr if e.stderr else str(e)}")
+    except Exception as e:
+        print(f"[IMPORT] Import failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
 

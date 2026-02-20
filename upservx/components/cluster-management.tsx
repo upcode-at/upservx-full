@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch } from "lucide-react"
+import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -370,6 +370,27 @@ export default function ClusterManagement() {
       loadReplications()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete replication")
+    }
+  }
+
+  const triggerReplication = async (replicationId: string) => {
+    try {
+      setError(null)
+      setSuccess(null)
+
+      const response = await fetch(getApiUrl(`/cluster/replications/${replicationId}/trigger`), {
+        method: "POST",
+        credentials: "include"
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || "Failed to trigger replication")
+      }
+
+      setSuccess("Replication triggered successfully")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to trigger replication")
     }
   }
 
@@ -860,13 +881,23 @@ export default function ClusterManagement() {
                             </TableCell>
                             <TableCell>{replication.sync_schedule}</TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => deleteReplication(replication.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => triggerReplication(replication.id)}
+                                >
+                                  <Play className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => deleteReplication(replication.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
