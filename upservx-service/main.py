@@ -14,6 +14,8 @@ import base64
 import pam
 import uvicorn
 import os
+import pty
+import asyncio
 import subprocess
 import logging
 from datetime import datetime, timedelta
@@ -163,6 +165,10 @@ async def pam_auth_middleware(request: Request, call_next):
     # Skip authentication for app store icons (public assets)
     if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
         return await call_next(request)
+
+    # Skip authentication for ISO file downloads (read-only, large files used for VM installation)
+    if request.url.path.startswith("/isos/") and request.url.path.endswith("/file") and request.method == "GET":
+        return await call_next(request)
     
     # Skip authentication for /auth/login (credentials arrive in the body)
     if request.url.path == "/auth/login" and request.method == "POST":
@@ -308,9 +314,9 @@ async def system_shell_websocket(websocket: WebSocket):
                 authenticated = True
     
     if not authenticated:
+        await websocket.accept()
         await websocket.close(code=4401)
         return
-    import os
     import fcntl
     import struct
     import termios
