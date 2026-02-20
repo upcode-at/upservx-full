@@ -15,6 +15,9 @@ import threading
 from datetime import datetime, timedelta
 
 WS_TICKET_TTL_SECONDS = 30
+# Hard cap on live tickets across all IPs — prevents memory exhaustion
+# if the rate limiter is bypassed (e.g. via many source IPs).
+_MAX_LIVE_TICKETS = 500
 
 _tickets: dict = {}          # ticket -> (username, expiry_datetime)
 _lock = threading.Lock()
@@ -26,6 +29,8 @@ def create_ticket(username: str) -> str:
     expiry = datetime.utcnow() + timedelta(seconds=WS_TICKET_TTL_SECONDS)
     with _lock:
         _prune()
+        if len(_tickets) >= _MAX_LIVE_TICKETS:
+            raise RuntimeError("ticket store full — try again shortly")
         _tickets[ticket] = (username, expiry)
     return ticket
 

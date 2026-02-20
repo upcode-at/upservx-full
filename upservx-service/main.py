@@ -136,24 +136,30 @@ ensure_proxy_running()
 pam_auth = pam.pam()
 
 # ---------------------------------------------------------------------------
-# Simple in-memory rate limiter for the login endpoint
+# Generic in-memory rate limiter
 # ---------------------------------------------------------------------------
-_login_attempts: dict = defaultdict(list)   # ip -> [datetime, ...]
-_login_attempts_lock = threading.Lock()
-_LOGIN_WINDOW_SECONDS = 60
-_LOGIN_MAX_ATTEMPTS = 10
+_rl_buckets: dict = defaultdict(list)   # key -> [datetime, ...]
+_rl_lock = threading.Lock()
 
-def _check_login_rate_limit(ip: str) -> bool:
-    """Return True if the IP is allowed to attempt login, False if rate-limited."""
+def _check_rate_limit(key: str, max_attempts: int, window_seconds: int) -> bool:
+    """Return True if the key is within its allowed rate, False if exceeded."""
     now = datetime.utcnow()
-    cutoff = now - timedelta(seconds=_LOGIN_WINDOW_SECONDS)
-    with _login_attempts_lock:
-        attempts = [t for t in _login_attempts[ip] if t > cutoff]
-        _login_attempts[ip] = attempts
-        if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+    cutoff = now - timedelta(seconds=window_seconds)
+    with _rl_lock:
+        attempts = [t for t in _rl_buckets[key] if t > cutoff]
+        _rl_buckets[key] = attempts
+        if len(attempts) >= max_attempts:
             return False
-        _login_attempts[ip].append(now)
+        _rl_buckets[key].append(now)
         return True
+
+# Convenience wrappers with per-endpoint limits
+def _check_login_rate_limit(ip: str) -> bool:
+    return _check_rate_limit(f"login:{ip}", max_attempts=10, window_seconds=60)
+
+def _check_ws_ticket_rate_limit(ip: str) -> bool:
+    # Allow up to 20 tickets/minute per IP (legitimate use: opening several terminals)
+    return _check_rate_limit(f"ws_ticket:{ip}", max_attempts=20, window_seconds=60)
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +303,14 @@ async def get_ws_ticket(request: Request):
     ?token=<ticket> in the WebSocket URL.  The ticket is valid for 30 seconds
     and is consumed on first use.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_ws_ticket_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="too many ticket requests")
     username = getattr(request.state, "user", None) or "authenticated"
-    ticket = _create_ws_ticket(username)
+    try:
+        ticket = _create_ws_ticket(username)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="ticket store full — try again shortly")
     return {"ticket": ticket}
 
 
