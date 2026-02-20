@@ -264,7 +264,6 @@ def get_docker_compose_stacks() -> List[Container]:
         return []
     
     try:
-        # Get all containers with compose project labels
         output = subprocess.check_output(
             [
                 "docker",
@@ -285,8 +284,6 @@ def get_docker_compose_stacks() -> List[Container]:
         if len(parts) != 7:
             continue
         name, image, status, ports, running_for, project, service = parts
-        
-        # Use project name as the container name, mark it as compose type
         containers_list.append(
             Container(
                 id=0,
@@ -337,8 +334,6 @@ def list_all_containers(include_compose: bool = False) -> List[Container]:
     # Filter out Docker-Compose containers if not explicitly requested
     if not include_compose:
         all_containers = [c for c in all_containers if c.type != "Docker-Compose"]
-
-    # Assign stable sequential ids for the response
     for idx, c in enumerate(all_containers, start=1):
         c.id = idx
     return all_containers

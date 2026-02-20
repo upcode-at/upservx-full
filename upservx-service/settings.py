@@ -9,12 +9,10 @@ import secrets
 import platform
 from models import SettingsModel
 
-
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
 VPN_DIR = os.path.join(os.path.dirname(__file__), "vpn")
 VPN_PIDFILE = "/var/run/upservx_vpn.pid"
 VPN_OVPN_NAME = "client.ovpn"
-
 
 def _system_hostname() -> str:
     """Return the system hostname from /etc/hostname or platform.node()."""
@@ -26,7 +24,6 @@ def _system_hostname() -> str:
     except Exception:
         pass
     return platform.node() or "server"
-
 
 def _system_ssh_port() -> int:
     """Return the SSH port from /etc/ssh/sshd_config or 22."""
@@ -42,7 +39,6 @@ def _system_ssh_port() -> int:
     except Exception:
         pass
     return 22
-
 
 def load_settings() -> SettingsModel:
     """Load settings from file or system defaults."""
@@ -64,16 +60,13 @@ def load_settings() -> SettingsModel:
         api_key=data.get("api_key"),
     )
 
-
 def save_settings(settings: SettingsModel) -> None:
     """Save settings to file."""
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
 
-
 def apply_system_settings(settings: SettingsModel) -> None:
     """Apply settings to the actual system configuration."""
-    # Update /etc/hosts
     try:
         with open("/etc/hosts", "r+") as f:
             lines = f.readlines()
@@ -87,7 +80,6 @@ def apply_system_settings(settings: SettingsModel) -> None:
     except Exception:
         pass
     
-    # Update hostname
     try:
         with open("/etc/hostname", "w") as f:
             f.write(settings.hostname.strip() + "\n")
@@ -95,7 +87,6 @@ def apply_system_settings(settings: SettingsModel) -> None:
     except Exception:
         pass
     
-    # Update SSH port
     try:
         config_path = "/etc/ssh/sshd_config"
         lines = []
@@ -122,14 +113,12 @@ def apply_system_settings(settings: SettingsModel) -> None:
     except Exception:
         pass
 
-
 def generate_api_key() -> str:
     """Generate a new API key and save it to settings."""
     settings = load_settings()
     settings.api_key = secrets.token_hex(16)
     save_settings(settings)
     return settings.api_key
-
 
 def get_log_files() -> list:
     """Get a list of available log files."""
@@ -154,7 +143,6 @@ def get_log_files() -> list:
     
     return logs
 
-
 def read_log_file(name: str, lines: int = 100) -> str:
     """Read content from a log file."""
     log_dir = "/var/log"
@@ -177,7 +165,6 @@ def read_log_file(name: str, lines: int = 100) -> str:
     
     return ""
 
-
 def save_vpn_ovpn(content: bytes, filename: str | None = None) -> str:
     """Save uploaded .ovpn content to the VPN directory and return path."""
     os.makedirs(VPN_DIR, exist_ok=True)
@@ -195,7 +182,6 @@ def save_vpn_ovpn(content: bytes, filename: str | None = None) -> str:
 
     return path
 
-
 def _read_pidfile() -> int | None:
     try:
         if os.path.exists(VPN_PIDFILE):
@@ -205,7 +191,6 @@ def _read_pidfile() -> int | None:
     except Exception:
         pass
     return None
-
 
 def get_vpn_status() -> dict:
     """Return VPN status dict: {'running': bool, 'pid': int|None, 'ovpn_path': str|None}"""
@@ -233,7 +218,6 @@ def get_vpn_status() -> dict:
             ovpn_path = None
 
     return {"running": running, "pid": pid, "ovpn_path": ovpn_path}
-
 
 def start_vpn() -> dict:
     """Start OpenVPN using the saved .ovpn file. Returns status dict."""
@@ -271,7 +255,6 @@ def start_vpn() -> dict:
         raise Exception("openvpn binary not found on system")
     except Exception as e:
         raise
-
 
 def stop_vpn() -> dict:
     """Stop running OpenVPN process started by this service."""

@@ -22,7 +22,6 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import threading
 
-# Setup logging
 LOG_FILE = "/etc/upservx.log"
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
@@ -61,7 +60,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import models
 from models import (
     VirtualMachineCreate, VirtualMachineUpdate,
     DriveMountRequest, DriveUnmountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
@@ -75,7 +73,6 @@ from models import (
     ProxyConfigModel, ProxyConfigCreate, CertificateRequest, CertificateInfo
 )
 
-# Import utilities
 from system_utils import collect_metrics, get_server_addresses
 from storage import get_drives, get_zfs_pools, mount_drive, unmount_drive, format_drive, create_zfs_pool
 from network import get_network_interfaces, load_network_settings, save_network_settings, configure_interface
@@ -98,13 +95,11 @@ from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
 from config_manager import get_config_manager
 
-# Import API routes
 from api.system import router as system_router
 from api.containers import router as containers_router
 from api.images import router as images_router
 from api.firewall import router as firewall_router
 from api.cluster import router as cluster_router, get_cluster_key
-
 
 app = FastAPI(
     title="UpservX API",
@@ -119,7 +114,6 @@ frontend_origins = os.getenv("FRONTEND_ORIGINS")
 if frontend_origins:
     allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
 else:
-    # Automatically allow all server addresses with common ports
     allow_origins = get_server_addresses()
 
 app.add_middleware(
@@ -130,7 +124,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Start VNC proxy on startup
 ensure_proxy_running()
 
 pam_auth = pam.pam()
@@ -161,11 +154,9 @@ def _check_ws_ticket_rate_limit(ip: str) -> bool:
     # Allow up to 20 tickets/minute per IP (legitimate use: opening several terminals)
     return _check_rate_limit(f"ws_ticket:{ip}", max_attempts=20, window_seconds=60)
 
-
 # ---------------------------------------------------------------------------
 # One-time WebSocket tickets — shared with all routers via ws_tickets module
 from ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
-
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
@@ -186,7 +177,6 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.url.path.startswith("/isos/") and request.url.path.endswith("/file") and request.method == "GET":
         return await call_next(request)
     
-    # Skip authentication for /auth/login (credentials arrive in the body)
     if request.url.path == "/auth/login" and request.method == "POST":
         return await call_next(request)
 
@@ -229,16 +219,13 @@ async def pam_auth_middleware(request: Request, call_next):
             settings = load_settings()
             token = credentials.strip()
             
-            # Check if it's the configured API key
             if settings.api_key and token == settings.api_key:
                 request.state.user = "api-key"
             else:
-                # Check if it's the cluster key (for child nodes)
                 cluster_key = get_cluster_key()
                 if cluster_key and token == cluster_key:
                     request.state.user = "cluster-node"
                 else:
-                    # Check if it's the master cluster key
                     from api.cluster import read_master_config
                     master_config = read_master_config()
                     if master_config and master_config.get("key") == token:
@@ -253,8 +240,6 @@ async def pam_auth_middleware(request: Request, call_next):
     response = await call_next(request)
     return response
 
-
-
 @app.post("/auth/login")
 async def auth_login(payload: dict, request: Request):
     """Login endpoint to set a Basic auth cookie for client use.
@@ -267,12 +252,10 @@ async def auth_login(payload: dict, request: Request):
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
 
-    # Rate-limit by client IP
     client_ip = request.client.host if request.client else "unknown"
     if not _check_login_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="too many login attempts")
 
-    # Authenticate via PAM
     try:
         if pam_auth.authenticate(username, password):
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -286,13 +269,11 @@ async def auth_login(payload: dict, request: Request):
     except Exception:
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-
 @app.post("/auth/logout")
 async def auth_logout():
     resp = Response(content='{"detail": "logged_out"}', media_type="application/json")
     resp.delete_cookie("auth")
     return resp
-
 
 @app.get("/auth/ws-ticket")
 async def get_ws_ticket(request: Request):
@@ -313,14 +294,11 @@ async def get_ws_ticket(request: Request):
         raise HTTPException(status_code=503, detail="ticket store full — try again shortly")
     return {"ticket": ticket}
 
-
-# Include API routers
 app.include_router(system_router)
 app.include_router(containers_router)
 app.include_router(images_router)
 app.include_router(firewall_router)
 app.include_router(cluster_router)
-
 
 # System Shell WebSocket
 @app.websocket("/system/shell")
@@ -375,7 +353,6 @@ async def system_shell_websocket(websocket: WebSocket):
     pid: int | None = None
 
     try:
-        # Create a pseudo-terminal
         master_fd, slave_fd = pty.openpty()
 
         # Fork a bash process attached to the slave end
@@ -395,10 +372,8 @@ async def system_shell_websocket(websocket: WebSocket):
             # execvp never returns on success; if it does, exit hard
             os._exit(1)
 
-        # Parent process
         os.close(slave_fd)
 
-        # Set initial terminal size (80×24)
         winsize = struct.pack("HHHH", 24, 80, 0, 0)
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
 
@@ -416,7 +391,6 @@ async def system_shell_websocket(websocket: WebSocket):
                 except Exception:
                     break
 
-        # Write WS input to PTY
         async def write_to_pty():
             try:
                 while True:
@@ -464,13 +438,11 @@ async def system_shell_websocket(websocket: WebSocket):
         except Exception:
             pass
 
-
 # ISO Management Routes
 @app.get("/isos")
 def list_isos():
     """List available ISO files."""
     return {"isos": [iso.dict() for iso in get_iso_files()]}
-
 
 @app.post("/isos/download")
 def download_iso_endpoint(payload: ISODownloadRequest):
@@ -480,7 +452,6 @@ def download_iso_endpoint(payload: ISODownloadRequest):
         return info.dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/isos")
 async def upload_iso(file: UploadFile = File(...)):
@@ -494,12 +465,10 @@ async def upload_iso(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.post("/debug/echo")
 async def debug_echo(request: Request):
     """Disabled in production – returns 404."""
     raise HTTPException(status_code=404, detail="Not found")
-
 
 @app.delete("/isos/{name}")
 def delete_iso_endpoint(name: str):
@@ -510,7 +479,6 @@ def delete_iso_endpoint(name: str):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @app.get("/isos/{name}/file")
 def download_iso_file(name: str):
     """Download an ISO file."""
@@ -520,14 +488,12 @@ def download_iso_file(name: str):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 # Virtual Machine Routes
 @app.get("/vms")
 def list_vms():
     """List virtual machines."""
     existing = list_vms_with_status()
     return [vm.dict() for vm in existing]
-
 
 @app.post("/vms")
 def create_vm_endpoint(payload: VirtualMachineCreate):
@@ -550,7 +516,6 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.patch("/vms/{name}")
 def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
     """Update virtual machine configuration."""
@@ -572,7 +537,6 @@ def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @app.post("/vms/{name}/start")
 def start_vm_endpoint(name: str):
     """Start a virtual machine."""
@@ -581,7 +545,6 @@ def start_vm_endpoint(name: str):
         return {"detail": "started"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/vms/{name}/shutdown")
 def shutdown_vm_endpoint(name: str):
@@ -592,7 +555,6 @@ def shutdown_vm_endpoint(name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.get("/vms/{name}/vnc")
 def get_vm_vnc_info(name: str):
     """Get VNC connection info for a VM."""
@@ -600,7 +562,6 @@ def get_vm_vnc_info(name: str):
         return get_vnc_info(name)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.delete("/vms/{name}")
 def delete_vm_endpoint(name: str):
@@ -610,7 +571,6 @@ def delete_vm_endpoint(name: str):
         return {"detail": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/vms/{name}/clone")
 def clone_vm_endpoint(name: str, payload: dict):
@@ -627,26 +587,22 @@ def clone_vm_endpoint(name: str, payload: dict):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Network Routes
 @app.get("/network/interfaces")
 def list_network_interfaces():
     """List network interfaces."""
     return {"interfaces": [i.dict() for i in get_network_interfaces()]}
 
-
 @app.get("/network/settings")
 def get_network_settings():
     """Get network settings."""
     return load_network_settings().dict()
-
 
 @app.post("/network/settings")
 def update_network_settings(payload: NetworkSettingsModel):
     """Update network settings."""
     save_network_settings(payload)
     return {"detail": "saved"}
-
 
 @app.post("/network/interfaces/{name}")
 def api_configure_network_interface(name: str, payload: InterfaceConfigModel):
@@ -657,19 +613,16 @@ def api_configure_network_interface(name: str, payload: InterfaceConfigModel):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Storage Routes
 @app.get("/drives")
 def list_drives():
     """List storage drives."""
     return {"drives": [d.dict() for d in get_drives()]}
 
-
 @app.get("/drives/zfs")
 def list_zfs_pools():
     """List ZFS pools."""
     return {"pools": [p.dict() for p in get_zfs_pools()]}
-
 
 @app.post("/drives/mount")
 def mount_drive_endpoint(req: DriveMountRequest):
@@ -679,7 +632,6 @@ def mount_drive_endpoint(req: DriveMountRequest):
         return {"detail": "mounted"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/drives/unmount")
 def unmount_drive_endpoint(req: DriveUnmountRequest):
@@ -692,7 +644,6 @@ def unmount_drive_endpoint(req: DriveUnmountRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.post("/drives/format")
 def format_drive_endpoint(req: DriveFormatRequest):
     """Format a storage drive."""
@@ -701,7 +652,6 @@ def format_drive_endpoint(req: DriveFormatRequest):
         return {"detail": "formatted"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/drives/zfs")
 def create_zfs_pool_endpoint(req: ZFSPoolCreateRequest):
@@ -712,7 +662,6 @@ def create_zfs_pool_endpoint(req: ZFSPoolCreateRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # User Management Routes
 @app.get("/users")
 def api_list_users(limit: int = 20, offset: int = 0):
@@ -721,7 +670,6 @@ def api_list_users(limit: int = 20, offset: int = 0):
     total = len(all_users)
     paginated = all_users[offset : offset + limit]
     return {"total": total, "users": [u.dict() for u in paginated]}
-
 
 @app.post("/users")
 def api_create_user(payload: UserCreateModel):
@@ -732,7 +680,6 @@ def api_create_user(payload: UserCreateModel):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.put("/users/{username}")
 def api_update_user(username: str, payload: UserUpdateModel):
     """Update a user."""
@@ -741,7 +688,6 @@ def api_update_user(username: str, payload: UserUpdateModel):
         return {"detail": "updated"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.delete("/users/{username}")
 def api_delete_user(username: str):
@@ -752,12 +698,10 @@ def api_delete_user(username: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.get("/users/{username}/keys")
 def api_get_user_keys(username: str):
     """Get SSH keys for a user."""
     return {"keys": read_authorized_keys(username)}
-
 
 @app.put("/users/{username}/keys")
 def api_update_user_keys(username: str, payload: SSHKeyListModel):
@@ -772,7 +716,6 @@ def api_update_user_keys(username: str, payload: SSHKeyListModel):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Group Management Routes
 @app.get("/groups")
 def api_list_groups(limit: int = 20, offset: int = 0):
@@ -781,7 +724,6 @@ def api_list_groups(limit: int = 20, offset: int = 0):
     total = len(all_groups)
     paginated = all_groups[offset : offset + limit]
     return {"total": total, "groups": [g.dict() for g in paginated]}
-
 
 @app.post("/groups")
 def api_create_group(payload: GroupCreateModel):
@@ -792,7 +734,6 @@ def api_create_group(payload: GroupCreateModel):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.put("/groups/{name}")
 def api_update_group(name: str, payload: GroupUpdateModel):
     """Update a group."""
@@ -801,7 +742,6 @@ def api_update_group(name: str, payload: GroupUpdateModel):
         return {"detail": "updated"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.delete("/groups/{name}")
 def api_delete_group(name: str):
@@ -812,13 +752,11 @@ def api_delete_group(name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Service Management Routes
 @app.get("/services")
 def api_list_services():
     """List system services."""
     return {"services": list_systemd_services()}
-
 
 @app.post("/services/{name}/start")
 def api_start_service(name: str):
@@ -829,7 +767,6 @@ def api_start_service(name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.post("/services/{name}/stop")
 def api_stop_service(name: str):
     """Stop a service."""
@@ -838,7 +775,6 @@ def api_stop_service(name: str):
         return {"detail": "stopped"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/services/{name}/enable")
 def api_enable_service(name: str):
@@ -849,7 +785,6 @@ def api_enable_service(name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.post("/services/{name}/disable")
 def api_disable_service(name: str):
     """Disable a service."""
@@ -859,13 +794,11 @@ def api_disable_service(name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Log Management Routes
 @app.get("/logs")
 def api_list_logs():
     """List available log files."""
     return {"logs": get_log_files()}
-
 
 @app.get("/logs/{name}")
 def api_get_log(name: str, lines: int = 100):
@@ -876,13 +809,11 @@ def api_get_log(name: str, lines: int = 100):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 # Settings Routes
 @app.get("/settings")
 def get_settings():
     """Get system settings."""
     return load_settings().dict()
-
 
 @app.post("/settings")
 def update_settings(payload: SettingsModel):
@@ -891,13 +822,11 @@ def update_settings(payload: SettingsModel):
     apply_system_settings(payload)
     return {"detail": "saved"}
 
-
 @app.post("/settings/api-key")
 def generate_api_key_endpoint():
     """Generate a new API key."""
     api_key = generate_api_key()
     return {"api_key": api_key}
-
 
 # VPN / OpenVPN Routes
 @app.post("/settings/vpn/upload")
@@ -911,7 +840,6 @@ async def upload_vpn(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.get("/settings/vpn/file")
 def download_vpn_file():
     """Download the stored .ovpn file if present."""
@@ -923,7 +851,6 @@ def download_vpn_file():
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
 @app.get("/settings/vpn/status")
 def vpn_status():
     """Get current VPN status."""
@@ -931,7 +858,6 @@ def vpn_status():
         return get_vpn_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/settings/vpn/start")
 def vpn_start():
@@ -942,7 +868,6 @@ def vpn_start():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/settings/vpn/stop")
 def vpn_stop():
     """Stop the OpenVPN tunnel."""
@@ -952,7 +877,6 @@ def vpn_stop():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/settings/update")
 async def run_update():
     """Run the update.sh script to update the system."""
@@ -961,7 +885,6 @@ async def run_update():
         if not os.path.exists(update_script):
             raise HTTPException(status_code=404, detail="update.sh not found")
         
-        # Run the update script with sudo
         result = subprocess.run(
             ["sudo", "bash", update_script],
             capture_output=True,
@@ -980,7 +903,6 @@ async def run_update():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # Backup Management API Endpoints
 
 @app.get("/backup/servers", response_model=List[BackupServer])
@@ -993,7 +915,6 @@ async def list_backup_servers():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list backup servers: {str(e)}")
 
-
 @app.post("/backup/servers", response_model=BackupServer)
 async def create_backup_server(server: BackupServerCreate):
     """Create a new backup server in /etc/upservx configuration."""
@@ -1005,7 +926,6 @@ async def create_backup_server(server: BackupServerCreate):
         server_data = server.model_dump()
         logger.info(f"Server data: {server_data}")
         
-        # Handle SSH key if provided
         if server_data.get('ssh_key'):
             logger.info("SSH key provided, saving...")
             key_name = f"backup_{server_data['name'].replace(' ', '_').lower()}"
@@ -1026,7 +946,6 @@ async def create_backup_server(server: BackupServerCreate):
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to create backup server: {str(e)}")
 
-
 @app.get("/backup/servers/{server_id}", response_model=BackupServer)
 async def get_backup_server(server_id: int):
     """Get a specific backup server from /etc/upservx configuration."""
@@ -1041,17 +960,14 @@ async def get_backup_server(server_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get backup server: {str(e)}")
 
-
 @app.put("/backup/servers/{server_id}", response_model=BackupServer)
 async def update_backup_server(server_id: int, server: BackupServerUpdate):
     """Update a backup server."""
     try:
-        # Check if server exists
         existing_server = backup_db.get_backup_server(server_id)
         if not existing_server:
             raise HTTPException(status_code=404, detail="Backup server not found")
         
-        # Convert to dict for database storage
         update_data = server.model_dump(exclude_unset=True)
         
         # Handle encryption of sensitive data
@@ -1063,7 +979,6 @@ async def update_backup_server(server_id: int, server: BackupServerUpdate):
             update_data['ssh_key_passphrase_encrypted'] = backup_manager.encrypt_sensitive_data(update_data['ssh_key_passphrase'])
             del update_data['ssh_key_passphrase']
         
-        # Handle SSH key update
         if 'ssh_key' in update_data:
             ssh_key_path = ssh_key_manager.store_ssh_key(
                 f"backup_server_{existing_server['name']}", 
@@ -1077,14 +992,12 @@ async def update_backup_server(server_id: int, server: BackupServerUpdate):
         if not success:
             raise HTTPException(status_code=500, detail="Failed to update server")
         
-        # Get updated server
         updated_server = backup_db.get_backup_server(server_id)
         return BackupServer(**updated_server)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update backup server: {str(e)}")
-
 
 @app.delete("/backup/servers/{server_id}")
 async def delete_backup_server(server_id: int):
@@ -1100,7 +1013,6 @@ async def delete_backup_server(server_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete backup server: {str(e)}")
 
-
 @app.post("/backup/servers/{server_id}/test")
 async def test_backup_server(server_id: int):
     """Test connection to a backup server."""
@@ -1109,15 +1021,12 @@ async def test_backup_server(server_id: int):
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
         
-        # Test the connection using backup manager
         if server['type'] == 'local':
-            # Test local path accessibility
             import os
             if not os.path.exists(server['local_path']):
                 os.makedirs(server['local_path'], exist_ok=True)
             success = os.path.isdir(server['local_path'])
         else:
-            # Test remote connection
             auth_config = BackupAuthConfig(
                 auth_type=server['auth_type'],
                 username=server['username'],
@@ -1127,7 +1036,6 @@ async def test_backup_server(server_id: int):
             )
             success = backup_manager.test_connection(server['host'], server['port'], auth_config)
         
-        # Update server status
         new_status = 'connected' if success else 'error'
         backup_db.update_backup_server(server_id, {'status': new_status})
         
@@ -1136,7 +1044,6 @@ async def test_backup_server(server_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to test backup server: {str(e)}")
-
 
 # Backup Jobs API
 
@@ -1148,7 +1055,6 @@ async def list_backup_jobs():
         return [BackupJob(**job) for job in jobs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list backup jobs: {str(e)}")
-
 
 @app.post("/backup/jobs", response_model=BackupJob)
 async def create_backup_job(job: BackupJobCreate):
@@ -1177,7 +1083,6 @@ async def create_backup_job(job: BackupJobCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create backup job: {str(e)}")
 
-
 @app.get("/backup/jobs/{job_id}", response_model=BackupJob)
 async def get_backup_job(job_id: int):
     """Get a specific backup job."""
@@ -1190,7 +1095,6 @@ async def get_backup_job(job_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get backup job: {str(e)}")
-
 
 @app.put("/backup/jobs/{job_id}", response_model=BackupJob)
 async def update_backup_job(job_id: int, job: BackupJobUpdate):
@@ -1212,18 +1116,15 @@ async def update_backup_job(job_id: int, job: BackupJobUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update backup job: {str(e)}")
 
-
 @app.delete("/backup/jobs/{job_id}")
 async def delete_backup_job(job_id: int):
     """Delete a backup job."""
     try:
-        # Remove from crontab first
         crontab_success = crontab_manager.remove_backup_job(job_id)
         if not crontab_success:
             import logging
             logging.warning(f"Failed to remove backup job {job_id} from crontab")
         
-        # Delete from database
         success = backup_db.delete_backup_job(job_id)
         if not success:
             raise HTTPException(status_code=404, detail="Backup job not found")
@@ -1234,7 +1135,6 @@ async def delete_backup_job(job_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete backup job: {str(e)}")
 
-
 @app.post("/backup/jobs/{job_id}/execute")
 async def execute_backup_job(job_id: int):
     """Execute a backup job immediately."""
@@ -1243,13 +1143,11 @@ async def execute_backup_job(job_id: int):
         if not job:
             raise HTTPException(status_code=404, detail="Backup job not found")
         
-        # Get server from config manager (will decrypt password)
         config = get_config_manager()
         server = config.get_backup_server(job['server_id'])
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
         
-        # Create backup instance
         import json
         instance_data = {
             'job_id': job_id,
@@ -1263,12 +1161,10 @@ async def execute_backup_job(job_id: int):
         
         instance_id = backup_db.create_backup_instance(instance_data)
         
-        # Execute the actual backup
         try:
             result = backup_manager.execute_backup(job, server)
             
             if result.get('success', False):
-                # Update instance with success results
                 backup_db.update_backup_instance(instance_id, {
                     'status': 'completed',
                     'backup_size': result.get('size', 0),
@@ -1283,7 +1179,6 @@ async def execute_backup_job(job_id: int):
                     "size": result.get('size', 0)
                 }
             else:
-                # Update instance with failure
                 backup_db.update_backup_instance(instance_id, {
                     'status': 'failed',
                     'completed': datetime.now().isoformat(),
@@ -1292,7 +1187,6 @@ async def execute_backup_job(job_id: int):
                 raise HTTPException(status_code=500, detail=f"Backup failed: {result.get('error')}")
                 
         except Exception as backup_error:
-            # Update instance with error
             backup_db.update_backup_instance(instance_id, {
                 'status': 'failed',
                 'completed': datetime.now().isoformat(),
@@ -1304,7 +1198,6 @@ async def execute_backup_job(job_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to execute backup job: {str(e)}")
 
-
 # Backup Instances API
 
 @app.get("/backup/instances", response_model=List[BackupInstance])
@@ -1315,7 +1208,6 @@ async def list_backup_instances(job_id: Optional[int] = None, server_id: Optiona
         return [BackupInstance(**instance) for instance in instances]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list backup instances: {str(e)}")
-
 
 @app.get("/backup/instances/{instance_id}", response_model=BackupInstance)
 async def get_backup_instance(instance_id: int):
@@ -1330,7 +1222,6 @@ async def get_backup_instance(instance_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get backup instance: {str(e)}")
 
-
 @app.delete("/backup/instances/{instance_id}")
 async def delete_backup_instance(instance_id: int):
     """Delete a backup instance."""
@@ -1344,7 +1235,6 @@ async def delete_backup_instance(instance_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete backup instance: {str(e)}")
 
-
 @app.get("/backup/cron-jobs")
 async def get_backup_cron_jobs():
     """Get all backup jobs currently scheduled in crontab."""
@@ -1353,7 +1243,6 @@ async def get_backup_cron_jobs():
         return cron_jobs
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list cron jobs: {str(e)}")
-
 
 # Reverse Proxy Management Routes
 
@@ -1365,15 +1254,10 @@ def get_proxy_status():
         "certbot_installed": reverse_proxy_manager.check_certbot_installed()
     }
 
-
-
-
-
 @app.get("/proxy/configs")
 def list_proxy_configs():
     """List all reverse proxy configurations."""
     return {"configs": reverse_proxy_manager.list_proxy_configs()}
-
 
 @app.post("/proxy/configs")
 def create_proxy_config(config: ProxyConfigCreate):
@@ -1387,19 +1271,16 @@ def create_proxy_config(config: ProxyConfigCreate):
         force_ssl=config.force_ssl
     )
 
-
 @app.delete("/proxy/configs/{domain}")
 def delete_proxy_config(domain: str):
     """Delete a reverse proxy configuration."""
     return reverse_proxy_manager.delete_proxy_config(domain)
-
 
 @app.get("/proxy/certificates")
 def list_certificates():
     """List all SSL certificates."""
     certs = reverse_proxy_manager.list_certificates()
     return {"certificates": certs}
-
 
 @app.post("/proxy/certificates/obtain")
 def obtain_certificate(request: CertificateRequest):
@@ -1409,18 +1290,15 @@ def obtain_certificate(request: CertificateRequest):
         email=request.email
     )
 
-
 @app.post("/proxy/certificates/renew")
 def renew_certificates():
     """Renew all SSL certificates."""
     return reverse_proxy_manager.renew_certificates()
 
-
 @app.delete("/proxy/certificates/{domain}")
 def revoke_certificate(domain: str):
     """Revoke and delete an SSL certificate."""
     return reverse_proxy_manager.revoke_certificate(domain)
-
 
 if __name__ == "__main__":
     import uvicorn

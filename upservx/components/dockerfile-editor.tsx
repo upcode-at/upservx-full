@@ -39,7 +39,6 @@ export function DockerfileEditor() {
 
         const res = await fetch(url, { method: "POST", body: fd, credentials: 'include' });
         if (!res.body) {
-          // no stream available
           const txt = await res.text();
           setLogs(txt || `Build failed with status ${res.status}`);
         } else {
@@ -54,7 +53,6 @@ export function DockerfileEditor() {
             }
             finished = !!done;
           }
-          // if response status is not ok, append status
           if (!res.ok) {
             setLogs((prev) => prev + `\n[HTTP ${res.status}]`);
           }

@@ -5,7 +5,6 @@ Pydantic models for the UpservX API.
 from pydantic import BaseModel
 from typing import List, Optional
 
-
 class Container(BaseModel):
     id: int
     name: str
@@ -19,7 +18,6 @@ class Container(BaseModel):
     memory: int
     created: str
 
-
 class ContainerCreate(BaseModel):
     name: str
     type: str
@@ -29,7 +27,6 @@ class ContainerCreate(BaseModel):
     envs: List[str] = []
     cpu: float = 0.0
     memory: int = 0
-
 
 class ISOInfo(BaseModel):
     id: int
@@ -42,11 +39,9 @@ class ISOInfo(BaseModel):
     used: bool
     path: str
 
-
 class ISODownloadRequest(BaseModel):
     url: str
     name: str | None = None
-
 
 class ContainerImageInfo(BaseModel):
     id: int
@@ -58,17 +53,14 @@ class ContainerImageInfo(BaseModel):
     used: bool = False
     pulls: int = 0
 
-
 class ImagePullRequest(BaseModel):
     image: str
     registry: str | None = None
     type: str = "docker"
 
-
 class LogInfo(BaseModel):
     name: str
     size: int
-
 
 class DriveInfo(BaseModel):
     device: str
@@ -82,27 +74,22 @@ class DriveInfo(BaseModel):
     mounted: bool
     temperature: int | None = None
 
-
 class DriveMountRequest(BaseModel):
     device: str
     mountpoint: str
 
-
 class DriveUnmountRequest(BaseModel):
     device: str | None = None
     mountpoint: str | None = None
-
 
 class DriveFormatRequest(BaseModel):
     device: str
     filesystem: str
     label: str | None = None
 
-
 class ZFSDeviceInfo(BaseModel):
     path: str
     status: str
-
 
 class ZFSPoolInfo(BaseModel):
     name: str
@@ -113,12 +100,10 @@ class ZFSPoolInfo(BaseModel):
     mountpoint: str
     devices: List[ZFSDeviceInfo]
 
-
 class ZFSPoolCreateRequest(BaseModel):
     name: str
     devices: List[str]
     raid: str = "stripe"
-
 
 class NetworkInterfaceInfo(BaseModel):
     name: str
@@ -132,11 +117,9 @@ class NetworkInterfaceInfo(BaseModel):
     rx: str
     tx: str
 
-
 class NetworkSettingsModel(BaseModel):
     dns_primary: str = "8.8.8.8"
     dns_secondary: str = "8.8.4.4"
-
 
 class SettingsModel(BaseModel):
     hostname: str
@@ -145,7 +128,6 @@ class SettingsModel(BaseModel):
     monitoring: bool
     ssh_port: int = 22
     api_key: Optional[str] = None
-
 
 class InterfaceConfigModel(BaseModel):
     """Model for configuring a network interface.
@@ -160,7 +142,6 @@ class InterfaceConfigModel(BaseModel):
     gateway: Optional[str] = None
     enabled: bool = True
 
-
 class SystemUserModel(BaseModel):
     username: str
     uid: int
@@ -170,13 +151,11 @@ class SystemUserModel(BaseModel):
     home: str
     description: str | None = ""
 
-
 class SystemGroupModel(BaseModel):
     name: str
     gid: int
     members: List[str]
     description: str | None = ""
-
 
 class UserCreateModel(BaseModel):
     username: str
@@ -184,24 +163,19 @@ class UserCreateModel(BaseModel):
     groups: List[str] = []
     shell: str = "/bin/bash"
 
-
 class UserUpdateModel(BaseModel):
     groups: List[str] | None = None
     shell: str | None = None
-
 
 class GroupCreateModel(BaseModel):
     name: str
     members: List[str] = []
 
-
 class GroupUpdateModel(BaseModel):
     members: List[str] | None = None
 
-
 class SSHKeyListModel(BaseModel):
     keys: List[str] = []
-
 
 class VirtualMachine(BaseModel):
     id: int
@@ -220,7 +194,6 @@ class VirtualMachine(BaseModel):
     cpu_usage: float | None = None  # CPU usage percentage
     memory_usage: float | None = None  # Memory usage percentage
 
-
 class VirtualMachineCreate(BaseModel):
     name: str
     cpu: int
@@ -233,7 +206,6 @@ class VirtualMachineCreate(BaseModel):
     cloud_init: str | None = None
     storage_path: str | None = None  # path to mounted drive for VM disks (e.g., /mnt/ssd1)
 
-
 class VirtualMachineUpdate(BaseModel):
     cpu: Optional[int] = None
     memory: Optional[int] = None
@@ -244,7 +216,6 @@ class VirtualMachineUpdate(BaseModel):
     bridge_interface: Optional[str] = None
     remove_disks: List[str] = []
     storage_path: Optional[str] = None  # path to mounted drive for new VM disks
-
 
 class BackupServer(BaseModel):
     id: int
@@ -262,7 +233,6 @@ class BackupServer(BaseModel):
     last_sync: Optional[str] = None
     created: str
 
-
 class BackupServerCreate(BaseModel):
     name: str
     type: str  # 'local', 'remote'
@@ -276,7 +246,6 @@ class BackupServerCreate(BaseModel):
     ssh_key: Optional[str] = None  # SSH private key content
     ssh_key_passphrase: Optional[str] = None
 
-
 class BackupServerUpdate(BaseModel):
     name: Optional[str] = None
     host: Optional[str] = None
@@ -288,7 +257,6 @@ class BackupServerUpdate(BaseModel):
     password: Optional[str] = None
     ssh_key: Optional[str] = None
     ssh_key_passphrase: Optional[str] = None
-
 
 class BackupJob(BaseModel):
     id: int
@@ -305,7 +273,6 @@ class BackupJob(BaseModel):
     compression: bool = True
     created: str
 
-
 class BackupJobCreate(BaseModel):
     name: str
     backup_type: str
@@ -314,7 +281,6 @@ class BackupJobCreate(BaseModel):
     server_id: int
     retention_days: int = 30
     compression: bool = True
-
 
 class BackupJobUpdate(BaseModel):
     name: Optional[str] = None
@@ -325,7 +291,6 @@ class BackupJobUpdate(BaseModel):
     status: Optional[str] = None
     retention_days: Optional[int] = None
     compression: Optional[bool] = None
-
 
 class BackupInstance(BaseModel):
     id: int
@@ -339,20 +304,16 @@ class BackupInstance(BaseModel):
     backup_type: str
     targets: List[str]
 
-
 class BackupExecuteRequest(BaseModel):
     job_id: int
-
 
 class BackupRestoreRequest(BaseModel):
     backup_id: int
     restore_path: str
 
-
 class BackupListResponse(BaseModel):
     backups: List[BackupInstance]
     total: int
-
 
 class BackupServerInfo(BaseModel):
     server_id: int
@@ -360,7 +321,6 @@ class BackupServerInfo(BaseModel):
     type: str
     status: str
     storage_info: dict
-
 
 class ProxyConfigModel(BaseModel):
     domain: str
@@ -370,7 +330,6 @@ class ProxyConfigModel(BaseModel):
     ssl_enabled: bool = False
     force_ssl: bool = False
 
-
 class ProxyConfigCreate(BaseModel):
     domain: str
     backend_host: str = "127.0.0.1"
@@ -379,11 +338,9 @@ class ProxyConfigCreate(BaseModel):
     ssl_enabled: bool = False
     force_ssl: bool = False
 
-
 class CertificateRequest(BaseModel):
     domain: str
     email: str
-
 
 class CertificateInfo(BaseModel):
     name: str
@@ -391,8 +348,6 @@ class CertificateInfo(BaseModel):
     expiry: str
     cert_path: Optional[str] = None
 
-
-# Firewall Models
 class FirewallRuleCreate(BaseModel):
     chain: str  # input, output, forward
     protocol: Optional[str] = None  # tcp, udp, icmp, all
@@ -403,16 +358,13 @@ class FirewallRuleCreate(BaseModel):
     comment: Optional[str] = None
     position: Optional[int] = None
 
-
 class FirewallRuleDelete(BaseModel):
     chain: str
     handle: int
 
-
 class FirewallChainPolicy(BaseModel):
     chain: str
     policy: str  # accept, drop
-
 
 class PortForwardCreate(BaseModel):
     external_port: int
@@ -421,10 +373,8 @@ class PortForwardCreate(BaseModel):
     protocol: str = "tcp"
     comment: Optional[str] = None
 
-
 class MasqueradeCreate(BaseModel):
     interface: str
-
 
 class DockerVolumeInfo(BaseModel):
     name: str
@@ -433,7 +383,6 @@ class DockerVolumeInfo(BaseModel):
     size: Optional[float] = None
     used: Optional[float] = None
     created: Optional[str] = None
-
 
 class LXCStorageInfo(BaseModel):
     name: str
@@ -444,10 +393,8 @@ class LXCStorageInfo(BaseModel):
     available: Optional[float] = None
     description: Optional[str] = None
 
-
 class DockerVolumeCreate(BaseModel):
     name: str
-
 
 class LXCStorageCreate(BaseModel):
     name: str

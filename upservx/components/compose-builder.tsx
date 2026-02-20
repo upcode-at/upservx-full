@@ -77,7 +77,6 @@ export function ComposeBuilder() {
   const [viewComposeOpen, setViewComposeOpen] = useState(false)
   const [composeContent, setComposeContent] = useState("")
   
-  // Service form state
   const [serviceName, setServiceName] = useState("")
   const [serviceImage, setServiceImage] = useState("")
   const [servicePorts, setServicePorts] = useState<{ host: string; container: string }[]>([
@@ -171,7 +170,6 @@ export function ComposeBuilder() {
     setSuccess(null)
     setError(null)
 
-    // Build service config
     const serviceConfig: ServiceForm = {
       name: serviceName,
       image: serviceImage,
@@ -236,25 +234,21 @@ export function ComposeBuilder() {
       if (res.ok) {
         const data = await res.json()
         
-        // Populate form with existing data
         setServiceName(data.name)
         setServiceImage(data.image)
         
-        // Parse ports
         const ports = (data.ports || []).map((p: string) => {
           const parts = p.split(":")
           return { host: parts[0] || "", container: parts[1] || "" }
         })
         setServicePorts(ports.length > 0 ? ports : [{ host: "", container: "" }])
         
-        // Parse volumes
         const volumes = (data.volumes || []).map((v: string) => {
           const parts = v.split(":")
           return { host: parts[0] || "", container: parts[1] || "" }
         })
         setServiceVolumes(volumes.length > 0 ? volumes : [{ host: "", container: "" }])
         
-        // Parse environment
         const envs = Object.entries(data.environment || {}).map(([name, value]) => ({
           name,
           value: String(value)
@@ -291,7 +285,6 @@ export function ComposeBuilder() {
     setSuccess(null)
     setError(null)
 
-    // Build service config
     const serviceConfig: ServiceForm = {
       name: serviceName,
       image: serviceImage,
@@ -719,7 +712,6 @@ export function ComposeBuilder() {
 
       <div className="grid gap-4">
         {projects.length === 0 ? (
-          // Empty State
           <div className="text-center py-12">
             <div className="grid grid-cols-1 gap-6 max-w-4xl mx-auto">
               <Card className="cursor-pointer hover:shadow-lg transition-shadow">

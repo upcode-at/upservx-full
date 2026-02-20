@@ -15,7 +15,6 @@ CONFIG_DIR = "/etc/upservx"
 BACKUP_SERVERS_FILE = os.path.join(CONFIG_DIR, "backup_servers.json")
 SSH_KEYS_DIR = os.path.join(CONFIG_DIR, "ssh_keys")
 
-
 class ConfigManager:
     """Manage /etc/upservx configuration files."""
     
@@ -44,7 +43,6 @@ class ConfigManager:
     def _write_json_file(self, filepath: str, data: Any) -> bool:
         """Write data to JSON file."""
         try:
-            # Write to temporary file first
             temp_file = f"{filepath}.tmp"
             with open(temp_file, 'w') as f:
                 json.dump(data, f, indent=2)
@@ -102,14 +100,12 @@ class ConfigManager:
         servers = self.get_backup_servers()
         print(f"[CONFIG] Current servers count: {len(servers)}")
         
-        # Generate new ID
         max_id = max([s.get("id", 0) for s in servers], default=0)
         server_data["id"] = max_id + 1
         server_data["created"] = datetime.now().isoformat()
         server_data["status"] = "active"
         print(f"[CONFIG] Generated ID: {server_data['id']}")
         
-        # Encrypt password if provided
         if "password" in server_data and server_data["password"]:
             print("[CONFIG] Encrypting password...")
             try:
@@ -137,7 +133,6 @@ class ConfigManager:
         """Update existing backup server."""
         servers = self.get_backup_servers()
         
-        # Encrypt password if being updated
         if "password" in updates and updates["password"]:
             encryption = get_encryption_manager()
             updates["password"] = encryption.encrypt(updates["password"])
@@ -231,10 +226,7 @@ class ConfigManager:
         settings_file = os.path.join(CONFIG_DIR, "settings.json")
         return self._read_json_file(settings_file, {})
 
-
-# Singleton instance
 _config_manager = None
-
 
 def get_config_manager() -> ConfigManager:
     """Get or create config manager singleton."""

@@ -13,24 +13,18 @@ from typing import List
 from datetime import datetime
 from models import VirtualMachine
 
-
 import time
 
-
 VM_FILE = "/etc/upservx/vms.json"
-
 
 def set_libvirt_permissions(path: str) -> None:
     """Set ownership and permissions for libvirt-qemu user."""
     try:
-        # Get libvirt-qemu user and group IDs
         uid = pwd.getpwnam("libvirt-qemu").pw_uid
         gid = grp.getgrnam("libvirt-qemu").gr_gid
         
-        # Set ownership
         os.chown(path, uid, gid)
         
-        # Set permissions: 755 for directories, 644 for files
         if os.path.isdir(path):
             os.chmod(path, 0o755)
         else:
@@ -38,11 +32,9 @@ def set_libvirt_permissions(path: str) -> None:
     except (KeyError, PermissionError) as e:
         print(f"Warning: Could not set libvirt permissions on {path}: {e}")
 
-
 def ensure_parent_permissions(path: str) -> None:
     """Ensure all parent directories are accessible (executable) for libvirt-qemu."""
     try:
-        # Get libvirt-qemu group ID
         gid = grp.getgrnam("libvirt-qemu").gr_gid
         
         # Walk up the directory tree and ensure execute permission for group
@@ -67,7 +59,6 @@ def ensure_parent_permissions(path: str) -> None:
     except (KeyError, PermissionError) as e:
         print(f"Warning: Could not ensure parent permissions for {path}: {e}")
 
-
 def ensure_bridge_for_interface(interface: str) -> str:
     """Ensure a Linux bridge exists for the given physical interface.
     Returns the bridge name (e.g., br0).
@@ -75,17 +66,13 @@ def ensure_bridge_for_interface(interface: str) -> str:
     """
     bridge_name = f"br-{interface}"
     
-    # Check if bridge already exists
     result = subprocess.run(["ip", "link", "show", bridge_name], capture_output=True, text=True)
     if result.returncode == 0:
-        # Bridge already exists
         return bridge_name
     
     try:
-        # Get current IP configuration of physical interface
         ip_info = subprocess.run(["ip", "addr", "show", interface], capture_output=True, text=True, check=True)
         
-        # Extract IP addresses (both IPv4 and IPv6)
         import re
         ip_addresses = []
         for line in ip_info.stdout.splitlines():
@@ -93,7 +80,6 @@ def ensure_bridge_for_interface(interface: str) -> str:
             if match:
                 ip_addresses.append(match.group(1))
         
-        # Get current default gateway
         route_info = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True)
         gateway = None
         for line in route_info.stdout.splitlines():
@@ -102,27 +88,21 @@ def ensure_bridge_for_interface(interface: str) -> str:
                 if match:
                     gateway = match.group(1)
         
-        # Create bridge
         subprocess.run(["ip", "link", "add", "name", bridge_name, "type", "bridge"], check=True, capture_output=True)
         
-        # Remove IP addresses from physical interface
         for ip_addr in ip_addresses:
             subprocess.run(["ip", "addr", "del", ip_addr, "dev", interface], capture_output=True)
         
         # Add physical interface to bridge (must be done before bringing bridge up)
         subprocess.run(["ip", "link", "set", interface, "master", bridge_name], check=True, capture_output=True)
         
-        # Bring bridge up
         subprocess.run(["ip", "link", "set", bridge_name, "up"], check=True, capture_output=True)
         
-        # Bring physical interface up
         subprocess.run(["ip", "link", "set", interface, "up"], check=True, capture_output=True)
         
-        # Assign IP addresses to bridge
         for ip_addr in ip_addresses:
             subprocess.run(["ip", "addr", "add", ip_addr, "dev", bridge_name], capture_output=True)
         
-        # Restore default gateway if it existed
         if gateway:
             subprocess.run(["ip", "route", "add", "default", "via", gateway, "dev", bridge_name], capture_output=True)
         
@@ -130,9 +110,7 @@ def ensure_bridge_for_interface(interface: str) -> str:
         return bridge_name
     except subprocess.CalledProcessError as e:
         print(f"Warning: Could not create bridge for {interface}: {e}")
-        # Fallback to direct interface
         return interface
-
 
 def load_vms() -> List[VirtualMachine]:
     """Load virtual machines from the JSON file."""
@@ -145,12 +123,10 @@ def load_vms() -> List[VirtualMachine]:
             return []
     return []
 
-
 def save_vms(vms: List[VirtualMachine]) -> None:
     """Save virtual machines to the JSON file."""
     with open(VM_FILE, "w") as f:
         json.dump([vm.dict() for vm in vms], f)
-
 
 def parse_virsh_list() -> dict[str, str]:
     """Parse virsh list output to get VM statuses."""
@@ -163,7 +139,6 @@ def parse_virsh_list() -> dict[str, str]:
     for line in result.stdout.splitlines()[2:]:
         parts = line.split()
         if len(parts) >= 3:
-            # Normalize status to English
             status = " ".join(parts[2:])
             if status in ["laufend", "läuft", "running"]:
                 status = "running"
@@ -174,7 +149,6 @@ def parse_virsh_list() -> dict[str, str]:
             statuses[parts[1]] = status
     return statuses
 
-
 def get_vm_stats(name: str) -> dict[str, float]:
     """Get VM resource usage statistics using virsh commands."""
     stats = {"cpu_usage": 0.0, "memory_usage": 0.0}
@@ -183,7 +157,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
         return stats
     
     try:
-        # Get memory stats using dommemstat
         mem_result = subprocess.run(
             ["virsh", "dommemstat", name],
             capture_output=True,
@@ -212,7 +185,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
                     # Resident set size - physical memory used on host
                     rss_mem = int(line.split()[1])
             
-            # Calculate memory usage with available data
             # Prefer guest-reported values (available/usable) over host values (rss/actual)
             if available_mem and usable_mem and available_mem > 0:
                 # Best case: guest agent is running
@@ -227,8 +199,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
                 # No data available, return 0
                 stats["memory_usage"] = 0.0
         
-        # Get CPU usage by measuring CPU time difference
-        # Find qemu process PID
         pidof_result = subprocess.run(
             ["pgrep", "-f", f"guest={name},"],
             capture_output=True,
@@ -249,7 +219,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
             
             # Get CPU stats twice with a small delay to calculate current usage
             try:
-                # First measurement
                 with open(f"/proc/{pid}/stat", "r") as f:
                     stat1 = f.read().split()
                     utime1 = int(stat1[13])
@@ -259,10 +228,8 @@ def get_vm_stats(name: str) -> dict[str, float]:
                     cpu_line1 = f.readline().split()
                     cpu_total1 = sum(int(x) for x in cpu_line1[1:])
                 
-                # Small delay
                 time.sleep(0.1)
                 
-                # Second measurement
                 with open(f"/proc/{pid}/stat", "r") as f:
                     stat2 = f.read().split()
                     utime2 = int(stat2[13])
@@ -272,7 +239,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
                     cpu_line2 = f.readline().split()
                     cpu_total2 = sum(int(x) for x in cpu_line2[1:])
                 
-                # Calculate CPU usage percentage
                 process_time = (utime2 + stime2) - (utime1 + stime1)
                 total_time = cpu_total2 - cpu_total1
                 
@@ -287,7 +253,6 @@ def get_vm_stats(name: str) -> dict[str, float]:
         print(f"Warning: Could not get stats for VM {name}: {e}")
     
     return stats
-
 
 def get_vnc_info(name: str) -> dict:
     """Get VNC connection info for a VM."""
@@ -308,7 +273,6 @@ def get_vnc_info(name: str) -> dict:
     port = int(parts[1]) if len(parts) > 1 else 5900
     
     return {"host": host, "port": port, "display": display}
-
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
               network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False, 
@@ -332,25 +296,19 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
     if shutil.which("qemu-img") is None:
         raise Exception("qemu-img not installed")
 
-    # Determine base directory for VM disks
     if storage_path and os.path.isdir(storage_path):
-        # Use custom storage path with vms subdirectory
         vms_root = os.path.join(storage_path, "vms")
         base_dir = os.path.join(vms_root, name)
         
-        # Ensure parent directories are accessible for libvirt-qemu
         ensure_parent_permissions(vms_root)
         
-        # Create vms root directory if it doesn't exist
         if not os.path.exists(vms_root):
             os.makedirs(vms_root, exist_ok=True)
             set_libvirt_permissions(vms_root)
         
-        # Create VM directory
         os.makedirs(base_dir, exist_ok=True)
         set_libvirt_permissions(base_dir)
     else:
-        # Use default libvirt images directory
         base_dir = "/var/lib/libvirt/images"
 
     disk_args = []
@@ -361,7 +319,6 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
         r = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
         if r.returncode != 0:
             raise Exception(r.stderr.strip() or "failed to create disk")
-        # Set correct permissions for libvirt-qemu
         set_libvirt_permissions(disk_path)
         disk_args.extend(["--disk", f"path={disk_path},size={size}"])
 
@@ -369,7 +326,6 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
     tempdir = None
     try:
         if cloud_init:
-            # create cloud-init seed ISO
             tempdir = tempfile.mkdtemp(prefix=f"vm_{name}_")
             user_data_path = os.path.join(tempdir, "user-data")
             meta_data_path = os.path.join(tempdir, "meta-data")
@@ -392,24 +348,19 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             if r.returncode != 0:
                 raise Exception(r.stderr.strip() or "failed to create cloud-init iso")
 
-            # Set correct permissions for libvirt-qemu
             set_libvirt_permissions(seed_iso_path)
 
-            # attach as CD-ROM
             disk_args.extend(["--disk", f"path={seed_iso_path},device=cdrom"])
 
-        # Configure network based on mode
         network_args = []
         network_bridge = "virbr0"  # default for storage
         if network_mode == "nat":
             network_args = ["--network", "network=default"]
             network_bridge = "virbr0"
         elif network_mode == "bridge":
-            # Create/use Linux bridge for true bridged networking
             if not bridge_interface:
                 raise Exception("bridge_interface required for bridge mode")
             
-            # Ensure bridge exists for the interface
             actual_bridge = ensure_bridge_for_interface(bridge_interface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
@@ -439,27 +390,23 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
         ]
 
         if iso_path:
-            # Attach ISO as persistent CDROM and set boot order
             cmd.extend([
                 "--disk", f"path={iso_path},device=cdrom,readonly=on",
                 "--boot", "cdrom,hd"
             ])
         else:
-            # No ISO, boot from HD
             cmd.extend(["--boot", "hd"])
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(result.stderr.strip() or "failed to create")
 
-        # optionally set autostart
         if autostart:
             r2 = subprocess.run(["virsh", "autostart", name], capture_output=True, text=True)
             if r2.returncode != 0:
                 # non-fatal, but report
                 raise Exception(r2.stderr.strip() or "failed to set autostart")
 
-        # Create VM object
         vms = load_vms()
         vm = VirtualMachine(
             id=len(vms) + 1,
@@ -486,7 +433,6 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
             except Exception:
                 pass
 
-
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None, 
              iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "", 
              autostart: bool | None = None, remove_disks: List[str] | None = None, 
@@ -505,28 +451,22 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if not vm:
         raise Exception("vm not found")
     
-    # Check if VM is running
     statuses = parse_virsh_list()
     is_running = statuses.get(name) == "running"
     
     if cpu is not None and cpu != vm.cpu:
-            # Set maximum vcpus first (config for next boot)
             result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
             if result.returncode != 0:
                 print(f"Warning: setvcpus maximum config failed: {result.stderr}")
             
-            # Set current vcpus (config for next boot)
             result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True, text=True)
             if result.returncode != 0:
                 raise Exception(f"Failed to set CPU config: {result.stderr.strip()}")
             
-            # If running, also update live (maximum first, then current)
             if is_running:
-                # First set live maximum
                 result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--live"], capture_output=True, text=True)
                 if result.returncode != 0:
                     print(f"Warning: live CPU maximum update failed: {result.stderr}")
-                # Then set live current
                 result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--live"], capture_output=True, text=True)
                 if result.returncode != 0:
                     print(f"Warning: live CPU update failed: {result.stderr}")
@@ -535,15 +475,12 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if memory is not None and memory != vm.memory:
         # Memory in MB, virsh expects KiB
         memory_kib = memory * 1024
-        # Set maximum memory
         result = subprocess.run(["virsh", "setmaxmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
         if result.returncode != 0:
             print(f"Warning: setmaxmem failed: {result.stderr}")
-        # Set current memory  
         result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(f"Failed to set memory: {result.stderr.strip()}")
-        # If running, also update live
         if is_running:
             result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--live"], capture_output=True, text=True)
             if result.returncode != 0:
@@ -570,58 +507,45 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         vm.iso = iso
     
     if add_disks:
-        # Determine base directory for new VM disks
-        # Use provided storage_path, or fall back to VM's existing storage_path, or use default
         if storage_path and os.path.isdir(storage_path):
             vms_root = os.path.join(storage_path, "vms")
             base_dir = os.path.join(vms_root, name)
             
-            # Ensure parent directories are accessible for libvirt-qemu
             ensure_parent_permissions(vms_root)
             
-            # Create vms root directory if it doesn't exist
             if not os.path.exists(vms_root):
                 os.makedirs(vms_root, exist_ok=True)
                 set_libvirt_permissions(vms_root)
             
-            # Create VM directory
             os.makedirs(base_dir, exist_ok=True)
             set_libvirt_permissions(base_dir)
-            # Update VM's storage_path
             vm.storage_path = storage_path
         elif vm.storage_path and os.path.isdir(vm.storage_path):
             vms_root = os.path.join(vm.storage_path, "vms")
             base_dir = os.path.join(vms_root, name)
             
-            # Ensure parent directories are accessible for libvirt-qemu
             ensure_parent_permissions(vms_root)
             
-            # Create vms root directory if it doesn't exist
             if not os.path.exists(vms_root):
                 os.makedirs(vms_root, exist_ok=True)
                 set_libvirt_permissions(vms_root)
             
-            # Create VM directory
             os.makedirs(base_dir, exist_ok=True)
             set_libvirt_permissions(base_dir)
         else:
             base_dir = "/var/lib/libvirt/images"
         
-        # Filter out 0 or invalid disk sizes
         valid_disks = [size for size in add_disks if size and size > 0]
         for size in valid_disks:
             disk_path = os.path.join(base_dir, f"{name}_{len(vm.disks) + 1}.qcow2")
             result = subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_path, f"{size}G"], capture_output=True, text=True)
             if result.returncode == 0:
-                # Set correct permissions for libvirt-qemu
                 set_libvirt_permissions(disk_path)
                 
                 # Determine next available virtio device (vda is primary, use vdb, vdc, etc.)
-                # Count existing disks to determine target device
                 target_idx = len(vm.disks) + 1  # +1 because vda is disk 1
                 target_device = f"vd{chr(ord('a') + target_idx)}"  # vdb, vdc, vdd, etc.
                 
-                # Attach disk to VM with explicit target device
                 result = subprocess.run(["virsh", "attach-disk", name, disk_path, target_device, 
                                        "--driver", "qemu", "--subdriver", "qcow2", 
                                        "--targetbus", "virtio", "--persistent"], 
@@ -630,23 +554,18 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                     vm.disks.append(disk_path)
                 else:
                     print(f"Warning: Could not attach disk {disk_path}: {result.stderr}")
-                    # Clean up created disk file if attach failed
                     if os.path.exists(disk_path):
                         try:
                             os.remove(disk_path)
                         except Exception:
                             pass
     
-    # Remove disks
     if remove_disks:
         for disk_path in remove_disks:
             if disk_path in vm.disks:
-                # Detach disk from VM
                 result = subprocess.run(["virsh", "detach-disk", name, disk_path, "--persistent"], capture_output=True, text=True)
                 if result.returncode == 0:
-                    # Remove from VM's disk list
                     vm.disks.remove(disk_path)
-                    # Delete the disk file
                     if os.path.exists(disk_path) and disk_path.endswith('.qcow2'):
                         try:
                             os.remove(disk_path)
@@ -655,9 +574,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 else:
                     print(f"Warning: Could not detach disk {disk_path}: {result.stderr}")
     
-    # Update network mode
     if network_mode is not None:
-        # Map network_mode to network_bridge for storage
         if network_mode == "nat":
             vm.network_bridge = "virbr0"
         elif network_mode == "bridge":
@@ -673,7 +590,6 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     save_vms(vms)
     return vm
 
-
 def start_vm(name: str) -> None:
     """Start a virtual machine."""
     if shutil.which("virsh") is None:
@@ -682,14 +598,11 @@ def start_vm(name: str) -> None:
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to start")
 
-
 def shutdown_vm(name: str) -> None:
     """Shutdown a virtual machine (hard stop)."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
-    # Try graceful shutdown first
     subprocess.run(["virsh", "shutdown", name], capture_output=True, text=True)
-    # If still running after 2 seconds, force destroy
     import time
     time.sleep(2)
     result = subprocess.run(["virsh", "destroy", name], capture_output=True, text=True)
@@ -697,20 +610,16 @@ def shutdown_vm(name: str) -> None:
     if result.returncode != 0 and "domain is not running" not in result.stderr.lower():
         raise Exception(result.stderr.strip() or "failed to stop")
 
-
 def delete_vm(name: str) -> None:
     """Delete a virtual machine and remove it from storage."""
     if shutil.which("virsh") is None:
         raise Exception("virsh not installed")
     
-    # Get VM info to delete only VM-specific disks
     vms = load_vms()
     vm = next((v for v in vms if v.name == name), None)
     
-    # Stop VM if running
     subprocess.run(["virsh", "destroy", name], capture_output=True)
     
-    # Undefine VM without removing storage (we'll do it selectively)
     result = subprocess.run(["virsh", "undefine", name, "--nvram"], capture_output=True, text=True)
     if result.returncode != 0:
         # Try without --nvram if it fails
@@ -718,7 +627,6 @@ def delete_vm(name: str) -> None:
         if result.returncode != 0:
             raise Exception(result.stderr.strip() or "failed to delete")
     
-    # Delete only VM-specific disk files (qcow2 images, not ISOs)
     if vm and vm.disks:
         for disk in vm.disks:
             if os.path.exists(disk) and disk.endswith('.qcow2'):
@@ -727,17 +635,14 @@ def delete_vm(name: str) -> None:
                 except Exception as e:
                     print(f"Warning: Could not delete disk {disk}: {e}")
     
-    # Delete cloud-init ISO if exists
     if vm and vm.cloud_init_iso and os.path.exists(vm.cloud_init_iso):
         try:
             os.remove(vm.cloud_init_iso)
         except Exception as e:
             print(f"Warning: Could not delete cloud-init ISO: {e}")
     
-    # Remove from our storage
     vms = [v for v in load_vms() if v.name != name]
     save_vms(vms)
-
 
 def list_vms_with_status() -> List[VirtualMachine]:
     """List all VMs with their current status from virsh."""
@@ -747,7 +652,6 @@ def list_vms_with_status() -> List[VirtualMachine]:
     for vm in existing:
         vm.status = statuses.get(vm.name, vm.status)
         
-        # Get resource usage stats for running VMs
         if vm.status == "running":
             stats = get_vm_stats(vm.name)
             vm.cpu_usage = stats.get("cpu_usage", 0.0)
@@ -761,7 +665,6 @@ def list_vms_with_status() -> List[VirtualMachine]:
     
     return existing
 
-
 def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -> VirtualMachine:
     """Clone an existing virtual machine including its disks.
     
@@ -773,7 +676,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     if shutil.which("virt-clone") is None:
         raise Exception("virt-clone is not installed. Install libvirt-clients package.")
     
-    # Get source VM info
     vms = load_vms()
     source_vm = None
     for vm in vms:
@@ -784,12 +686,10 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     if not source_vm:
         raise Exception(f"Source VM '{source_name}' not found")
     
-    # Check if new name already exists
     for vm in vms:
         if vm.name == new_name:
             raise Exception(f"VM '{new_name}' already exists")
     
-    # Determine storage location for clone
     if storage_path:
         ensure_parent_permissions(storage_path)
         vm_storage_dir = os.path.join(storage_path, "vms", new_name)
@@ -800,7 +700,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     set_libvirt_permissions(vm_storage_dir)
     ensure_parent_permissions(vm_storage_dir)
     
-    # Build virt-clone command
     # virt-clone will automatically copy all disks from the source VM
     cmd = [
         "virt-clone",
@@ -809,7 +708,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
         "--auto-clone"  # Automatically clone all disks
     ]
     
-    # If custom storage path, specify new disk locations
     if storage_path:
         new_disks = []
         for i, old_disk in enumerate(source_vm.disks):
@@ -827,7 +725,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     except subprocess.CalledProcessError as e:
         raise Exception(f"Failed to clone VM: {e.stderr}")
     
-    # Get the new disk paths from virsh
     new_disks = []
     domblklist = subprocess.run(["virsh", "domblklist", new_name], capture_output=True, text=True)
     if domblklist.returncode == 0:
@@ -836,7 +733,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
             if len(parts) >= 2 and parts[1].endswith('.qcow2'):
                 new_disks.append(parts[1])
     
-    # Create new VM entry
     new_vm = VirtualMachine(
         id=len(vms) + 1,
         name=new_name,
@@ -852,7 +748,6 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
         storage_path=storage_path
     )
     
-    # Save to JSON
     vms.append(new_vm)
     save_vms(vms)
     

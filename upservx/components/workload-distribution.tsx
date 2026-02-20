@@ -53,10 +53,8 @@ export default function WorkloadDistribution() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Dialog states
   const [addRuleOpen, setAddRuleOpen] = useState(false)
 
-  // Form states
   const [serviceName, setServiceName] = useState("")
   const [strategy, setStrategy] = useState("distribute")
   const [replicaCount, setReplicaCount] = useState("1")

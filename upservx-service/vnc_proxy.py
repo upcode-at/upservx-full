@@ -9,7 +9,6 @@ from typing import Optional
 PROXY_PID_FILE = "/tmp/upservx_vnc_proxy.pid"
 PROXY_PORT = 6080
 
-
 def is_proxy_running() -> bool:
     """Check if the VNC proxy is already running."""
     if not os.path.exists(PROXY_PID_FILE):
@@ -18,12 +17,10 @@ def is_proxy_running() -> bool:
     try:
         with open(PROXY_PID_FILE) as f:
             pid = int(f.read().strip())
-        # Check if process is still alive
         os.kill(pid, 0)
         return True
     except (OSError, ValueError):
         return False
-
 
 def start_proxy() -> bool:
     """Start the VNC WebSocket proxy if not already running."""
@@ -31,7 +28,6 @@ def start_proxy() -> bool:
         return True
     
     try:
-        # Start websockify to proxy VNC connections
         # Listen on 0.0.0.0:6080 and forward to localhost:5900-5999
         process = subprocess.Popen(
             ["websockify", "--web=/usr/share/novnc", f"0.0.0.0:{PROXY_PORT}", "localhost:5900"],
@@ -40,7 +36,6 @@ def start_proxy() -> bool:
             start_new_session=True
         )
         
-        # Save PID
         with open(PROXY_PID_FILE, "w") as f:
             f.write(str(process.pid))
         
@@ -48,7 +43,6 @@ def start_proxy() -> bool:
     except Exception as e:
         print(f"Failed to start VNC proxy: {e}")
         return False
-
 
 def stop_proxy() -> bool:
     """Stop the VNC WebSocket proxy."""
@@ -65,7 +59,6 @@ def stop_proxy() -> bool:
     except (OSError, ValueError) as e:
         print(f"Failed to stop VNC proxy: {e}")
         return False
-
 
 def ensure_proxy_running() -> bool:
     """Ensure the VNC proxy is running, start if needed."""

@@ -19,7 +19,6 @@ AUTHORIZED_KEYS_DIR = "./authorized_keys"
 
 _KEY_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,64}$')
 
-
 def _safe_key_path(key_name: str, base_dir: str) -> str:
     """Return the absolute path for key_name inside base_dir, raising on traversal."""
     if not _KEY_NAME_RE.match(key_name):
@@ -29,7 +28,6 @@ def _safe_key_path(key_name: str, base_dir: str) -> str:
     if not candidate.startswith(abs_base + os.sep) and candidate != abs_base:
         raise ValueError(f"Path traversal detected for key name: {key_name!r}")
     return candidate
-
 
 class SSHKeyManager:
     """Manage SSH keys for backup authentication."""
@@ -74,7 +72,6 @@ class SSHKeyManager:
             else:
                 raise ValueError(f"Unsupported key type: {key_type}")
             
-            # Serialize private key
             encryption_algorithm = serialization.NoEncryption()
             if passphrase:
                 encryption_algorithm = serialization.BestAvailableEncryption(
@@ -87,19 +84,16 @@ class SSHKeyManager:
                 encryption_algorithm=encryption_algorithm
             )
             
-            # Serialize public key
             public_key = private_key.public_key()
             public_ssh = public_key.public_bytes(
                 encoding=serialization.Encoding.OpenSSH,
                 format=serialization.PublicFormat.OpenSSH
             )
             
-            # Write private key
             with open(private_key_path, 'wb') as f:
                 f.write(private_pem)
             os.chmod(private_key_path, 0o600)
             
-            # Write public key
             public_key_content = f"{public_ssh.decode()} {key_name}@upservx"
             with open(public_key_path, 'w') as f:
                 f.write(public_key_content)
@@ -135,7 +129,6 @@ class SSHKeyManager:
         try:
             private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
 
-            # Validate the key by trying to load it
             try:
                 key_bytes = private_key_content.encode()
                 passphrase_bytes = passphrase.encode() if passphrase else None
@@ -147,12 +140,10 @@ class SSHKeyManager:
             except Exception as e:
                 raise ValueError(f"Invalid private key: {e}")
             
-            # Store the key
             with open(private_key_path, 'w') as f:
                 f.write(private_key_content)
             os.chmod(private_key_path, 0o600)
             
-            # Generate public key if possible
             public_key_path = f"{private_key_path}.pub"
             try:
                 result = subprocess.run([
@@ -248,7 +239,6 @@ class SSHKeyManager:
                 'fingerprint': self.get_key_fingerprint(public_key_path) if os.path.exists(public_key_path) else None
             }
             
-            # Read public key content if available
             if os.path.exists(public_key_path):
                 with open(public_key_path, 'r') as f:
                     result['public_key'] = f.read().strip()
@@ -276,12 +266,10 @@ class SSHKeyManager:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            # Load private key
             try:
                 if passphrase:
                     key = paramiko.RSAKey.from_private_key_file(key_path, password=passphrase)
                 else:
-                    # Try different key types
                     key = None
                     for key_class in [paramiko.RSAKey, paramiko.DSSKey, paramiko.ECDSAKey, paramiko.Ed25519Key]:
                         try:
@@ -295,7 +283,6 @@ class SSHKeyManager:
             except Exception as e:
                 return False, f"Key loading error: {str(e)}"
             
-            # Test connection
             client.connect(
                 hostname=host,
                 port=port,
@@ -305,7 +292,6 @@ class SSHKeyManager:
                 look_for_keys=False
             )
             
-            # Execute a simple command to verify connection
             stdin, stdout, stderr = client.exec_command('echo "test"')
             result = stdout.read().decode().strip()
             
@@ -338,6 +324,4 @@ class SSHKeyManager:
             logger.error(f"Failed to setup authorized keys for {username}: {e}")
             return False
 
-
-# Global SSH key manager instance
 ssh_key_manager = SSHKeyManager()

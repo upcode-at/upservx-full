@@ -48,7 +48,6 @@ export default function FirewallManagement() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Form states
   const [newRule, setNewRule] = useState({
     chain: "input",
     protocol: "",
@@ -70,7 +69,6 @@ export default function FirewallManagement() {
   const [masqueradeIface, setMasqueradeIface] = useState("")
   const [policyChange, setPolicyChange] = useState({ chain: "input", policy: "accept" })
 
-  // Use the global apiUrl function
   const getApiUrl = apiUrl
 
   const loadFirewallData = async () => {

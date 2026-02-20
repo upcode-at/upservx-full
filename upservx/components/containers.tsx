@@ -167,7 +167,6 @@ useEffect(() => {
     setError(null)
     
     try {
-      // Create a File object from the YAML string
       const blob = new Blob([composeYaml], { type: "text/yaml" })
       const file = new File([blob], "docker-compose.yml", { type: "text/yaml" })
       
@@ -185,7 +184,6 @@ useEffect(() => {
         setComposeName("")
         setComposeYaml("")
         
-        // Reload containers
         const listRes = await fetch(apiUrl("/containers"))
         if (listRes.ok) {
           const data = await listRes.json()
@@ -222,7 +220,6 @@ useEffect(() => {
         setComposeName("")
         setComposeFile(null)
         
-        // Reload containers
         const listRes = await fetch(apiUrl("/containers"))
         if (listRes.ok) {
           const data = await listRes.json()
@@ -395,7 +392,6 @@ useEffect(() => {
   const statusClass = (status: string) =>
     status === "running" ? "bg-green-600 text-white" : "bg-red-600 text-white"
 
-  // Group Docker Compose containers by project
   const groupedContainers = () => {
     const filtered = containers.filter(
       (c) => !filter || c.type.toLowerCase() === filter.toLowerCase()

@@ -26,7 +26,6 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
 
   const handleConnect = async () => {
     setIsConnecting(true)
-    // Simulate connection process
     setTimeout(() => {
       setIsConnected(true)
       setIsConnecting(false)

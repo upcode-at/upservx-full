@@ -10,11 +10,9 @@ import shutil
 import os
 import socket
 
-
 # Track last network counters for throughput calculation
 _prev_net_io = psutil.net_io_counters()
 _prev_net_time = time.time()
-
 
 def format_uptime(seconds: float) -> str:
     """Format uptime seconds into a human-readable string."""
@@ -30,7 +28,6 @@ def format_uptime(seconds: float) -> str:
         parts.append(f"{minutes}m")
     return " ".join(parts) if parts else "0m"
 
-
 def get_cpu_model() -> str:
     """Return the CPU model name."""
     model = platform.processor()
@@ -43,7 +40,6 @@ def get_cpu_model() -> str:
         except FileNotFoundError:
             pass
     return model or "unknown"
-
 
 def get_gpu_model() -> str:
     """Return the GPU model if available.
@@ -80,7 +76,6 @@ def get_gpu_model() -> str:
 
     return "none"
 
-
 def get_service_status(service: str) -> str:
     """Return 'running', 'stopped' or 'not found' for given service."""
     # Prefer systemctl if available
@@ -114,7 +109,6 @@ def get_service_status(service: str) -> str:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return "stopped"
-
 
 def collect_metrics() -> dict:
     """Collect system metrics including CPU, memory, disk, network, and GPU information."""
@@ -180,7 +174,6 @@ def collect_metrics() -> dict:
         "services": services,
     }
 
-
 def _system_hostname() -> str:
     """Return the system hostname from /etc/hostname or platform.node()."""
     try:
@@ -191,7 +184,6 @@ def _system_hostname() -> str:
     except Exception:
         pass
     return platform.node() or "server"
-
 
 def _system_ssh_port() -> int:
     """Return the SSH port from /etc/ssh/sshd_config or 22."""
@@ -207,7 +199,6 @@ def _system_ssh_port() -> int:
     except Exception:
         pass
     return 22
-
 
 def _system_nameservers() -> tuple[str, str]:
     """Return primary and secondary nameservers from /etc/resolv.conf."""
@@ -228,7 +219,6 @@ def _system_nameservers() -> tuple[str, str]:
         pass
     return primary, secondary
 
-
 def get_server_addresses() -> list[str]:
     """Get all IP addresses and hostnames of the server for CORS configuration.
     
@@ -241,27 +231,22 @@ def get_server_addresses() -> list[str]:
     ports = [9200, 9500, 80, 443, 5173, 3001]
     protocols = ["http", "https"]
     
-    # Add localhost
     for protocol in protocols:
         for port in ports:
             origins.append(f"{protocol}://localhost:{port}")
             origins.append(f"{protocol}://127.0.0.1:{port}")
-        # Add without port for standard ports
         origins.append(f"{protocol}://localhost")
         origins.append(f"{protocol}://127.0.0.1")
     
-    # Add hostname
     try:
         hostname = socket.gethostname()
         for protocol in protocols:
             for port in ports:
                 origins.append(f"{protocol}://{hostname}:{port}")
-            # Add without port for standard ports
             origins.append(f"{protocol}://{hostname}")
     except Exception:
         pass
     
-    # Add all network interface IPs
     try:
         addrs = psutil.net_if_addrs()
         for interface, addr_list in addrs.items():
@@ -272,7 +257,6 @@ def get_server_addresses() -> list[str]:
                         for protocol in protocols:
                             for port in ports:
                                 origins.append(f"{protocol}://{ip}:{port}")
-                            # Add without port for standard ports
                             origins.append(f"{protocol}://{ip}")
     except Exception:
         pass

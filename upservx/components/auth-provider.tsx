@@ -52,7 +52,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       init.headers = headers
       
-      // Make the request
       const response = await origFetch(input, init)
       
       // If unauthorized and we have a token, clear it and redirect to login

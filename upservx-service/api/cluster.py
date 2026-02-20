@@ -32,12 +32,10 @@ def verify_cluster_auth(authorization: str = Header(None)):
     
     provided_key = authorization[7:]  # Remove "Bearer " prefix
     
-    # Check master config
     master_config = read_master_config()
     if master_config and master_config.get("key") == provided_key:
         return True
     
-    # Check child config
     child_config = read_child_config()
     if child_config:
         stored_key = child_config.get("cluster_key") or child_config.get("key")
@@ -45,7 +43,6 @@ def verify_cluster_auth(authorization: str = Header(None)):
             return True
     
     raise HTTPException(status_code=401, detail="Invalid cluster key")
-
 
 class ClusterCreateRequest(BaseModel):
     cluster_name: str
@@ -146,7 +143,6 @@ def write_node_config(hostname: str, config: dict):
         with open(node_file, 'w') as f:
             json.dump(config, f, indent=2)
         print(f"[CLUSTER] Successfully wrote node config for {hostname}")
-        # Verify it was written
         if os.path.exists(node_file):
             print(f"[CLUSTER] File {node_file} exists and has {os.path.getsize(node_file)} bytes")
         else:
@@ -224,7 +220,6 @@ def get_system_resources():
         running_containers = 0
         total_containers = 0
     
-    # Get VM counts
     try:
         from vms import list_vms_with_status
         vms = list_vms_with_status()
@@ -442,7 +437,6 @@ async def get_cluster_debug():
     
     if os.path.exists(NODES_DIR):
         debug_info["node_files"] = os.listdir(NODES_DIR)
-        # Read all node configs
         debug_info["node_configs"] = {}
         for filename in os.listdir(NODES_DIR):
             if filename.endswith('.json'):
@@ -472,11 +466,9 @@ async def test_write_permissions():
         with open(test_file, 'w') as f:
             json.dump(test_data, f, indent=2)
         
-        # Try to read it back
         with open(test_file, 'r') as f:
             read_data = json.load(f)
         
-        # Clean up
         os.remove(test_file)
         
         return {
@@ -510,10 +502,8 @@ async def get_cluster_info():
         cluster_token = master_config.get("key")
         master_ip = get_local_ip()
         
-        # Add master node
         master_resources = get_system_resources()
 
-        
         master_node = {
             "id": get_hostname(),
             "hostname": get_hostname(),
@@ -528,25 +518,21 @@ async def get_cluster_info():
         
         print(f"[CLUSTER] Master node added with containers: {master_resources.get('total_containers')}/{master_resources.get('running_containers')}, vms: {master_resources.get('total_vms')}/{master_resources.get('running_vms')}")
         
-        # Add all child nodes from nodes directory and fetch their metrics
         child_nodes = list_all_nodes()
         print(f"[CLUSTER] Master node found {len(child_nodes)} nodes in directory")
         for node in child_nodes:
             print(f"[CLUSTER] Processing node: {node.get('hostname')}")
             if node.get("hostname") != get_hostname():
-                # Fetch current metrics from child node
                 resources = await fetch_node_metrics(
                     node.get("ip_address"),
                     node.get("port", 9500),
                     cluster_token
                 )
                 
-                # Update node config with fresh metrics
                 node["resources"] = resources
                 node["last_seen"] = datetime.now().isoformat()
                 write_node_config(node.get("hostname"), node)
                 
-                # Remove success flag before adding to response
                 is_online = resources.pop("success", False)
                 
                 nodes.append({
@@ -568,7 +554,6 @@ async def get_cluster_info():
         
         print(f"[CLUSTER] Child node trying to fetch master info from {master_ip}:{master_port}")
         
-        # Try to fetch master node info
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
@@ -603,7 +588,6 @@ async def get_cluster_info():
                     print(f"[CLUSTER] Failed to fetch master metrics: HTTP {response.status_code}")
                     raise Exception("Master unreachable")
         except Exception as e:
-            # Master unreachable, show as offline
             print(f"[CLUSTER] Master unreachable: {e}")
             nodes.append({
                 "id": "master",
@@ -627,7 +611,6 @@ async def get_cluster_info():
                 "last_seen": ""
             })
         
-        # Add self as child node
         child_node = {
             "id": get_hostname(),
             "hostname": get_hostname(),
@@ -657,10 +640,8 @@ async def create_cluster(request: ClusterCreateRequest):
     if is_child_node():
         raise HTTPException(status_code=400, detail="This node is already a child. Leave the cluster first")
     
-    # Generate cluster key
     cluster_key = secrets.token_urlsafe(32)
     
-    # Create master configuration
     master_config = {
         "key": cluster_key,
         "cluster_name": request.cluster_name,
@@ -669,7 +650,6 @@ async def create_cluster(request: ClusterCreateRequest):
     
     write_master_config(master_config)
     
-    # Create master node config in nodes directory
     master_node_config = {
         "hostname": get_hostname(),
         "ip_address": get_local_ip(),
@@ -707,7 +687,6 @@ async def join_cluster(request: ClusterJoinRequest):
     print(f"[CLUSTER] My hostname: {my_hostname}")
     print(f"[CLUSTER] My IP: {my_ip}")
     
-    # Prepare node data to register with master
     my_resources = get_system_resources()
     node_data = {
         "hostname": my_hostname,
@@ -719,7 +698,6 @@ async def join_cluster(request: ClusterJoinRequest):
     
     print(f"[CLUSTER] Attempting registration with master...")
     
-    # Register this node with the master
     try:
         master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
         print(f"[CLUSTER] POST {master_url}")
@@ -760,7 +738,6 @@ async def join_cluster(request: ClusterJoinRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Unexpected error during registration: {str(e)}")
     
-    # Create child configuration
     child_config = {
         "cluster_key": request.token,  # Store as cluster_key for consistency
         "key": request.token,  # Keep backwards compatibility
@@ -795,7 +772,6 @@ async def register_node(request: NodeRegistrationRequest):
     
     print(f"[CLUSTER] This is a master node, proceeding...")
     
-    # Verify the cluster key
     master_config = read_master_config()
     if not master_config:
         print(f"[CLUSTER] ERROR: Master config not found")
@@ -809,11 +785,9 @@ async def register_node(request: NodeRegistrationRequest):
     
     print(f"[CLUSTER] Cluster key verified successfully")
     
-    # Check if this is the same node (same IP) updating itself
     original_hostname = request.hostname
     all_nodes = list_all_nodes()
     
-    # Check if a node with this IP already exists
     same_ip_node = None
     for node in all_nodes:
         if node.get("ip_address") == request.ip_address:
@@ -821,7 +795,6 @@ async def register_node(request: NodeRegistrationRequest):
             break
     
     if same_ip_node:
-        # Same IP, just update the existing entry
         existing_hostname = same_ip_node.get("hostname")
         print(f"[CLUSTER] Node with IP {request.ip_address} already exists as {existing_hostname}, updating...")
         same_ip_node["hostname"] = existing_hostname  # Keep the original hostname
@@ -837,13 +810,11 @@ async def register_node(request: NodeRegistrationRequest):
             print(f"[CLUSTER] ERROR updating node: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to update node: {str(e)}")
     
-    # Find a unique hostname (append -2, -3, etc. if needed)
     unique_hostname = find_unique_hostname(original_hostname)
     
     if unique_hostname != original_hostname:
         print(f"[CLUSTER] Hostname {original_hostname} already exists, using {unique_hostname} instead")
     
-    # Create new node configuration
     print(f"[CLUSTER] Creating new node config for {unique_hostname}")
     node_config = {
         "hostname": unique_hostname,
@@ -862,7 +833,6 @@ async def register_node(request: NodeRegistrationRequest):
         print(f"[CLUSTER] Node {unique_hostname} registered successfully")
         print(f"[CLUSTER] ========================================")
         
-        # Verify registration
         verification = read_node_config(unique_hostname)
         if verification:
             print(f"[CLUSTER] Verification: Node config readable after write")
@@ -887,11 +857,9 @@ async def leave_cluster():
         raise HTTPException(status_code=400, detail="Not part of any cluster")
     
     if is_master_node():
-        # Remove master configuration
         if os.path.exists(MASTER_CONFIG_FILE):
             os.remove(MASTER_CONFIG_FILE)
         
-        # Remove all node configurations
         if os.path.exists(NODES_DIR):
             for filename in os.listdir(NODES_DIR):
                 node_file = os.path.join(NODES_DIR, filename)
@@ -901,7 +869,6 @@ async def leave_cluster():
         # TODO: Notify all child nodes
         
     elif is_child_node():
-        # Remove child configuration
         if os.path.exists(CHILD_CONFIG_FILE):
             os.remove(CHILD_CONFIG_FILE)
         
@@ -915,7 +882,6 @@ async def remove_node(node_id: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can remove nodes")
     
-    # Remove node configuration
     delete_node_config(node_id)
     
     # TODO: Notify the removed node
@@ -935,7 +901,6 @@ async def get_cluster_nodes():
         # Child nodes don't have access to all node configs
         return {"nodes": []}
 
-
 # Load Balancing Endpoints
 
 class WorkloadPlacementRequest(BaseModel):
@@ -953,11 +918,9 @@ async def get_workload_placement(request: WorkloadPlacementRequest):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can manage workload placement")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     nodes = cluster_info.nodes
     
-    # Get load balancer and select node
     lb = get_load_balancer()
     
     try:
@@ -965,7 +928,6 @@ async def get_workload_placement(request: WorkloadPlacementRequest):
     except ValueError:
         strategy = LoadBalancingStrategy.LEAST_LOADED
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1001,10 +963,8 @@ async def get_load_distribution():
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view load distribution")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1015,7 +975,6 @@ async def get_load_distribution():
         for n in cluster_info.nodes
     ]
     
-    # Get load balancer and calculate distribution
     lb = get_load_balancer()
     distribution = lb.get_cluster_load_distribution(nodes_dict)
     
@@ -1027,10 +986,8 @@ async def get_rebalancing_recommendations():
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can get rebalancing recommendations")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1041,7 +998,6 @@ async def get_rebalancing_recommendations():
         for n in cluster_info.nodes
     ]
     
-    # Get load balancer and recommendations
     lb = get_load_balancer()
     recommendations = lb.recommend_rebalancing(nodes_dict)
     
@@ -1075,7 +1031,6 @@ async def remove_affinity_rule(service_id: str):
     return {
         "message": f"Affinity rule removed for service {service_id}"
     }
-
 
 # Container Synchronization Endpoints
 
@@ -1146,12 +1101,10 @@ async def execute_synchronization():
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can execute synchronization")
     
-    # Get cluster info  
     cluster_info = await get_cluster_info()
     master_config = read_master_config()
     cluster_key = master_config.get("key")
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1163,7 +1116,6 @@ async def execute_synchronization():
         for n in cluster_info.nodes
     ]
     
-    # Execute sync
     sync_manager = get_sync_manager()
     await sync_manager.sync_all_containers(nodes_dict, cluster_key)
     
@@ -1193,12 +1145,10 @@ async def migrate_container(request: ContainerMigrationRequest):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can migrate containers")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     master_config = read_master_config()
     cluster_key = master_config.get("key")
     
-    # Find target node
     target_node = None
     for node in cluster_info.nodes:
         if node.id == request.target_node_id:
@@ -1217,7 +1167,6 @@ async def migrate_container(request: ContainerMigrationRequest):
     if target_node["status"] != "online":
         raise HTTPException(status_code=400, detail="Target node is not online")
     
-    # Execute migration
     sync_manager = get_sync_manager()
     success = await sync_manager.migrate_container(
         request.service_name,
@@ -1248,7 +1197,6 @@ async def get_container_distribution():
         "distribution": distribution,
         "node_count": len(distribution)
     }
-
 
 # Enhanced Metrics and Monitoring Endpoints
 
@@ -1288,10 +1236,8 @@ async def get_cluster_metrics_summary():
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view cluster metrics summary")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1345,10 +1291,8 @@ async def get_cluster_health():
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view cluster health")
     
-    # Get cluster info
     cluster_info = await get_cluster_info()
     
-    # Convert ClusterNode objects to dicts
     nodes_dict = [
         {
             "id": n.id,
@@ -1359,22 +1303,18 @@ async def get_cluster_health():
         for n in cluster_info.nodes
     ]
     
-    # Calculate health metrics
     total_nodes = len(nodes_dict)
     online_nodes = sum(1 for n in nodes_dict if n["status"] == "online")
     offline_nodes = total_nodes - online_nodes
     
-    # Get load balancer stats
     lb = get_load_balancer()
     load_distribution = lb.get_cluster_load_distribution(nodes_dict)
     
-    # Get active alerts
     metrics_collector = get_metrics_collector()
     alerts = metrics_collector.get_active_alerts()
     critical_alerts = [a for a in alerts if a.get("level") == "critical"]
     warning_alerts = [a for a in alerts if a.get("level") == "warning"]
     
-    # Calculate total cores and RAM across cluster
     total_cpu_cores = 0
     total_memory_gb = 0.0
     
@@ -1401,8 +1341,6 @@ async def get_cluster_health():
     print(f"[CLUSTER]   - Total Memory: {total_memory_gb:.2f} GB")
     print(f"[CLUSTER] ==========================================")
 
-    
-    # Determine overall health
     health_status = "healthy"
     if offline_nodes > 0 or len(critical_alerts) > 0:
         health_status = "critical"
@@ -1480,7 +1418,6 @@ async def create_replication(replication: ReplicationCreate):
     
     replications = read_replications()
     
-    # Generate a unique ID
     import uuid
     new_replication = {
         "id": str(uuid.uuid4()),
@@ -1508,7 +1445,6 @@ async def delete_replication(replication_id: str):
     
     replications = read_replications()
     
-    # Find and remove the replication
     updated_replications = [r for r in replications if r["id"] != replication_id]
     
     if len(updated_replications) == len(replications):
@@ -1529,7 +1465,6 @@ async def trigger_replication(replication_id: str):
     
     replications = read_replications()
     
-    # Find the replication
     replication = None
     for r in replications:
         if r["id"] == replication_id:
@@ -1541,7 +1476,6 @@ async def trigger_replication(replication_id: str):
     
     print(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
     
-    # Trigger replication in background
     import asyncio
     asyncio.create_task(execute_replication(replication))
     
@@ -1572,11 +1506,9 @@ async def execute_replication(replication: dict):
         
         print(f"[REPLICATION] Cluster key loaded successfully")
         
-        # Get node configurations
         origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
         dest_config = read_node_config(destination_node) if destination_node != get_hostname() else None
         
-        # Determine origin node address
         if origin_node == get_hostname():
             origin_ip = "localhost"
             origin_port = 9500
@@ -1587,7 +1519,6 @@ async def execute_replication(replication: dict):
             print(f"[REPLICATION] Origin node config not found: {origin_node}")
             return
         
-        # Determine destination node address
         if destination_node == get_hostname():
             dest_ip = "localhost"
             dest_port = 9500
@@ -1600,12 +1531,10 @@ async def execute_replication(replication: dict):
         
         print(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
         
-        # Export from origin node
         async with httpx.AsyncClient(timeout=300.0) as client:
             export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
             print(f"[REPLICATION] Export URL: {export_url}")
 
-            
             export_response = await client.post(
                 export_url,
                 headers={"Authorization": f"Bearer {cluster_key}"}
@@ -1626,7 +1555,6 @@ async def execute_replication(replication: dict):
             
             print(f"[REPLICATION] Exported to: {export_path}")
             
-            # Download the exported archive
             download_url = f"http://{origin_ip}:{origin_port}/cluster/download/{export_path.split('/')[-1]}"
             print(f"[REPLICATION] Downloading from: {download_url}")
             
@@ -1642,7 +1570,6 @@ async def execute_replication(replication: dict):
             archive_data = download_response.content
             print(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
             
-            # Upload to destination node
             upload_url = f"http://{dest_ip}:{dest_port}/cluster/upload"
             print(f"[REPLICATION] Uploading to: {upload_url}")
             
@@ -1665,7 +1592,6 @@ async def execute_replication(replication: dict):
             
             print(f"[REPLICATION] Uploaded to: {uploaded_path}")
             
-            # Import on destination node
             import_url = f"http://{dest_ip}:{dest_port}/cluster/import/{resource_type}"
             print(f"[REPLICATION] Importing at: {import_url}")
             
@@ -1699,7 +1625,6 @@ async def get_node_resources(hostname: str):
     
     print(f"[REPLICATION] Fetching resources from node: {hostname}")
     
-    # If it's the master node itself, get local resources
     if hostname == get_hostname():
         try:
             from containers import list_all_containers
@@ -1731,7 +1656,6 @@ async def get_node_resources(hostname: str):
             traceback.print_exc()
             return {"resources": []}
     
-    # For child nodes, fetch from their API
     node_config = read_node_config(hostname)
     if not node_config:
         print(f"[REPLICATION] Node config not found for: {hostname}")
@@ -1748,7 +1672,6 @@ async def get_node_resources(hostname: str):
         resources = []
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Fetch containers
             try:
                 containers_url = f"http://{node_ip}:{node_port}/containers"
                 print(f"[REPLICATION] Fetching containers from: {containers_url}")
@@ -1775,7 +1698,6 @@ async def get_node_resources(hostname: str):
             except Exception as e:
                 print(f"[REPLICATION] Error fetching containers: {e}")
             
-            # Fetch VMs
             try:
                 vms_url = f"http://{node_ip}:{node_port}/vms"
                 print(f"[REPLICATION] Fetching VMs from: {vms_url}")
@@ -1812,7 +1734,6 @@ async def get_node_resources(hostname: str):
 # Replication Export/Import Endpoints
 TEMP_EXPORT_DIR = "/tmp/upservx_exports"
 
-
 def _safe_tar_extractall(tar, dest_dir: str):
     """Extract tar archive, rejecting any members that escape dest_dir (path traversal)."""
     dest_real = os.path.realpath(dest_dir)
@@ -1825,7 +1746,6 @@ def _safe_tar_extractall(tar, dest_dir: str):
 @router.post("/cluster/export/{resource_type}/{resource_name}")
 async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
     """Export a container or VM with all volumes/storage"""
-    # Verify authentication
     print(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
     
     if not authorization or not authorization.startswith("Bearer "):
@@ -1855,10 +1775,8 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         print(f"[EXPORT] Exporting {resource_type} '{resource_name}' to {export_path}")
         
         if resource_type == "container":
-            # Export Docker container with volumes
             import tarfile
             
-            # Get container information
             inspect_result = subprocess.run(
                 ["docker", "inspect", resource_name],
                 capture_output=True,
@@ -1868,9 +1786,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             
             container_info = json.loads(inspect_result.stdout)[0]
             
-            # Create tarball with container filesystem and volumes
             with tarfile.open(export_path, "w:gz") as tar:
-                # Export container filesystem
                 print(f"[EXPORT] Exporting container filesystem...")
                 export_result = subprocess.run(
                     ["docker", "export", resource_name],
@@ -1878,14 +1794,12 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                     check=True
                 )
                 
-                # Write filesystem to temporary file
                 fs_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_filesystem.tar")
                 with open(fs_temp, 'wb') as f:
                     f.write(export_result.stdout)
                 
                 tar.add(fs_temp, arcname="filesystem.tar")
                 
-                # Export volumes
                 mounts = container_info.get("Mounts", [])
                 volumes_info = []
                 
@@ -1896,7 +1810,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                         
                         print(f"[EXPORT] Exporting volume: {volume_name}")
                         
-                        # Inspect volume to get source path
                         vol_inspect = subprocess.run(
                             ["docker", "volume", "inspect", volume_name],
                             capture_output=True,
@@ -1908,14 +1821,12 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                         volume_path = vol_info.get("Mountpoint")
                         
                         if volume_path and os.path.exists(volume_path):
-                            # Add volume data to archive
                             tar.add(volume_path, arcname=f"volumes/{volume_name}")
                             volumes_info.append({
                                 "name": volume_name,
                                 "destination": mount_point
                             })
                 
-                # Save metadata
                 host_config = container_info.get("HostConfig", {})
                 metadata = {
                     "name": resource_name,
@@ -1935,7 +1846,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                 
                 tar.add(metadata_file, arcname="metadata.json")
                 
-                # Export Docker image
                 image_name = container_info.get("Config", {}).get("Image")
                 if image_name:
                     print(f"[EXPORT] Exporting Docker image: {image_name}")
@@ -1953,7 +1863,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                     os.remove(image_temp)
                     print(f"[EXPORT] Image exported successfully")
                 
-                # Cleanup temp files
                 os.remove(fs_temp)
             
             print(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
@@ -1962,7 +1871,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             import tarfile
             import xml.etree.ElementTree as ET
             
-            # Get VM XML definition from virsh
             print(f"[EXPORT] Getting VM XML definition for: {resource_name}")
             xml_result = subprocess.run(
                 ["virsh", "dumpxml", resource_name],
@@ -1972,7 +1880,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             )
             vm_xml = xml_result.stdout
             
-            # Parse disk paths from XML
             disk_paths = []
             try:
                 root = ET.fromstring(vm_xml)
@@ -1990,20 +1897,17 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                 raise HTTPException(status_code=404, detail=f"No disk images found for VM '{resource_name}'")
             
             with tarfile.open(export_path, "w:gz") as tar:
-                # Add VM XML definition
                 xml_temp = os.path.join(TEMP_EXPORT_DIR, f"{export_id}_vm.xml")
                 with open(xml_temp, 'w') as f:
                     f.write(vm_xml)
                 tar.add(xml_temp, arcname="vm.xml")
                 os.remove(xml_temp)
                 
-                # Add all disk images
                 for i, disk_path in enumerate(disk_paths):
                     disk_filename = os.path.basename(disk_path)
                     print(f"[EXPORT] Adding disk image: {disk_path} ({os.path.getsize(disk_path) // 1024 // 1024} MB)")
                     tar.add(disk_path, arcname=f"disks/{disk_filename}")
                 
-                # Add metadata
                 vm_metadata = {
                     "name": resource_name,
                     "disk_paths": disk_paths,
@@ -2036,7 +1940,6 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
 @router.get("/cluster/download/{filename}")
 async def download_export(filename: str, authorization: str = Header(None, alias="Authorization")):
     """Download an exported archive"""
-    # Verify authentication
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization")
     
@@ -2072,7 +1975,6 @@ async def download_export(filename: str, authorization: str = Header(None, alias
 @router.post("/cluster/upload")
 async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None, alias="Authorization")):
     """Upload an archive for import"""
-    # Verify authentication
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization")
     
@@ -2118,7 +2020,6 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
 @router.post("/cluster/import/{resource_type}")
 async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None, alias="Authorization")):
     """Import a container or VM from archive"""
-    # Verify authentication
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization")
     
@@ -2144,18 +2045,15 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
         print(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
         
         if resource_type == "container":
-            # Import Docker container with volumes
             import tarfile
             
             extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
             os.makedirs(extract_dir, exist_ok=True)
             
-            # Extract archive
             print(f"[IMPORT] Extracting archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
                 _safe_tar_extractall(tar, extract_dir)
             
-            # Read metadata
             metadata_file = os.path.join(extract_dir, "metadata.json")
             if not os.path.exists(metadata_file):
                 raise HTTPException(status_code=400, detail="Metadata not found in archive")
@@ -2163,7 +2061,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
             
-            # Load Docker image if present
             image_path = os.path.join(extract_dir, "image.tar")
             if os.path.exists(image_path):
                 print(f"[IMPORT] Loading Docker image...")
@@ -2194,7 +2091,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 image_to_use = import_result.stdout.decode().strip()
                 print(f"[IMPORT] Created image from filesystem: {image_to_use}")
             
-            # Restore volumes
             volumes_info = metadata.get("volumes", [])
             volume_mounts = []
             
@@ -2204,14 +2100,12 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 
                 print(f"[IMPORT] Restoring volume: {volume_name}")
                 
-                # Create volume
                 subprocess.run(
                     ["docker", "volume", "create", volume_name],
                     capture_output=True,
                     check=True
                 )
                 
-                # Get volume mountpoint
                 vol_inspect = subprocess.run(
                     ["docker", "volume", "inspect", volume_name],
                     capture_output=True,
@@ -2222,10 +2116,8 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 vol_data = json.loads(vol_inspect.stdout)[0]
                 volume_path = vol_data.get("Mountpoint")
                 
-                # Restore volume data
                 source_path = os.path.join(extract_dir, f"volumes/{volume_name}")
                 if os.path.exists(source_path) and volume_path:
-                    # Copy volume data
                     subprocess.run(
                         ["cp", "-a", f"{source_path}/.", volume_path],
                         check=True
@@ -2234,12 +2126,10 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 
                 volume_mounts.append(f"{volume_name}:{mount_point}")
             
-            # Create container with restored volumes
             print(f"[IMPORT] Creating container with volumes and port mappings...")
             
             create_cmd = ["docker", "create", "--name", name]
             
-            # Add port bindings
             port_bindings = metadata.get("port_bindings", {})
             if port_bindings:
                 for container_port, host_bindings in port_bindings.items():
@@ -2254,24 +2144,19 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                                     create_cmd.extend(["-p", f"{host_port}:{container_port}"])
                                 print(f"[IMPORT] Adding port mapping: {host_port}:{container_port}")
             
-            # Add volume mounts
             for mount in volume_mounts:
                 create_cmd.extend(["-v", mount])
             
-            # Add environment variables
             for env in metadata.get("env", []):
                 create_cmd.extend(["-e", env])
             
-            # Add restart policy
             restart_policy = metadata.get("restart_policy", {})
             if restart_policy and restart_policy.get("Name") != "no":
                 policy_name = restart_policy.get("Name", "no")
                 create_cmd.extend(["--restart", policy_name])
             
-            # Add image
             create_cmd.append(image_to_use)
             
-            # Add command
             if metadata.get("cmd"):
                 create_cmd.extend(metadata["cmd"])
             
@@ -2279,7 +2164,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             
             print(f"[IMPORT] Container created successfully")
             
-            # Cleanup
             shutil.rmtree(extract_dir)
             os.remove(archive_path)
             
@@ -2294,7 +2178,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             with tarfile.open(archive_path, "r:gz") as tar:
                 _safe_tar_extractall(tar, extract_dir)
             
-            # Read VM metadata
             metadata_file = os.path.join(extract_dir, "vm_metadata.json")
             if os.path.exists(metadata_file):
                 with open(metadata_file, 'r') as f:
@@ -2302,7 +2185,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             else:
                 vm_metadata = {}
             
-            # Move disk images to libvirt images directory
             disks_dir = os.path.join(extract_dir, "disks")
             disk_map = {}  # old filename -> new path
             
@@ -2314,7 +2196,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                     disk_map[disk_filename] = dst
                     print(f"[IMPORT] Moved disk: {disk_filename} -> {dst}")
             
-            # Load and patch VM XML
             xml_file = os.path.join(extract_dir, "vm.xml")
             if not os.path.exists(xml_file):
                 raise HTTPException(status_code=400, detail="VM XML definition not found in archive")
@@ -2348,12 +2229,10 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             except Exception as e:
                 print(f"[IMPORT] Warning: Could not patch VM XML: {e}")
             
-            # Write patched XML
             patched_xml_file = os.path.join(extract_dir, "vm_patched.xml")
             with open(patched_xml_file, 'w') as f:
                 f.write(vm_xml)
             
-            # Define VM in libvirt
             print(f"[IMPORT] Defining VM in libvirt...")
             define_result = subprocess.run(
                 ["virsh", "define", patched_xml_file],
@@ -2363,7 +2242,6 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             )
             print(f"[IMPORT] VM defined: {define_result.stdout.strip()}")
             
-            # Cleanup
             shutil.rmtree(extract_dir)
             os.remove(archive_path)
             
@@ -2385,5 +2263,4 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
-
 

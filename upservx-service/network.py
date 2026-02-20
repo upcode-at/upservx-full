@@ -11,9 +11,7 @@ import ipaddress
 from typing import List
 from models import NetworkInterfaceInfo, NetworkSettingsModel, InterfaceConfigModel
 
-
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
-
 
 def _format_bytes(num: int) -> str:
     """Format bytes into human-readable format."""
@@ -24,7 +22,6 @@ def _format_bytes(num: int) -> str:
         num /= step
     return f"{num:.1f} PB"
 
-
 def _infer_iface_type(name: str) -> str:
     """Infer network interface type from name."""
     if name.startswith(("wl", "wifi")):
@@ -34,7 +31,6 @@ def _infer_iface_type(name: str) -> str:
     if name.startswith(("docker", "veth")):
         return "Virtual"
     return "Ethernet"
-
 
 def _default_gateways() -> dict[str, str]:
     """Get default gateways for network interfaces."""
@@ -54,7 +50,6 @@ def _default_gateways() -> dict[str, str]:
     except Exception:
         pass
     return gateways
-
 
 def get_network_interfaces() -> List[NetworkInterfaceInfo]:
     """Get detailed information about all network interfaces."""
@@ -101,7 +96,6 @@ def get_network_interfaces() -> List[NetworkInterfaceInfo]:
         )
     return interfaces
 
-
 def _system_nameservers() -> tuple[str, str]:
     """Get primary and secondary nameservers from /etc/resolv.conf."""
     primary = "8.8.8.8"
@@ -121,7 +115,6 @@ def _system_nameservers() -> tuple[str, str]:
         pass
     return primary, secondary
 
-
 def load_network_settings() -> NetworkSettingsModel:
     """Load network settings from file or system defaults."""
     if os.path.exists(NETWORK_SETTINGS_FILE):
@@ -139,12 +132,10 @@ def load_network_settings() -> NetworkSettingsModel:
     primary, secondary = _system_nameservers()
     return NetworkSettingsModel(dns_primary=primary, dns_secondary=secondary)
 
-
 def save_network_settings(settings: NetworkSettingsModel) -> None:
     """Save network settings to file."""
     with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
-
 
 def _netmask_to_prefix(netmask: str) -> int:
     """Convert a netmask like '255.255.255.0' to a CIDR prefix length (e.g. 24)."""
@@ -160,7 +151,6 @@ def _netmask_to_prefix(netmask: str) -> int:
         except Exception:
             return 24
 
-
 def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
     """Apply configuration to a network interface.
 
@@ -169,7 +159,6 @@ def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
     therefore require appropriate system privileges.
     """
     try:
-        # Bring interface up/down as requested
         if not cfg.enabled:
             subprocess.check_call(["ip", "link", "set", "dev", name, "down"])
             return
@@ -189,7 +178,6 @@ def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
             subprocess.check_call(["dhclient", name])
         else:
             # Static configuration
-            # Flush existing addresses on the interface
             subprocess.check_call(["ip", "addr", "flush", "dev", name])
 
             if cfg.ip and cfg.netmask:

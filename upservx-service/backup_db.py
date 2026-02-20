@@ -26,7 +26,6 @@ class BackupDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Create backup_servers table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS backup_servers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +49,6 @@ class BackupDatabase:
                 )
             """)
             
-            # Create backup_jobs table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS backup_jobs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +69,6 @@ class BackupDatabase:
                 )
             """)
             
-            # Create backup_instances table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS backup_instances (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,14 +89,12 @@ class BackupDatabase:
                 )
             """)
             
-            # Create indexes for better performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_backup_jobs_server_id ON backup_jobs (server_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_backup_instances_job_id ON backup_instances (job_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_backup_instances_server_id ON backup_instances (server_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_backup_instances_status ON backup_instances (status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_backup_instances_created ON backup_instances (created DESC)")
             
-            # Create triggers for updated timestamp
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS update_backup_servers_timestamp 
                 AFTER UPDATE ON backup_servers
@@ -139,7 +134,6 @@ class BackupDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Convert targets list to JSON if present
             targets_json = json.dumps(server_data.get('targets', [])) if 'targets' in server_data else None
             
             cursor.execute("""
@@ -203,7 +197,6 @@ class BackupDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Build dynamic UPDATE query
             set_clauses = []
             values = []
             
@@ -280,7 +273,6 @@ class BackupDatabase:
             jobs = []
             for row in cursor.fetchall():
                 job = dict(row)
-                # Parse JSON targets
                 job['targets'] = json.loads(job['targets']) if job['targets'] else []
                 jobs.append(job)
             
@@ -304,11 +296,9 @@ class BackupDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Handle targets JSON conversion
             if 'targets' in update_data:
                 update_data['targets'] = json.dumps(update_data['targets'])
             
-            # Build dynamic UPDATE query
             set_clauses = []
             values = []
             
@@ -433,11 +423,9 @@ class BackupDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Handle targets JSON conversion
             if 'targets' in update_data:
                 update_data['targets'] = json.dumps(update_data['targets'])
             
-            # Build dynamic UPDATE query
             set_clauses = []
             values = []
             
@@ -488,6 +476,4 @@ class BackupDatabase:
             
             return deleted_count
 
-
-# Global database instance
 backup_db = BackupDatabase()

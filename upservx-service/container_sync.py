@@ -13,11 +13,9 @@ import os
 from compose_manager import ComposeManager
 from load_balancer import get_load_balancer, LoadBalancingStrategy
 
-# Paths for sync configuration
 UPSERVX_CONFIG_DIR = "/etc/upservx"
 SYNC_STATE_FILE = os.path.join(UPSERVX_CONFIG_DIR, "sync_state.json")
 SYNC_RULES_FILE = os.path.join(UPSERVX_CONFIG_DIR, "sync_rules.json")
-
 
 class SyncStrategy:
     """Container synchronization strategies"""
@@ -25,7 +23,6 @@ class SyncStrategy:
     DISTRIBUTE = "distribute"  # Distribute across nodes
     ACTIVE_PASSIVE = "active_passive"  # Active on one, passive on others
     CUSTOM = "custom"  # Custom rules
-
 
 class ContainerState:
     """Represents the state of a container"""
@@ -48,7 +45,6 @@ class ContainerState:
             "config": self.config,
             "last_updated": self.last_updated
         }
-
 
 class SyncRule:
     """Synchronization rule for a service"""
@@ -77,7 +73,6 @@ class SyncRule:
             target_nodes=data.get("target_nodes", []),
             replica_count=data.get("replica_count", 1)
         )
-
 
 class ContainerSyncManager:
     """Manages container synchronization across cluster"""
@@ -120,7 +115,6 @@ class ContainerSyncManager:
             try:
                 with open(SYNC_STATE_FILE, 'r') as f:
                     data = json.load(f)
-                    # Reconstruct container states
                     for key, state_data in data.items():
                         self.container_states[key] = ContainerState(
                             service_id=state_data["service_id"],
@@ -174,14 +168,11 @@ class ContainerSyncManager:
             True if sync successful, False otherwise
         """
         try:
-            # Get service configuration
-            # This would need to read docker-compose or app configuration
             service_config = await self._get_service_config(service_name)
             
             if not service_config:
                 return False
             
-            # Send deployment request to target node
             url = f"http://{target_node['ip_address']}:{target_node['port']}/containers/deploy"
             
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -195,7 +186,6 @@ class ContainerSyncManager:
                 )
                 
                 if response.status_code == 200:
-                    # Update sync state
                     state_key = f"{service_name}_{target_node['id']}"
                     self.container_states[state_key] = ContainerState(
                         service_id=state_key,
@@ -252,12 +242,10 @@ class ContainerSyncManager:
         online_nodes = [n for n in nodes if n.get("status") == "online"]
         
         if rule.strategy == SyncStrategy.REPLICATE:
-            # Deploy on all nodes
             for node in online_nodes:
                 await self.sync_container_to_node(service_name, node, cluster_key)
         
         elif rule.strategy == SyncStrategy.DISTRIBUTE:
-            # Use load balancer to select nodes
             lb = get_load_balancer()
             for i in range(rule.replica_count):
                 selected_node = lb.select_node(
@@ -269,7 +257,6 @@ class ContainerSyncManager:
                     await self.sync_container_to_node(service_name, selected_node, cluster_key)
         
         elif rule.strategy == SyncStrategy.CUSTOM:
-            # Deploy on specified target nodes
             for node in online_nodes:
                 if node.get("id") in rule.target_nodes:
                     await self.sync_container_to_node(service_name, node, cluster_key)
@@ -300,12 +287,9 @@ class ContainerSyncManager:
         Returns:
             True if migration successful, False otherwise
         """
-        # Deploy on target node
         success = await self.sync_container_to_node(service_name, target_node, cluster_key)
         
         if success:
-            # Remove from source node (would need to implement stop/remove endpoint)
-            # For now, just update state
             source_key = f"{service_name}_{source_node_id}"
             if source_key in self.container_states:
                 del self.container_states[source_key]
@@ -330,8 +314,6 @@ class ContainerSyncManager:
             "last_sync": datetime.now().isoformat()
         }
 
-
-# Global sync manager instance
 _sync_manager_instance = None
 
 def get_sync_manager() -> ContainerSyncManager:

@@ -106,7 +106,6 @@ export function SystemOverview() {
   }, new Map<string, { device: string; type: string; size: number; used: number; available: number }>())
   const physicalDriveList = Array.from(physicalDrives.values())
 
-
   useEffect(() => {
     const loadDrives = async () => {
       try {
@@ -125,7 +124,6 @@ export function SystemOverview() {
   useEffect(() => {
     const fetchResourceCounts = async () => {
       try {
-        // Fetch containers
         const containersRes = await fetch(apiUrl("/containers"), { credentials: "include" })
         let containersCount = 0
         if (containersRes.ok) {
@@ -133,7 +131,6 @@ export function SystemOverview() {
           containersCount = containersData.length || 0
         }
 
-        // Fetch VMs
         const vmsRes = await fetch(apiUrl("/vms"), { credentials: "include" })
         let vmsCount = 0
         if (vmsRes.ok) {
@@ -141,7 +138,6 @@ export function SystemOverview() {
           vmsCount = vmsData.length || 0
         }
 
-        // Fetch Docker Images
         const dockerImagesRes = await fetch(apiUrl("/images?type=docker"), { credentials: "include" })
         let dockerImagesCount = 0
         if (dockerImagesRes.ok) {
@@ -149,7 +145,6 @@ export function SystemOverview() {
           dockerImagesCount = dockerData.images?.length || 0
         }
 
-        // Fetch LXC Images
         const lxcImagesRes = await fetch(apiUrl("/images?type=lxc"), { credentials: "include" })
         let lxcImagesCount = 0
         if (lxcImagesRes.ok) {
@@ -157,7 +152,6 @@ export function SystemOverview() {
           lxcImagesCount = lxcData.images?.length || 0
         }
 
-        // Fetch ISOs
         const isosRes = await fetch(apiUrl("/isos"), { credentials: "include" })
         let isosCount = 0
         if (isosRes.ok) {
@@ -181,7 +175,6 @@ export function SystemOverview() {
     const interval = setInterval(fetchResourceCounts, 30000) // Update every 30 seconds
     return () => clearInterval(interval)
   }, [])
-
 
   return (
     <div className="space-y-6">

@@ -127,7 +127,6 @@ export function VirtualMachines() {
         const res = await fetch(apiUrl("/drives"))
         if (res.ok) {
           const data = await res.json()
-          // Filter only mounted drives
           const mountedDrives = (data.drives || []).filter((d: { mounted: boolean, mountpoint: string }) => 
             d.mounted && d.mountpoint && d.mountpoint !== "/"
           )
@@ -166,8 +165,6 @@ export function VirtualMachines() {
     loadInterfaces()
   }, [])
 
-
-
   const handleSave = async () => {
     setSuccess(null)
     setError(null)
@@ -184,7 +181,6 @@ export function VirtualMachines() {
         body: JSON.stringify(payload)
       })
       if (res.ok) {
-        // Reload VM list to get fresh data
         const refreshRes = await fetch(apiUrl("/vms"))
         if (refreshRes.ok) {
           const allVms = await refreshRes.json()
@@ -219,9 +215,7 @@ export function VirtualMachines() {
     try {
       const res = await fetch(apiUrl(`/vms/${name}/shutdown`), { method: "POST" })
       if (res.ok) {
-        // Force immediate status update
         setVms(prev => prev.map(vm => vm.name === name ? { ...vm, status: "stopped" } : vm))
-        // Reload to get actual status
         setTimeout(async () => {
           const refreshRes = await fetch(apiUrl("/vms"))
           if (refreshRes.ok) {
@@ -321,7 +315,6 @@ export function VirtualMachines() {
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setStoragePath("")
-    // Determine network mode from network_bridge
     const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : "bridge"
     setNetworkMode(mode)
     if (mode === "bridge" && vm.network_bridge) {

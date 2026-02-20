@@ -42,7 +42,6 @@ class NodeCapacity:
         return (100 - self.cpu_usage >= required_cpu and 
                 100 - self.memory_usage >= required_memory)
 
-
 class LoadBalancer:
     """Main load balancer class"""
     
@@ -70,7 +69,6 @@ class LoadBalancer:
         if not nodes:
             return None
         
-        # Filter only online nodes
         online_nodes = [n for n in nodes if n.get("status") == "online"]
         if not online_nodes:
             return None
@@ -114,7 +112,6 @@ class LoadBalancer:
         required_cpu = required_resources.get("cpu", 10)
         required_memory = required_resources.get("memory", 10)
         
-        # Filter nodes that can handle the workload
         suitable_nodes = []
         for node in nodes:
             resources = node.get("resources", {})
@@ -130,19 +127,16 @@ class LoadBalancer:
         if not suitable_nodes:
             return None
         
-        # Return node with most available capacity
         return max(suitable_nodes, key=lambda x: x[1])[0]
     
     def _select_by_affinity(self, nodes: List[Dict], service_id: str) -> Dict:
         """Select node based on affinity rules"""
-        # Check if there's an affinity rule for this service
         if service_id in self.affinity_rules:
             preferred_node_id = self.affinity_rules[service_id]
             for node in nodes:
                 if node.get("id") == preferred_node_id:
                     return node
         
-        # No affinity rule or preferred node not available, use least loaded
         return self._select_least_loaded(nodes)
     
     def set_affinity(self, service_id: str, node_id: str):
@@ -213,7 +207,6 @@ class LoadBalancer:
         if len(online_nodes) < 2:
             return []
         
-        # Calculate loads
         node_loads = []
         for node in online_nodes:
             resources = node.get("resources", {})
@@ -224,7 +217,6 @@ class LoadBalancer:
             )
             node_loads.append((node, capacity.total_load))
         
-        # Sort by load
         node_loads.sort(key=lambda x: x[1])
         
         recommendations = []
@@ -243,8 +235,6 @@ class LoadBalancer:
         
         return recommendations
 
-
-# Global load balancer instance
 _load_balancer_instance = None
 
 def get_load_balancer() -> LoadBalancer:

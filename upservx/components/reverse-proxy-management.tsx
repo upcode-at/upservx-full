@@ -48,7 +48,6 @@ export default function ReverseProxyManagement() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  // Form states
   const [domain, setDomain] = useState("")
   const [backendHost, setBackendHost] = useState("127.0.0.1")
   const [backendPort, setBackendPort] = useState(9500)
@@ -56,7 +55,6 @@ export default function ReverseProxyManagement() {
   const [sslEnabled, setSslEnabled] = useState(false)
   const [forceSsl, setForceSsl] = useState(false)
   
-  // Proxy config states (without backend/frontend distinction)
   const [proxyDomain, setProxyDomain] = useState("")
   const [proxyBackendHost, setProxyBackendHost] = useState("127.0.0.1")
   const [proxyPort, setProxyPort] = useState(80)

@@ -7,7 +7,6 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from typing import Optional
 
-
 class EncryptionManager:
     """Manages encryption and decryption of sensitive data using a device-specific key."""
     
@@ -24,7 +23,6 @@ class EncryptionManager:
         print(f"[ENCRYPTION] Checking for key at: {self.KEY_FILE}")
         
         if key_path.exists():
-            # Load existing key
             print("[ENCRYPTION] Loading existing key...")
             try:
                 with open(key_path, 'rb') as f:
@@ -37,21 +35,17 @@ class EncryptionManager:
                 print(f"[ENCRYPTION] Key content (first 20 chars): {key[:20] if key else 'empty'}")
                 raise
         else:
-            # Generate new key
             print("[ENCRYPTION] Key not found, generating new key...")
             self._generate_and_save_key()
     
     def _generate_and_save_key(self):
         """Generate a new encryption key and save it securely."""
-        # Ensure directory exists
         key_dir = Path(self.KEY_FILE).parent
         key_dir.mkdir(parents=True, exist_ok=True)
         os.chmod(key_dir, 0o755)
         
-        # Generate new key
         key = Fernet.generate_key()
         
-        # Save key with restricted permissions
         temp_file = f"{self.KEY_FILE}.tmp"
         with open(temp_file, 'wb') as f:
             f.write(key)
@@ -112,10 +106,7 @@ class EncryptionManager:
         manager = EncryptionManager()
         return Path(manager.KEY_FILE).exists()
 
-
-# Global instance
 _encryption_manager: Optional[EncryptionManager] = None
-
 
 def get_encryption_manager() -> EncryptionManager:
     """Get or create the global encryption manager instance."""

@@ -12,15 +12,12 @@ import os
 import psutil
 import socket
 
-# Paths for metrics storage
 UPSERVX_CONFIG_DIR = "/etc/upservx"
 METRICS_DIR = os.path.join(UPSERVX_CONFIG_DIR, "metrics")
 ALERTS_FILE = os.path.join(UPSERVX_CONFIG_DIR, "alerts.json")
 
-# Metric retention settings
 METRIC_RETENTION_HOURS = 24
 METRIC_DATA_POINTS = 288  # 5-minute intervals for 24 hours
-
 
 class MetricType:
     """Metric types"""
@@ -31,13 +28,11 @@ class MetricType:
     CONTAINER = "container"  # Container-specific metrics
     CUSTOM = "custom"
 
-
 class AlertLevel:
     """Alert severity levels"""
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
-
 
 class MetricDataPoint:
     """Single metric data point"""
@@ -61,7 +56,6 @@ class MetricDataPoint:
             value=data["value"],
             metadata=data.get("metadata", {})
         )
-
 
 class MetricSeries:
     """Time series data for a metric"""
@@ -122,7 +116,6 @@ class MetricSeries:
             "data_points": [dp.to_dict() for dp in self.data_points]
         }
 
-
 class Alert:
     """Monitoring alert"""
     
@@ -163,7 +156,6 @@ class Alert:
         alert.acknowledged = data.get("acknowledged", False)
         return alert
 
-
 class AlertRule:
     """Alert rule definition"""
     
@@ -201,7 +193,6 @@ class AlertRule:
             "message_template": self.message_template,
             "enabled": self.enabled
         }
-
 
 class MetricsCollector:
     """Enhanced metrics collection and monitoring"""
@@ -289,28 +280,22 @@ class MetricsCollector:
     
     def collect_system_metrics(self, node_id: str) -> Dict:
         """Collect comprehensive system metrics"""
-        # CPU metrics
         cpu_percent = psutil.cpu_percent(interval=1)
         cpu_count = psutil.cpu_count()
         cpu_freq = psutil.cpu_freq()
         
-        # Memory metrics
         memory = psutil.virtual_memory()
         swap = psutil.swap_memory()
         
-        # Disk metrics
         disk = psutil.disk_usage('/')
         disk_io = psutil.disk_io_counters()
         
-        # Network metrics
         net_io = psutil.net_io_counters()
         
-        # Store metrics
         self._store_metric(node_id, "cpu_usage", MetricType.CPU, cpu_percent)
         self._store_metric(node_id, "memory_usage", MetricType.MEMORY, memory.percent)
         self._store_metric(node_id, "disk_usage", MetricType.DISK, disk.percent)
         
-        # Check alert rules
         self._check_alerts(node_id, "cpu_usage", cpu_percent)
         self._check_alerts(node_id, "memory_usage", memory.percent)
         self._check_alerts(node_id, "disk_usage", disk.percent)
@@ -362,7 +347,6 @@ class MetricsCollector:
         """Check alert rules for a metric"""
         for rule in self.alert_rules.values():
             if rule.metric_name == metric_name and rule.evaluate(value):
-                # Create alert
                 alert_id = f"{node_id}_{metric_name}_{int(datetime.now().timestamp())}"
                 message = rule.message_template.format(node_id=node_id, value=value)
                 
@@ -463,8 +447,6 @@ class MetricsCollector:
         ]
         self.save_alerts()
 
-
-# Global metrics collector instance
 _metrics_collector_instance = None
 
 def get_metrics_collector() -> MetricsCollector:

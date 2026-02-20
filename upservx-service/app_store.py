@@ -9,9 +9,7 @@ import json
 from typing import List, Dict, Optional
 from pathlib import Path
 
-# Directory where app templates are stored
 APP_STORE_DIR = "/opt/upservx/app-store"
-# Directory where user's compose projects are stored
 COMPOSE_BASE_DIR = "/opt/upservx/compose"
 
 
@@ -40,11 +38,7 @@ class AppStore:
                     try:
                         with open(metadata_file, 'r') as f:
                             metadata = json.load(f)
-                        
-                        # Add installation status
                         installed = self._check_if_installed(app_name)
-                        
-                        # Check for icon image files (icon.png, logo.png, icon.jpg, logo.jpg)
                         icon = metadata.get("icon", "📦")
                         for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
                             icon_path = os.path.join(app_dir, icon_filename)
@@ -92,8 +86,6 @@ class AppStore:
                     readme_content = f.read()
             
             installed = self._check_if_installed(app_id)
-            
-            # Check for icon image files (icon.png, logo.png, icon.jpg, logo.jpg)
             icon = metadata.get("icon", "📦")
             for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
                 icon_path = os.path.join(app_dir, icon_filename)
@@ -130,17 +122,13 @@ class AppStore:
         if not os.path.exists(compose_file):
             return {"success": False, "message": "App not found in store"}
         
-        # Use custom name or default to app_id
         project_name = custom_name if custom_name else app_id
         project_name = normalize_project_name(project_name)
-        
-        # Check if already installed
         target_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         if os.path.exists(target_dir):
             return {"success": False, "message": f"Project '{project_name}' already exists"}
         
         try:
-            # Copy the entire app directory to compose directory
             shutil.copytree(app_dir, target_dir)
             
             return {
@@ -154,13 +142,10 @@ class AppStore:
     def uninstall_app(self, project_name: str) -> Dict:
         """Uninstall an app (removes the project)."""
         from compose_manager import compose_manager
-        
-        # Use compose manager's delete function
         return compose_manager.delete_project(project_name, remove_volumes=True)
     
     def _check_if_installed(self, app_id: str) -> bool:
         """Check if an app is currently installed."""
-        # Check if a project with this app_id exists
         project_dir = os.path.join(COMPOSE_BASE_DIR, app_id)
         return os.path.exists(project_dir)
     
@@ -190,7 +175,6 @@ class AppStore:
         """Get the path to an app's icon file."""
         app_dir = os.path.join(APP_STORE_DIR, app_id)
         
-        # Check for various icon file names
         for icon_filename in ["icon.png", "logo.png", "icon.jpg", "logo.jpg"]:
             icon_path = os.path.join(app_dir, icon_filename)
             if os.path.exists(icon_path):
@@ -199,5 +183,4 @@ class AppStore:
         return None
 
 
-# Global instance
 app_store = AppStore()

@@ -203,13 +203,11 @@ export default function BackupManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  // Dialog states
   const [showServerDialog, setShowServerDialog] = useState(false)
   const [showJobDialog, setShowJobDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'server' | 'job', id: number, name: string } | null>(null)
   
-  // Forms
   const [serverForm, setServerForm] = useState({
     name: '',
     type: 'local',

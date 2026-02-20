@@ -12,32 +12,25 @@ from pathlib import Path
 
 COMPOSE_BASE_DIR = "/opt/upservx/compose"
 
-
 def normalize_project_name(name: str) -> str:
     """
     Normalize project name to be compatible with Docker Compose requirements.
     Must consist only of lowercase alphanumeric characters, hyphens, and underscores
     and must start with a letter or number.
     """
-    # Convert to lowercase
     name = name.lower()
-    
     # Replace spaces and invalid characters with hyphens
     name = re.sub(r'[^a-z0-9_-]', '-', name)
     
-    # Remove leading/trailing hyphens or underscores
     name = name.strip('-_')
-    
     # Ensure it starts with a letter or number
     if name and not name[0].isalnum():
         name = 'project-' + name
-    
     # If empty after normalization, use default
     if not name:
         name = 'project'
     
     return name
-
 
 class ComposeManager:
     """Manages Docker Compose projects and their files."""
@@ -64,13 +57,11 @@ class ComposeManager:
                             compose_data = yaml.safe_load(f)
                             services_data = compose_data.get('services', {})
                             
-                            # Extract detailed service information
                             services = []
                             for service_name, service_config in services_data.items():
                                 service_details = self._extract_service_details(service_name, service_config)
                                 services.append(service_details)
                             
-                            # Get running status
                             status = self._get_project_status(project_name, project_dir)
                             
                             projects.append({
@@ -103,22 +94,18 @@ class ComposeManager:
             "environment": {}
         }
         
-        # Extract ports
         if "ports" in service_config:
             ports = service_config["ports"]
             if isinstance(ports, list):
                 details["ports"] = ports
             elif isinstance(ports, dict):
-                # Handle long syntax ports
                 details["ports"] = list(ports.keys())
         
-        # Extract volumes
         if "volumes" in service_config:
             volumes = service_config["volumes"]
             if isinstance(volumes, list):
                 details["volumes"] = volumes
         
-        # Extract environment
         if "environment" in service_config:
             env = service_config["environment"]
             if isinstance(env, list):
@@ -162,7 +149,6 @@ class ComposeManager:
     
     def create_project(self, project_name: str) -> Dict:
         """Create a new compose project directory."""
-        # Normalize the project name
         original_name = project_name
         project_name = normalize_project_name(project_name)
         
@@ -174,7 +160,6 @@ class ComposeManager:
         try:
             os.makedirs(project_dir, exist_ok=True)
             
-            # Create empty compose file
             compose_file = os.path.join(project_dir, "docker-compose.yml")
             compose_data = {
                 "version": "3.8",
@@ -199,23 +184,19 @@ class ComposeManager:
     
     def add_service_to_project(self, project_name: str, service_config: Dict) -> Dict:
         """Add a service to a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
         compose_file = os.path.join(project_dir, "docker-compose.yml")
         
         if not os.path.exists(project_dir):
-            # Create project if it doesn't exist
             create_result = self.create_project(project_name)
             if not create_result["success"]:
                 return create_result
-            # Update project_name from the create result if it was normalized
             if "project_name" in create_result:
                 project_name = create_result["project_name"]
         
         try:
-            # Load existing compose file
             if os.path.exists(compose_file):
                 with open(compose_file, 'r') as f:
                     compose_data = yaml.safe_load(f) or {}
@@ -225,40 +206,32 @@ class ComposeManager:
             if "services" not in compose_data:
                 compose_data["services"] = {}
             
-            # Build service configuration
             service_name = service_config.get("name")
             service_def = {
                 "image": service_config.get("image"),
                 "container_name": f"{project_name}_{service_name}"
             }
             
-            # Add ports
             if service_config.get("ports"):
                 service_def["ports"] = service_config["ports"]
             
-            # Add volumes
             if service_config.get("volumes"):
                 service_def["volumes"] = service_config["volumes"]
                 
-                # Ensure named volumes are defined at the top level
                 if "volumes" not in compose_data:
                     compose_data["volumes"] = {}
                 
                 for volume in service_config["volumes"]:
-                    # Check if volume is in format "name:path" or just "name"
                     if isinstance(volume, str):
                         volume_parts = volume.split(":")
                         if len(volume_parts) >= 1:
                             volume_name = volume_parts[0].strip()
-                            # If it's a named volume (no path separators), add it to top-level volumes
                             if "/" not in volume_name and "\\" not in volume_name and volume_name not in compose_data["volumes"]:
                                 compose_data["volumes"][volume_name] = None
             
-            # Add environment variables
             if service_config.get("environment"):
                 service_def["environment"] = service_config["environment"]
             
-            # Add resource limits
             if service_config.get("cpu") or service_config.get("memory"):
                 service_def["deploy"] = {"resources": {"limits": {}}}
                 if service_config.get("cpu"):
@@ -266,13 +239,10 @@ class ComposeManager:
                 if service_config.get("memory"):
                     service_def["deploy"]["resources"]["limits"]["memory"] = f"{service_config['memory']}M"
             
-            # Add restart policy
             service_def["restart"] = service_config.get("restart", "unless-stopped")
             
-            # Add to compose
             compose_data["services"][service_name] = service_def
             
-            # Write back
             with open(compose_file, 'w') as f:
                 yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
             
@@ -286,7 +256,6 @@ class ComposeManager:
     
     def remove_service_from_project(self, project_name: str, service_name: str) -> Dict:
         """Remove a service from a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -316,7 +285,6 @@ class ComposeManager:
     
     def get_service_details(self, project_name: str, service_name: str) -> Optional[Dict]:
         """Get detailed configuration of a specific service."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -334,7 +302,6 @@ class ComposeManager:
             
             service_def = compose_data["services"][service_name]
             
-            # Parse the service configuration
             result = {
                 "name": service_name,
                 "image": service_def.get("image", ""),
@@ -346,7 +313,6 @@ class ComposeManager:
                 "memory": None
             }
             
-            # Extract resource limits if present
             if "deploy" in service_def:
                 resources = service_def.get("deploy", {}).get("resources", {}).get("limits", {})
                 if "cpus" in resources:
@@ -366,7 +332,6 @@ class ComposeManager:
     
     def update_service_in_project(self, project_name: str, old_service_name: str, service_config: Dict) -> Dict:
         """Update an existing service in a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -376,37 +341,30 @@ class ComposeManager:
             return {"success": False, "message": "Project not found"}
         
         try:
-            # Load existing compose file
             with open(compose_file, 'r') as f:
                 compose_data = yaml.safe_load(f) or {}
             
             if "services" not in compose_data:
                 return {"success": False, "message": "No services in project"}
             
-            # Check if old service exists
             if old_service_name not in compose_data["services"]:
                 return {"success": False, "message": "Service not found"}
             
-            # Build updated service configuration
             new_service_name = service_config.get("name", old_service_name)
             service_def = {
                 "image": service_config.get("image"),
                 "container_name": f"{project_name}_{new_service_name}"
             }
             
-            # Add ports
             if service_config.get("ports"):
                 service_def["ports"] = service_config["ports"]
             
-            # Add volumes
             if service_config.get("volumes"):
                 service_def["volumes"] = service_config["volumes"]
             
-            # Add environment variables
             if service_config.get("environment"):
                 service_def["environment"] = service_config["environment"]
             
-            # Add resource limits
             if service_config.get("cpu") or service_config.get("memory"):
                 service_def["deploy"] = {"resources": {"limits": {}}}
                 if service_config.get("cpu"):
@@ -414,18 +372,14 @@ class ComposeManager:
                 if service_config.get("memory"):
                     service_def["deploy"]["resources"]["limits"]["memory"] = f"{service_config['memory']}M"
             
-            # Add restart policy
             if service_config.get("restart"):
                 service_def["restart"] = service_config["restart"]
             
-            # Remove old service if name changed
             if old_service_name != new_service_name:
                 del compose_data["services"][old_service_name]
             
-            # Add/update service
             compose_data["services"][new_service_name] = service_def
             
-            # Save compose file
             with open(compose_file, 'w') as f:
                 yaml.dump(compose_data, f, default_flow_style=False, sort_keys=False)
             
@@ -439,7 +393,6 @@ class ComposeManager:
     
     def get_project_compose(self, project_name: str) -> Optional[Dict]:
         """Get the compose file content for a project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -456,7 +409,6 @@ class ComposeManager:
     
     def update_project_compose(self, project_name: str, compose_content: str) -> Dict:
         """Update compose file content directly."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -466,7 +418,6 @@ class ComposeManager:
             os.makedirs(project_dir, exist_ok=True)
         
         try:
-            # Validate YAML
             yaml.safe_load(compose_content)
             
             with open(compose_file, 'w') as f:
@@ -483,7 +434,6 @@ class ComposeManager:
     
     def start_project(self, project_name: str) -> Dict:
         """Start all services in a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -509,7 +459,6 @@ class ComposeManager:
     
     def stop_project(self, project_name: str) -> Dict:
         """Stop all services in a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -535,7 +484,6 @@ class ComposeManager:
     
     def delete_project(self, project_name: str, remove_volumes: bool = True) -> Dict:
         """Delete a compose project."""
-        # Normalize the project name
         project_name = normalize_project_name(project_name)
         
         project_dir = os.path.join(COMPOSE_BASE_DIR, project_name)
@@ -545,7 +493,6 @@ class ComposeManager:
             return {"success": False, "message": "Project not found"}
         
         try:
-            # Stop and remove containers
             if os.path.exists(compose_file):
                 cmd = ["docker", "compose", "-f", compose_file, "-p", project_name, "down"]
                 if remove_volumes:
@@ -553,13 +500,10 @@ class ComposeManager:
                 
                 subprocess.run(cmd, capture_output=True, cwd=project_dir)
             
-            # Remove project directory
             shutil.rmtree(project_dir)
             
             return {"success": True, "message": "Project deleted"}
         except Exception as e:
             return {"success": False, "message": str(e)}
 
-
-# Global instance
 compose_manager = ComposeManager()

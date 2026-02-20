@@ -35,7 +35,6 @@ from typing import Optional
 
 router = APIRouter(prefix="/containers")
 
-
 # Compose Manager Models
 class ComposeServiceCreate(BaseModel):
     name: str
@@ -50,13 +49,11 @@ class ComposeServiceCreate(BaseModel):
 class ComposeProjectInfo(BaseModel):
     project_name: str
 
-
 @router.get("")
 def list_containers(include_compose: bool = False):
     """List all containers from all backends."""
     all_containers = list_all_containers(include_compose=include_compose)
     return [c.dict() for c in all_containers]
-
 
 @router.post("")
 def create_container(payload: ContainerCreate):
@@ -80,7 +77,6 @@ def create_container(payload: ContainerCreate):
         if result.returncode != 0:
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         
-        # Fetch fresh info about the new container
         from containers import get_docker_containers
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -118,10 +114,8 @@ def create_container(payload: ContainerCreate):
         return pods[0].dict() if pods else {"detail": "created"}
 
     else:
-        # Fallback to in-memory creation for unknown types
         container = create_api_container(payload.dict())
         return container.dict()
-
 
 @router.post("/{name}/start")
 def start_container(name: str):
@@ -162,7 +156,6 @@ def start_container(name: str):
     
     return {"detail": "started"}
 
-
 @router.post("/{name}/stop")
 def stop_container(name: str):
     """Stop a container by name if possible."""
@@ -202,7 +195,6 @@ def stop_container(name: str):
     
     return {"detail": "stopped"}
 
-
 @router.get("/{name}/logs")
 def get_container_logs(name: str, lines: int = 100):
     """Get logs from a Docker container."""
@@ -219,13 +211,11 @@ def get_container_logs(name: str, lines: int = 100):
         if result.returncode != 0:
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to get logs")
         
-        # Combine stdout and stderr
         logs = result.stdout + result.stderr
         return {"logs": logs}
     
     else:
         raise HTTPException(status_code=400, detail="logs only available for docker containers")
-
 
 @router.delete("/{name}")
 def delete_container(name: str):
@@ -260,7 +250,6 @@ def delete_container(name: str):
         raise HTTPException(status_code=404, detail="container not found")
     
     return {"detail": "deleted"}
-
 
 @router.websocket("/{name}/terminal")
 async def container_terminal(websocket: WebSocket, name: str):
@@ -324,7 +313,6 @@ async def container_terminal(websocket: WebSocket, name: str):
 
     master_fd, slave_fd = pty.openpty()
     
-    # Make master_fd non-blocking
     flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
     fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
     
@@ -346,7 +334,6 @@ async def container_terminal(websocket: WebSocket, name: str):
                     if data:
                         await websocket.send_text(data.decode('utf-8', errors='ignore'))
                 except (OSError, BlockingIOError):
-                    # No data available
                     await asyncio.sleep(0.01)
                 except WebSocketDisconnect:
                     break
@@ -382,13 +369,11 @@ async def container_terminal(websocket: WebSocket, name: str):
                     pass
 
     try:
-        # Run both tasks and handle disconnection gracefully
         done, pending = await asyncio.wait(
             [asyncio.create_task(read_output()), asyncio.create_task(read_input())],
             return_when=asyncio.FIRST_COMPLETED
         )
         
-        # Cancel any pending tasks
         for task in pending:
             task.cancel()
             try:
@@ -399,7 +384,6 @@ async def container_terminal(websocket: WebSocket, name: str):
     except Exception:
         pass
     finally:
-        # Clean up process if still running
         if process.returncode is None:
             try:
                 process.terminate()
@@ -410,7 +394,6 @@ async def container_terminal(websocket: WebSocket, name: str):
                     await process.wait()
                 except:
                     pass
-
 
 @router.post("/build")
 def build_docker_image(request: Request, image: str, tag: str = "latest", dockerfile: UploadFile = File(None), context: UploadFile = File(None)):
@@ -434,9 +417,7 @@ def build_docker_image(request: Request, image: str, tag: str = "latest", docker
 
     tempdir = tempfile.mkdtemp(prefix="docker_build_")
     try:
-        # Prepare context
         if context:
-            # save uploaded tar to temp and extract
             ctx_path = os.path.join(tempdir, "context.tar")
             with open(ctx_path, "wb") as f:
                 f.write(context.file.read())
@@ -444,14 +425,12 @@ def build_docker_image(request: Request, image: str, tag: str = "latest", docker
                 with tarfile.open(ctx_path) as tar:
                     tar.extractall(path=tempdir)
             except tarfile.ReadError:
-                # not a tar - maybe plain directory stream
                 pass
         if dockerfile:
             df_path = os.path.join(tempdir, "Dockerfile")
             with open(df_path, "wb") as f:
                 f.write(dockerfile.file.read())
 
-        # Build command
         tag_name = f"{image}:{tag}" if tag else image
         cmd = ["docker", "build", "-t", tag_name, tempdir]
 
@@ -470,8 +449,6 @@ def build_docker_image(request: Request, image: str, tag: str = "latest", docker
             shutil.rmtree(tempdir)
         except Exception:
             pass
-
-
 
 @router.post("/build/stream")
 def build_docker_image_stream(request: Request, image: str, tag: str = "latest", dockerfile: UploadFile = File(None), context: UploadFile = File(None)):
@@ -511,12 +488,10 @@ def build_docker_image_stream(request: Request, image: str, tag: str = "latest",
             except Exception:
                 pass
     except Exception:
-        # if reading fails, continue and let generator handle missing files
         pass
 
     def generate():
         try:
-            # prepare
             if context_bytes:
                 ctx_path = os.path.join(tempdir, "context.tar")
                 with open(ctx_path, "wb") as f:
@@ -555,7 +530,6 @@ def build_docker_image_stream(request: Request, image: str, tag: str = "latest",
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
-
 # Docker Compose endpoints
 @router.post("/compose")
 async def create_compose_stack(
@@ -566,17 +540,14 @@ async def create_compose_stack(
     if shutil.which("docker") is None:
         raise HTTPException(status_code=404, detail="docker not installed")
     
-    # Create temporary directory for compose file
     temp_dir = tempfile.mkdtemp()
     compose_path = os.path.join(temp_dir, "docker-compose.yml")
     
     try:
-        # Save uploaded compose file
         content = await compose_file.read()
         with open(compose_path, "wb") as f:
             f.write(content)
         
-        # Run docker compose up
         result = subprocess.run(
             ["docker", "compose", "-f", compose_path, "-p", project_name, "up", "-d"],
             capture_output=True,
@@ -593,7 +564,6 @@ async def create_compose_stack(
             shutil.rmtree(temp_dir)
         except:
             pass
-
 
 @router.get("/compose/stacks")
 def list_compose_stacks():
@@ -617,7 +587,6 @@ def list_compose_stacks():
     except json.JSONDecodeError:
         return []
 
-
 @router.post("/compose/{project_name}/start")
 def start_compose_stack(project_name: str):
     """Start all containers in a Docker Compose stack."""
@@ -625,7 +594,6 @@ def start_compose_stack(project_name: str):
         raise HTTPException(status_code=404, detail="docker not installed")
     
     try:
-        # Find containers belonging to this project
         result = subprocess.run(
             ["docker", "compose", "-p", project_name, "start"],
             capture_output=True,
@@ -638,7 +606,6 @@ def start_compose_stack(project_name: str):
         return {"detail": "Compose stack started", "project": project_name}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @router.post("/compose/{project_name}/stop")
 def stop_compose_stack(project_name: str):
@@ -660,7 +627,6 @@ def stop_compose_stack(project_name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @router.delete("/compose/{project_name}")
 def delete_compose_stack(project_name: str):
     """Delete a Docker Compose stack (down with volumes)."""
@@ -681,13 +647,11 @@ def delete_compose_stack(project_name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 # Compose Manager endpoints
 @router.get("/compose-projects")
 def list_compose_projects():
     """List all compose projects."""
     return compose_manager.list_projects()
-
 
 @router.post("/compose-projects")
 def create_compose_project(project_info: ComposeProjectInfo):
@@ -696,7 +660,6 @@ def create_compose_project(project_info: ComposeProjectInfo):
     if result["success"]:
         return result
     raise HTTPException(status_code=400, detail=result["message"])
-
 
 @router.post("/compose-projects/{project_name}/services")
 def add_service_to_project(project_name: str, service: ComposeServiceCreate):
@@ -707,7 +670,6 @@ def add_service_to_project(project_name: str, service: ComposeServiceCreate):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.delete("/compose-projects/{project_name}/services/{service_name}")
 def remove_service_from_project(project_name: str, service_name: str):
     """Remove a service from a compose project."""
@@ -716,7 +678,6 @@ def remove_service_from_project(project_name: str, service_name: str):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.get("/compose-projects/{project_name}/services/{service_name}")
 def get_service_details(project_name: str, service_name: str):
     """Get detailed configuration of a specific service."""
@@ -724,7 +685,6 @@ def get_service_details(project_name: str, service_name: str):
     if service:
         return service
     raise HTTPException(status_code=404, detail="Service not found")
-
 
 @router.put("/compose-projects/{project_name}/services/{service_name}")
 def update_service_in_project(project_name: str, service_name: str, service: ComposeServiceCreate):
@@ -735,7 +695,6 @@ def update_service_in_project(project_name: str, service_name: str, service: Com
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.get("/compose-projects/{project_name}/compose")
 def get_project_compose(project_name: str):
     """Get the compose file content."""
@@ -743,7 +702,6 @@ def get_project_compose(project_name: str):
     if compose:
         return compose
     raise HTTPException(status_code=404, detail="Project not found")
-
 
 @router.put("/compose-projects/{project_name}/compose")
 def update_project_compose(project_name: str, request: Request):
@@ -755,7 +713,6 @@ def update_project_compose(project_name: str, request: Request):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.post("/compose-projects/{project_name}/start")
 def start_compose_project(project_name: str):
     """Start a compose project."""
@@ -763,7 +720,6 @@ def start_compose_project(project_name: str):
     if result["success"]:
         return result
     raise HTTPException(status_code=400, detail=result["message"])
-
 
 @router.post("/compose-projects/{project_name}/stop")
 def stop_compose_project(project_name: str):
@@ -773,7 +729,6 @@ def stop_compose_project(project_name: str):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.delete("/compose-projects/{project_name}")
 def delete_compose_project_manager(project_name: str, remove_volumes: bool = True):
     """Delete a compose project."""
@@ -781,7 +736,6 @@ def delete_compose_project_manager(project_name: str, remove_volumes: bool = Tru
     if result["success"]:
         return result
     raise HTTPException(status_code=400, detail=result["message"])
-
 
 # App Store endpoints
 @router.get("/app-store/apps")
@@ -797,12 +751,10 @@ def list_app_store_apps(category: Optional[str] = None, search: Optional[str] = 
     
     return apps
 
-
 @router.get("/app-store/categories")
 def get_app_categories():
     """Get all available app categories."""
     return app_store.get_categories()
-
 
 @router.get("/app-store/apps/{app_id}")
 def get_app_store_app_details(app_id: str):
@@ -812,7 +764,6 @@ def get_app_store_app_details(app_id: str):
         return app
     raise HTTPException(status_code=404, detail="App not found")
 
-
 @router.get("/app-store/apps/{app_id}/icon")
 def get_app_icon(app_id: str):
     """Get the icon image for an app."""
@@ -821,15 +772,12 @@ def get_app_icon(app_id: str):
     
     icon_path = app_store.get_app_icon(app_id)
     if icon_path:
-        # Detect media type based on file extension
         media_type = mimetypes.guess_type(icon_path)[0] or "image/png"
         return FileResponse(icon_path, media_type=media_type)
     raise HTTPException(status_code=404, detail="Icon not found")
 
-
 class AppInstallRequest(BaseModel):
     custom_name: Optional[str] = None
-
 
 @router.post("/app-store/apps/{app_id}/install")
 def install_app_from_store(app_id: str, request: AppInstallRequest):
@@ -839,7 +787,6 @@ def install_app_from_store(app_id: str, request: AppInstallRequest):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.delete("/app-store/apps/{project_name}/uninstall")
 def uninstall_app_from_store(project_name: str):
     """Uninstall an app."""
@@ -848,7 +795,6 @@ def uninstall_app_from_store(project_name: str):
         return result
     raise HTTPException(status_code=400, detail=result["message"])
 
-
 @router.get("/volumes")
 def list_docker_volumes():
     """List Docker volumes."""
@@ -856,14 +802,12 @@ def list_docker_volumes():
     volumes = get_docker_volumes()
     return [v.dict() for v in volumes]
 
-
 @router.get("/storages")
 def list_lxc_storages():
     """List LXC storage pools."""
     from containers import get_lxc_storages
     storages = get_lxc_storages()
     return [s.dict() for s in storages]
-
 
 @router.post("/storages")
 def create_lxc_storage(payload: LXCStorageCreate):
@@ -875,7 +819,6 @@ def create_lxc_storage(payload: LXCStorageCreate):
     else:
         raise HTTPException(status_code=400, detail=message)
 
-
 @router.post("/volumes")
 def create_docker_volume(payload: DockerVolumeCreate):
     """Create a new Docker volume."""
@@ -885,7 +828,6 @@ def create_docker_volume(payload: DockerVolumeCreate):
         return {"message": "Volume created successfully"}
     raise HTTPException(status_code=400, detail="Failed to create volume")
 
-
 @router.delete("/volumes/{name}")
 def delete_docker_volume(name: str):
     """Delete a Docker volume."""
@@ -894,7 +836,6 @@ def delete_docker_volume(name: str):
     if success:
         return {"message": "Volume deleted successfully"}
     raise HTTPException(status_code=400, detail="Failed to delete volume")
-
 
 @router.delete("/storages/{name}")
 def delete_lxc_storage(name: str):

@@ -60,7 +60,6 @@ export function AppStore() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Use the global apiUrl function
   const getApiUrl = apiUrl
 
   const filterApps = () => {

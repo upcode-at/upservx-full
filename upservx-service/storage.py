@@ -11,7 +11,6 @@ from typing import List
 from datetime import datetime
 from models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
 
-
 def _drive_type(dev: str) -> str:
     """Return the type for a device or partition."""
     name = os.path.basename(dev)
@@ -37,7 +36,6 @@ def _drive_type(dev: str) -> str:
     if name.startswith("mmc"):
         return "SD"
     return "HDD"
-
 
 def get_zfs_pools() -> List[ZFSPoolInfo]:
     """Return a list of ZFS pools with their member devices and usage."""
@@ -126,7 +124,6 @@ def get_zfs_pools() -> List[ZFSPoolInfo]:
         pools.append(ZFSPoolInfo(**pool))
     return pools
 
-
 def get_drives() -> List[DriveInfo]:
     """Return information for all physical drives including unmounted ones."""
     drives: List[DriveInfo] = []
@@ -197,7 +194,6 @@ def get_drives() -> List[DriveInfo]:
             unique[d.device] = d
     return list(unique.values())
 
-
 def _get_device_uuid(device: str) -> str | None:
     """Get the UUID of a device."""
     try:
@@ -211,7 +207,6 @@ def _get_device_uuid(device: str) -> str | None:
         return uuid if uuid else None
     except Exception:
         return None
-
 
 def _get_filesystem_type(device: str) -> str:
     """Get the filesystem type of a device."""
@@ -227,12 +222,10 @@ def _get_filesystem_type(device: str) -> str:
     except Exception:
         return "auto"
 
-
 def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype: str = "auto") -> None:
     """Add an entry to /etc/fstab for persistent mounting."""
     fstab_path = "/etc/fstab"
     
-    # Create backup of fstab
     try:
         if os.path.exists(fstab_path):
             backup_path = f"{fstab_path}.backup"
@@ -240,28 +233,22 @@ def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype:
     except Exception:
         pass  # Continue even if backup fails
     
-    # Read current fstab
     existing_entries = []
     if os.path.exists(fstab_path):
         with open(fstab_path, 'r') as f:
             existing_entries = f.readlines()
     
-    # Check if entry already exists
     for line in existing_entries:
         if line.strip() and not line.strip().startswith('#'):
             parts = line.split()
             if len(parts) >= 2:
-                # Check if mountpoint already has an entry
                 if parts[1] == mountpoint:
-                    # Entry already exists, don't add duplicate
                     return
-                # Check if device already has an entry
                 if uuid and parts[0] == f"UUID={uuid}":
                     return
                 if parts[0] == device:
                     return
     
-    # Determine mount options based on filesystem type
     if fstype in {"ext4", "ext3", "ext2"}:
         options = "defaults,noatime"
     elif fstype in {"ntfs", "ntfs-3g"}:
@@ -276,44 +263,35 @@ def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype:
     # Use UUID if available, otherwise use device path
     device_identifier = f"UUID={uuid}" if uuid else device
     
-    # Create fstab entry with proper formatting (aligned columns)
-    # Format: device_identifier<spaces>mountpoint<spaces>fstype<spaces>options<spaces>dump pass
     device_col_width = 41
     mount_col_width = 14
     fstype_col_width = 7
     
     fstab_entry = f"{device_identifier:<{device_col_width}} {mountpoint:<{mount_col_width}} {fstype:<{fstype_col_width}} {options:<30} 0 2\n"
     
-    # Append to fstab
     with open(fstab_path, 'a') as f:
-        # Add newline if file doesn't end with one
         if existing_entries and not existing_entries[-1].endswith('\n'):
             f.write('\n')
         f.write(f"# Added by UpservX on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(fstab_entry)
-
 
 def mount_drive(device: str, mountpoint: str) -> None:
     """Mount a drive to the specified mountpoint and add to /etc/fstab for persistence."""
     if not os.path.exists(mountpoint):
         os.makedirs(mountpoint, exist_ok=True)
     
-    # Get device UUID and filesystem type
     uuid = _get_device_uuid(device)
     fstype = _get_filesystem_type(device)
     
-    # Mount the device
     result = subprocess.run(["mount", device, mountpoint], capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to mount")
     
-    # Add to fstab for persistent mounting
     try:
         _add_to_fstab(device, mountpoint, uuid, fstype)
     except Exception as e:
         # If fstab update fails, log but don't fail the mount
         print(f"Warning: Failed to update /etc/fstab: {e}")
-
 
 def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
     """Remove an entry from /etc/fstab."""
@@ -322,34 +300,28 @@ def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
     if not os.path.exists(fstab_path):
         return
     
-    # Create backup of fstab with timestamp
     try:
         backup_path = f"{fstab_path}.backup"
         subprocess.run(["cp", fstab_path, backup_path], check=True)
     except Exception:
         pass
     
-    # Get UUID of device if device is provided and not empty
     uuid = _get_device_uuid(device) if device else None
     
-    # Read current fstab
     with open(fstab_path, 'r') as f:
         lines = f.readlines()
     
-    # Filter out matching entries
     new_lines = []
     skip_next_comment = False
     for i, line in enumerate(lines):
         stripped = line.strip()
         
-        # Check if this is a data line (not comment or empty)
         if stripped and not stripped.startswith('#'):
             parts = stripped.split()
             if len(parts) >= 2:
                 entry_device = parts[0]
                 entry_mount = parts[1]
                 
-                # Check if this entry matches our device
                 should_remove = False
                 if entry_device == device:
                     should_remove = True
@@ -366,10 +338,8 @@ def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
         
         new_lines.append(line)
     
-    # Write back to fstab
     with open(fstab_path, 'w') as f:
         f.writelines(new_lines)
-
 
 def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> None:
     """Unmount a drive and remove from /etc/fstab.
@@ -383,13 +353,11 @@ def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> N
     if not device and not mountpoint:
         raise Exception("Either device or mountpoint must be provided")
     
-    # Unmount using mountpoint if provided, otherwise use device
     target = mountpoint if mountpoint else device
     result = subprocess.run(["umount", target], capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to unmount")
     
-    # Remove from fstab
     try:
         if device:
             _remove_from_fstab(device, mountpoint)
@@ -399,7 +367,6 @@ def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> N
             _remove_from_fstab("", mountpoint)
     except Exception as e:
         print(f"Warning: Failed to update /etc/fstab: {e}")
-
 
 def format_drive(device: str, filesystem: str, label: str | None = None) -> None:
     """Format a drive with the specified filesystem."""
@@ -434,7 +401,6 @@ def format_drive(device: str, filesystem: str, label: str | None = None) -> None
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to format")
-
 
 def create_zfs_pool(name: str, devices: List[str], raid: str = "stripe") -> None:
     """Create a new ZFS pool."""

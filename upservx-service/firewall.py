@@ -11,13 +11,11 @@ import re
 from typing import List, Dict, Optional, Any
 from enum import Enum
 
-
 class ChainType(str, Enum):
     """Chain types in nftables"""
     FILTER = "filter"
     NAT = "nat"
     ROUTE = "route"
-
 
 class ChainHook(str, Enum):
     """Chain hooks in nftables"""
@@ -27,12 +25,10 @@ class ChainHook(str, Enum):
     PREROUTING = "prerouting"
     POSTROUTING = "postrouting"
 
-
 class ChainPolicy(str, Enum):
     """Chain policies"""
     ACCEPT = "accept"
     DROP = "drop"
-
 
 class Protocol(str, Enum):
     """Supported protocols"""
@@ -40,7 +36,6 @@ class Protocol(str, Enum):
     UDP = "udp"
     ICMP = "icmp"
     ALL = "all"
-
 
 class FirewallManager:
     """Manage nftables firewall rules"""
@@ -67,10 +62,8 @@ class FirewallManager:
     
     def _ensure_tables(self):
         """Ensure base tables and chains exist"""
-        # Create filter table if not exists
         self._run_command(["nft", "add", "table", "inet", self.table_name])
         
-        # Create basic chains
         chains = [
             ("input", "input", "filter", "0", "accept"),
             ("forward", "forward", "filter", "0", "accept"),
@@ -83,10 +76,8 @@ class FirewallManager:
                 f"{{ type {chain_type} hook {hook} priority {priority}; policy {policy}; }}"
             ])
         
-        # Create NAT table
         self._run_command(["nft", "add", "table", "ip", self.nat_table])
         
-        # Create NAT chains
         nat_chains = [
             ("prerouting", "prerouting", "nat", "-100", "accept"),
             ("postrouting", "postrouting", "nat", "100", "accept"),
@@ -166,12 +157,10 @@ class FirewallManager:
                 left = match.get("left", {})
                 right = match.get("right", {})
                 
-                # Format protocol
                 if "protocol" in left:
                     protocol = left["protocol"]
                     parts.append(f"protocol {protocol}")
                 
-                # Format payload (like port)
                 if "payload" in left:
                     payload = left["payload"]
                     field = payload.get("field")
@@ -203,7 +192,6 @@ class FirewallManager:
     ) -> Dict[str, Any]:
         """Add a new firewall rule"""
         
-        # Build rule expression
         rule_parts = []
         
         if source_ip:
@@ -225,7 +213,6 @@ class FirewallManager:
         
         rule_expression = " ".join(rule_parts)
         
-        # Build command
         cmd = ["nft"]
         
         if position is not None:
@@ -267,7 +254,6 @@ class FirewallManager:
         if policy not in ["accept", "drop"]:
             return {"success": False, "error": "Policy must be 'accept' or 'drop'"}
         
-        # Get chain info first
         stdout, stderr, code = self._run_command([
             "nft", "-j", "list", "chain", "inet", self.table_name, chain
         ])
@@ -291,7 +277,6 @@ class FirewallManager:
             chain_type = chain_info.get("type", "filter")
             priority = chain_info.get("prio", 0)
             
-            # Delete and recreate chain with new policy
             self._run_command(["nft", "delete", "chain", "inet", self.table_name, chain])
             
             cmd = [
@@ -372,7 +357,6 @@ class FirewallManager:
                     if chain:
                         stats["chains"][chain] = stats["chains"].get(chain, 0) + 1
                     
-                    # Extract counter info
                     for expr in item["rule"].get("expr", []):
                         if "counter" in expr:
                             counter = expr["counter"]
@@ -410,6 +394,4 @@ class FirewallManager:
         
         return {"success": True, "message": f"Rules loaded from {filepath}"}
 
-
-# Global instance
 firewall_manager = FirewallManager()

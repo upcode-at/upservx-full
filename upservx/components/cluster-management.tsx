@@ -66,20 +66,17 @@ export default function ClusterManagement() {
   const [success, setSuccess] = useState<string | null>(null)
   const [replications, setReplications] = useState<Replication[]>([])
 
-  // Dialog states
   const [createClusterOpen, setCreateClusterOpen] = useState(false)
   const [joinClusterOpen, setJoinClusterOpen] = useState(false)
   const [addReplicationOpen, setAddReplicationOpen] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
 
-  // Form states
   const [clusterName, setClusterName] = useState("")
   const [masterIp, setMasterIp] = useState("")
   const [masterPort, setMasterPort] = useState("9500")
   const [joinToken, setJoinToken] = useState("")
 
-  // Replication form states
   const [replicationOriginNode, setReplicationOriginNode] = useState("")
   const [replicationDestNode, setReplicationDestNode] = useState("")
   const [replicationResource, setReplicationResource] = useState("")
@@ -87,7 +84,6 @@ export default function ClusterManagement() {
   const [availableResources, setAvailableResources] = useState<Array<{name: string, type: string}>>([])
   const [loadingResources, setLoadingResources] = useState(false)
 
-  // Use the global apiUrl function
   const getApiUrl = apiUrl
 
   const loadClusterInfo = async (isInitialLoad = false) => {
@@ -411,7 +407,6 @@ export default function ClusterManagement() {
     )
   }
 
-  // Calculate total containers and VMs across all nodes
   const totalContainers = clusterInfo?.nodes?.reduce((sum, node) => {
     const count = node.resources?.total_containers || 0
     console.log(`[CLUSTER] Node ${node.hostname}: total_containers=${count}`, node.resources)

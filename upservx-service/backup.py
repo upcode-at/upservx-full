@@ -19,7 +19,6 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 import base64
 
-# Enhanced logging configuration
 try:
     logging.basicConfig(
         level=logging.DEBUG,
@@ -38,7 +37,6 @@ except PermissionError:
     )
 logger = logging.getLogger(__name__)
 
-
 class BackupAuthConfig:
     """Configuration for backup server authentication."""
     
@@ -53,7 +51,6 @@ class BackupAuthConfig:
         self.password = password
         self.ssh_key_path = ssh_key_path
         self.ssh_key_passphrase = ssh_key_passphrase
-
 
 class BackupStorage:
     """Base class for backup storage providers."""
@@ -89,7 +86,6 @@ class BackupStorage:
     async def get_storage_info(self) -> Dict[str, Any]:
         """Get storage capacity and usage information."""
         raise NotImplementedError
-
 
 class LocalBackupStorage(BackupStorage):
     """Local filesystem backup storage."""
@@ -190,7 +186,6 @@ class LocalBackupStorage(BackupStorage):
             logger.error(f"Failed to get local storage info: {e}")
             return {}
 
-
 class RemoteBackupStorage(BackupStorage):
     """Remote SSH/SFTP backup storage."""
     
@@ -210,12 +205,10 @@ class RemoteBackupStorage(BackupStorage):
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             if self.auth_config.auth_type == 'ssh_key':
-                # Load private key
                 key_path = self.auth_config.ssh_key_path
                 passphrase = self.auth_config.ssh_key_passphrase
                 
                 try:
-                    # Try different key types
                     for key_class in [paramiko.RSAKey, paramiko.DSSKey, paramiko.ECDSAKey, paramiko.Ed25519Key]:
                         try:
                             private_key = key_class.from_private_key_file(key_path, password=passphrase)
@@ -276,7 +269,6 @@ class RemoteBackupStorage(BackupStorage):
         try:
             full_remote_path = os.path.join(self.remote_path, remote_path.lstrip('/'))
             
-            # Ensure remote directory exists
             remote_dir = os.path.dirname(full_remote_path)
             try:
                 self.sftp_client.makedirs(remote_dir)
@@ -329,11 +321,9 @@ class RemoteBackupStorage(BackupStorage):
         try:
             full_path = os.path.join(self.remote_path, remote_path.lstrip('/'))
             
-            # Check if it's a file or directory
             try:
                 stat = self.sftp_client.stat(full_path)
                 if (stat.st_mode & 0o170000) == 0o040000:  # Directory
-                    # Remove directory recursively via SSH command
                     self.ssh_client.exec_command(f'rm -rf "{full_path}"')
                 else:  # File
                     self.sftp_client.remove(full_path)
@@ -353,7 +343,6 @@ class RemoteBackupStorage(BackupStorage):
             lines = output.split('\n')
             
             if len(lines) >= 2:
-                # Parse df output
                 fields = lines[1].split()
                 if len(fields) >= 6:
                     return {
@@ -368,7 +357,6 @@ class RemoteBackupStorage(BackupStorage):
         except Exception as e:
             logger.error(f"Failed to get remote storage info: {e}")
             return {}
-
 
 class BackupManager:
     """Main backup management class."""
@@ -392,7 +380,6 @@ class BackupManager:
                 os.chmod(key_file, 0o600)
                 return key
         except Exception:
-            # Fallback to memory-only key
             return Fernet.generate_key()
             
     def encrypt_sensitive_data(self, data: str) -> str:
@@ -441,12 +428,10 @@ class BackupManager:
             
         storage = self.storage_backends[storage_id]
         
-        # Connect to storage
         if not await storage.connect():
             raise Exception("Failed to connect to storage backend")
             
         try:
-            # Create temporary backup file
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_filename = f"{backup_name}_{timestamp}.tar"
             if compression:
@@ -455,21 +440,17 @@ class BackupManager:
             temp_dir = tempfile.mkdtemp()
             temp_backup_path = os.path.join(temp_dir, backup_filename)
             
-            # Create tar archive
             mode = "w:gz" if compression else "w"
             with tarfile.open(temp_backup_path, mode) as tar:
                 for source_path in source_paths:
                     if os.path.exists(source_path):
                         tar.add(source_path, arcname=os.path.basename(source_path))
                         
-            # Get backup size
             backup_size = os.path.getsize(temp_backup_path)
             
-            # Upload to storage
             remote_path = f"{backup_type}/{backup_filename}"
             upload_success = await storage.upload_backup(temp_backup_path, remote_path)
             
-            # Cleanup temporary file
             shutil.rmtree(temp_dir)
             
             if not upload_success:
@@ -501,18 +482,15 @@ class BackupManager:
             return False
             
         try:
-            # Download backup to temporary location
             temp_dir = tempfile.mkdtemp()
             temp_backup_path = os.path.join(temp_dir, os.path.basename(backup_path))
             
             if not await storage.download_backup(backup_path, temp_backup_path):
                 return False
                 
-            # Extract backup
             with tarfile.open(temp_backup_path, 'r:*') as tar:
                 tar.extractall(path=restore_path)
                 
-            # Cleanup
             shutil.rmtree(temp_dir)
             return True
             
@@ -580,7 +558,6 @@ class BackupManager:
             
             logger.info(f"Starting backup execution for job: {job['name']}")
             
-            # Validate inputs
             if not job.get('targets'):
                 error_msg = "No backup targets specified"
                 print(f"BACKUP DEBUG ERROR: {error_msg}")
@@ -588,12 +565,10 @@ class BackupManager:
             
             print(f"BACKUP DEBUG: Backup targets: {job['targets']}")
             
-            # Generate backup filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_filename = f"{job['name'].replace(' ', '_')}_{timestamp}.tar.gz"
             print(f"BACKUP DEBUG: Generated filename: {backup_filename}")
             
-            # Determine destination path
             if server['type'] == 'local':
                 dest_dir = server.get('local_path', '/tmp/backups')
                 backup_path = os.path.join(dest_dir, backup_filename)
@@ -601,7 +576,6 @@ class BackupManager:
                 print(f"BACKUP DEBUG: Local backup destination: {dest_dir}")
                 print(f"BACKUP DEBUG: Full backup path: {backup_path}")
                 
-                # Ensure destination directory exists
                 os.makedirs(dest_dir, exist_ok=True)
                 print(f"BACKUP DEBUG: Created destination directory: {dest_dir}")
                 
@@ -612,7 +586,6 @@ class BackupManager:
                 
             logger.info(f"Creating backup archive: {backup_path}")
             
-            # Create tar.gz archive
             print("BACKUP DEBUG: Starting tar.gz creation...")
             success, result = self._create_tar_backup(job, backup_path, server)
             print(f"BACKUP DEBUG: Tar creation result - Success: {success}, Result: {result}")
@@ -657,10 +630,8 @@ class BackupManager:
             logger.info(f"Creating tar.gz archive: {backup_path}")
             
             if server['type'] == 'local':
-                # Local backup
                 return self._create_local_tar_backup(job, backup_path, start_time)
             else:
-                # Remote backup via SSH
                 return self._create_remote_tar_backup(job, backup_path, server, start_time)
                 
         except Exception as e:
@@ -677,7 +648,6 @@ class BackupManager:
             total_size = 0
             file_count = 0
             
-            # Create tar.gz archive
             print("TAR DEBUG: Opening tar.gz file for writing...")
             with tarfile.open(backup_path, 'w:gz', compresslevel=6) as tar:
                 print("TAR DEBUG: Tar file opened successfully")
@@ -691,7 +661,6 @@ class BackupManager:
                         
                     logger.info(f"Adding to backup: {target}")
                     
-                    # Handle different target types
                     if target.startswith('vm:'):
                         print(f"TAR DEBUG: Processing VM target: {target}")
                         vm_name = target[3:]
@@ -699,7 +668,6 @@ class BackupManager:
                         xml_content = None
                         vm_was_running = False
 
-                        # Load actual disk paths from vms.json
                         try:
                             from vms import load_vms
                             vms_list = load_vms()
@@ -712,7 +680,6 @@ class BackupManager:
                         except Exception as e:
                             print(f"TAR DEBUG: Could not load vms.json: {e}")
 
-                        # Fallback: get disk paths from virsh domblklist
                         if not vm_disk_paths:
                             try:
                                 bl_result = subprocess.run(
@@ -732,7 +699,6 @@ class BackupManager:
                             except Exception as e:
                                 print(f"TAR DEBUG: virsh domblklist error: {e}")
 
-                        # Export VM XML definition via virsh dumpxml
                         try:
                             xml_result = subprocess.run(
                                 ["virsh", "dumpxml", vm_name],
@@ -774,7 +740,6 @@ class BackupManager:
                                 print(f"TAR DEBUG: No disk files found for VM '{vm_name}'")
                                 logger.warning(f"No disk files found for VM '{vm_name}'")
 
-                            # Add XML definition to archive
                             if xml_content:
                                 xml_bytes = xml_content.encode('utf-8')
                                 xml_info = tarfile.TarInfo(name=f"vms/{vm_name}/{vm_name}.xml")
@@ -794,7 +759,6 @@ class BackupManager:
                     elif target.startswith('container:'):
                         print(f"TAR DEBUG: Processing container target: {target}")
                         container_name = target[10:]
-                        # Export container if Docker is available
                         try:
                             container_export_path = f"/tmp/{container_name}_export.tar"
                             print(f"TAR DEBUG: Exporting container to: {container_export_path}")
@@ -815,14 +779,12 @@ class BackupManager:
                             logger.warning(f"Could not export container {container_name}: {e}")
                             
                     else:
-                        # Regular file/directory path
                         print(f"TAR DEBUG: Processing regular path: {target}")
                         print(f"TAR DEBUG: Checking if path exists: {os.path.exists(target)}")
                         
                         if os.path.exists(target):
                             print(f"TAR DEBUG: Path exists, calculating size...")
                             
-                            # Get size before adding
                             if os.path.isfile(target):
                                 size = os.path.getsize(target)
                                 total_size += size
@@ -849,7 +811,6 @@ class BackupManager:
                                             
                                 print(f"TAR DEBUG: Directory contains {dir_file_count} files, {dir_size} bytes")
                                             
-                            # Add to archive with relative path
                             arcname = target.lstrip('/') or os.path.basename(target)
                             print(f"TAR DEBUG: Adding to archive as: {arcname}")
                             tar.add(target, arcname=arcname)
@@ -861,7 +822,6 @@ class BackupManager:
             
             print("TAR DEBUG: Tar archive creation completed")
             
-            # Get final archive size
             if os.path.exists(backup_path):
                 archive_size = os.path.getsize(backup_path)
                 print(f"TAR DEBUG: Final archive size: {archive_size} bytes")
@@ -898,7 +858,6 @@ class BackupManager:
             traceback.print_exc()
             
             logger.error(f"Local tar backup failed: {e}")
-            # Clean up incomplete archive
             if os.path.exists(backup_path):
                 print(f"TAR DEBUG: Cleaning up incomplete archive: {backup_path}")
                 os.unlink(backup_path)
@@ -907,21 +866,17 @@ class BackupManager:
     def _create_remote_tar_backup(self, job: Dict[str, Any], backup_path: str, server: Dict[str, Any], start_time: datetime) -> tuple:
         """Create remote tar.gz backup via SSH."""
         try:
-            # Create local temp archive first
             temp_dir = tempfile.mkdtemp()
             temp_archive = os.path.join(temp_dir, os.path.basename(backup_path))
             
-            # Create local archive
             success, result = self._create_local_tar_backup(job, temp_archive, start_time)
             
             if not success:
                 shutil.rmtree(temp_dir)
                 return False, result
             
-            # Upload to remote server via SSH
             ssh_success = self._upload_to_remote_server(temp_archive, backup_path, server)
             
-            # Clean up temp files
             shutil.rmtree(temp_dir)
             
             if ssh_success:
@@ -939,7 +894,6 @@ class BackupManager:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            # Connect with authentication
             if server.get('auth_type') == 'ssh_key':
                 ssh.connect(
                     hostname=server['host'],
@@ -955,11 +909,9 @@ class BackupManager:
                     password=server.get('password')
                 )
             
-            # Ensure remote directory exists
             remote_dir = os.path.dirname(remote_path)
             ssh.exec_command(f'mkdir -p {remote_dir}')
             
-            # Upload file via SFTP
             sftp = ssh.open_sftp()
             sftp.put(local_path, remote_path)
             sftp.close()
@@ -972,6 +924,4 @@ class BackupManager:
             logger.error(f"SSH upload failed: {e}")
             return False
 
-
-# Global backup manager instance
 backup_manager = BackupManager()
