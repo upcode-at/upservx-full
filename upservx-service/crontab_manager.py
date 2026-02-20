@@ -4,6 +4,7 @@ Manages automatic scheduling of backup jobs in system crontab
 """
 
 import os
+import re
 import subprocess
 import tempfile
 from typing import List, Optional
@@ -17,6 +18,46 @@ class CrontabManager:
     BACKUP_JOB_MARKER = "# UPSERVX_BACKUP_JOB"
     BACKUP_SECTION_START = "# === UPSERVX BACKUP JOBS START ==="
     BACKUP_SECTION_END = "# === UPSERVX BACKUP JOBS END ==="
+
+    # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
+    _CRON_FIELD_RE = re.compile(r'^[0-9*,\-/]+$')
+    # Allowed ranges per field position (min, max) — * and step/range also valid
+    _CRON_FIELD_RANGES = [
+        (0, 59),   # minute
+        (0, 23),   # hour
+        (1, 31),   # day-of-month
+        (1, 12),   # month
+        (0, 7),    # day-of-week (0 and 7 both = Sunday)
+    ]
+    _CRON_FIELD_NAMES = ["minute", "hour", "day-of-month", "month", "day-of-week"]
+
+    @classmethod
+    def _validate_cron_field(cls, value: str, field_name: str) -> None:
+        """Raise ValueError if a cron field contains invalid characters."""
+        if not cls._CRON_FIELD_RE.match(value):
+            raise ValueError(
+                f"Invalid cron {field_name} field {value!r}: "
+                "only digits, *, , - / are allowed"
+            )
+
+    @classmethod
+    def _validate_schedule(cls, schedule: str) -> list[str]:
+        """Parse and validate a 5-field cron schedule string.  Returns the five fields."""
+        parts = schedule.strip().split()
+        if len(parts) != 5:
+            raise ValueError(f"Cron schedule must have exactly 5 fields, got: {schedule!r}")
+        for part, name in zip(parts, cls._CRON_FIELD_NAMES):
+            cls._validate_cron_field(part, name)
+        return parts
+
+    @staticmethod
+    def _sanitize_job_name(name: str) -> str:
+        """Strip characters that could break cron lines or inject shell commands."""
+        # Remove newlines, carriage returns, null bytes
+        sanitized = re.sub(r'[\r\n\x00]', '', name)
+        # Remove shell-significant characters that have no place in a comment
+        sanitized = re.sub(r'[;|&`$<>()\\\'"!]', '', sanitized)
+        return sanitized[:128]  # hard cap to prevent oversized lines
     
     def __init__(self):
         self.crontab_path = "/etc/crontab"
@@ -86,19 +127,18 @@ class CrontabManager:
     
     def get_backup_job_cron_entry(self, job_id: int, schedule: str, job_name: str) -> str:
         """Generate cron entry for a backup job."""
-        # Parse cron schedule (expects format like "0 2 * * *")
-        cron_parts = schedule.strip().split()
-        if len(cron_parts) != 5:
-            raise ValueError(f"Invalid cron schedule format: {schedule}")
-        
-        minute, hour, day, month, weekday = cron_parts
-        
+        # Validate and parse the schedule — raises ValueError on bad input
+        minute, hour, day, month, weekday = self._validate_schedule(schedule)
+
+        # Sanitize the job name so it cannot inject extra cron fields or shell commands
+        safe_name = self._sanitize_job_name(job_name)
+
         # Build cron entry with user specification for /etc/crontab
         user = "root"  # Run backups as root for system access
         command = f"{self.python_executable} {self.backup_script_path} {job_id}"
-        
-        cron_entry = f"{minute} {hour} {day} {month} {weekday} {user} {command} {self.BACKUP_JOB_MARKER}_ID_{job_id} # {job_name}\n"
-        
+
+        cron_entry = f"{minute} {hour} {day} {month} {weekday} {user} {command} {self.BACKUP_JOB_MARKER}_ID_{job_id} # {safe_name}\n"
+
         return cron_entry
     
     def add_backup_job(self, job_id: int, schedule: str, job_name: str) -> bool:
