@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
-import { wsUrl } from "@/lib/api"
+import { apiUrl, wsUrl } from "@/lib/api"
 import { Terminal } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 
@@ -26,24 +26,34 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
       term.focus()
     }
 
-    const ws = new WebSocket(wsUrl(`/containers/${containerName}/terminal`))
-    wsRef.current = ws
-    ws.onmessage = (ev) => {
-      const text = (typeof ev.data === "string" ? ev.data : "").replace(/\n/g, "\r\n")
-      term.write(text)
-    }
-    ws.onclose = () => {
-      term.write("\r\n[Verbindung beendet]")
-    }
-
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
-      }
-    })
+    fetch(apiUrl("/auth/ws-ticket"), { credentials: "include" })
+      .then(r => r.json())
+      .then(({ ticket }) => {
+        const ws = new WebSocket(wsUrl(`/containers/${containerName}/terminal`) + `?token=${encodeURIComponent(ticket)}`)
+        wsRef.current = ws
+        ws.onmessage = (ev) => {
+          const text = (typeof ev.data === "string" ? ev.data : "").replace(/\n/g, "\r\n")
+          term.write(text)
+        }
+        ws.onclose = () => {
+          term.write("\r\n[Verbindung beendet]")
+        }
+        ws.onerror = () => {
+          term.write("\r\n[Verbindung fehlgeschlagen]")
+        }
+        term.onData((data) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(data)
+          }
+        })
+      })
+      .catch(() => {
+        term.write("[Authentifizierung fehlgeschlagen — bitte neu anmelden]")
+      })
 
     return () => {
-      ws.close()
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close()
       term.dispose()
     }
   }, [containerName])

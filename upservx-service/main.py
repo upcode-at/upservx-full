@@ -157,38 +157,8 @@ def _check_login_rate_limit(ip: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# One-time WebSocket tickets
-# Browsers can't attach custom headers or send cookies cross-origin on WS
-# upgrades, so we issue a short-lived one-time token via a normal HTTP request
-# (which does carry the auth cookie) and the client passes it as ?token=.
-# ---------------------------------------------------------------------------
-import uuid
-_ws_tickets: dict = {}          # ticket -> (username, expiry_datetime)
-_ws_tickets_lock = threading.Lock()
-_WS_TICKET_TTL_SECONDS = 30
-
-def _create_ws_ticket(username: str) -> str:
-    ticket = str(uuid.uuid4())
-    expiry = datetime.utcnow() + timedelta(seconds=_WS_TICKET_TTL_SECONDS)
-    with _ws_tickets_lock:
-        # Prune expired tickets while we're at it
-        now = datetime.utcnow()
-        expired = [k for k, (_, exp) in _ws_tickets.items() if exp < now]
-        for k in expired:
-            del _ws_tickets[k]
-        _ws_tickets[ticket] = (username, expiry)
-    return ticket
-
-def _consume_ws_ticket(ticket: str) -> str | None:
-    """Validate and consume (delete) a ticket. Returns username or None."""
-    with _ws_tickets_lock:
-        entry = _ws_tickets.pop(ticket, None)
-    if entry is None:
-        return None
-    username, expiry = entry
-    if datetime.utcnow() > expiry:
-        return None
-    return username
+# One-time WebSocket tickets — shared with all routers via ws_tickets module
+from ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
 
 
 @app.middleware("http")

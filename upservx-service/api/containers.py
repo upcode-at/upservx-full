@@ -265,6 +265,23 @@ def delete_container(name: str):
 @router.websocket("/{name}/terminal")
 async def container_terminal(websocket: WebSocket, name: str):
     """Provide interactive shell access to a container via websocket."""
+    # Authenticate before accepting — middleware bypasses all WS upgrades
+    from ws_tickets import consume_ticket
+    from settings import load_settings
+    authenticated = False
+    raw_token = websocket.query_params.get("token")
+    if raw_token:
+        if consume_ticket(raw_token):
+            authenticated = True
+        else:
+            settings = load_settings()
+            if settings.api_key and raw_token == settings.api_key:
+                authenticated = True
+    if not authenticated:
+        await websocket.accept()
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
     ctype = find_container_type(name)
     
