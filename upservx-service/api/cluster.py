@@ -1829,22 +1829,38 @@ async def get_node_resources(hostname: str):
 TEMP_EXPORT_DIR = "/tmp/upservx_exports"
 
 @router.post("/cluster/export/{resource_type}/{resource_name}")
-async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None)):
+async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
     """Export a container or VM with all volumes/storage"""
     # Verify authentication
+    print(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
     print(f"[EXPORT] Authorization header received: {authorization}")
     
     if not authorization:
+        print("[EXPORT] Authorization header is None or empty")
         raise HTTPException(status_code=401, detail="Authorization header missing")
     
     if not authorization.startswith("Bearer "):
+        print(f"[EXPORT] Authorization doesn't start with 'Bearer ': {authorization[:50]}")
         raise HTTPException(status_code=401, detail="Invalid authorization format")
     
     provided_key = authorization[7:]
+    print(f"[EXPORT] Extracted key: {provided_key[:20]}...")
     
     # Check master or child config
     master_config = read_master_config()
     child_config = read_child_config()
+    
+    if master_config:
+        stored_key = master_config.get("key")
+        print(f"[EXPORT] Master key from config: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[EXPORT] Master key matched!")
+    
+    if child_config:
+        stored_key = child_config.get("cluster_key")
+        print(f"[EXPORT] Child key from config: {stored_key[:20] if stored_key else 'None'}...")
+        if stored_key == provided_key:
+            print("[EXPORT] Child key matched!")
     
     valid_key = False
     if master_config and master_config.get("key") == provided_key:
@@ -1853,7 +1869,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         valid_key = True
     
     if not valid_key:
-        print(f"[EXPORT] Invalid key provided")
+        print(f"[EXPORT] Invalid key provided - no match found")
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     print(f"[EXPORT] Authentication successful")
