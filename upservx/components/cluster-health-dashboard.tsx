@@ -253,37 +253,6 @@ export default function ClusterHealthDashboard() {
             </CardContent>
           </Card>
         )}
-
-        {/* Synchronization Status */}
-        {health && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Container Synchronization</CardTitle>
-              <CardDescription>Distributed container status</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Synced Containers</span>
-                <span className="text-2xl font-bold">{health.sync.total_synced_containers}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Running Containers</span>
-                <span className="text-2xl font-bold">{health.sync.running_containers}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Sync Rules</span>
-                <span className="text-2xl font-bold">{health.sync.sync_rules_count}</span>
-              </div>
-              <Progress 
-                value={health.sync.total_synced_containers > 0 
-                  ? (health.sync.running_containers / health.sync.total_synced_containers) * 100 
-                  : 0
-                } 
-                className="mt-2"
-              />
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Active Alerts */}
