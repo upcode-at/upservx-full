@@ -49,11 +49,21 @@ interface ClusterInfo {
   nodes: ClusterNode[]
 }
 
+interface Replication {
+  id: string
+  origin_node: string
+  destination_node: string
+  name: string
+  type: string
+  sync_schedule: string
+}
+
 export default function ClusterManagement() {
   const [clusterInfo, setClusterInfo] = useState<ClusterInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [replications, setReplications] = useState<Replication[]>([])
 
   // Dialog states
   const [createClusterOpen, setCreateClusterOpen] = useState(false)
@@ -574,15 +584,48 @@ export default function ClusterManagement() {
             {clusterInfo.is_master ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Workload Distribution</CardTitle>
+                  <CardTitle>Replication</CardTitle>
                   <CardDescription>
-                    Manage workload distribution across cluster nodes
+                    Manage data replication between cluster nodes
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    Content coming soon
-                  </div>
+                  {replications.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Origin Node</TableHead>
+                          <TableHead>Destination Node</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Sync Schedule</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {replications.map((replication) => (
+                          <TableRow key={replication.id}>
+                            <TableCell className="font-medium">{replication.origin_node}</TableCell>
+                            <TableCell>{replication.destination_node}</TableCell>
+                            <TableCell>{replication.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{replication.type}</Badge>
+                            </TableCell>
+                            <TableCell>{replication.sync_schedule}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No replication rules configured
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ) : (
