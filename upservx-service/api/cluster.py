@@ -180,14 +180,13 @@ def get_system_resources():
     
     # Get container counts
     try:
-        from compose_manager import ComposeManager
-        compose_manager = ComposeManager()
+        from containers import list_all_containers
+        all_containers = list_all_containers(include_compose=True)
         running_containers = 0
-        total_containers = 0
+        total_containers = len(all_containers)
         
-        for service in compose_manager.list_services():
-            total_containers += 1
-            if service.get("status") == "running":
+        for container in all_containers:
+            if container.status.lower() in ["running", "up"]:
                 running_containers += 1
         
         print(f"[RESOURCES] Containers: {running_containers}/{total_containers}")
