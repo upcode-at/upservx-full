@@ -16,12 +16,6 @@ The VM management feature exists but requires thorough testing and completion:
   - [ ] VM Templates for quick deployment
   - [ ] Cloud-init integration for automated setup
 
-- [ ] **VM Monitoring**
-  - [x] Real-time performance metrics (CPU, RAM) ✅ **IMPLEMENTED** - Live CPU/RAM usage with color coding
-  - [ ] Network traffic monitoring per VM
-  - [ ] Integration with system overview dashboard
-  - [ ] Resource usage history/graphs
-
 - [ ] **VM Networking**
   - Port forwarding rules
   - VLAN support
@@ -29,7 +23,7 @@ The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Storage Management**
   - Disk snapshots
-  - Different storage formats (qcow2, raw, vmdk)
+  - [x] Different storage formats (qcow2, raw, vmdk) ✅ **IMPLEMENTED** - Format selector in Storage tab, backend uses qemu-img with chosen format
   - Storage pool management
 
 - [ ] **VM Import/Export**
