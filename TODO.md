@@ -101,17 +101,6 @@ The VM management feature exists but requires thorough testing and completion:
 
 ## 🌐 Networking
 
-- [ ] **VPN Management**
-  - WireGuard support (in addition to OpenVPN)
-  - VPN client configuration generator
-  - QR codes for mobile clients
-  - Connection monitoring
-
-- [ ] **DNS Management**
-  - Local DNS server integration
-  - DNS record management UI
-  - DNSSEC support
-
 - [ ] **Load Balancer**
   - HAProxy integration
   - Health check configuration
