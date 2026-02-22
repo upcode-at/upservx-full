@@ -72,12 +72,6 @@ chmod +x install.sh
 The installation script automatically installs all dependencies and creates the services.
 
 
-### Access
-
-- **Frontend**: http://localhost:9200
-- **Backend API**: http://localhost:9500
-
-
 ## 💝 Support
 
 Want to support the project? Here are some ways to help:
