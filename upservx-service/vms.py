@@ -639,7 +639,17 @@ def delete_vm(name: str) -> None:
     vm = next((v for v in vms if v.name == name), None)
     
     subprocess.run(["virsh", "destroy", name], capture_output=True)
-    
+
+    # Delete all snapshots before undefining — virsh undefine fails if snapshots exist
+    snap_list = subprocess.run(["virsh", "snapshot-list", name, "--name"],
+                               capture_output=True, text=True)
+    if snap_list.returncode == 0:
+        for snap_name in snap_list.stdout.strip().splitlines():
+            snap_name = snap_name.strip()
+            if snap_name:
+                subprocess.run(["virsh", "snapshot-delete", name, snap_name, "--metadata"],
+                               capture_output=True)
+
     result = subprocess.run(["virsh", "undefine", name, "--nvram"], capture_output=True, text=True)
     if result.returncode != 0:
         # Try without --nvram if it fails
