@@ -66,6 +66,7 @@ export function VirtualMachines() {
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleVm, setConsoleVm] = useState<string | null>(null)
   const [vncUrl, setVncUrl] = useState<string | null>(null)
+  const [diskFormat, setDiskFormat] = useState<"qcow2" | "raw" | "vmdk">("qcow2")
   const [disksToRemove, setDisksToRemove] = useState<string[]>([])
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [duplicateVm, setDuplicateVm] = useState<VMData | null>(null)
@@ -169,8 +170,8 @@ export function VirtualMachines() {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
+      ? { cpu, memory, iso, add_disks: disks, disk_format: diskFormat, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
+      : { name, cpu, memory, iso, disks, disk_format: diskFormat, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = editing ? editing.name : name
@@ -346,7 +347,7 @@ export function VirtualMachines() {
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setStoragePath(""); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([20]); setDiskFormat("qcow2"); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setStoragePath(""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -501,6 +502,24 @@ export function VirtualMachines() {
                       ))}
                     </div>
                   )}
+                  <div className="space-y-2">
+                    <Label>Disk Format</Label>
+                    <Select value={diskFormat} onValueChange={(v) => setDiskFormat(v as "qcow2" | "raw" | "vmdk")}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select disk format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="qcow2">qcow2 – Copy-on-write, snapshots, compression (recommended)</SelectItem>
+                        <SelectItem value="raw">raw – Maximum performance, no overhead</SelectItem>
+                        <SelectItem value="vmdk">vmdk – VMware compatible</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {diskFormat === "qcow2" && "Supports snapshots, thin provisioning and compression. Default choice."}
+                      {diskFormat === "raw" && "Flat binary image. Best I/O performance, no additional features."}
+                      {diskFormat === "vmdk" && "VMware Virtual Machine Disk. Use for cross-hypervisor portability."}
+                    </p>
+                  </div>
                   {!editing && <Label>Disks (GB)</Label>}
                   {editing && <Label>Add New Disks (GB)</Label>}
                   {disks.map((d, idx) => (
