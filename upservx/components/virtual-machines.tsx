@@ -513,9 +513,10 @@ export function VirtualMachines() {
                           arr[idx] = { ...arr[idx], size: parseInt(e.target.value) || 0 }
                           setDisks(arr)
                         }}
-                        placeholder="Size (GB)"
-                        className="w-28"
+                        placeholder="20"
+                        className="w-24"
                       />
+                      <span className="text-sm text-muted-foreground shrink-0">GB</span>
                       <Select
                         value={d.format}
                         onValueChange={(v) => {
