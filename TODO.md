@@ -37,6 +37,46 @@ The VM management feature exists but requires thorough testing and completion:
   - Import existing VMs
   - Backup and restore VMs
 
+## ⚖️ Enterprise Parity (Missing Advanced Features)
+
+This list summarizes major enterprise-grade virtualization, storage, and cluster features that are currently missing or only rudimentarily implemented in the project.
+
+- [ ] **Cluster & High Availability (HA)**
+  - distributed cluster with quorum (Corosync) and automatic failover
+  - fencing, HA manager and resource recovery
+- [ ] **Live Migration**
+  - seamless live migration of running VMs between nodes (including storage handling)
+- [ ] **Enterprise Storage Integrations**
+  - Ceph/RBD integration, LVM-Thin, iSCSI/NFS as first-class storage pools
+  - storage pools management, replication and erasure-coding support
+- [ ] **VM- and Storage-level Snapshots**
+  - consistent VM snapshots (create / restore / delete)
+  - native storage snapshots (ZFS, Ceph)
+- [ ] **Incremental & Optimized Backups**
+  - incremental/deduplicated backups, scheduling and retention policies
+  - integrated restore workflows and verification mechanisms
+- [ ] **RBAC & Authentication Integrations**
+  - fine-grained roles, LDAP/AD/SSO integration, API token management
+- [ ] **Storage Replication & Volume-level Replication**
+  - asynchronous/synchronous replication of VM disks across nodes
+- [ ] **Resource Pools, Scheduler & HA Policies**
+  - resource pools, placement rules, anti-affinity and failover/start policies
+- [ ] **Network Enterprise Features**
+  - VLAN, bonding, Open vSwitch, VXLAN/overlay networks, advanced bridge tooling
+- [ ] **Per-VM Firewall / Security Profiles**
+  - per-VM/LXC firewall rules, zones and security profiles
+- [ ] **Templates & Linked Clones**
+  - managed VM/LXC templates, fast cloning and linked clones
+- [ ] **Guest Agent Integration**
+  - qemu-guest-agent support for quiesce, IP/hostname reporting and graceful shutdown
+- [ ] **GUI: Cluster & Task Management**
+  - multi-node GUI, task queue, audit logs and job history
+- [ ] **Backup Repository Management & Pruning**
+  - manage external repositories (NAS, S3), automated pruning/retention
+- [ ] **Auditing & Monitoring**
+  - centralized audit logs, detailed task history and notifications
+
+
 ## 🔧 Medium Priority
 
 ### Firewall Enhancements
