@@ -286,10 +286,9 @@ def _validate_disk_format(fmt: str) -> str:
     return fmt if fmt in allowed else "qcow2"
 
 
-def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_dir: str,
+def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: str,
               network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False,
-              cloud_init: str | None = None, storage_path: str | None = None,
-              disk_format: str = "qcow2") -> VirtualMachine:
+              cloud_init: str | None = None, storage_path: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
     Supports optional cloud-init user-data (string). If `cloud_init` is provided
@@ -324,19 +323,20 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
     else:
         base_dir = "/var/lib/libvirt/images"
 
-    disk_format = _validate_disk_format(disk_format)
-    ext = _disk_extension(disk_format)
-
     disk_args = []
     disk_paths = []
-    for idx, size in enumerate(disks or [20], start=1):
+    _default_disk = {"size": 20, "format": "qcow2"}
+    for idx, disk_cfg in enumerate(disks or [_default_disk], start=1):
+        size = disk_cfg.get("size", 20) if isinstance(disk_cfg, dict) else getattr(disk_cfg, "size", 20)
+        fmt = _validate_disk_format(disk_cfg.get("format", "qcow2") if isinstance(disk_cfg, dict) else getattr(disk_cfg, "format", "qcow2"))
+        ext = _disk_extension(fmt)
         disk_path = os.path.join(base_dir, f"{name}_{idx}{ext}")
         disk_paths.append(disk_path)
-        r = subprocess.run(["qemu-img", "create", "-f", disk_format, disk_path, f"{size}G"], capture_output=True, text=True)
+        r = subprocess.run(["qemu-img", "create", "-f", fmt, disk_path, f"{size}G"], capture_output=True, text=True)
         if r.returncode != 0:
             raise Exception(r.stderr.strip() or "failed to create disk")
         set_libvirt_permissions(disk_path)
-        disk_args.extend(["--disk", f"path={disk_path},format={disk_format},size={size}"])
+        disk_args.extend(["--disk", f"path={disk_path},format={fmt},size={size}"])
 
     seed_iso_path = None
     tempdir = None
@@ -450,10 +450,10 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List[int], iso_
                 pass
 
 def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
-             iso: str | None = None, add_disks: List[int] | None = None, iso_dir: str = "",
+             iso: str | None = None, add_disks: List | None = None, iso_dir: str = "",
              autostart: bool | None = None, remove_disks: List[str] | None = None,
              network_mode: str | None = None, bridge_interface: str | None = None,
-             storage_path: str | None = None, disk_format: str = "qcow2") -> VirtualMachine:
+             storage_path: str | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration.
     
     storage_path: optional path to mounted drive for new VM disks (e.g., /mnt/ssd1)
@@ -551,12 +551,14 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         else:
             base_dir = "/var/lib/libvirt/images"
         
-        add_fmt = _validate_disk_format(disk_format)
-        add_ext = _disk_extension(add_fmt)
-        valid_disks = [size for size in add_disks if size and size > 0]
-        for size in valid_disks:
+        for disk_cfg in add_disks:
+            size = disk_cfg.get("size", 20) if isinstance(disk_cfg, dict) else getattr(disk_cfg, "size", 20)
+            fmt = _validate_disk_format(disk_cfg.get("format", "qcow2") if isinstance(disk_cfg, dict) else getattr(disk_cfg, "format", "qcow2"))
+            if not size or size <= 0:
+                continue
+            add_ext = _disk_extension(fmt)
             disk_path = os.path.join(base_dir, f"{name}_{len(vm.disks) + 1}{add_ext}")
-            result = subprocess.run(["qemu-img", "create", "-f", add_fmt, disk_path, f"{size}G"], capture_output=True, text=True)
+            result = subprocess.run(["qemu-img", "create", "-f", fmt, disk_path, f"{size}G"], capture_output=True, text=True)
             if result.returncode == 0:
                 set_libvirt_permissions(disk_path)
 
@@ -565,7 +567,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 target_device = f"vd{chr(ord('a') + target_idx)}"  # vdb, vdc, vdd, etc.
 
                 result = subprocess.run(["virsh", "attach-disk", name, disk_path, target_device,
-                                       "--driver", "qemu", "--subdriver", add_fmt,
+                                       "--driver", "qemu", "--subdriver", fmt,
                                        "--targetbus", "virtio", "--persistent"],
                                       capture_output=True, text=True)
                 if result.returncode == 0:

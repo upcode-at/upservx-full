@@ -511,7 +511,6 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
             autostart=getattr(payload, "autostart", False),
             cloud_init=getattr(payload, "cloud_init", None),
             storage_path=getattr(payload, "storage_path", None),
-            disk_format=getattr(payload, "disk_format", "qcow2"),
         )
         return vm.dict()
     except Exception as e:
@@ -533,7 +532,6 @@ def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
             network_mode=getattr(payload, "network_mode", None),
             bridge_interface=getattr(payload, "bridge_interface", None),
             storage_path=getattr(payload, "storage_path", None),
-            disk_format=getattr(payload, "disk_format", "qcow2"),
         )
         return vm.dict()
     except Exception as e:

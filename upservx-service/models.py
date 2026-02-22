@@ -194,13 +194,16 @@ class VirtualMachine(BaseModel):
     cpu_usage: float | None = None  # CPU usage percentage
     memory_usage: float | None = None  # Memory usage percentage
 
+class DiskConfig(BaseModel):
+    size: int
+    format: str = "qcow2"  # qcow2, raw, vmdk
+
 class VirtualMachineCreate(BaseModel):
     name: str
     cpu: int
     memory: int
     iso: str
-    disks: List[int] = []
-    disk_format: str = "qcow2"  # qcow2, raw, vmdk
+    disks: List[DiskConfig] = []
     network_mode: str = "nat"  # "nat", "bridge", "none", "unconfigured"
     bridge_interface: str | None = None  # physical interface for bridge mode
     autostart: bool = False
@@ -211,8 +214,7 @@ class VirtualMachineUpdate(BaseModel):
     cpu: Optional[int] = None
     memory: Optional[int] = None
     iso: Optional[str] = None
-    add_disks: List[int] = []
-    disk_format: Optional[str] = None  # format for newly added disks: qcow2, raw, vmdk
+    add_disks: List[DiskConfig] = []
     autostart: Optional[bool] = None
     network_mode: Optional[str] = None
     bridge_interface: Optional[str] = None
