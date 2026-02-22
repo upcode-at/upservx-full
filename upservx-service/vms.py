@@ -649,7 +649,7 @@ def delete_vm(name: str) -> None:
     
     if vm and vm.disks:
         for disk in vm.disks:
-            if os.path.exists(disk) and disk.endswith('.qcow2'):
+            if os.path.exists(disk) and os.path.isfile(disk):
                 try:
                     os.remove(disk)
                 except Exception as e:
