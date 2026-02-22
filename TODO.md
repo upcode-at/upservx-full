@@ -10,7 +10,6 @@ This file tracks ongoing work, planned features, and areas where contributors ca
 The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Complete VM Features**
-  - [ ] VM Snapshots (create, restore, delete)
   - [ ] VM Migration between hosts
   - [ ] VM Templates for quick deployment
   - [ ] Cloud-init integration for automated setup
@@ -21,7 +20,6 @@ The VM management feature exists but requires thorough testing and completion:
   - Multiple network interfaces per VM
 
 - [ ] **Storage Management**
-  - Disk snapshots
   - Storage pool management
 
 - [ ] **VM Import/Export**
