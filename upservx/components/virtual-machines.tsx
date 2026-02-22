@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy, Camera, RotateCcw } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
@@ -70,6 +70,12 @@ export function VirtualMachines() {
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [duplicateVm, setDuplicateVm] = useState<VMData | null>(null)
   const [duplicateName, setDuplicateName] = useState("")
+  const [snapshotOpen, setSnapshotOpen] = useState(false)
+  const [snapshotVm, setSnapshotVm] = useState<VMData | null>(null)
+  const [snapshots, setSnapshots] = useState<Array<{ name: string; created: string; state: string; description: string }>>([  ])
+  const [newSnapshotName, setNewSnapshotName] = useState("")
+  const [newSnapshotDesc, setNewSnapshotDesc] = useState("")
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -283,6 +289,87 @@ export function VirtualMachines() {
     setDuplicateVm(vm)
     setDuplicateName(`${vm.name}-copy`)
     setDuplicateOpen(true)
+  }
+
+  const loadSnapshots = async (vmName: string) => {
+    try {
+      const res = await fetch(apiUrl(`/vms/${vmName}/snapshots`), { headers: getAuthHeaders() })
+      if (res.ok) setSnapshots(await res.json())
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const openSnapshots = async (vm: VMData) => {
+    setSnapshotVm(vm)
+    setSnapshots([])
+    setNewSnapshotName("")
+    setNewSnapshotDesc("")
+    setSnapshotOpen(true)
+    await loadSnapshots(vm.name)
+  }
+
+  const handleCreateSnapshot = async () => {
+    if (!snapshotVm || !newSnapshotName.trim()) return
+    setSnapshotLoading(true)
+    try {
+      const res = await fetch(apiUrl(`/vms/${snapshotVm.name}/snapshots`), {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSnapshotName.trim(), description: newSnapshotDesc }),
+      })
+      if (res.ok) {
+        setNewSnapshotName("")
+        setNewSnapshotDesc("")
+        setSuccess("Snapshot created")
+        await loadSnapshots(snapshotVm.name)
+      } else {
+        const err = await res.json().catch(() => null)
+        setError(err?.detail || "Failed to create snapshot")
+      }
+    } catch (e) {
+      setError("Network error")
+    } finally {
+      setSnapshotLoading(false)
+    }
+  }
+
+  const handleDeleteSnapshot = async (snapshotName: string) => {
+    if (!snapshotVm) return
+    try {
+      const res = await fetch(apiUrl(`/vms/${snapshotVm.name}/snapshots/${snapshotName}`), {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        setSuccess("Snapshot deleted")
+        await loadSnapshots(snapshotVm.name)
+      } else {
+        const err = await res.json().catch(() => null)
+        setError(err?.detail || "Failed to delete snapshot")
+      }
+    } catch (e) {
+      setError("Network error")
+    }
+  }
+
+  const handleRestoreSnapshot = async (snapshotName: string) => {
+    if (!snapshotVm) return
+    try {
+      const res = await fetch(apiUrl(`/vms/${snapshotVm.name}/snapshots/${snapshotName}/restore`), {
+        method: "POST",
+        headers: getAuthHeaders(),
+      })
+      if (res.ok) {
+        setSuccess(`Restored to snapshot "${snapshotName}"`)
+        setSnapshotOpen(false)
+      } else {
+        const err = await res.json().catch(() => null)
+        setError(err?.detail || "Failed to restore snapshot")
+      }
+    } catch (e) {
+      setError("Network error")
+    }
   }
 
   const handleConsole = async (name: string) => {
@@ -607,6 +694,9 @@ export function VirtualMachines() {
                 <Button variant="outline" size="icon" onClick={() => openDuplicate(vm)}>
                   <Copy className="h-4 w-4" />
                 </Button>
+                <Button variant="outline" size="icon" title="Snapshots" onClick={() => openSnapshots(vm)}>
+                  <Camera className="h-4 w-4" />
+                </Button>
                 <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -677,6 +767,9 @@ export function VirtualMachines() {
                           <Button variant="outline" size="icon" onClick={() => openDuplicate(vm)}>
                             <Copy className="h-4 w-4" />
                           </Button>
+                          <Button variant="outline" size="icon" title="Snapshots" onClick={() => openSnapshots(vm)}>
+                            <Camera className="h-4 w-4" />
+                          </Button>
                           <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -706,6 +799,75 @@ export function VirtualMachines() {
                 title={`Console for ${consoleVm}`}
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Snapshot Dialog */}
+      <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
+        <DialogContent style={{ width: '60vw', maxWidth: '60vw', maxHeight: '85vh' }} className="overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Snapshots — {snapshotVm?.name}</DialogTitle>
+            <DialogDescription>Create, restore or delete disk snapshots. Requires qcow2 disk format.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Create new snapshot */}
+            <div className="space-y-2 border rounded p-3">
+              <Label className="font-semibold">New Snapshot</Label>
+              <Input
+                value={newSnapshotName}
+                onChange={e => setNewSnapshotName(e.target.value)}
+                placeholder="Snapshot name (e.g. before-update)"
+              />
+              <Input
+                value={newSnapshotDesc}
+                onChange={e => setNewSnapshotDesc(e.target.value)}
+                placeholder="Description (optional)"
+              />
+              <Button onClick={handleCreateSnapshot} disabled={snapshotLoading || !newSnapshotName.trim()} size="sm">
+                <Camera className="mr-2 h-4 w-4" />
+                {snapshotLoading ? "Creating…" : "Create Snapshot"}
+              </Button>
+            </div>
+            {/* Snapshot list */}
+            <div className="space-y-2">
+              <Label className="font-semibold">Existing Snapshots</Label>
+              {snapshots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No snapshots found.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>State</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {snapshots.map(snap => (
+                      <TableRow key={snap.name}>
+                        <TableCell className="font-mono text-sm">{snap.name}</TableCell>
+                        <TableCell>{snap.state}</TableCell>
+                        <TableCell className="text-sm">{snap.created}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{snap.description}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="icon" title="Restore" onClick={() => handleRestoreSnapshot(snap.name)}>
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" size="icon" title="Delete" onClick={() => handleDeleteSnapshot(snap.name)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

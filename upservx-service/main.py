@@ -85,7 +85,7 @@ from settings import (
     load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
 )
-from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm
+from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot, delete_snapshot, restore_snapshot
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
@@ -584,6 +584,44 @@ def clone_vm_endpoint(name: str, payload: dict):
         
         vm = clone_vm(name, new_name, storage_path)
         return vm.dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/vms/{name}/snapshots")
+def list_vm_snapshots(name: str):
+    """List all snapshots of a VM."""
+    try:
+        return list_snapshots(name)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/vms/{name}/snapshots")
+def create_vm_snapshot(name: str, payload: dict):
+    """Create a new snapshot of a VM."""
+    try:
+        snapshot_name = payload.get("name")
+        description = payload.get("description", "")
+        if not snapshot_name:
+            raise HTTPException(status_code=400, detail="name is required")
+        return create_snapshot(name, snapshot_name, description)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/vms/{name}/snapshots/{snapshot_name}")
+def delete_vm_snapshot(name: str, snapshot_name: str):
+    """Delete a snapshot."""
+    try:
+        delete_snapshot(name, snapshot_name)
+        return {"detail": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/vms/{name}/snapshots/{snapshot_name}/restore")
+def restore_vm_snapshot(name: str, snapshot_name: str):
+    """Revert a VM to a snapshot."""
+    try:
+        restore_snapshot(name, snapshot_name)
+        return {"detail": "restored"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

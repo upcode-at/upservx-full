@@ -772,3 +772,71 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     save_vms(vms)
     
     return new_vm
+
+
+# ──────────────────────────────────────────────
+# Snapshot management
+# ──────────────────────────────────────────────
+
+def list_snapshots(vm_name: str) -> List[dict]:
+    """List all snapshots for a VM."""
+    if shutil.which("virsh") is None:
+        raise Exception("virsh not installed")
+    result = subprocess.run(["virsh", "snapshot-list", vm_name, "--name"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(result.stderr.strip() or "Failed to list snapshots")
+    names = [n.strip() for n in result.stdout.strip().splitlines() if n.strip()]
+    snapshots = []
+    for sname in names:
+        info_result = subprocess.run(["virsh", "snapshot-info", vm_name, sname],
+                                     capture_output=True, text=True)
+        info: dict = {}
+        if info_result.returncode == 0:
+            for line in info_result.stdout.splitlines():
+                if ":" in line:
+                    k, v = line.split(":", 1)
+                    info[k.strip().lower().replace(" ", "_")] = v.strip()
+        snapshots.append({
+            "name": sname,
+            "created": info.get("creation_time", ""),
+            "state": info.get("state", ""),
+            "description": info.get("description", ""),
+        })
+    return snapshots
+
+
+def create_snapshot(vm_name: str, snapshot_name: str, description: str = "") -> dict:
+    """Create an internal snapshot (requires qcow2 disks).
+    Works for both running and stopped VMs."""
+    if shutil.which("virsh") is None:
+        raise Exception("virsh not installed")
+    args = ["virsh", "snapshot-create-as", vm_name, snapshot_name]
+    if description:
+        args.extend(["--description", description])
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(result.stderr.strip() or "Failed to create snapshot")
+    return {"name": snapshot_name, "description": description}
+
+
+def delete_snapshot(vm_name: str, snapshot_name: str) -> None:
+    """Delete a snapshot."""
+    if shutil.which("virsh") is None:
+        raise Exception("virsh not installed")
+    result = subprocess.run(["virsh", "snapshot-delete", vm_name, snapshot_name],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(result.stderr.strip() or "Failed to delete snapshot")
+
+
+def restore_snapshot(vm_name: str, snapshot_name: str) -> None:
+    """Revert a VM to a snapshot. Forces shutdown if VM is running."""
+    if shutil.which("virsh") is None:
+        raise Exception("virsh not installed")
+    result = subprocess.run(
+        ["virsh", "snapshot-revert", vm_name, snapshot_name, "--force"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise Exception(result.stderr.strip() or "Failed to restore snapshot")
