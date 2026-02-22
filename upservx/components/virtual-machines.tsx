@@ -350,7 +350,7 @@ export function VirtualMachines() {
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="overflow-y-auto" style={{ width: '70vw', maxWidth: '70vw', maxHeight: '90vh' }}>
               <DialogHeader>
                 <DialogTitle>{editing ? `Edit ${editing.name}` : "Create New VM"}</DialogTitle>
                 <DialogDescription>{editing ? "Update virtual machine settings" : "Configure your new virtual machine"}</DialogDescription>
