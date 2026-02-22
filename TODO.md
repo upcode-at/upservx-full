@@ -10,7 +10,6 @@ This file tracks ongoing work, planned features, and areas where contributors ca
 The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Complete VM Features**
-  - [x] VM Cloning functionality ✅ **IMPLEMENTED** - Duplicate button with full disk cloning
   - [ ] VM Snapshots (create, restore, delete)
   - [ ] VM Migration between hosts
   - [ ] VM Templates for quick deployment
@@ -23,7 +22,6 @@ The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Storage Management**
   - Disk snapshots
-  - [x] Different storage formats (qcow2, raw, vmdk) ✅ **IMPLEMENTED** - Format selector in Storage tab, backend uses qemu-img with chosen format
   - Storage pool management
 
 - [ ] **VM Import/Export**
