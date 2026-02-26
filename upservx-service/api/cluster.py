@@ -13,6 +13,12 @@ import httpx
 from load_balancer import get_load_balancer, LoadBalancingStrategy
 from container_sync import get_sync_manager, SyncRule, SyncStrategy
 from metrics_collector import get_metrics_collector
+from upservx_logger import log_system
+
+def _clog(msg: str, error: bool = False) -> None:
+    """Print to console AND write to activity log file."""
+    print(msg)
+    log_system(msg, error=error)
 
 router = APIRouter()
 
@@ -81,11 +87,12 @@ def ensure_config_dir():
     try:
         os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
         os.makedirs(NODES_DIR, exist_ok=True)
-        print(f"[CLUSTER] Config directories ensured: {UPSERVX_CONFIG_DIR}, {NODES_DIR}")
-        print(f"[CLUSTER] NODES_DIR exists: {os.path.exists(NODES_DIR)}")
-        print(f"[CLUSTER] NODES_DIR is writable: {os.access(NODES_DIR, os.W_OK)}")
+        _clog(f"[CLUSTER] Config directories ensured: {UPSERVX_CONFIG_DIR}, {NODES_DIR}")
+        _clog(f"[CLUSTER] NODES_DIR exists: {os.path.exists(NODES_DIR)}")
+        _clog(f"[CLUSTER] NODES_DIR is writable: {os.access(NODES_DIR, os.W_OK)}")
     except Exception as e:
-        print(f"[CLUSTER] ERROR creating config directories: {e}")
+        _clog(f"[CLUSTER] ERROR creating config directories: {e}", error=True)
+
         raise
 
 def read_master_config():
@@ -130,7 +137,7 @@ def find_unique_hostname(base_hostname: str) -> str:
     while read_node_config(hostname) is not None:
         hostname = f"{base_hostname}-{counter}"
         counter += 1
-        print(f"[CLUSTER] Hostname {base_hostname} exists, trying {hostname}")
+        _clog(f"[CLUSTER] Hostname {base_hostname} exists, trying {hostname}")
     
     return hostname
 
@@ -138,17 +145,18 @@ def write_node_config(hostname: str, config: dict):
     """Write node configuration file"""
     ensure_config_dir()
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
-    print(f"[CLUSTER] Writing node config to {node_file}")
+    _clog(f"[CLUSTER] Writing node config to {node_file}")
     try:
         with open(node_file, 'w') as f:
             json.dump(config, f, indent=2)
-        print(f"[CLUSTER] Successfully wrote node config for {hostname}")
+        _clog(f"[CLUSTER] Successfully wrote node config for {hostname}")
         if os.path.exists(node_file):
-            print(f"[CLUSTER] File {node_file} exists and has {os.path.getsize(node_file)} bytes")
+            _clog(f"[CLUSTER] File {node_file} exists and has {os.path.getsize(node_file)} bytes")
         else:
-            print(f"[CLUSTER] WARNING: File {node_file} does not exist after write!")
+            _clog(f"[CLUSTER] WARNING: File {node_file} does not exist after write!")
     except Exception as e:
-        print(f"[CLUSTER] ERROR writing node config: {e}")
+        _clog(f"[CLUSTER] ERROR writing node config: {e}", error=True)
+
         raise
 
 def delete_node_config(hostname: str):
@@ -161,29 +169,31 @@ def list_all_nodes():
     """List all node configurations"""
     nodes = []
     if not os.path.exists(NODES_DIR):
-        print(f"[CLUSTER] NODES_DIR does not exist: {NODES_DIR}")
+        _clog(f"[CLUSTER] NODES_DIR does not exist: {NODES_DIR}")
         return nodes
     
-    print(f"[CLUSTER] Listing nodes from {NODES_DIR}")
+    _clog(f"[CLUSTER] Listing nodes from {NODES_DIR}")
     try:
         files = os.listdir(NODES_DIR)
-        print(f"[CLUSTER] Found {len(files)} files in NODES_DIR: {files}")
+        _clog(f"[CLUSTER] Found {len(files)} files in NODES_DIR: {files}")
         
         for filename in files:
             if filename.endswith('.json'):
                 node_file = os.path.join(NODES_DIR, filename)
-                print(f"[CLUSTER] Reading node config: {node_file}")
+                _clog(f"[CLUSTER] Reading node config: {node_file}")
                 try:
                     with open(node_file, 'r') as f:
                         node_data = json.load(f)
                         nodes.append(node_data)
-                        print(f"[CLUSTER] Loaded node: {node_data.get('hostname', 'unknown')}")
+                        _clog(f"[CLUSTER] Loaded node: {node_data.get('hostname', 'unknown')}")
                 except Exception as e:
-                    print(f"[CLUSTER] ERROR reading {node_file}: {e}")
+                    _clog(f"[CLUSTER] ERROR reading {node_file}: {e}", error=True)
+
     except Exception as e:
-        print(f"[CLUSTER] ERROR listing nodes: {e}")
+        _clog(f"[CLUSTER] ERROR listing nodes: {e}", error=True)
+
     
-    print(f"[CLUSTER] Total nodes loaded: {len(nodes)}")
+    _clog(f"[CLUSTER] Total nodes loaded: {len(nodes)}")
     return nodes
 
 def get_local_ip():
@@ -212,9 +222,10 @@ def get_system_resources():
             if container.status.lower() in ["running", "up"]:
                 running_containers += 1
         
-        print(f"[RESOURCES] Containers: {running_containers}/{total_containers}")
+        _clog(f"[RESOURCES] Containers: {running_containers}/{total_containers}")
     except Exception as e:
-        print(f"[RESOURCES] Error counting containers: {e}")
+        _clog(f"[RESOURCES] Error counting containers: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         running_containers = 0
@@ -225,9 +236,10 @@ def get_system_resources():
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
-        print(f"[RESOURCES] VMs: {running_vms}/{total_vms}")
+        _clog(f"[RESOURCES] VMs: {running_vms}/{total_vms}")
     except Exception as e:
-        print(f"[RESOURCES] Error counting VMs: {e}")
+        _clog(f"[RESOURCES] Error counting VMs: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         running_vms = 0
@@ -246,7 +258,7 @@ def get_system_resources():
         "total_vms": total_vms
     }
     
-    print(f"[RESOURCES] Returning: containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
+    _clog(f"[RESOURCES] Returning: containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
     return result
 
 def get_hostname():
@@ -274,7 +286,7 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     """Fetch metrics from a child node"""
     try:
         url = f"http://{ip_address}:{port}/cluster/node/metrics"
-        print(f"[CLUSTER] Fetching metrics from {url}")
+        _clog(f"[CLUSTER] Fetching metrics from {url}")
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 url,
@@ -283,8 +295,8 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
             
             if response.status_code == 200:
                 metrics = response.json()
-                print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
-                print(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
+                _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
+                _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 
                 # Support both formats: new format with cpu.count OR old format with cpu.cores
                 cpu_count = metrics.get("cpu", {}).get("count", 0)
@@ -328,12 +340,14 @@ async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
                     "total_vms": total_vms,
                     "success": True
                 }
-                print(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
+                _clog(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
                 return extracted
             else:
-                print(f"[CLUSTER] Failed to fetch metrics from {ip_address}: HTTP {response.status_code}")
+                _clog(f"[CLUSTER] Failed to fetch metrics from {ip_address}: HTTP {response.status_code}", error=True)
+
     except (httpx.RequestError, httpx.TimeoutException, Exception) as e:
-        print(f"[CLUSTER] Error fetching metrics from {ip_address}: {e}")
+        _clog(f"[CLUSTER] Error fetching metrics from {ip_address}: {e}", error=True)
+
     
     return {
         "cpu_usage": 0,
@@ -363,9 +377,10 @@ async def get_node_metrics():
             if container.status.lower() in ["running", "up"]:
                 running_containers += 1
         
-        print(f"[METRICS] Containers: {running_containers}/{total_containers}")
+        _clog(f"[METRICS] Containers: {running_containers}/{total_containers}")
     except Exception as e:
-        print(f"[METRICS] Error counting containers: {e}")
+        _clog(f"[METRICS] Error counting containers: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         running_containers = 0
@@ -377,9 +392,10 @@ async def get_node_metrics():
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
-        print(f"[METRICS] VMs: {running_vms}/{total_vms}")
+        _clog(f"[METRICS] VMs: {running_vms}/{total_vms}")
     except Exception as e:
-        print(f"[METRICS] Error counting VMs: {e}")
+        _clog(f"[METRICS] Error counting VMs: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         running_vms = 0
@@ -412,7 +428,7 @@ async def get_node_metrics():
         "timestamp": datetime.now().isoformat()
     }
     
-    print(f"[METRICS] Returning metrics with containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
+    _clog(f"[METRICS] Returning metrics with containers={total_containers}/{running_containers}, vms={total_vms}/{running_vms}")
     return result
 
 @router.get("/cluster/debug")
@@ -516,12 +532,12 @@ async def get_cluster_info():
         }
         nodes.append(master_node)
         
-        print(f"[CLUSTER] Master node added with containers: {master_resources.get('total_containers')}/{master_resources.get('running_containers')}, vms: {master_resources.get('total_vms')}/{master_resources.get('running_vms')}")
+        _clog(f"[CLUSTER] Master node added with containers: {master_resources.get('total_containers')}/{master_resources.get('running_containers')}, vms: {master_resources.get('total_vms')}/{master_resources.get('running_vms')}")
         
         child_nodes = list_all_nodes()
-        print(f"[CLUSTER] Master node found {len(child_nodes)} nodes in directory")
+        _clog(f"[CLUSTER] Master node found {len(child_nodes)} nodes in directory")
         for node in child_nodes:
-            print(f"[CLUSTER] Processing node: {node.get('hostname')}")
+            _clog(f"[CLUSTER] Processing node: {node.get('hostname')}")
             if node.get("hostname") != get_hostname():
                 resources = await fetch_node_metrics(
                     node.get("ip_address"),
@@ -552,7 +568,7 @@ async def get_cluster_info():
         master_port = child_config.get("master_port", 9500)
         cluster_token = child_config.get("key")
         
-        print(f"[CLUSTER] Child node trying to fetch master info from {master_ip}:{master_port}")
+        _clog(f"[CLUSTER] Child node trying to fetch master info from {master_ip}:{master_port}")
         
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -562,7 +578,7 @@ async def get_cluster_info():
                 )
                 if response.status_code == 200:
                     master_metrics = response.json()
-                    print(f"[CLUSTER] Successfully fetched master metrics")
+                    _clog(f"[CLUSTER] Successfully fetched master metrics")
                     nodes.append({
                         "id": master_metrics.get("hostname", "master"),
                         "hostname": master_metrics.get("hostname", "master"),
@@ -585,10 +601,11 @@ async def get_cluster_info():
                         "last_seen": datetime.now().isoformat()
                     })
                 else:
-                    print(f"[CLUSTER] Failed to fetch master metrics: HTTP {response.status_code}")
+                    _clog(f"[CLUSTER] Failed to fetch master metrics: HTTP {response.status_code}", error=True)
+
                     raise Exception("Master unreachable")
         except Exception as e:
-            print(f"[CLUSTER] Master unreachable: {e}")
+            _clog(f"[CLUSTER] Master unreachable: {e}")
             nodes.append({
                 "id": "master",
                 "hostname": "master",
@@ -669,23 +686,25 @@ async def create_cluster(request: ClusterCreateRequest):
 @router.post("/cluster/join")
 async def join_cluster(request: ClusterJoinRequest):
     """Join an existing cluster as child node"""
-    print(f"[CLUSTER] ========================================")
-    print(f"[CLUSTER] JOIN REQUEST INITIATED")
-    print(f"[CLUSTER] Target Master: {request.master_ip}:{request.port}")
+    _clog(f"[CLUSTER] ========================================")
+    _clog(f"[CLUSTER] JOIN REQUEST INITIATED")
+    _clog(f"[CLUSTER] Target Master: {request.master_ip}:{request.port}")
     
     if is_master_node():
-        print(f"[CLUSTER] ERROR: This node is already a master")
+        _clog(f"[CLUSTER] ERROR: This node is already a master", error=True)
+
         raise HTTPException(status_code=400, detail="This node is already a master")
     
     if is_child_node():
-        print(f"[CLUSTER] ERROR: Already part of a cluster")
+        _clog(f"[CLUSTER] ERROR: Already part of a cluster", error=True)
+
         raise HTTPException(status_code=400, detail="Already part of a cluster")
     
     my_hostname = get_hostname()
     my_ip = get_local_ip()
     
-    print(f"[CLUSTER] My hostname: {my_hostname}")
-    print(f"[CLUSTER] My IP: {my_ip}")
+    _clog(f"[CLUSTER] My hostname: {my_hostname}")
+    _clog(f"[CLUSTER] My IP: {my_ip}")
     
     my_resources = get_system_resources()
     node_data = {
@@ -696,11 +715,11 @@ async def join_cluster(request: ClusterJoinRequest):
         "resources": my_resources
     }
     
-    print(f"[CLUSTER] Attempting registration with master...")
+    _clog(f"[CLUSTER] Attempting registration with master...")
     
     try:
         master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
-        print(f"[CLUSTER] POST {master_url}")
+        _clog(f"[CLUSTER] POST {master_url}")
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
@@ -708,32 +727,35 @@ async def join_cluster(request: ClusterJoinRequest):
                 json=node_data
             )
             
-            print(f"[CLUSTER] Response status: {response.status_code}")
+            _clog(f"[CLUSTER] Response status: {response.status_code}")
             
             if response.status_code != 200:
                 try:
                     error_detail = response.json().get("detail", "Failed to register with master")
                 except:
                     error_detail = response.text
-                print(f"[CLUSTER] Registration FAILED: {error_detail}")
+                _clog(f"[CLUSTER] Registration FAILED: {error_detail}", error=True)
+
                 raise HTTPException(status_code=400, detail=f"Master rejected registration: {error_detail}")
             
             response_data = response.json()
             assigned_hostname = response_data.get("hostname", my_hostname)
             
-            print(f"[CLUSTER] Registration SUCCESSFUL")
-            print(f"[CLUSTER] Assigned hostname: {assigned_hostname}")
+            _clog(f"[CLUSTER] Registration SUCCESSFUL")
+            _clog(f"[CLUSTER] Assigned hostname: {assigned_hostname}")
             
     except HTTPException:
         raise
     except httpx.RequestError as e:
-        print(f"[CLUSTER] Connection error: {type(e).__name__}: {str(e)}")
+        _clog(f"[CLUSTER] Connection error: {type(e).__name__}: {str(e)}", error=True)
+
         raise HTTPException(status_code=400, detail=f"Failed to connect to master: {str(e)}")
     except httpx.TimeoutException:
-        print(f"[CLUSTER] Connection timeout to {request.master_ip}:{request.port}")
+        _clog(f"[CLUSTER] Connection timeout to {request.master_ip}:{request.port}")
         raise HTTPException(status_code=400, detail="Connection to master timed out")
     except Exception as e:
-        print(f"[CLUSTER] Unexpected error: {type(e).__name__}: {str(e)}")
+        _clog(f"[CLUSTER] Unexpected error: {type(e).__name__}: {str(e)}", error=True)
+
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Unexpected error during registration: {str(e)}")
@@ -747,11 +769,11 @@ async def join_cluster(request: ClusterJoinRequest):
         "assigned_hostname": assigned_hostname
     }
     
-    print(f"[CLUSTER] Writing child configuration...")
+    _clog(f"[CLUSTER] Writing child configuration...")
     write_child_config(child_config)
-    print(f"[CLUSTER] Child configuration written to {CHILD_CONFIG_FILE}")
-    print(f"[CLUSTER] JOIN COMPLETED SUCCESSFULLY")
-    print(f"[CLUSTER] ========================================")
+    _clog(f"[CLUSTER] Child configuration written to {CHILD_CONFIG_FILE}")
+    _clog(f"[CLUSTER] JOIN COMPLETED SUCCESSFULLY")
+    _clog(f"[CLUSTER] ========================================")
     
     return {
         "message": "Successfully joined cluster",
@@ -762,28 +784,31 @@ async def join_cluster(request: ClusterJoinRequest):
 @router.post("/cluster/register")
 async def register_node(request: NodeRegistrationRequest):
     """Register a child node with the master (master only)"""
-    print(f"[CLUSTER] ========================================")
-    print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
-    print(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
+    _clog(f"[CLUSTER] ========================================")
+    _clog(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
+    _clog(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
     
     if not is_master_node():
-        print(f"[CLUSTER] ERROR: This node is not a master")
+        _clog(f"[CLUSTER] ERROR: This node is not a master", error=True)
+
         raise HTTPException(status_code=403, detail="Only master node can register nodes")
     
-    print(f"[CLUSTER] This is a master node, proceeding...")
+    _clog(f"[CLUSTER] This is a master node, proceeding...")
     
     master_config = read_master_config()
     if not master_config:
-        print(f"[CLUSTER] ERROR: Master config not found")
+        _clog(f"[CLUSTER] ERROR: Master config not found", error=True)
+
         raise HTTPException(status_code=500, detail="Master configuration not found")
     
     expected_key = master_config.get("key")
     
     if expected_key != request.cluster_key:
-        print(f"[CLUSTER] ERROR: Invalid cluster key from {request.hostname}")
+        _clog(f"[CLUSTER] ERROR: Invalid cluster key from {request.hostname}", error=True)
+
         raise HTTPException(status_code=401, detail="Invalid cluster key")
     
-    print(f"[CLUSTER] Cluster key verified successfully")
+    _clog(f"[CLUSTER] Cluster key verified successfully")
     
     original_hostname = request.hostname
     all_nodes = list_all_nodes()
@@ -796,7 +821,7 @@ async def register_node(request: NodeRegistrationRequest):
     
     if same_ip_node:
         existing_hostname = same_ip_node.get("hostname")
-        print(f"[CLUSTER] Node with IP {request.ip_address} already exists as {existing_hostname}, updating...")
+        _clog(f"[CLUSTER] Node with IP {request.ip_address} already exists as {existing_hostname}, updating...")
         same_ip_node["hostname"] = existing_hostname  # Keep the original hostname
         same_ip_node["ip_address"] = request.ip_address
         same_ip_node["port"] = request.port
@@ -804,18 +829,19 @@ async def register_node(request: NodeRegistrationRequest):
         same_ip_node["last_seen"] = datetime.now().isoformat()
         try:
             write_node_config(existing_hostname, same_ip_node)
-            print(f"[CLUSTER] Node {existing_hostname} updated successfully")
+            _clog(f"[CLUSTER] Node {existing_hostname} updated successfully")
             return {"message": "Node updated successfully", "hostname": existing_hostname}
         except Exception as e:
-            print(f"[CLUSTER] ERROR updating node: {e}")
+            _clog(f"[CLUSTER] ERROR updating node: {e}", error=True)
+
             raise HTTPException(status_code=500, detail=f"Failed to update node: {str(e)}")
     
     unique_hostname = find_unique_hostname(original_hostname)
     
     if unique_hostname != original_hostname:
-        print(f"[CLUSTER] Hostname {original_hostname} already exists, using {unique_hostname} instead")
+        _clog(f"[CLUSTER] Hostname {original_hostname} already exists, using {unique_hostname} instead")
     
-    print(f"[CLUSTER] Creating new node config for {unique_hostname}")
+    _clog(f"[CLUSTER] Creating new node config for {unique_hostname}")
     node_config = {
         "hostname": unique_hostname,
         "original_hostname": original_hostname,
@@ -826,18 +852,18 @@ async def register_node(request: NodeRegistrationRequest):
         "registered_at": datetime.now().isoformat()
     }
     
-    print(f"[CLUSTER] Node config: {node_config}")
+    _clog(f"[CLUSTER] Node config: {node_config}")
     
     try:
         write_node_config(unique_hostname, node_config)
-        print(f"[CLUSTER] Node {unique_hostname} registered successfully")
-        print(f"[CLUSTER] ========================================")
+        _clog(f"[CLUSTER] Node {unique_hostname} registered successfully")
+        _clog(f"[CLUSTER] ========================================")
         
         verification = read_node_config(unique_hostname)
         if verification:
-            print(f"[CLUSTER] Verification: Node config readable after write")
+            _clog(f"[CLUSTER] Verification: Node config readable after write")
         else:
-            print(f"[CLUSTER] WARNING: Node config not readable after write!")
+            _clog(f"[CLUSTER] WARNING: Node config not readable after write!")
         
         return {
             "message": "Node registered successfully",
@@ -845,7 +871,8 @@ async def register_node(request: NodeRegistrationRequest):
             "original_hostname": original_hostname if unique_hostname != original_hostname else None
         }
     except Exception as e:
-        print(f"[CLUSTER] ERROR registering node: {e}")
+        _clog(f"[CLUSTER] ERROR registering node: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to register node: {str(e)}")
@@ -1318,8 +1345,8 @@ async def get_cluster_health():
     total_cpu_cores = 0
     total_memory_gb = 0.0
     
-    print(f"[CLUSTER] ========== HEALTH CALCULATION ==========")
-    print(f"[CLUSTER] Total nodes: {len(nodes_dict)}")
+    _clog(f"[CLUSTER] ========== HEALTH CALCULATION ==========")
+    _clog(f"[CLUSTER] Total nodes: {len(nodes_dict)}")
     
     for node in nodes_dict:
         resources = node.get("resources", {})
@@ -1327,19 +1354,19 @@ async def get_cluster_health():
         node_memory_bytes = resources.get("memory_total", 0)
         node_memory_gb = node_memory_bytes / (1024**3)
         
-        print(f"[CLUSTER] Node: {node.get('hostname')}")
-        print(f"[CLUSTER]   - Status: {node.get('status')}")
-        print(f"[CLUSTER]   - CPU Cores: {node_cores}")
-        print(f"[CLUSTER]   - Memory: {node_memory_gb:.2f} GB")
-        print(f"[CLUSTER]   - Resources: {resources}")
+        _clog(f"[CLUSTER] Node: {node.get('hostname')}")
+        _clog(f"[CLUSTER]   - Status: {node.get('status')}")
+        _clog(f"[CLUSTER]   - CPU Cores: {node_cores}")
+        _clog(f"[CLUSTER]   - Memory: {node_memory_gb:.2f} GB")
+        _clog(f"[CLUSTER]   - Resources: {resources}")
         
         total_cpu_cores += node_cores
         total_memory_gb += node_memory_gb
     
-    print(f"[CLUSTER] TOTALS:")
-    print(f"[CLUSTER]   - Total CPU Cores: {total_cpu_cores}")
-    print(f"[CLUSTER]   - Total Memory: {total_memory_gb:.2f} GB")
-    print(f"[CLUSTER] ==========================================")
+    _clog(f"[CLUSTER] TOTALS:")
+    _clog(f"[CLUSTER]   - Total CPU Cores: {total_cpu_cores}")
+    _clog(f"[CLUSTER]   - Total Memory: {total_memory_gb:.2f} GB")
+    _clog(f"[CLUSTER] ==========================================")
 
     health_status = "healthy"
     if offline_nodes > 0 or len(critical_alerts) > 0:
@@ -1387,7 +1414,8 @@ def read_replications():
             with open(REPLICATIONS_FILE, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[REPLICATION] Error reading replications: {e}")
+            _clog(f"[REPLICATION] Error reading replications: {e}", error=True)
+
     return []
 
 def write_replications(replications: list):
@@ -1396,9 +1424,10 @@ def write_replications(replications: list):
     try:
         with open(REPLICATIONS_FILE, 'w') as f:
             json.dump(replications, f, indent=2)
-        print(f"[REPLICATION] Saved {len(replications)} replication rules")
+        _clog(f"[REPLICATION] Saved {len(replications)} replication rules")
     except Exception as e:
-        print(f"[REPLICATION] Error writing replications: {e}")
+        _clog(f"[REPLICATION] Error writing replications: {e}", error=True)
+
         raise
 
 @router.get("/cluster/replications")
@@ -1433,7 +1462,7 @@ async def create_replication(replication: ReplicationCreate):
     write_replications(replications)
     
     # TODO: Setup cron job for replication
-    print(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
+    _clog(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
     
     return new_replication
 
@@ -1453,7 +1482,7 @@ async def delete_replication(replication_id: str):
     write_replications(updated_replications)
     
     # TODO: Remove cron job for this replication
-    print(f"[REPLICATION] Deleted replication: {replication_id}")
+    _clog(f"[REPLICATION] Deleted replication: {replication_id}")
     
     return {"message": "Replication deleted successfully"}
 
@@ -1474,7 +1503,7 @@ async def trigger_replication(replication_id: str):
     if not replication:
         raise HTTPException(status_code=404, detail="Replication not found")
     
-    print(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
+    _clog(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
     
     import asyncio
     asyncio.create_task(execute_replication(replication))
@@ -1487,7 +1516,7 @@ async def trigger_replication(replication_id: str):
 async def execute_replication(replication: dict):
     """Execute the actual replication process"""
     try:
-        print(f"[REPLICATION] Starting replication: {replication['name']}")
+        _clog(f"[REPLICATION] Starting replication: {replication['name']}")
         
         origin_node = replication['origin_node']
         destination_node = replication['destination_node']
@@ -1496,15 +1525,15 @@ async def execute_replication(replication: dict):
         
         master_config = read_master_config()
         if not master_config:
-            print(f"[REPLICATION] No master config found")
+            _clog(f"[REPLICATION] No master config found")
             return
         
         cluster_key = master_config.get("key")
         if not cluster_key:
-            print(f"[REPLICATION] No cluster key found in config")
+            _clog(f"[REPLICATION] No cluster key found in config")
             return
         
-        print(f"[REPLICATION] Cluster key loaded successfully")
+        _clog(f"[REPLICATION] Cluster key loaded successfully")
         
         origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
         dest_config = read_node_config(destination_node) if destination_node != get_hostname() else None
@@ -1516,7 +1545,7 @@ async def execute_replication(replication: dict):
             origin_ip = origin_config['ip_address']
             origin_port = origin_config.get('port', 9500)
         else:
-            print(f"[REPLICATION] Origin node config not found: {origin_node}")
+            _clog(f"[REPLICATION] Origin node config not found: {origin_node}")
             return
         
         if destination_node == get_hostname():
@@ -1526,37 +1555,38 @@ async def execute_replication(replication: dict):
             dest_ip = dest_config['ip_address']
             dest_port = dest_config.get('port', 9500)
         else:
-            print(f"[REPLICATION] Destination node config not found: {destination_node}")
+            _clog(f"[REPLICATION] Destination node config not found: {destination_node}")
             return
         
-        print(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
+        _clog(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
         
         async with httpx.AsyncClient(timeout=300.0) as client:
             export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
-            print(f"[REPLICATION] Export URL: {export_url}")
+            _clog(f"[REPLICATION] Export URL: {export_url}")
 
             export_response = await client.post(
                 export_url,
                 headers={"Authorization": f"Bearer {cluster_key}"}
             )
             
-            print(f"[REPLICATION] Export response status: {export_response.status_code}")
+            _clog(f"[REPLICATION] Export response status: {export_response.status_code}")
             
             if export_response.status_code != 200:
-                print(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}")
+                _clog(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}", error=True)
+
                 return
             
             export_data = export_response.json()
             export_path = export_data.get("export_path")
             
             if not export_path:
-                print(f"[REPLICATION] No export path returned")
+                _clog(f"[REPLICATION] No export path returned")
                 return
             
-            print(f"[REPLICATION] Exported to: {export_path}")
+            _clog(f"[REPLICATION] Exported to: {export_path}")
             
             download_url = f"http://{origin_ip}:{origin_port}/cluster/download/{export_path.split('/')[-1]}"
-            print(f"[REPLICATION] Downloading from: {download_url}")
+            _clog(f"[REPLICATION] Downloading from: {download_url}")
             
             download_response = await client.get(
                 download_url,
@@ -1564,14 +1594,15 @@ async def execute_replication(replication: dict):
             )
             
             if download_response.status_code != 200:
-                print(f"[REPLICATION] Download failed: {download_response.status_code}")
+                _clog(f"[REPLICATION] Download failed: {download_response.status_code}", error=True)
+
                 return
             
             archive_data = download_response.content
-            print(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
+            _clog(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
             
             upload_url = f"http://{dest_ip}:{dest_port}/cluster/upload"
-            print(f"[REPLICATION] Uploading to: {upload_url}")
+            _clog(f"[REPLICATION] Uploading to: {upload_url}")
             
             files = {
                 "file": (f"{resource_name}.tar.gz", archive_data, "application/gzip")
@@ -1584,16 +1615,17 @@ async def execute_replication(replication: dict):
             )
             
             if upload_response.status_code != 200:
-                print(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}")
+                _clog(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}", error=True)
+
                 return
             
             upload_data = upload_response.json()
             uploaded_path = upload_data.get("path")
             
-            print(f"[REPLICATION] Uploaded to: {uploaded_path}")
+            _clog(f"[REPLICATION] Uploaded to: {uploaded_path}")
             
             import_url = f"http://{dest_ip}:{dest_port}/cluster/import/{resource_type}"
-            print(f"[REPLICATION] Importing at: {import_url}")
+            _clog(f"[REPLICATION] Importing at: {import_url}")
             
             import_params = {
                 "archive_path": uploaded_path,
@@ -1607,13 +1639,15 @@ async def execute_replication(replication: dict):
             )
             
             if import_response.status_code != 200:
-                print(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}")
+                _clog(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}", error=True)
+
                 return
             
-            print(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
+            _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
             
     except Exception as e:
-        print(f"[REPLICATION] Error during replication: {e}")
+        _clog(f"[REPLICATION] Error during replication: {e}", error=True)
+
         import traceback
         traceback.print_exc()
 
@@ -1623,7 +1657,7 @@ async def get_node_resources(hostname: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can query node resources")
     
-    print(f"[REPLICATION] Fetching resources from node: {hostname}")
+    _clog(f"[REPLICATION] Fetching resources from node: {hostname}")
     
     if hostname == get_hostname():
         try:
@@ -1648,17 +1682,18 @@ async def get_node_resources(hostname: str):
                         "type": "vm"
                     })
             
-            print(f"[REPLICATION] Found {len(resources)} resources on local node")
+            _clog(f"[REPLICATION] Found {len(resources)} resources on local node")
             return {"resources": resources}
         except Exception as e:
-            print(f"[REPLICATION] Error getting local resources: {e}")
+            _clog(f"[REPLICATION] Error getting local resources: {e}", error=True)
+
             import traceback
             traceback.print_exc()
             return {"resources": []}
     
     node_config = read_node_config(hostname)
     if not node_config:
-        print(f"[REPLICATION] Node config not found for: {hostname}")
+        _clog(f"[REPLICATION] Node config not found for: {hostname}")
         raise HTTPException(status_code=404, detail="Node not found")
     
     try:
@@ -1667,25 +1702,25 @@ async def get_node_resources(hostname: str):
         node_ip = node_config['ip_address']
         node_port = node_config.get('port', 9500)
         
-        print(f"[REPLICATION] Fetching from {node_ip}:{node_port}")
+        _clog(f"[REPLICATION] Fetching from {node_ip}:{node_port}")
         
         resources = []
         
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 containers_url = f"http://{node_ip}:{node_port}/containers"
-                print(f"[REPLICATION] Fetching containers from: {containers_url}")
+                _clog(f"[REPLICATION] Fetching containers from: {containers_url}")
                 containers_response = await client.get(
                     containers_url,
                     params={"include_compose": "false"},
                     headers={"Authorization": f"Bearer {cluster_key}"}
                 )
                 
-                print(f"[REPLICATION] Containers response status: {containers_response.status_code}")
+                _clog(f"[REPLICATION] Containers response status: {containers_response.status_code}")
                 
                 if containers_response.status_code == 200:
                     containers = containers_response.json()
-                    print(f"[REPLICATION] Found {len(containers)} containers")
+                    _clog(f"[REPLICATION] Found {len(containers)} containers")
                     for container in containers:
                         name = container.get("name")
                         if name and name.strip():
@@ -1694,23 +1729,25 @@ async def get_node_resources(hostname: str):
                                 "type": "container"
                             })
                 else:
-                    print(f"[REPLICATION] Failed to fetch containers: {containers_response.text}")
+                    _clog(f"[REPLICATION] Failed to fetch containers: {containers_response.text}", error=True)
+
             except Exception as e:
-                print(f"[REPLICATION] Error fetching containers: {e}")
+                _clog(f"[REPLICATION] Error fetching containers: {e}", error=True)
+
             
             try:
                 vms_url = f"http://{node_ip}:{node_port}/vms"
-                print(f"[REPLICATION] Fetching VMs from: {vms_url}")
+                _clog(f"[REPLICATION] Fetching VMs from: {vms_url}")
                 vms_response = await client.get(
                     vms_url,
                     headers={"Authorization": f"Bearer {cluster_key}"}
                 )
                 
-                print(f"[REPLICATION] VMs response status: {vms_response.status_code}")
+                _clog(f"[REPLICATION] VMs response status: {vms_response.status_code}")
                 
                 if vms_response.status_code == 200:
                     vms = vms_response.json()
-                    print(f"[REPLICATION] Found {len(vms)} VMs")
+                    _clog(f"[REPLICATION] Found {len(vms)} VMs")
                     for vm in vms:
                         name = vm.get("name")
                         if name and name.strip():
@@ -1719,14 +1756,17 @@ async def get_node_resources(hostname: str):
                                 "type": "vm"
                             })
                 else:
-                    print(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}")
+                    _clog(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}", error=True)
+
             except Exception as e:
-                print(f"[REPLICATION] Error fetching VMs: {e}")
+                _clog(f"[REPLICATION] Error fetching VMs: {e}", error=True)
+
         
-        print(f"[REPLICATION] Total resources found: {len(resources)}")
+        _clog(f"[REPLICATION] Total resources found: {len(resources)}")
         return {"resources": resources}
     except Exception as e:
-        print(f"[REPLICATION] Error fetching resources from {hostname}: {e}")
+        _clog(f"[REPLICATION] Error fetching resources from {hostname}: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         return {"resources": []}
@@ -1746,7 +1786,7 @@ def _safe_tar_extractall(tar, dest_dir: str):
 @router.post("/cluster/export/{resource_type}/{resource_name}")
 async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
     """Export a container or VM with all volumes/storage"""
-    print(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
+    _clog(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
     
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization header missing or invalid")
@@ -1772,7 +1812,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         export_id = str(uuid.uuid4())
         export_path = os.path.join(TEMP_EXPORT_DIR, f"{export_id}.tar.gz")
         
-        print(f"[EXPORT] Exporting {resource_type} '{resource_name}' to {export_path}")
+        _clog(f"[EXPORT] Exporting {resource_type} '{resource_name}' to {export_path}")
         
         if resource_type == "container":
             import tarfile
@@ -1787,7 +1827,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             container_info = json.loads(inspect_result.stdout)[0]
             
             with tarfile.open(export_path, "w:gz") as tar:
-                print(f"[EXPORT] Exporting container filesystem...")
+                _clog(f"[EXPORT] Exporting container filesystem...")
                 export_result = subprocess.run(
                     ["docker", "export", resource_name],
                     capture_output=True,
@@ -1808,7 +1848,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                         volume_name = mount.get("Name")
                         mount_point = mount.get("Destination")
                         
-                        print(f"[EXPORT] Exporting volume: {volume_name}")
+                        _clog(f"[EXPORT] Exporting volume: {volume_name}")
                         
                         vol_inspect = subprocess.run(
                             ["docker", "volume", "inspect", volume_name],
@@ -1848,7 +1888,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                 
                 image_name = container_info.get("Config", {}).get("Image")
                 if image_name:
-                    print(f"[EXPORT] Exporting Docker image: {image_name}")
+                    _clog(f"[EXPORT] Exporting Docker image: {image_name}")
                     image_export_result = subprocess.run(
                         ["docker", "save", image_name],
                         capture_output=True,
@@ -1861,17 +1901,17 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                     
                     tar.add(image_temp, arcname="image.tar")
                     os.remove(image_temp)
-                    print(f"[EXPORT] Image exported successfully")
+                    _clog(f"[EXPORT] Image exported successfully")
                 
                 os.remove(fs_temp)
             
-            print(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
+            _clog(f"[EXPORT] Container exported successfully with {len(volumes_info)} volumes")
             
         elif resource_type == "vm":
             import tarfile
             import xml.etree.ElementTree as ET
             
-            print(f"[EXPORT] Getting VM XML definition for: {resource_name}")
+            _clog(f"[EXPORT] Getting VM XML definition for: {resource_name}")
             xml_result = subprocess.run(
                 ["virsh", "dumpxml", resource_name],
                 capture_output=True,
@@ -1889,9 +1929,9 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                         disk_file = source.get("file")
                         if disk_file and os.path.exists(disk_file):
                             disk_paths.append(disk_file)
-                            print(f"[EXPORT] Found disk: {disk_file}")
+                            _clog(f"[EXPORT] Found disk: {disk_file}")
             except Exception as e:
-                print(f"[EXPORT] Warning: Could not parse disk paths from XML: {e}")
+                _clog(f"[EXPORT] Warning: Could not parse disk paths from XML: {e}")
             
             if not disk_paths:
                 raise HTTPException(status_code=404, detail=f"No disk images found for VM '{resource_name}'")
@@ -1905,7 +1945,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                 
                 for i, disk_path in enumerate(disk_paths):
                     disk_filename = os.path.basename(disk_path)
-                    print(f"[EXPORT] Adding disk image: {disk_path} ({os.path.getsize(disk_path) // 1024 // 1024} MB)")
+                    _clog(f"[EXPORT] Adding disk image: {disk_path} ({os.path.getsize(disk_path) // 1024 // 1024} MB)")
                     tar.add(disk_path, arcname=f"disks/{disk_filename}")
                 
                 vm_metadata = {
@@ -1919,7 +1959,7 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
                 tar.add(metadata_file, arcname="vm_metadata.json")
                 os.remove(metadata_file)
             
-            print(f"[EXPORT] VM exported successfully with {len(disk_paths)} disk(s)")
+            _clog(f"[EXPORT] VM exported successfully with {len(disk_paths)} disk(s)")
         else:
             raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
         
@@ -1929,10 +1969,12 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         }
         
     except subprocess.CalledProcessError as e:
-        print(f"[EXPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        _clog(f"[EXPORT] Command failed: {e.stderr if e.stderr else str(e)}", error=True)
+
         raise HTTPException(status_code=500, detail=f"Export failed: {e.stderr if e.stderr else str(e)}")
     except Exception as e:
-        print(f"[EXPORT] Export failed: {e}")
+        _clog(f"[EXPORT] Export failed: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
@@ -1963,7 +2005,7 @@ async def download_export(filename: str, authorization: str = Header(None, alias
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Export file not found")
     
-    print(f"[DOWNLOAD] Serving: {file_path}")
+    _clog(f"[DOWNLOAD] Serving: {file_path}")
     
     from fastapi.responses import FileResponse
     return FileResponse(
@@ -2000,13 +2042,13 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
         upload_id = str(uuid.uuid4())
         upload_path = os.path.join(TEMP_EXPORT_DIR, f"{upload_id}_{file.filename}")
         
-        print(f"[UPLOAD] Receiving file: {file.filename}")
+        _clog(f"[UPLOAD] Receiving file: {file.filename}")
         
         with open(upload_path, "wb") as f:
             content = await file.read()
             f.write(content)
         
-        print(f"[UPLOAD] Saved to: {upload_path} ({len(content)} bytes)")
+        _clog(f"[UPLOAD] Saved to: {upload_path} ({len(content)} bytes)")
         
         return {
             "path": upload_path,
@@ -2014,7 +2056,8 @@ async def upload_archive(file: UploadFile = File(...), authorization: str = Head
         }
         
     except Exception as e:
-        print(f"[UPLOAD] Upload failed: {e}")
+        _clog(f"[UPLOAD] Upload failed: {e}", error=True)
+
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/cluster/import/{resource_type}")
@@ -2042,7 +2085,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
         if not os.path.exists(archive_path):
             raise HTTPException(status_code=404, detail="Archive not found")
         
-        print(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
+        _clog(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
         
         if resource_type == "container":
             import tarfile
@@ -2050,7 +2093,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
             os.makedirs(extract_dir, exist_ok=True)
             
-            print(f"[IMPORT] Extracting archive...")
+            _clog(f"[IMPORT] Extracting archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
                 _safe_tar_extractall(tar, extract_dir)
             
@@ -2063,7 +2106,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             
             image_path = os.path.join(extract_dir, "image.tar")
             if os.path.exists(image_path):
-                print(f"[IMPORT] Loading Docker image...")
+                _clog(f"[IMPORT] Loading Docker image...")
                 with open(image_path, 'rb') as f:
                     load_result = subprocess.run(
                         ["docker", "load"],
@@ -2071,13 +2114,13 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                         capture_output=True,
                         check=True
                     )
-                print(f"[IMPORT] Image loaded: {load_result.stdout.decode().strip()}")
+                _clog(f"[IMPORT] Image loaded: {load_result.stdout.decode().strip()}")
                 
                 # Use the original image name from metadata
                 image_to_use = metadata.get("image")
             else:
                 # Fallback: Import container filesystem as image
-                print(f"[IMPORT] No image.tar found, importing container filesystem...")
+                _clog(f"[IMPORT] No image.tar found, importing container filesystem...")
                 fs_path = os.path.join(extract_dir, "filesystem.tar")
                 
                 with open(fs_path, 'rb') as f:
@@ -2089,7 +2132,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                     )
                 
                 image_to_use = import_result.stdout.decode().strip()
-                print(f"[IMPORT] Created image from filesystem: {image_to_use}")
+                _clog(f"[IMPORT] Created image from filesystem: {image_to_use}")
             
             volumes_info = metadata.get("volumes", [])
             volume_mounts = []
@@ -2098,7 +2141,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 volume_name = vol_info["name"]
                 mount_point = vol_info["destination"]
                 
-                print(f"[IMPORT] Restoring volume: {volume_name}")
+                _clog(f"[IMPORT] Restoring volume: {volume_name}")
                 
                 subprocess.run(
                     ["docker", "volume", "create", volume_name],
@@ -2122,11 +2165,11 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                         ["cp", "-a", f"{source_path}/.", volume_path],
                         check=True
                     )
-                    print(f"[IMPORT] Restored volume data to {volume_path}")
+                    _clog(f"[IMPORT] Restored volume data to {volume_path}")
                 
                 volume_mounts.append(f"{volume_name}:{mount_point}")
             
-            print(f"[IMPORT] Creating container with volumes and port mappings...")
+            _clog(f"[IMPORT] Creating container with volumes and port mappings...")
             
             create_cmd = ["docker", "create", "--name", name]
             
@@ -2142,7 +2185,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                                     create_cmd.extend(["-p", f"{host_ip}:{host_port}:{container_port}"])
                                 else:
                                     create_cmd.extend(["-p", f"{host_port}:{container_port}"])
-                                print(f"[IMPORT] Adding port mapping: {host_port}:{container_port}")
+                                _clog(f"[IMPORT] Adding port mapping: {host_port}:{container_port}")
             
             for mount in volume_mounts:
                 create_cmd.extend(["-v", mount])
@@ -2162,7 +2205,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             
             subprocess.run(create_cmd, capture_output=True, check=True)
             
-            print(f"[IMPORT] Container created successfully")
+            _clog(f"[IMPORT] Container created successfully")
             
             shutil.rmtree(extract_dir)
             os.remove(archive_path)
@@ -2174,7 +2217,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             extract_dir = os.path.join(TEMP_EXPORT_DIR, f"extract_{name}")
             os.makedirs(extract_dir, exist_ok=True)
             
-            print(f"[IMPORT] Extracting VM archive...")
+            _clog(f"[IMPORT] Extracting VM archive...")
             with tarfile.open(archive_path, "r:gz") as tar:
                 _safe_tar_extractall(tar, extract_dir)
             
@@ -2194,7 +2237,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                     dst = f"/var/lib/libvirt/images/{disk_filename}"
                     shutil.move(src, dst)
                     disk_map[disk_filename] = dst
-                    print(f"[IMPORT] Moved disk: {disk_filename} -> {dst}")
+                    _clog(f"[IMPORT] Moved disk: {disk_filename} -> {dst}")
             
             xml_file = os.path.join(extract_dir, "vm.xml")
             if not os.path.exists(xml_file):
@@ -2213,7 +2256,7 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                         old_filename = os.path.basename(old_path)
                         if old_filename in disk_map:
                             source.set("file", disk_map[old_filename])
-                            print(f"[IMPORT] Updated disk path: {old_path} -> {disk_map[old_filename]}")
+                            _clog(f"[IMPORT] Updated disk path: {old_path} -> {disk_map[old_filename]}")
                 
                 # Update VM name
                 name_el = root.find("name")
@@ -2227,25 +2270,25 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
                 
                 vm_xml = ET.tostring(root, encoding='unicode')
             except Exception as e:
-                print(f"[IMPORT] Warning: Could not patch VM XML: {e}")
+                _clog(f"[IMPORT] Warning: Could not patch VM XML: {e}")
             
             patched_xml_file = os.path.join(extract_dir, "vm_patched.xml")
             with open(patched_xml_file, 'w') as f:
                 f.write(vm_xml)
             
-            print(f"[IMPORT] Defining VM in libvirt...")
+            _clog(f"[IMPORT] Defining VM in libvirt...")
             define_result = subprocess.run(
                 ["virsh", "define", patched_xml_file],
                 capture_output=True,
                 text=True,
                 check=True
             )
-            print(f"[IMPORT] VM defined: {define_result.stdout.strip()}")
+            _clog(f"[IMPORT] VM defined: {define_result.stdout.strip()}")
             
             shutil.rmtree(extract_dir)
             os.remove(archive_path)
             
-            print(f"[IMPORT] VM imported and defined successfully")
+            _clog(f"[IMPORT] VM imported and defined successfully")
             
         else:
             raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
@@ -2256,10 +2299,12 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
         }
         
     except subprocess.CalledProcessError as e:
-        print(f"[IMPORT] Command failed: {e.stderr if e.stderr else str(e)}")
+        _clog(f"[IMPORT] Command failed: {e.stderr if e.stderr else str(e)}", error=True)
+
         raise HTTPException(status_code=500, detail=f"Import failed: {e.stderr if e.stderr else str(e)}")
     except Exception as e:
-        print(f"[IMPORT] Import failed: {e}")
+        _clog(f"[IMPORT] Import failed: {e}", error=True)
+
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
