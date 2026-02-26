@@ -9,6 +9,7 @@ import pwd
 import grp
 from typing import List
 from models import SystemUserModel, SystemGroupModel
+from upservx_logger import log_user
 
 # Only allow safe POSIX usernames/groupnames
 _NAME_RE = re.compile(r'^[a-zA-Z0-9_][a-zA-Z0-9_\-\.]{0,31}$')
@@ -85,6 +86,7 @@ def create_user(username: str, password: str, groups: List[str] = None, shell: s
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to create")
+    log_user(f"Created user [{username}] (shell: {shell})")
     
     if password:
         subprocess.run(["chpasswd"], input=f"{username}:{password}", text=True)
@@ -107,6 +109,7 @@ def update_user(username: str, shell: str = None, groups: List[str] = None) -> N
         result = subprocess.run(["usermod", "-G", ",".join(groups), username], capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(result.stderr.strip() or "failed to update groups")
+    log_user(f"Updated user [{username}]")
 
 
 def delete_user(username: str) -> None:
@@ -115,6 +118,7 @@ def delete_user(username: str) -> None:
     result = subprocess.run(["userdel", "-r", username], capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to delete")
+    log_user(f"Deleted user [{username}]")
 
 
 def create_group(name: str, members: List[str] = None) -> None:
@@ -126,6 +130,7 @@ def create_group(name: str, members: List[str] = None) -> None:
     result = subprocess.run(["groupadd", name], capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to create")
+    log_user(f"Created group [{name}]")
     
     if members:
         subprocess.run(["gpasswd", "-M", ",".join(members), name], capture_output=True)
@@ -141,6 +146,7 @@ def update_group(name: str, members: List[str] = None) -> None:
         result = subprocess.run(["gpasswd", "-M", ",".join(members), name], capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(result.stderr.strip() or "failed to update members")
+    log_user(f"Updated group [{name}]")
 
 
 def delete_group(name: str) -> None:
@@ -149,6 +155,7 @@ def delete_group(name: str) -> None:
     result = subprocess.run(["groupdel", name], capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(result.stderr.strip() or "failed to delete")
+    log_user(f"Deleted group [{name}]")
 
 
 def _authorized_keys_path(username: str) -> str:

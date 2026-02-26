@@ -10,6 +10,7 @@ import psutil
 import ipaddress
 from typing import List
 from models import NetworkInterfaceInfo, NetworkSettingsModel, InterfaceConfigModel
+from upservx_logger import log_network
 
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
 
@@ -136,6 +137,7 @@ def save_network_settings(settings: NetworkSettingsModel) -> None:
     """Save network settings to file."""
     with open(NETWORK_SETTINGS_FILE, "w") as f:
         json.dump(settings.dict(), f)
+    log_network(f"Saved network settings (DNS primary: {settings.dns_primary}, secondary: {settings.dns_secondary})")
 
 def _netmask_to_prefix(netmask: str) -> int:
     """Convert a netmask like '255.255.255.0' to a CIDR prefix length (e.g. 24)."""
@@ -161,6 +163,7 @@ def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
     try:
         if not cfg.enabled:
             subprocess.check_call(["ip", "link", "set", "dev", name, "down"])
+            log_network(f"Disabled interface [{name}]")
             return
 
         subprocess.check_call(["ip", "link", "set", "dev", name, "up"])
@@ -188,5 +191,9 @@ def configure_interface(name: str, cfg: InterfaceConfigModel) -> None:
                 # Replace the default route to use this gateway for the interface
                 subprocess.check_call(["ip", "route", "replace", "default", "via", cfg.gateway, "dev", name])
 
+        log_network(f"Configured interface [{name}] (method: {cfg.method})"
+                    + (f", IP: {cfg.ip}" if cfg.ip else ""))
+
     except subprocess.CalledProcessError as e:
+        log_network(f"Failed to configure interface [{name}]: {e}", error=True)
         raise Exception(f"Failed to configure interface: {e}")

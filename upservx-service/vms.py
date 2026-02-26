@@ -12,6 +12,7 @@ import grp
 from typing import List
 from datetime import datetime
 from models import VirtualMachine
+from upservx_logger import log_vm
 
 import time
 
@@ -30,7 +31,7 @@ def set_libvirt_permissions(path: str) -> None:
         else:
             os.chmod(path, 0o644)
     except (KeyError, PermissionError) as e:
-        print(f"Warning: Could not set libvirt permissions on {path}: {e}")
+        log_vm(f"Warning: could not set libvirt permissions on [{path}]: {e}", error=True)
 
 def ensure_parent_permissions(path: str) -> None:
     """Ensure all parent directories are accessible (executable) for libvirt-qemu."""
@@ -49,7 +50,7 @@ def ensure_parent_permissions(path: str) -> None:
                 if current_mode != new_mode:
                     os.chmod(current, new_mode)
             except (PermissionError, OSError) as e:
-                print(f"Warning: Could not set permissions on parent directory {current}: {e}")
+                log_vm(f"Warning: could not set permissions on parent directory [{current}]: {e}", error=True)
                 break
             
             parent = os.path.dirname(current)
@@ -57,7 +58,7 @@ def ensure_parent_permissions(path: str) -> None:
                 break
             current = parent
     except (KeyError, PermissionError) as e:
-        print(f"Warning: Could not ensure parent permissions for {path}: {e}")
+        log_vm(f"Warning: could not ensure parent permissions for [{path}]: {e}", error=True)
 
 def ensure_bridge_for_interface(interface: str) -> str:
     """Ensure a Linux bridge exists for the given physical interface.
@@ -106,10 +107,10 @@ def ensure_bridge_for_interface(interface: str) -> str:
         if gateway:
             subprocess.run(["ip", "route", "add", "default", "via", gateway, "dev", bridge_name], capture_output=True)
         
-        print(f"Created bridge {bridge_name} for interface {interface} with IP configuration transferred")
+        log_vm(f"Created bridge [{bridge_name}] for interface [{interface}] with IP configuration transferred")
         return bridge_name
     except subprocess.CalledProcessError as e:
-        print(f"Warning: Could not create bridge for {interface}: {e}")
+        log_vm(f"Warning: could not create bridge for [{interface}]: {e}", error=True)
         return interface
 
 def load_vms() -> List[VirtualMachine]:
@@ -250,7 +251,7 @@ def get_vm_stats(name: str) -> dict[str, float]:
                 pass
         
     except (subprocess.TimeoutExpired, Exception) as e:
-        print(f"Warning: Could not get stats for VM {name}: {e}")
+        log_vm(f"Warning: could not get stats for VM [{name}]: {e}", error=True)
     
     return stats
 
@@ -438,6 +439,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
             cloud_init_iso=seed_iso_path,
             storage_path=storage_path,
         )
+        log_vm(f"Created VM [{name}] (CPU: {cpu}, Memory: {memory} MB, Network: {network_bridge})")
         vms.append(vm)
         save_vms(vms)
         return vm
@@ -473,7 +475,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if cpu is not None and cpu != vm.cpu:
             result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--config"], capture_output=True, text=True)
             if result.returncode != 0:
-                print(f"Warning: setvcpus maximum config failed: {result.stderr}")
+                log_vm(f"Warning: setvcpus maximum config failed for [{name}]: {result.stderr.strip()}", error=True)
             
             result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--config"], capture_output=True, text=True)
             if result.returncode != 0:
@@ -482,10 +484,10 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
             if is_running:
                 result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--maximum", "--live"], capture_output=True, text=True)
                 if result.returncode != 0:
-                    print(f"Warning: live CPU maximum update failed: {result.stderr}")
+                    log_vm(f"Warning: live CPU maximum update failed for [{name}]: {result.stderr.strip()}", error=True)
                 result = subprocess.run(["virsh", "setvcpus", name, str(cpu), "--live"], capture_output=True, text=True)
                 if result.returncode != 0:
-                    print(f"Warning: live CPU update failed: {result.stderr}")
+                    log_vm(f"Warning: live CPU update failed for [{name}]: {result.stderr.strip()}", error=True)
             vm.cpu = cpu
     
     if memory is not None and memory != vm.memory:
@@ -493,14 +495,14 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
         memory_kib = memory * 1024
         result = subprocess.run(["virsh", "setmaxmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"Warning: setmaxmem failed: {result.stderr}")
+            log_vm(f"Warning: setmaxmem failed for [{name}]: {result.stderr.strip()}", error=True)
         result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--config"], capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(f"Failed to set memory: {result.stderr.strip()}")
         if is_running:
             result = subprocess.run(["virsh", "setmem", name, str(memory_kib), "--live"], capture_output=True, text=True)
             if result.returncode != 0:
-                print(f"Warning: live memory update failed: {result.stderr}")
+                log_vm(f"Warning: live memory update failed for [{name}]: {result.stderr.strip()}", error=True)
         vm.memory = memory
     
     if autostart is not None:
@@ -573,7 +575,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 if result.returncode == 0:
                     vm.disks.append(disk_path)
                 else:
-                    print(f"Warning: Could not attach disk {disk_path}: {result.stderr}")
+                    log_vm(f"Warning: could not attach disk [{disk_path}] to [{name}]: {result.stderr.strip()}", error=True)
                     if os.path.exists(disk_path):
                         try:
                             os.remove(disk_path)
@@ -590,9 +592,9 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                         try:
                             os.remove(disk_path)
                         except Exception as e:
-                            print(f"Warning: Could not delete disk file {disk_path}: {e}")
+                            log_vm(f"Warning: could not delete disk file [{disk_path}]: {e}", error=True)
                 else:
-                    print(f"Warning: Could not detach disk {disk_path}: {result.stderr}")
+                    log_vm(f"Warning: could not detach disk [{disk_path}] from [{name}]: {result.stderr.strip()}", error=True)
     
     if network_mode is not None:
         if network_mode == "nat":
@@ -608,6 +610,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
             vm.network_bridge = "none"
     
     save_vms(vms)
+    log_vm(f"Updated VM [{name}]")
     return vm
 
 def start_vm(name: str) -> None:
@@ -616,7 +619,9 @@ def start_vm(name: str) -> None:
         raise Exception("virsh not installed")
     result = subprocess.run(["virsh", "start", name], capture_output=True, text=True)
     if result.returncode != 0:
+        log_vm(f"Failed to start VM [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to start")
+    log_vm(f"Started VM [{name}]")
 
 def shutdown_vm(name: str) -> None:
     """Shutdown a virtual machine (hard stop)."""
@@ -628,7 +633,9 @@ def shutdown_vm(name: str) -> None:
     result = subprocess.run(["virsh", "destroy", name], capture_output=True, text=True)
     # destroy returns error if VM is already stopped, which is ok
     if result.returncode != 0 and "domain is not running" not in result.stderr.lower():
+        log_vm(f"Failed to stop VM [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to stop")
+    log_vm(f"Stopped VM [{name}]")
 
 def delete_vm(name: str) -> None:
     """Delete a virtual machine and remove it from storage."""
@@ -663,16 +670,17 @@ def delete_vm(name: str) -> None:
                 try:
                     os.remove(disk)
                 except Exception as e:
-                    print(f"Warning: Could not delete disk {disk}: {e}")
+                    log_vm(f"Warning: could not delete disk [{disk}] for VM [{name}]: {e}", error=True)
     
     if vm and vm.cloud_init_iso and os.path.exists(vm.cloud_init_iso):
         try:
             os.remove(vm.cloud_init_iso)
         except Exception as e:
-            print(f"Warning: Could not delete cloud-init ISO: {e}")
+            log_vm(f"Warning: could not delete cloud-init ISO for VM [{name}]: {e}", error=True)
     
     vms = [v for v in load_vms() if v.name != name]
     save_vms(vms)
+    log_vm(f"Deleted VM [{name}]")
 
 def list_vms_with_status() -> List[VirtualMachine]:
     """List all VMs with their current status from virsh."""
@@ -751,8 +759,9 @@ def clone_vm(source_name: str, new_name: str, storage_path: str | None = None) -
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(f"VM cloned successfully: {result.stdout}")
+        log_vm(f"Cloned VM [{source_name}] → [{new_name}]")
     except subprocess.CalledProcessError as e:
+        log_vm(f"Failed to clone VM [{source_name}] → [{new_name}]: {e.stderr.strip()}", error=True)
         raise Exception(f"Failed to clone VM: {e.stderr}")
     
     new_disks = []
@@ -826,7 +835,9 @@ def create_snapshot(vm_name: str, snapshot_name: str, description: str = "") -> 
         args.extend(["--description", description])
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
+        log_vm(f"Failed to create snapshot [{snapshot_name}] on VM [{vm_name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "Failed to create snapshot")
+    log_vm(f"Created snapshot [{snapshot_name}] on VM [{vm_name}]")
     return {"name": snapshot_name, "description": description}
 
 
@@ -837,7 +848,9 @@ def delete_snapshot(vm_name: str, snapshot_name: str) -> None:
     result = subprocess.run(["virsh", "snapshot-delete", vm_name, snapshot_name],
                             capture_output=True, text=True)
     if result.returncode != 0:
+        log_vm(f"Failed to delete snapshot [{snapshot_name}] from VM [{vm_name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "Failed to delete snapshot")
+    log_vm(f"Deleted snapshot [{snapshot_name}] from VM [{vm_name}]")
 
 
 def restore_snapshot(vm_name: str, snapshot_name: str) -> None:
@@ -849,4 +862,6 @@ def restore_snapshot(vm_name: str, snapshot_name: str) -> None:
         capture_output=True, text=True
     )
     if result.returncode != 0:
+        log_vm(f"Failed to restore snapshot [{snapshot_name}] on VM [{vm_name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "Failed to restore snapshot")
+    log_vm(f"Restored VM [{vm_name}] to snapshot [{snapshot_name}]")

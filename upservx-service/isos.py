@@ -9,6 +9,7 @@ import urllib.parse
 from datetime import datetime
 from typing import List
 from models import ISOInfo
+from upservx_logger import log_iso
 
 
 def _safe_iso_path(name: str, iso_dir: str) -> str:
@@ -102,10 +103,12 @@ def download_iso(url: str, name: str = None) -> ISOInfo:
     except Exception as e:
         if os.path.exists(dest):
             os.remove(dest)
+        log_iso(f"Failed to download ISO [{filename}] from [{url}]: {e}", error=True)
         raise Exception(str(e))
     
     stat = os.stat(dest)
     typ, version, arch = guess_iso_info(filename)
+    log_iso(f"Downloaded ISO [{filename}] from [{url}] ({round(stat.st_size / (1024**3), 1)} GB)")
     
     return ISOInfo(
         id=0,
@@ -133,6 +136,7 @@ def save_uploaded_iso(file_content: bytes, filename: str) -> ISOInfo:
     
     stat = os.stat(dest)
     typ, version, arch = guess_iso_info(filename)
+    log_iso(f"Uploaded ISO [{filename}] ({round(stat.st_size / (1024**3), 1)} GB)")
     
     return ISOInfo(
         id=0,
@@ -156,6 +160,7 @@ def delete_iso(name: str) -> None:
         raise Exception("iso not found")
     
     os.remove(path)
+    log_iso(f"Deleted ISO [{name}]")
 
 
 def get_iso_path(name: str) -> str:

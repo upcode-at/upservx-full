@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 import logging
+from upservx_logger import log_ssh
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ class SSHKeyManager:
                 f.write(public_key_content)
             os.chmod(public_key_path, 0o644)
             
+            log_ssh(f"Generated SSH key pair [{key_name}] (type: {key_type})")
             return {
                 'private_key': private_pem.decode(),
                 'public_key': public_key_content,
@@ -109,6 +111,7 @@ class SSHKeyManager:
             
         except Exception as e:
             logger.error(f"Failed to generate SSH key pair: {e}")
+            log_ssh(f"Failed to generate SSH key pair [{key_name}]: {e}", error=True)
             raise
     
     def store_ssh_key(self, 
@@ -160,6 +163,7 @@ class SSHKeyManager:
             except Exception:
                 public_key_content = "Could not extract public key"
             
+            log_ssh(f"Stored SSH key [{key_name}]")
             return {
                 'private_key_path': private_key_path,
                 'public_key_path': public_key_path if os.path.exists(public_key_path) else None,
@@ -169,6 +173,7 @@ class SSHKeyManager:
             
         except Exception as e:
             logger.error(f"Failed to store SSH key: {e}")
+            log_ssh(f"Failed to store SSH key [{key_name}]: {e}", error=True)
             raise
     
     def get_key_fingerprint(self, public_key_path: str) -> Optional[str]:
@@ -218,9 +223,12 @@ class SSHKeyManager:
                     os.remove(path)
                     deleted = True
             
+            if deleted:
+                log_ssh(f"Deleted SSH key [{key_name}]")
             return deleted
         except Exception as e:
             logger.error(f"Failed to delete SSH key {key_name}: {e}")
+            log_ssh(f"Failed to delete SSH key [{key_name}]: {e}", error=True)
             return False
     
     def get_ssh_key(self, key_name: str) -> Optional[Dict[str, str]]:
@@ -318,10 +326,12 @@ class SSHKeyManager:
                     f.write(f"{key}\n")
             
             os.chmod(auth_keys_path, 0o600)
+            log_ssh(f"Set up authorized_keys for user [{username}] ({len(public_keys)} key(s))")
             return True
             
         except Exception as e:
             logger.error(f"Failed to setup authorized keys for {username}: {e}")
+            log_ssh(f"Failed to set up authorized_keys for user [{username}]: {e}", error=True)
             return False
 
 ssh_key_manager = SSHKeyManager()

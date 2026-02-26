@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import psutil
 from typing import List
+from upservx_logger import log_service
 
 
 def list_systemd_services() -> List[dict]:
@@ -85,7 +86,9 @@ def start_service(name: str) -> None:
     
     result = subprocess.run(["systemctl", "start", name], capture_output=True, text=True)
     if result.returncode != 0:
+        log_service(f"Failed to start service [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to start")
+    log_service(f"Started service [{name}]")
 
 
 def stop_service(name: str) -> None:
@@ -95,7 +98,9 @@ def stop_service(name: str) -> None:
     
     result = subprocess.run(["systemctl", "stop", name], capture_output=True, text=True)
     if result.returncode != 0:
+        log_service(f"Failed to stop service [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to stop")
+    log_service(f"Stopped service [{name}]")
 
 
 def enable_service(name: str) -> None:
@@ -105,7 +110,9 @@ def enable_service(name: str) -> None:
     
     result = subprocess.run(["systemctl", "enable", name], capture_output=True, text=True)
     if result.returncode != 0:
+        log_service(f"Failed to enable service [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to enable")
+    log_service(f"Enabled service [{name}]")
 
 
 def disable_service(name: str) -> None:
@@ -115,7 +122,9 @@ def disable_service(name: str) -> None:
     
     result = subprocess.run(["systemctl", "disable", name], capture_output=True, text=True)
     if result.returncode != 0:
+        log_service(f"Failed to disable service [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to disable")
+    log_service(f"Disabled service [{name}]")
 
 
 def get_service_logs(name: str, lines: int = 100) -> List[dict]:

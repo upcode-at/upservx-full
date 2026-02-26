@@ -8,6 +8,7 @@ import re
 import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
+from upservx_logger import log_proxy
 
 
 NGINX_SITES_AVAILABLE = "/etc/nginx/sites-available"
@@ -227,6 +228,7 @@ class ReverseProxyManager:
                 "config_file": config_path
             }
             self._save_config(config)
+            log_proxy(f"Created proxy config for [{domain}] → {backend_host}:{backend_port} (SSL: {ssl_enabled})")
             
             return {
                 "success": True,
@@ -234,6 +236,7 @@ class ReverseProxyManager:
                 "config_path": config_path
             }
         except Exception as e:
+            log_proxy(f"Failed to create proxy config for [{domain}]: {e}", error=True)
             return {"success": False, "message": str(e)}
     
     def _add_proxy_locations(self, config_lines: List[str], backend_host: str, backend_port: int, frontend_port: int):
@@ -296,8 +299,10 @@ class ReverseProxyManager:
                 del config[domain]
                 self._save_config(config)
             subprocess.run(["systemctl", "reload", "nginx"], check=True)
+            log_proxy(f"Deleted proxy config for [{domain}]")
             return {"success": True, "message": "Proxy configuration deleted"}
         except Exception as e:
+            log_proxy(f"Failed to delete proxy config for [{domain}]: {e}", error=True)
             return {"success": False, "message": str(e)}
     
     def list_proxy_configs(self) -> List[Dict]:
@@ -347,18 +352,20 @@ class ReverseProxyManager:
                         ssl_enabled=True,
                         force_ssl=config[domain].get("force_ssl", True)
                     )
-                
+                log_proxy(f"Obtained SSL certificate for [{domain}]")
                 return {
                     "success": True,
                     "message": "Certificate obtained successfully",
                     "output": result.stdout
                 }
             else:
+                log_proxy(f"Failed to obtain SSL certificate for [{domain}]: {result.stderr.strip()}", error=True)
                 return {
                     "success": False,
                     "message": f"Certificate request failed: {result.stderr}"
                 }
         except Exception as e:
+            log_proxy(f"Failed to obtain SSL certificate for [{domain}]: {e}", error=True)
             return {"success": False, "message": str(e)}
     
     def renew_certificates(self) -> Dict:
@@ -372,16 +379,19 @@ class ReverseProxyManager:
             
             if result.returncode == 0:
                 subprocess.run(["systemctl", "reload", "nginx"], capture_output=True)
+                log_proxy("Renewed all SSL certificates")
                 return {
                     "success": True,
                     "message": "Certificates renewed successfully"
                 }
             else:
+                log_proxy(f"Failed to renew SSL certificates: {result.stderr.strip()}", error=True)
                 return {
                     "success": False,
                     "message": f"Renewal failed: {result.stderr}"
                 }
         except Exception as e:
+            log_proxy(f"Failed to renew SSL certificates: {e}", error=True)
             return {"success": False, "message": str(e)}
     
     def list_certificates(self) -> List[Dict]:
@@ -443,17 +453,19 @@ class ReverseProxyManager:
                         ssl_enabled=False,
                         force_ssl=False
                     )
-                
+                log_proxy(f"Revoked SSL certificate for [{domain}]")
                 return {
                     "success": True,
                     "message": "Certificate revoked successfully"
                 }
             else:
+                log_proxy(f"Failed to revoke SSL certificate for [{domain}]: {result.stderr.strip()}", error=True)
                 return {
                     "success": False,
                     "message": f"Revocation failed: {result.stderr}"
                 }
         except Exception as e:
+            log_proxy(f"Failed to revoke SSL certificate for [{domain}]: {e}", error=True)
             return {"success": False, "message": str(e)}
 
 

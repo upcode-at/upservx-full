@@ -8,6 +8,7 @@ import shutil
 import json
 from typing import List, Dict, Optional
 from pathlib import Path
+from upservx_logger import log_appstore
 
 APP_STORE_DIR = "/opt/upservx/app-store"
 COMPOSE_BASE_DIR = "/opt/upservx/compose"
@@ -59,7 +60,7 @@ class AppStore:
                             "installed": installed
                         })
                     except Exception as e:
-                        print(f"Error loading app {app_name}: {e}")
+                        log_appstore(f"Error loading app [{app_name}]: {e}", error=True)
         
         return sorted(apps, key=lambda x: x["name"])
     
@@ -109,7 +110,7 @@ class AppStore:
                 "installed": installed
             }
         except Exception as e:
-            print(f"Error getting app details for {app_id}: {e}")
+            log_appstore(f"Error getting app details for [{app_id}]: {e}", error=True)
             return None
     
     def install_app(self, app_id: str, custom_name: Optional[str] = None) -> Dict:
@@ -130,19 +131,25 @@ class AppStore:
         
         try:
             shutil.copytree(app_dir, target_dir)
-            
+            log_appstore(f"Installed app [{app_id}] as project [{project_name}]")
             return {
                 "success": True,
                 "message": f"App installed as '{project_name}'",
                 "project_name": project_name
             }
         except Exception as e:
+            log_appstore(f"Failed to install app [{app_id}]: {e}", error=True)
             return {"success": False, "message": str(e)}
     
     def uninstall_app(self, project_name: str) -> Dict:
         """Uninstall an app (removes the project)."""
         from compose_manager import compose_manager
-        return compose_manager.delete_project(project_name, remove_volumes=True)
+        result = compose_manager.delete_project(project_name, remove_volumes=True)
+        if result.get("success"):
+            log_appstore(f"Uninstalled app / project [{project_name}]")
+        else:
+            log_appstore(f"Failed to uninstall app [{project_name}]: {result.get('message', '')}", error=True)
+        return result
     
     def _check_if_installed(self, app_id: str) -> bool:
         """Check if an app is currently installed."""

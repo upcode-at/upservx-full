@@ -10,6 +10,7 @@ import psutil
 from typing import List
 from datetime import datetime
 from models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
+from upservx_logger import log_storage
 
 def _drive_type(dev: str) -> str:
     """Return the type for a device or partition."""
@@ -285,13 +286,15 @@ def mount_drive(device: str, mountpoint: str) -> None:
     
     result = subprocess.run(["mount", device, mountpoint], capture_output=True, text=True)
     if result.returncode != 0:
+        log_storage(f"Failed to mount [{device}] at [{mountpoint}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to mount")
+    log_storage(f"Mounted [{device}] at [{mountpoint}]")
     
     try:
         _add_to_fstab(device, mountpoint, uuid, fstype)
     except Exception as e:
         # If fstab update fails, log but don't fail the mount
-        print(f"Warning: Failed to update /etc/fstab: {e}")
+        log_storage(f"Warning: failed to update /etc/fstab for [{device}]: {e}", error=True)
 
 def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
     """Remove an entry from /etc/fstab."""
@@ -356,7 +359,9 @@ def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> N
     target = mountpoint if mountpoint else device
     result = subprocess.run(["umount", target], capture_output=True, text=True)
     if result.returncode != 0:
+        log_storage(f"Failed to unmount [{target}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to unmount")
+    log_storage(f"Unmounted [{target}]")
     
     try:
         if device:
@@ -366,7 +371,7 @@ def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> N
             # This is a fallback, might not always work
             _remove_from_fstab("", mountpoint)
     except Exception as e:
-        print(f"Warning: Failed to update /etc/fstab: {e}")
+        log_storage(f"Warning: failed to update /etc/fstab after unmounting [{target}]: {e}", error=True)
 
 def format_drive(device: str, filesystem: str, label: str | None = None) -> None:
     """Format a drive with the specified filesystem."""
@@ -400,7 +405,9 @@ def format_drive(device: str, filesystem: str, label: str | None = None) -> None
     subprocess.run(["umount", device], capture_output=True)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
+        log_storage(f"Failed to format [{device}] as [{fs}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to format")
+    log_storage(f"Formatted [{device}] as [{filesystem}]")
 
 def create_zfs_pool(name: str, devices: List[str], raid: str = "stripe") -> None:
     """Create a new ZFS pool."""
@@ -421,4 +428,6 @@ def create_zfs_pool(name: str, devices: List[str], raid: str = "stripe") -> None
     cmd.extend(devices)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
+        log_storage(f"Failed to create ZFS pool [{name}] ({raid}): {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to create pool")
+    log_storage(f"Created ZFS pool [{name}] ({raid}) with devices: {', '.join(devices)}")

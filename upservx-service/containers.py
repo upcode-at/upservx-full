@@ -8,6 +8,7 @@ import shutil
 from typing import List
 from datetime import datetime
 from models import Container, ContainerImageInfo, DockerVolumeInfo, LXCStorageInfo
+from upservx_logger import log_container
 
 
 # Containers that are created via the API are stored here in-memory. Containers
@@ -357,6 +358,7 @@ def create_api_container(container_data: dict) -> Container:
     )
     next_container_id += 1
     containers.append(container)
+    log_container(f"Created API container [{container.name}] (image: {container.image})")
     return container
 
 
@@ -431,8 +433,13 @@ def create_docker_volume(name: str) -> bool:
             text=True,
             timeout=30
         )
+        if result.returncode == 0:
+            log_container(f"Created Docker volume [{name}]")
+        else:
+            log_container(f"Failed to create Docker volume [{name}]: {result.stderr.strip()}", error=True)
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        log_container(f"Failed to create Docker volume [{name}]: {e}", error=True)
         return False
 
 
@@ -451,10 +458,14 @@ def create_lxc_storage(name: str, driver: str = "dir", source: str = "") -> tupl
             timeout=30
         )
         if result.returncode == 0:
+            log_container(f"Created LXC storage pool [{name}] (driver: {driver})")
             return True, "Storage pool created successfully"
         else:
-            return False, result.stderr.strip() or "Command failed"
+            err = result.stderr.strip() or "Command failed"
+            log_container(f"Failed to create LXC storage pool [{name}]: {err}", error=True)
+            return False, err
     except Exception as e:
+        log_container(f"Failed to create LXC storage pool [{name}]: {e}", error=True)
         return False, str(e)
 
 
@@ -469,8 +480,13 @@ def delete_docker_volume(name: str) -> bool:
             text=True,
             timeout=30
         )
+        if result.returncode == 0:
+            log_container(f"Deleted Docker volume [{name}]")
+        else:
+            log_container(f"Failed to delete Docker volume [{name}]: {result.stderr.strip()}", error=True)
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        log_container(f"Failed to delete Docker volume [{name}]: {e}", error=True)
         return False
 
 
@@ -485,6 +501,11 @@ def delete_lxc_storage(name: str) -> bool:
             text=True,
             timeout=30
         )
+        if result.returncode == 0:
+            log_container(f"Deleted LXC storage pool [{name}]")
+        else:
+            log_container(f"Failed to delete LXC storage pool [{name}]: {result.stderr.strip()}", error=True)
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        log_container(f"Failed to delete LXC storage pool [{name}]: {e}", error=True)
         return False

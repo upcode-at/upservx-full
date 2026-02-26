@@ -10,6 +10,7 @@ import json
 import re
 from typing import List, Dict, Optional, Any
 from enum import Enum
+from upservx_logger import log_firewall
 
 class ChainType(str, Enum):
     """Chain types in nftables"""
@@ -227,6 +228,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Added firewall rule: chain={chain}, protocol={protocol}, port={port}, action={action}")
         return {"success": True, "message": "Rule added successfully"}
     
     def delete_rule(self, chain: str, handle: int) -> Dict[str, Any]:
@@ -237,6 +239,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Deleted firewall rule (chain={chain}, handle={handle})")
         return {"success": True, "message": "Rule deleted successfully"}
     
     def flush_chain(self, chain: str) -> Dict[str, Any]:
@@ -247,6 +250,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Flushed all rules from chain [{chain}]")
         return {"success": True, "message": f"Chain {chain} flushed successfully"}
     
     def set_chain_policy(self, chain: str, policy: str) -> Dict[str, Any]:
@@ -289,6 +293,7 @@ class FirewallManager:
             if code != 0:
                 return {"success": False, "error": stderr}
             
+            log_firewall(f"Set chain [{chain}] policy to [{policy}]")
             return {"success": True, "message": f"Policy set to {policy} for chain {chain}"}
         
         except Exception as e:
@@ -318,6 +323,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Added port forward: external port {external_port} → {internal_ip}:{internal_port} ({protocol})")
         return {"success": True, "message": "Port forward added successfully"}
     
     def enable_masquerade(self, interface: str) -> Dict[str, Any]:
@@ -331,6 +337,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Enabled masquerading for interface [{interface}]")
         return {"success": True, "message": f"Masquerade enabled for {interface}"}
     
     def get_statistics(self) -> Dict[str, Any]:
@@ -380,6 +387,7 @@ class FirewallManager:
                 f.write("#!/usr/sbin/nft -f\n\n")
                 f.write(stdout)
             
+            log_firewall(f"Saved firewall rules to [{filepath}]")
             return {"success": True, "message": f"Rules saved to {filepath}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -392,6 +400,7 @@ class FirewallManager:
         if code != 0:
             return {"success": False, "error": stderr}
         
+        log_firewall(f"Loaded firewall rules from [{filepath}]")
         return {"success": True, "message": f"Rules loaded from {filepath}"}
 
 firewall_manager = FirewallManager()
