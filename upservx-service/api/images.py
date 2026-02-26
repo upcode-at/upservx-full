@@ -10,6 +10,7 @@ from containers import (
     get_docker_images, get_lxc_images,
     get_docker_image_details, get_lxc_image_details
 )
+from upservx_logger import log_container
 
 router = APIRouter(prefix="/images")
 
@@ -51,8 +52,10 @@ def pull_image(payload: ImagePullRequest):
         
         result = subprocess.run(["docker", "pull", image], capture_output=True, text=True)
         if result.returncode != 0:
+            log_container(f"Failed to pull Docker image [{image}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
         
+        log_container(f"Pulled Docker image [{image}]")
         return {"detail": "pulled"}
     
     if typ == "lxc":
@@ -68,8 +71,10 @@ def pull_image(payload: ImagePullRequest):
         ], capture_output=True, text=True)
         
         if result.returncode != 0:
+            log_container(f"Failed to pull LXC image [{payload.image}] from [{remote}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to pull")
         
+        log_container(f"Pulled LXC image [{payload.image}] from [{remote}]")
         return {"detail": "pulled"}
     
     raise HTTPException(status_code=400, detail="unknown container type")
@@ -86,8 +91,10 @@ def delete_image(image: str, type: str):
         
         result = subprocess.run(["docker", "rmi", image], capture_output=True, text=True)
         if result.returncode != 0:
+            log_container(f"Failed to delete Docker image [{image}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
         
+        log_container(f"Deleted Docker image [{image}]")
         return {"detail": "deleted"}
     
     if type_lower == "lxc":
@@ -96,8 +103,10 @@ def delete_image(image: str, type: str):
         
         result = subprocess.run(["lxc", "image", "delete", image], capture_output=True, text=True)
         if result.returncode != 0:
+            log_container(f"Failed to delete LXC image [{image}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
         
+        log_container(f"Deleted LXC image [{image}]")
         return {"detail": "deleted"}
     
     raise HTTPException(status_code=400, detail="unknown container type")
