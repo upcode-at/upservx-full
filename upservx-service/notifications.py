@@ -122,6 +122,30 @@ def test_email(cfg: NotificationEmailConfig) -> dict:
 # Webhook
 # ---------------------------------------------------------------------------
 
+def _build_webhook_payload(url: str, event: str, message: str) -> bytes:
+    """Build the correct JSON payload based on the webhook URL target."""
+    url_lower = url.lower()
+
+    if "discord.com/api/webhooks" in url_lower or "discordapp.com/api/webhooks" in url_lower:
+        # Discord expects {"content": "..."} or embeds
+        data = {
+            "username": "UpservX",
+            "embeds": [{
+                "title": event.replace("_", " ").title(),
+                "description": message,
+                "color": 0xe74c3c if "fail" in event or "crash" in event or "delete" in event else 0x2ecc71,
+            }]
+        }
+    elif "hooks.slack.com" in url_lower or "slack.com/services" in url_lower:
+        # Slack incoming webhook
+        data = {"text": f"*{event.replace('_', ' ').title()}*\n{message}"}
+    else:
+        # Generic / custom endpoint
+        data = {"event": event, "message": message, "source": "upservx"}
+
+    return json.dumps(data).encode()
+
+
 def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> None:
     """POST a JSON payload to the configured webhook URL.
 
@@ -130,7 +154,7 @@ def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> No
     if not cfg.url:
         raise ValueError("Webhook URL is not configured")
 
-    payload = json.dumps({"event": event, "message": message, "source": "upservx"}).encode()
+    payload = _build_webhook_payload(cfg.url, event, message)
     headers = {"Content-Type": "application/json", "User-Agent": "UpservX/1.0"}
     if cfg.secret:
         headers["X-UpservX-Secret"] = cfg.secret
