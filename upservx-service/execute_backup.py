@@ -89,7 +89,8 @@ def execute_backup_job(job_id: int) -> bool:
                 })
                 logger.info(f"Backup job {job_id} completed successfully")
                 log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) completed successfully")
-                notify("backup_success", f"Backup job '{job['name']}' completed successfully")
+                size_mb = round(result.get('size', 0) / 1024 / 1024, 2)
+                notify("backup_success", f"Backup job '{job['name']}' completed | Size: {size_mb} MB | Path: {result.get('backup_path', 'n/a')}")
                 return True
             else:
                 backup_db.update_backup_instance(instance_id, {
@@ -99,7 +100,7 @@ def execute_backup_job(job_id: int) -> bool:
                 })
                 logger.error(f"Backup job {job_id} failed: {result.get('error')}")
                 log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) failed: {result.get('error')}", error=True)
-                notify("backup_failure", f"Backup job '{job['name']}' failed: {result.get('error', 'Unknown error')}")
+                notify("backup_failure", f"Backup job '{job['name']}' FAILED | Error: {result.get('error', 'Unknown error')}")
                 return False
                 
         except Exception as e:

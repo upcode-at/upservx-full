@@ -7,6 +7,7 @@ Notification configuration is persisted to notifications.json.
 
 import os
 import json
+import socket
 import smtplib
 import ssl
 import urllib.request
@@ -17,6 +18,18 @@ from models import NotificationConfig, NotificationEmailConfig, NotificationWebh
 from upservx_logger import log_system
 
 NOTIFICATIONS_FILE = "/etc/upservx/notifications.json"
+
+
+def _get_node_name() -> str:
+    """Return the node hostname from /etc/hostname, falling back to socket.gethostname()."""
+    try:
+        with open("/etc/hostname") as f:
+            name = f.read().strip()
+            if name:
+                return name
+    except Exception:
+        pass
+    return socket.gethostname() or "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -154,9 +167,12 @@ def test_webhook(cfg: NotificationWebhookConfig) -> dict:
 def notify(event: str, message: str) -> None:
     """Send a notification for the given event if the event type is enabled.
 
+    Prepends the node hostname to every message.
     Silently ignores failures so callers are never interrupted.
     """
     try:
+        node = _get_node_name()
+        full_message = f"[Node: {node}] {message}"
         config = load_notifications()
 
         # Check whether this event type is enabled
@@ -179,18 +195,18 @@ def notify(event: str, message: str) -> None:
         if not event_map.get(event, True):
             return
 
-        log_system(f"Dispatching notification: event={event} – {message}")
-        subject = f"UpservX – {event.replace('_', ' ').title()}"
+        log_system(f"Dispatching notification: event={event} – {full_message}")
+        subject = f"[{node}] UpservX – {event.replace('_', ' ').title()}"
 
         if config.email.enabled:
             try:
-                send_email(config.email, subject, message)
+                send_email(config.email, subject, full_message)
             except Exception as e:
                 log_system(f"Notification email dispatch failed for event '{event}': {e}", error=True)
 
         if config.webhook.enabled:
             try:
-                send_webhook(config.webhook, event, message)
+                send_webhook(config.webhook, event, full_message)
             except Exception as e:
                 log_system(f"Notification webhook dispatch failed for event '{event}': {e}", error=True)
 

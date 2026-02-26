@@ -1344,7 +1344,8 @@ async def execute_backup_job(job_id: int):
                     'error_message': None
                 })
                 log_backup(f"Backup job [{job['name']}] completed successfully (size: {result.get('size', 0)} bytes)")
-                notify("backup_success", f"Backup job '{job['name']}' completed successfully (size: {result.get('size', 0)} bytes)")
+                size_mb = round(result.get('size', 0) / 1024 / 1024, 2)
+                notify("backup_success", f"Backup job '{job['name']}' completed | Size: {size_mb} MB | Path: {result.get('backup_path', 'n/a')}")
                 return {
                     "message": "Backup job executed successfully", 
                     "instance_id": instance_id,

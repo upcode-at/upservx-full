@@ -443,7 +443,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
         log_vm(f"Created VM [{name}] (CPU: {cpu}, Memory: {memory} MB, Network: {network_bridge})")
         vms.append(vm)
         save_vms(vms)
-        notify("vm_create", f"VM '{name}' created (CPU: {cpu} cores, Memory: {memory} MB)")
+        notify("vm_create", f"VM '{name}' created | CPU: {cpu} core(s) | Memory: {memory} MB | Network: {network_bridge} | Disks: {len(disk_paths)}")
         return vm
     finally:
         # tempdir may be kept for debugging, do not delete seed iso in /var/lib/libvirt/images
@@ -624,7 +624,7 @@ def start_vm(name: str) -> None:
         log_vm(f"Failed to start VM [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to start")
     log_vm(f"Started VM [{name}]")
-    notify("vm_start", f"VM '{name}' started")
+    notify("vm_start", f"VM '{name}' is now running")
 
 def shutdown_vm(name: str) -> None:
     """Shutdown a virtual machine (hard stop)."""
@@ -639,7 +639,7 @@ def shutdown_vm(name: str) -> None:
         log_vm(f"Failed to stop VM [{name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "failed to stop")
     log_vm(f"Stopped VM [{name}]")
-    notify("vm_stop", f"VM '{name}' stopped")
+    notify("vm_stop", f"VM '{name}' has been shut down")
 
 def delete_vm(name: str) -> None:
     """Delete a virtual machine and remove it from storage."""
@@ -685,7 +685,7 @@ def delete_vm(name: str) -> None:
     vms = [v for v in load_vms() if v.name != name]
     save_vms(vms)
     log_vm(f"Deleted VM [{name}]")
-    notify("vm_delete", f"VM '{name}' deleted")
+    notify("vm_delete", f"VM '{name}' has been permanently deleted")
 
 def list_vms_with_status() -> List[VirtualMachine]:
     """List all VMs with their current status from virsh."""
