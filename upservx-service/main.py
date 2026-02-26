@@ -65,6 +65,7 @@ from models import (
     DriveMountRequest, DriveUnmountRequest, DriveFormatRequest, ZFSPoolCreateRequest,
     UserCreateModel, UserUpdateModel, GroupCreateModel, GroupUpdateModel, SSHKeyListModel,
     ISODownloadRequest, NetworkSettingsModel, SettingsModel,
+    NotificationConfig,
     InterfaceConfigModel,
     BackupServer, BackupServerCreate, BackupServerUpdate,
     BackupJob, BackupJobCreate, BackupJobUpdate,
@@ -94,6 +95,7 @@ from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
 from config_manager import get_config_manager
+from notifications import load_notifications, save_notifications, test_email, test_webhook
 from upservx_logger import (
     log_auth, log_container, log_vm, log_backup, log_storage,
     log_network, log_user, log_service, log_firewall, log_proxy,
@@ -1005,6 +1007,35 @@ def vpn_stop():
     except Exception as e:
         log_vpn(f"Failed to stop VPN tunnel: {e}", error=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/settings/notifications")
+def get_notification_settings():
+    """Get notification configuration."""
+    return load_notifications().dict()
+
+@app.post("/settings/notifications")
+def update_notification_settings(payload: NotificationConfig):
+    """Save notification configuration."""
+    save_notifications(payload)
+    return {"detail": "saved"}
+
+@app.post("/settings/notifications/test/email")
+def test_notification_email():
+    """Send a test email using the stored configuration."""
+    config = load_notifications()
+    result = test_email(config.email)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+    return {"detail": "Test email sent"}
+
+@app.post("/settings/notifications/test/webhook")
+def test_notification_webhook():
+    """Send a test webhook payload using the stored configuration."""
+    config = load_notifications()
+    result = test_webhook(config.webhook)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+    return {"detail": "Test webhook sent"}
 
 @app.post("/settings/update")
 async def run_update():

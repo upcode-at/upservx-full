@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Save, Key, Play, Square, Download, RefreshCw } from "lucide-react"
+import { Save, Key, Play, Square, Download, RefreshCw, Bell, Mail, Webhook, Send, Plus, X } from "lucide-react"
 import { apiUrl } from "@/lib/api"
 import ReverseProxyManagement from "./reverse-proxy-management"
 
@@ -32,6 +32,66 @@ export function Settings() {
     ssh_port: 22,
     api_key: "",
   })
+  interface NotificationEmailConfig {
+    enabled: boolean
+    smtp_host: string
+    smtp_port: number
+    smtp_user: string
+    smtp_password: string
+    from_address: string
+    to_addresses: string[]
+    use_tls: boolean
+  }
+
+  interface NotificationWebhookConfig {
+    enabled: boolean
+    url: string
+    secret: string
+  }
+
+  interface NotificationEvents {
+    container_start: boolean
+    container_stop: boolean
+    container_crash: boolean
+    vm_start: boolean
+    vm_stop: boolean
+    backup_success: boolean
+    backup_failure: boolean
+    system_alert: boolean
+  }
+
+  interface NotificationConfig {
+    email: NotificationEmailConfig
+    webhook: NotificationWebhookConfig
+    events: NotificationEvents
+  }
+
+  const defaultNotifications: NotificationConfig = {
+    email: {
+      enabled: false,
+      smtp_host: "",
+      smtp_port: 587,
+      smtp_user: "",
+      smtp_password: "",
+      from_address: "",
+      to_addresses: [],
+      use_tls: true,
+    },
+    webhook: { enabled: false, url: "", secret: "" },
+    events: {
+      container_start: true,
+      container_stop: true,
+      container_crash: true,
+      vm_start: true,
+      vm_stop: true,
+      backup_success: true,
+      backup_failure: true,
+      system_alert: true,
+    },
+  }
+
+  const [notifications, setNotifications] = useState<NotificationConfig>(defaultNotifications)
+  const [notifToInput, setNotifToInput] = useState("")
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
@@ -71,9 +131,73 @@ export function Settings() {
     }
   }
 
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/notifications"))
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications({ ...defaultNotifications, ...data, email: { ...defaultNotifications.email, ...data.email }, webhook: { ...defaultNotifications.webhook, ...data.webhook }, events: { ...defaultNotifications.events, ...data.events } })
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const saveNotifications = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/notifications"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifications),
+      })
+      if (res.ok) {
+        setSuccess("Notification settings saved successfully")
+      } else {
+        setError("Failed to save notification settings")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save notification settings")
+    }
+  }
+
+  const testEmail = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/notifications/test/email"), { method: "POST" })
+      if (res.ok) {
+        setSuccess("Test email sent successfully")
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to send test email")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send test email")
+    }
+  }
+
+  const testWebhook = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/notifications/test/webhook"), { method: "POST" })
+      if (res.ok) {
+        setSuccess("Test webhook sent successfully")
+      } else {
+        const data = await res.json()
+        setError(data.detail || "Failed to send test webhook")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send test webhook")
+    }
+  }
+
   useEffect(() => {
     loadSettings()
     loadVpnStatus()
+    loadNotifications()
   }, [])
 
   const saveSettings = async () => {
@@ -249,10 +373,14 @@ export function Settings() {
       </Dialog>
 
       <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="vpn">VPN</TabsTrigger>
           <TabsTrigger value="proxy">Reverse Proxy & SSL</TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="h-4 w-4 mr-2" />
+            Notifications
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="system" className="space-y-6">
@@ -404,6 +532,236 @@ export function Settings() {
 
         <TabsContent value="proxy" className="space-y-6">
           <ReverseProxyManagement />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          {/* Email */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Notifications
+              </CardTitle>
+              <CardDescription>Send alerts via SMTP email</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="email-enabled"
+                  checked={notifications.email.enabled}
+                  onCheckedChange={(v) =>
+                    setNotifications({ ...notifications, email: { ...notifications.email, enabled: v } })
+                  }
+                />
+                <Label htmlFor="email-enabled">Enable email notifications</Label>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <Label>SMTP Host</Label>
+                  <Input
+                    placeholder="smtp.example.com"
+                    value={notifications.email.smtp_host}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, email: { ...notifications.email, smtp_host: e.target.value } })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>SMTP Port</Label>
+                  <Input
+                    type="number"
+                    placeholder="587"
+                    value={notifications.email.smtp_port}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, email: { ...notifications.email, smtp_port: parseInt(e.target.value || "587") } })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <Input
+                    placeholder="user@example.com"
+                    value={notifications.email.smtp_user}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, email: { ...notifications.email, smtp_user: e.target.value } })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={notifications.email.smtp_password}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, email: { ...notifications.email, smtp_password: e.target.value } })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>From Address</Label>
+                  <Input
+                    placeholder="upservx@example.com"
+                    value={notifications.email.from_address}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, email: { ...notifications.email, from_address: e.target.value } })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Recipients</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="admin@example.com"
+                    value={notifToInput}
+                    onChange={(e) => setNotifToInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && notifToInput.trim()) {
+                        setNotifications({ ...notifications, email: { ...notifications.email, to_addresses: [...notifications.email.to_addresses, notifToInput.trim()] } })
+                        setNotifToInput("")
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (notifToInput.trim()) {
+                        setNotifications({ ...notifications, email: { ...notifications.email, to_addresses: [...notifications.email.to_addresses, notifToInput.trim()] } })
+                        setNotifToInput("")
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {notifications.email.to_addresses.map((addr, i) => (
+                    <span key={i} className="flex items-center gap-1 bg-muted text-sm rounded px-2 py-1">
+                      {addr}
+                      <button
+                        onClick={() =>
+                          setNotifications({ ...notifications, email: { ...notifications.email, to_addresses: notifications.email.to_addresses.filter((_, j) => j !== i) } })
+                        }
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="use-tls"
+                  checked={notifications.email.use_tls}
+                  onCheckedChange={(v) =>
+                    setNotifications({ ...notifications, email: { ...notifications.email, use_tls: v } })
+                  }
+                />
+                <Label htmlFor="use-tls">Use STARTTLS</Label>
+              </div>
+
+              <Button variant="outline" onClick={testEmail} disabled={!notifications.email.enabled}>
+                <Send className="h-4 w-4 mr-2" />
+                Send Test Email
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Webhook */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Webhook className="h-5 w-5" />
+                Webhook Notifications
+              </CardTitle>
+              <CardDescription>POST a JSON payload to a URL (Slack, Discord, custom endpoint)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="webhook-enabled"
+                  checked={notifications.webhook.enabled}
+                  onCheckedChange={(v) =>
+                    setNotifications({ ...notifications, webhook: { ...notifications.webhook, enabled: v } })
+                  }
+                />
+                <Label htmlFor="webhook-enabled">Enable webhook notifications</Label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Webhook URL</Label>
+                  <Input
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={notifications.webhook.url}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, webhook: { ...notifications.webhook, url: e.target.value } })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Secret Header (optional)</Label>
+                  <Input
+                    placeholder="my-secret-token"
+                    value={notifications.webhook.secret}
+                    onChange={(e) =>
+                      setNotifications({ ...notifications, webhook: { ...notifications.webhook, secret: e.target.value } })
+                    }
+                  />
+                </div>
+              </div>
+
+              <Button variant="outline" onClick={testWebhook} disabled={!notifications.webhook.enabled}>
+                <Send className="h-4 w-4 mr-2" />
+                Send Test Webhook
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Events */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Events</CardTitle>
+              <CardDescription>Choose which events trigger a notification</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {([
+                  ["container_start",  "Container started"],
+                  ["container_stop",   "Container stopped"],
+                  ["container_crash",  "Container crashed"],
+                  ["vm_start",         "VM started"],
+                  ["vm_stop",          "VM stopped"],
+                  ["backup_success",   "Backup completed"],
+                  ["backup_failure",   "Backup failed"],
+                  ["system_alert",     "System alert"],
+                ] as [keyof typeof notifications.events, string][]).map(([key, label]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <Switch
+                      id={`event-${key}`}
+                      checked={notifications.events[key]}
+                      onCheckedChange={(v) =>
+                        setNotifications({ ...notifications, events: { ...notifications.events, [key]: v } })
+                      }
+                    />
+                    <Label htmlFor={`event-${key}`}>{label}</Label>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={saveNotifications}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Notification Settings
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

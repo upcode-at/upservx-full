@@ -129,6 +129,36 @@ class SettingsModel(BaseModel):
     ssh_port: int = 22
     api_key: Optional[str] = None
 
+class NotificationEmailConfig(BaseModel):
+    enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    from_address: str = ""
+    to_addresses: List[str] = []
+    use_tls: bool = True
+
+class NotificationWebhookConfig(BaseModel):
+    enabled: bool = False
+    url: str = ""
+    secret: str = ""
+
+class NotificationEvents(BaseModel):
+    container_start: bool = True
+    container_stop: bool = True
+    container_crash: bool = True
+    vm_start: bool = True
+    vm_stop: bool = True
+    backup_success: bool = True
+    backup_failure: bool = True
+    system_alert: bool = True
+
+class NotificationConfig(BaseModel):
+    email: NotificationEmailConfig = NotificationEmailConfig()
+    webhook: NotificationWebhookConfig = NotificationWebhookConfig()
+    events: NotificationEvents = NotificationEvents()
+
 class InterfaceConfigModel(BaseModel):
     """Model for configuring a network interface.
 
