@@ -18,6 +18,7 @@ import shutil
 from pathlib import Path
 from cryptography.fernet import Fernet
 import base64
+from upservx_logger import log_backup
 
 try:
     logging.basicConfig(
@@ -557,6 +558,7 @@ class BackupManager:
             print(f"BACKUP DEBUG: Server data: {masked_server}")
             
             logger.info(f"Starting backup execution for job: {job['name']}")
+            log_backup(f"Starting backup job [{job['name']}]")
             
             if not job.get('targets'):
                 error_msg = "No backup targets specified"
@@ -600,6 +602,7 @@ class BackupManager:
                     'duration': result.get('duration', 0)
                 }
                 print(f"BACKUP DEBUG: Final success result: {final_result}")
+                log_backup(f"Backup job [{job['name']}] completed successfully — {result.get('file_count', 0)} files, {round(result.get('size', 0)/1024/1024, 2)} MB")
                 return final_result
             else:
                 error_result = {
@@ -607,6 +610,7 @@ class BackupManager:
                     'error': result.get('error', 'Unknown error during backup')
                 }
                 print(f"BACKUP DEBUG: Final error result: {error_result}")
+                log_backup(f"Backup job [{job['name']}] failed: {result.get('error', 'Unknown error')}", error=True)
                 return error_result
                 
         except Exception as e:
@@ -918,10 +922,12 @@ class BackupManager:
             ssh.close()
             
             logger.info(f"Successfully uploaded backup to {server['host']}:{remote_path}")
+            log_backup(f"Successfully uploaded backup to [{server['host']}]:{remote_path}")
             return True
             
         except Exception as e:
             logger.error(f"SSH upload failed: {e}")
+            log_backup(f"SSH upload failed to [{server.get('host', 'unknown')}]: {e}", error=True)
             return False
 
 backup_manager = BackupManager()

@@ -32,6 +32,7 @@ from compose_manager import compose_manager
 from app_store import app_store
 from pydantic import BaseModel
 from typing import Optional
+from upservx_logger import log_container, log_appstore
 
 router = APIRouter(prefix="/containers")
 
@@ -75,8 +76,10 @@ def create_container(payload: ContainerCreate):
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
+            log_container(f"Failed to create Docker container [{payload.name}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         
+        log_container(f"Created Docker container [{payload.name}] from image [{payload.image}]")
         from containers import get_docker_containers
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -97,6 +100,7 @@ def create_container(payload: ContainerCreate):
             else:
                 raise
         
+        log_container(f"Created LXC container [{payload.name}] from image [{payload.image}]")
         from containers import get_lxc_containers
         container_list = [c for c in get_lxc_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -154,6 +158,7 @@ def start_container(name: str):
     else:
         raise HTTPException(status_code=404, detail="container not found")
     
+    log_container(f"Started container [{name}] (type: {ctype})")
     return {"detail": "started"}
 
 @router.post("/{name}/stop")
@@ -193,6 +198,7 @@ def stop_container(name: str):
     else:
         raise HTTPException(status_code=404, detail="container not found")
     
+    log_container(f"Stopped container [{name}] (type: {ctype})")
     return {"detail": "stopped"}
 
 @router.get("/{name}/logs")
@@ -249,6 +255,7 @@ def delete_container(name: str):
     else:
         raise HTTPException(status_code=404, detail="container not found")
     
+    log_container(f"Deleted container [{name}] (type: {ctype})")
     return {"detail": "deleted"}
 
 @router.websocket("/{name}/terminal")
@@ -601,8 +608,10 @@ def start_compose_stack(project_name: str):
         )
         
         if result.returncode != 0:
+            log_container(f"Failed to start Compose stack [{project_name}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to start compose stack")
         
+        log_container(f"Started Compose stack [{project_name}]")
         return {"detail": "Compose stack started", "project": project_name}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -621,8 +630,10 @@ def stop_compose_stack(project_name: str):
         )
         
         if result.returncode != 0:
+            log_container(f"Failed to stop Compose stack [{project_name}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to stop compose stack")
         
+        log_container(f"Stopped Compose stack [{project_name}]")
         return {"detail": "Compose stack stopped", "project": project_name}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -641,8 +652,10 @@ def delete_compose_stack(project_name: str):
         )
         
         if result.returncode != 0:
+            log_container(f"Failed to delete Compose stack [{project_name}]: {result.stderr.strip()}", error=True)
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete compose stack")
         
+        log_container(f"Deleted Compose stack [{project_name}]")
         return {"detail": "Compose stack deleted", "project": project_name}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -718,7 +731,9 @@ def start_compose_project(project_name: str):
     """Start a compose project."""
     result = compose_manager.start_project(project_name)
     if result["success"]:
+        log_container(f"Started Compose project [{project_name}]")
         return result
+    log_container(f"Failed to start Compose project [{project_name}]: {result.get('message')}", error=True)
     raise HTTPException(status_code=400, detail=result["message"])
 
 @router.post("/compose-projects/{project_name}/stop")
@@ -726,7 +741,9 @@ def stop_compose_project(project_name: str):
     """Stop a compose project."""
     result = compose_manager.stop_project(project_name)
     if result["success"]:
+        log_container(f"Stopped Compose project [{project_name}]")
         return result
+    log_container(f"Failed to stop Compose project [{project_name}]: {result.get('message')}", error=True)
     raise HTTPException(status_code=400, detail=result["message"])
 
 @router.delete("/compose-projects/{project_name}")
@@ -734,7 +751,9 @@ def delete_compose_project_manager(project_name: str, remove_volumes: bool = Tru
     """Delete a compose project."""
     result = compose_manager.delete_project(project_name, remove_volumes)
     if result["success"]:
+        log_container(f"Deleted Compose project [{project_name}]")
         return result
+    log_container(f"Failed to delete Compose project [{project_name}]: {result.get('message')}", error=True)
     raise HTTPException(status_code=400, detail=result["message"])
 
 # App Store endpoints
@@ -784,7 +803,10 @@ def install_app_from_store(app_id: str, request: AppInstallRequest):
     """Install an app from the store."""
     result = app_store.install_app(app_id, request.custom_name)
     if result["success"]:
+        display_name = request.custom_name or app_id
+        log_appstore(f"Installed app [{display_name}] (template: {app_id})")
         return result
+    log_appstore(f"Failed to install app [{app_id}]: {result.get('message')}", error=True)
     raise HTTPException(status_code=400, detail=result["message"])
 
 @router.delete("/app-store/apps/{project_name}/uninstall")
@@ -792,7 +814,9 @@ def uninstall_app_from_store(project_name: str):
     """Uninstall an app."""
     result = app_store.uninstall_app(project_name)
     if result["success"]:
+        log_appstore(f"Uninstalled app [{project_name}]")
         return result
+    log_appstore(f"Failed to uninstall app [{project_name}]: {result.get('message')}", error=True)
     raise HTTPException(status_code=400, detail=result["message"])
 
 @router.get("/volumes")

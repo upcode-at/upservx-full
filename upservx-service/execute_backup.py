@@ -17,6 +17,7 @@ sys.path.append(current_dir)
 
 from backup_db import backup_db
 from backup import BackupManager
+from upservx_logger import log_backup
 
 # Setup logging
 logging.basicConfig(
@@ -34,11 +35,13 @@ def execute_backup_job(job_id: int) -> bool:
     """Execute a specific backup job by ID."""
     try:
         logger.info(f"Starting backup job execution: {job_id}")
+        log_backup(f"Starting scheduled backup job [ID:{job_id}]")
         
         # Get job details from database
         job = backup_db.get_backup_job(job_id)
         if not job:
             logger.error(f"Backup job {job_id} not found in database")
+            log_backup(f"Scheduled backup job [ID:{job_id}] not found in database", error=True)
             return False
         
         logger.info(f"Executing backup job: {job['name']}")
@@ -84,6 +87,7 @@ def execute_backup_job(job_id: int) -> bool:
                     'error_message': None
                 })
                 logger.info(f"Backup job {job_id} completed successfully")
+                log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) completed successfully")
                 return True
             else:
                 backup_db.update_backup_instance(instance_id, {
@@ -92,6 +96,7 @@ def execute_backup_job(job_id: int) -> bool:
                     'error_message': result.get('error', 'Unknown error')
                 })
                 logger.error(f"Backup job {job_id} failed: {result.get('error')}")
+                log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) failed: {result.get('error')}", error=True)
                 return False
                 
         except Exception as e:
@@ -106,6 +111,7 @@ def execute_backup_job(job_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error executing backup job {job_id}: {e}")
         logger.error(traceback.format_exc())
+        log_backup(f"Scheduled backup job [ID:{job_id}] encountered an error: {e}", error=True)
         return False
 
 def main():

@@ -94,6 +94,11 @@ from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
 from config_manager import get_config_manager
+from upservx_logger import (
+    log_auth, log_container, log_vm, log_backup, log_storage,
+    log_network, log_user, log_service, log_firewall, log_proxy,
+    log_appstore, log_iso, log_system, log_ssh, log_vpn
+)
 
 from api.system import router as system_router
 from api.containers import router as containers_router
@@ -106,6 +111,8 @@ app = FastAPI(
     description="Server Management API",
     version="1.0.0"
 )
+
+log_system("UpservX API starting up")
 
 # Configure CORS. For development, set FRONTEND_ORIGINS env to a comma-separated
 # list (e.g. "http://localhost:9200,http://127.0.0.1:9200"). If not set, automatically
@@ -261,12 +268,15 @@ async def auth_login(payload: dict, request: Request):
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
             resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
+            log_auth(f"Login successful for user [{username}] from {client_ip}")
             return resp
         else:
+            log_auth(f"Login failed for user [{username}] from {client_ip}", error=True)
             raise HTTPException(status_code=401, detail="invalid credentials")
     except HTTPException:
         raise
     except Exception:
+        log_auth(f"Login error for user [{username}] from {client_ip}", error=True)
         raise HTTPException(status_code=401, detail="invalid credentials")
 
 @app.post("/auth/logout")
@@ -449,8 +459,10 @@ def download_iso_endpoint(payload: ISODownloadRequest):
     """Download an ISO file from a URL."""
     try:
         info = download_iso(payload.url, payload.name)
+        log_iso(f"Downloaded ISO [{info.name}] from {payload.url}")
         return info.dict()
     except Exception as e:
+        log_iso(f"Failed to download ISO from {payload.url}: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/isos")
@@ -461,8 +473,10 @@ async def upload_iso(file: UploadFile = File(...)):
     
     try:
         info = save_uploaded_iso(content, filename)
+        log_iso(f"Uploaded ISO [{info.name}]")
         return info.dict()
     except Exception as e:
+        log_iso(f"Failed to upload ISO [{filename}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/debug/echo")
@@ -475,8 +489,10 @@ def delete_iso_endpoint(name: str):
     """Delete an ISO file."""
     try:
         delete_iso(name)
+        log_iso(f"Deleted ISO [{name}]")
         return {"detail": "deleted"}
     except Exception as e:
+        log_iso(f"Failed to delete ISO [{name}]: {e}", error=True)
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.get("/isos/{name}/file")
@@ -512,8 +528,10 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
             cloud_init=getattr(payload, "cloud_init", None),
             storage_path=getattr(payload, "storage_path", None),
         )
+        log_vm(f"Created VM [{payload.name}] ({payload.cpu} vCPU, {payload.memory} MB RAM)")
         return vm.dict()
     except Exception as e:
+        log_vm(f"Failed to create VM [{payload.name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.patch("/vms/{name}")
@@ -542,8 +560,10 @@ def start_vm_endpoint(name: str):
     """Start a virtual machine."""
     try:
         start_vm(name)
+        log_vm(f"Started VM [{name}]")
         return {"detail": "started"}
     except Exception as e:
+        log_vm(f"Failed to start VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/vms/{name}/shutdown")
@@ -551,8 +571,10 @@ def shutdown_vm_endpoint(name: str):
     """Shutdown a virtual machine."""
     try:
         shutdown_vm(name)
+        log_vm(f"Shutdown initiated for VM [{name}]")
         return {"detail": "shutting down"}
     except Exception as e:
+        log_vm(f"Failed to shutdown VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/vms/{name}/vnc")
@@ -568,8 +590,10 @@ def delete_vm_endpoint(name: str):
     """Delete a virtual machine."""
     try:
         delete_vm(name)
+        log_vm(f"Deleted VM [{name}]")
         return {"detail": "deleted"}
     except Exception as e:
+        log_vm(f"Failed to delete VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/vms/{name}/clone")
@@ -583,8 +607,10 @@ def clone_vm_endpoint(name: str, payload: dict):
             raise HTTPException(status_code=400, detail="new_name is required")
         
         vm = clone_vm(name, new_name, storage_path)
+        log_vm(f"Cloned VM [{name}] to [{new_name}]")
         return vm.dict()
     except Exception as e:
+        log_vm(f"Failed to clone VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/vms/{name}/snapshots")
@@ -603,8 +629,11 @@ def create_vm_snapshot(name: str, payload: dict):
         description = payload.get("description", "")
         if not snapshot_name:
             raise HTTPException(status_code=400, detail="name is required")
-        return create_snapshot(name, snapshot_name, description)
+        result = create_snapshot(name, snapshot_name, description)
+        log_vm(f"Created snapshot [{snapshot_name}] for VM [{name}]")
+        return result
     except Exception as e:
+        log_vm(f"Failed to create snapshot for VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/vms/{name}/snapshots/{snapshot_name}")
@@ -612,8 +641,10 @@ def delete_vm_snapshot(name: str, snapshot_name: str):
     """Delete a snapshot."""
     try:
         delete_snapshot(name, snapshot_name)
+        log_vm(f"Deleted snapshot [{snapshot_name}] from VM [{name}]")
         return {"detail": "deleted"}
     except Exception as e:
+        log_vm(f"Failed to delete snapshot [{snapshot_name}] from VM [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/vms/{name}/snapshots/{snapshot_name}/restore")
@@ -621,8 +652,10 @@ def restore_vm_snapshot(name: str, snapshot_name: str):
     """Revert a VM to a snapshot."""
     try:
         restore_snapshot(name, snapshot_name)
+        log_vm(f"Restored VM [{name}] to snapshot [{snapshot_name}]")
         return {"detail": "restored"}
     except Exception as e:
+        log_vm(f"Failed to restore VM [{name}] to snapshot [{snapshot_name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # Network Routes
@@ -640,6 +673,7 @@ def get_network_settings():
 def update_network_settings(payload: NetworkSettingsModel):
     """Update network settings."""
     save_network_settings(payload)
+    log_network("Network settings updated")
     return {"detail": "saved"}
 
 @app.post("/network/interfaces/{name}")
@@ -647,8 +681,10 @@ def api_configure_network_interface(name: str, payload: InterfaceConfigModel):
     """Configure a specific network interface."""
     try:
         configure_interface(name, payload)
+        log_network(f"Interface [{name}] configured")
         return {"detail": "applied"}
     except Exception as e:
+        log_network(f"Failed to configure interface [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # Storage Routes
@@ -667,8 +703,10 @@ def mount_drive_endpoint(req: DriveMountRequest):
     """Mount a storage drive."""
     try:
         mount_drive(req.device, req.mountpoint)
+        log_storage(f"Mounted drive [{req.device}] to [{req.mountpoint}]")
         return {"detail": "mounted"}
     except Exception as e:
+        log_storage(f"Failed to mount drive [{req.device}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/drives/unmount")
@@ -678,8 +716,10 @@ def unmount_drive_endpoint(req: DriveUnmountRequest):
         raise HTTPException(status_code=400, detail="Either device or mountpoint must be provided")
     try:
         unmount_drive(req.device, req.mountpoint)
+        log_storage(f"Unmounted drive [{req.device or req.mountpoint}]")
         return {"detail": "unmounted"}
     except Exception as e:
+        log_storage(f"Failed to unmount drive [{req.device or req.mountpoint}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/drives/format")
@@ -687,8 +727,10 @@ def format_drive_endpoint(req: DriveFormatRequest):
     """Format a storage drive."""
     try:
         format_drive(req.device, req.filesystem, req.label)
+        log_storage(f"Formatted drive [{req.device}] as [{req.filesystem}] with label [{req.label}]")
         return {"detail": "formatted"}
     except Exception as e:
+        log_storage(f"Failed to format drive [{req.device}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/drives/zfs")
@@ -696,8 +738,10 @@ def create_zfs_pool_endpoint(req: ZFSPoolCreateRequest):
     """Create a new ZFS pool."""
     try:
         create_zfs_pool(req.name, req.devices, req.raid)
+        log_storage(f"Created ZFS pool [{req.name}] ({req.raid}) with devices {req.devices}")
         return {"detail": "created"}
     except Exception as e:
+        log_storage(f"Failed to create ZFS pool [{req.name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # User Management Routes
@@ -714,8 +758,10 @@ def api_create_user(payload: UserCreateModel):
     """Create a new user."""
     try:
         create_user(payload.username, payload.password, payload.groups, payload.shell)
+        log_user(f"Created user [{payload.username}]")
         return {"detail": "created"}
     except Exception as e:
+        log_user(f"Failed to create user [{payload.username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/users/{username}")
@@ -723,8 +769,10 @@ def api_update_user(username: str, payload: UserUpdateModel):
     """Update a user."""
     try:
         update_user(username, payload.shell, payload.groups)
+        log_user(f"Updated user [{username}]")
         return {"detail": "updated"}
     except Exception as e:
+        log_user(f"Failed to update user [{username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/users/{username}")
@@ -732,8 +780,10 @@ def api_delete_user(username: str):
     """Delete a user."""
     try:
         delete_user(username)
+        log_user(f"Deleted user [{username}]")
         return {"detail": "deleted"}
     except Exception as e:
+        log_user(f"Failed to delete user [{username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/users/{username}/keys")
@@ -750,8 +800,10 @@ def api_update_user_keys(username: str, payload: SSHKeyListModel):
     
     try:
         write_authorized_keys(username, keys)
+        log_ssh(f"Updated SSH authorized keys for user [{username}] ({len(keys)} key(s))")
         return {"detail": "saved"}
     except Exception as e:
+        log_ssh(f"Failed to update SSH keys for user [{username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # Group Management Routes
@@ -768,8 +820,10 @@ def api_create_group(payload: GroupCreateModel):
     """Create a new group."""
     try:
         create_group(payload.name, payload.members)
+        log_user(f"Created group [{payload.name}]")
         return {"detail": "created"}
     except Exception as e:
+        log_user(f"Failed to create group [{payload.name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/groups/{name}")
@@ -777,8 +831,10 @@ def api_update_group(name: str, payload: GroupUpdateModel):
     """Update a group."""
     try:
         update_group(name, payload.members)
+        log_user(f"Updated group [{name}]")
         return {"detail": "updated"}
     except Exception as e:
+        log_user(f"Failed to update group [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/groups/{name}")
@@ -786,8 +842,10 @@ def api_delete_group(name: str):
     """Delete a group."""
     try:
         delete_group(name)
+        log_user(f"Deleted group [{name}]")
         return {"detail": "deleted"}
     except Exception as e:
+        log_user(f"Failed to delete group [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # Service Management Routes
@@ -801,8 +859,10 @@ def api_start_service(name: str):
     """Start a service."""
     try:
         start_service(name)
+        log_service(f"Started service [{name}]")
         return {"detail": "started"}
     except Exception as e:
+        log_service(f"Failed to start service [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/services/{name}/stop")
@@ -810,8 +870,10 @@ def api_stop_service(name: str):
     """Stop a service."""
     try:
         stop_service(name)
+        log_service(f"Stopped service [{name}]")
         return {"detail": "stopped"}
     except Exception as e:
+        log_service(f"Failed to stop service [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/services/{name}/enable")
@@ -819,8 +881,10 @@ def api_enable_service(name: str):
     """Enable a service."""
     try:
         enable_service(name)
+        log_service(f"Enabled service [{name}]")
         return {"detail": "enabled"}
     except Exception as e:
+        log_service(f"Failed to enable service [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/services/{name}/disable")
@@ -828,8 +892,10 @@ def api_disable_service(name: str):
     """Disable a service."""
     try:
         disable_service(name)
+        log_service(f"Disabled service [{name}]")
         return {"detail": "disabled"}
     except Exception as e:
+        log_service(f"Failed to disable service [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 # Log Management Routes
@@ -846,6 +912,27 @@ def api_get_log(name: str, lines: int = 100):
         return Response(content, media_type="text/plain")
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/activity-log")
+def api_get_activity_log(lines: int = 200):
+    """Return the last N lines from the UpservX structured activity log.
+
+    Each line is in the format:
+        YYYY-MM-DD HH:MM:SS [TAG] Message
+
+    Tags include BACKUP, CONTAINER, VM, USER, SERVICE, STORAGE,
+    NETWORK, FIREWALL, PROXY, APPSTORE, ISO, SSH, VPN, AUTH, SYSTEM.
+    """
+    from upservx_logger import ACTIVITY_LOG_FILE
+    try:
+        if not os.path.exists(ACTIVITY_LOG_FILE):
+            return {"lines": [], "file": ACTIVITY_LOG_FILE}
+        with open(ACTIVITY_LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+        tail = [l.rstrip("\n") for l in all_lines[-lines:]]
+        return {"lines": tail, "file": ACTIVITY_LOG_FILE, "total": len(all_lines)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read activity log: {e}")
 
 # Settings Routes
 @app.get("/settings")
@@ -902,8 +989,10 @@ def vpn_start():
     """Start the OpenVPN tunnel using the uploaded .ovpn file."""
     try:
         status = start_vpn()
+        log_vpn("VPN tunnel started")
         return status
     except Exception as e:
+        log_vpn(f"Failed to start VPN tunnel: {e}", error=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/settings/vpn/stop")
@@ -911,8 +1000,10 @@ def vpn_stop():
     """Stop the OpenVPN tunnel."""
     try:
         status = stop_vpn()
+        log_vpn("VPN tunnel stopped")
         return status
     except Exception as e:
+        log_vpn(f"Failed to stop VPN tunnel: {e}", error=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/settings/update")
@@ -976,12 +1067,13 @@ async def create_backup_server(server: BackupServerCreate):
         logger.info("Adding backup server to config...")
         created_server = config.add_backup_server(server_data)
         logger.info(f"Backup server created with ID: {created_server.get('id')}")
-        
+        log_backup(f"Created backup server [{created_server.get('name', server_data.get('name', '?'))}]")
         return BackupServer(**created_server)
     except Exception as e:
         logger.error(f"Failed to create backup server: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
+        log_backup(f"Failed to create backup server: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to create backup server: {str(e)}")
 
 @app.get("/backup/servers/{server_id}", response_model=BackupServer)
@@ -1045,10 +1137,12 @@ async def delete_backup_server(server_id: int):
         success = config.delete_backup_server(server_id)
         if not success:
             raise HTTPException(status_code=404, detail="Backup server not found")
+        log_backup(f"Deleted backup server [ID:{server_id}]")
         return {"message": "Backup server deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
+        log_backup(f"Failed to delete backup server [ID:{server_id}]: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete backup server: {str(e)}")
 
 @app.post("/backup/servers/{server_id}/test")
@@ -1076,11 +1170,16 @@ async def test_backup_server(server_id: int):
         
         new_status = 'connected' if success else 'error'
         backup_db.update_backup_server(server_id, {'status': new_status})
-        
+        server_name = server.get('name', f'ID:{server_id}')
+        if success:
+            log_backup(f"Successfully connected to Backup Server [{server_name}]")
+        else:
+            log_backup(f"Connection test failed for Backup Server [{server_name}]", error=True)
         return {"success": success, "status": new_status}
     except HTTPException:
         raise
     except Exception as e:
+        log_backup(f"Error testing Backup Server [ID:{server_id}]: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to test backup server: {str(e)}")
 
 # Backup Jobs API
@@ -1113,12 +1212,13 @@ async def create_backup_job(job: BackupJobCreate):
         )
         
         if not success:
-            # Log warning but don't fail the job creation
             import logging
             logging.warning(f"Failed to add backup job {job_id} to crontab")
         
+        log_backup(f"Created backup job [{created_job['name']}] (ID:{job_id}, schedule: {created_job['schedule']})")
         return BackupJob(**created_job)
     except Exception as e:
+        log_backup(f"Failed to create backup job: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to create backup job: {str(e)}")
 
 @app.get("/backup/jobs/{job_id}", response_model=BackupJob)
@@ -1167,10 +1267,12 @@ async def delete_backup_job(job_id: int):
         if not success:
             raise HTTPException(status_code=404, detail="Backup job not found")
         
+        log_backup(f"Deleted backup job [ID:{job_id}]")
         return {"message": "Backup job deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
+        log_backup(f"Failed to delete backup job [ID:{job_id}]: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete backup job: {str(e)}")
 
 @app.post("/backup/jobs/{job_id}/execute")
@@ -1210,6 +1312,7 @@ async def execute_backup_job(job_id: int):
                     'completed': datetime.now().isoformat(),
                     'error_message': None
                 })
+                log_backup(f"Backup job [{job['name']}] completed successfully (size: {result.get('size', 0)} bytes)")
                 return {
                     "message": "Backup job executed successfully", 
                     "instance_id": instance_id,
@@ -1222,6 +1325,7 @@ async def execute_backup_job(job_id: int):
                     'completed': datetime.now().isoformat(),
                     'error_message': result.get('error', 'Backup execution failed')
                 })
+                log_backup(f"Backup job [{job['name']}] failed: {result.get('error')}", error=True)
                 raise HTTPException(status_code=500, detail=f"Backup failed: {result.get('error')}")
                 
         except Exception as backup_error:
@@ -1300,7 +1404,7 @@ def list_proxy_configs():
 @app.post("/proxy/configs")
 def create_proxy_config(config: ProxyConfigCreate):
     """Create a new reverse proxy configuration."""
-    return reverse_proxy_manager.create_proxy_config(
+    result = reverse_proxy_manager.create_proxy_config(
         domain=config.domain,
         backend_host=config.backend_host,
         backend_port=config.backend_port,
@@ -1308,11 +1412,15 @@ def create_proxy_config(config: ProxyConfigCreate):
         ssl_enabled=config.ssl_enabled,
         force_ssl=config.force_ssl
     )
+    log_proxy(f"Created reverse proxy config for [{config.domain}] → {config.backend_host}:{config.backend_port}")
+    return result
 
 @app.delete("/proxy/configs/{domain}")
 def delete_proxy_config(domain: str):
     """Delete a reverse proxy configuration."""
-    return reverse_proxy_manager.delete_proxy_config(domain)
+    result = reverse_proxy_manager.delete_proxy_config(domain)
+    log_proxy(f"Deleted reverse proxy config for [{domain}]")
+    return result
 
 @app.get("/proxy/certificates")
 def list_certificates():
@@ -1323,20 +1431,26 @@ def list_certificates():
 @app.post("/proxy/certificates/obtain")
 def obtain_certificate(request: CertificateRequest):
     """Obtain a new Let's Encrypt SSL certificate."""
-    return reverse_proxy_manager.obtain_certificate(
+    result = reverse_proxy_manager.obtain_certificate(
         domain=request.domain,
         email=request.email
     )
+    log_proxy(f"Obtained SSL certificate for [{request.domain}]")
+    return result
 
 @app.post("/proxy/certificates/renew")
 def renew_certificates():
     """Renew all SSL certificates."""
-    return reverse_proxy_manager.renew_certificates()
+    result = reverse_proxy_manager.renew_certificates()
+    log_proxy("Renewed all SSL certificates")
+    return result
 
 @app.delete("/proxy/certificates/{domain}")
 def revoke_certificate(domain: str):
     """Revoke and delete an SSL certificate."""
-    return reverse_proxy_manager.revoke_certificate(domain)
+    result = reverse_proxy_manager.revoke_certificate(domain)
+    log_proxy(f"Revoked SSL certificate for [{domain}]")
+    return result
 
 if __name__ == "__main__":
     import uvicorn
