@@ -145,11 +145,15 @@ class NotificationWebhookConfig(BaseModel):
     secret: str = ""
 
 class NotificationEvents(BaseModel):
+    container_create: bool = True
     container_start: bool = True
     container_stop: bool = True
     container_crash: bool = True
+    container_delete: bool = True
+    vm_create: bool = True
     vm_start: bool = True
     vm_stop: bool = True
+    vm_delete: bool = True
     backup_success: bool = True
     backup_failure: bool = True
     system_alert: bool = True

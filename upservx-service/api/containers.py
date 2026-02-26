@@ -33,6 +33,7 @@ from app_store import app_store
 from pydantic import BaseModel
 from typing import Optional
 from upservx_logger import log_container, log_appstore
+from notifications import notify
 
 router = APIRouter(prefix="/containers")
 
@@ -80,6 +81,7 @@ def create_container(payload: ContainerCreate):
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         
         log_container(f"Created Docker container [{payload.name}] from image [{payload.image}]")
+        notify("container_create", f"Docker container '{payload.name}' created from image '{payload.image}'")
         from containers import get_docker_containers
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -101,6 +103,7 @@ def create_container(payload: ContainerCreate):
                 raise
         
         log_container(f"Created LXC container [{payload.name}] from image [{payload.image}]")
+        notify("container_create", f"LXC container '{payload.name}' created from image '{payload.image}'")
         from containers import get_lxc_containers
         container_list = [c for c in get_lxc_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
@@ -159,6 +162,7 @@ def start_container(name: str):
         raise HTTPException(status_code=404, detail="container not found")
     
     log_container(f"Started container [{name}] (type: {ctype})")
+    notify("container_start", f"Container '{name}' started")
     return {"detail": "started"}
 
 @router.post("/{name}/stop")
@@ -199,6 +203,7 @@ def stop_container(name: str):
         raise HTTPException(status_code=404, detail="container not found")
     
     log_container(f"Stopped container [{name}] (type: {ctype})")
+    notify("container_stop", f"Container '{name}' stopped")
     return {"detail": "stopped"}
 
 @router.get("/{name}/logs")
@@ -256,6 +261,7 @@ def delete_container(name: str):
         raise HTTPException(status_code=404, detail="container not found")
     
     log_container(f"Deleted container [{name}] (type: {ctype})")
+    notify("container_delete", f"Container '{name}' deleted")
     return {"detail": "deleted"}
 
 @router.websocket("/{name}/terminal")

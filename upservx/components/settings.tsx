@@ -50,11 +50,15 @@ export function Settings() {
   }
 
   interface NotificationEvents {
+    container_create: boolean
     container_start: boolean
     container_stop: boolean
     container_crash: boolean
+    container_delete: boolean
+    vm_create: boolean
     vm_start: boolean
     vm_stop: boolean
+    vm_delete: boolean
     backup_success: boolean
     backup_failure: boolean
     system_alert: boolean
@@ -79,11 +83,15 @@ export function Settings() {
     },
     webhook: { enabled: false, url: "", secret: "" },
     events: {
+      container_create: true,
       container_start: true,
       container_stop: true,
       container_crash: true,
+      container_delete: true,
+      vm_create: true,
       vm_start: true,
       vm_stop: true,
+      vm_delete: true,
       backup_success: true,
       backup_failure: true,
       system_alert: true,
@@ -732,11 +740,15 @@ export function Settings() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {([
+                  ["container_create", "Container created"],
                   ["container_start",  "Container started"],
                   ["container_stop",   "Container stopped"],
                   ["container_crash",  "Container crashed"],
+                  ["container_delete", "Container deleted"],
+                  ["vm_create",        "VM created"],
                   ["vm_start",         "VM started"],
                   ["vm_stop",          "VM stopped"],
+                  ["vm_delete",        "VM deleted"],
                   ["backup_success",   "Backup completed"],
                   ["backup_failure",   "Backup failed"],
                   ["system_alert",     "System alert"],

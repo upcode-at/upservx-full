@@ -162,11 +162,15 @@ def notify(event: str, message: str) -> None:
         # Check whether this event type is enabled
         events = config.events
         event_map = {
+            "container_create": events.container_create,
             "container_start":  events.container_start,
             "container_stop":   events.container_stop,
             "container_crash":  events.container_crash,
+            "container_delete": events.container_delete,
+            "vm_create":        events.vm_create,
             "vm_start":         events.vm_start,
             "vm_stop":          events.vm_stop,
+            "vm_delete":        events.vm_delete,
             "backup_success":   events.backup_success,
             "backup_failure":   events.backup_failure,
             "system_alert":     events.system_alert,
