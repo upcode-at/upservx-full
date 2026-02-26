@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Notification System**: New push notification system that alerts on container, VM and backup events via Email (SMTP) and Webhook
+  - Configuration persisted to `/etc/upservx/notifications.json`
+  - **Email**: SMTP with STARTTLS (port 587) or SSL (port 465), multiple recipients, configurable From address, test button
+  - **Webhook**: HTTP POST to any URL with optional `X-UpservX-Secret` header; auto-detects endpoint type:
+    - Discord → rich Embed with title, description and colour coding (green = success, red = failure/delete)
+    - Slack → Incoming Webhook `{"text": "..."}` format
+    - Custom / generic → `{"event": ..., "message": ..., "source": "upservx"}`
+  - **Node prefix**: every notification includes the originating node hostname (`[Node: hostname]`) in both subject and body
+  - **Email subject** format: `[hostname] UpservX – Event Name`
+  - **12 per-event toggles** (all enabled by default): Container create/start/stop/crash/delete, VM create/start/stop/delete, Backup success/failure, System alert
+  - **Event integration**: `notify()` fires after the action is committed in all relevant modules — `api/containers.py` (Docker/LXC), `vms.py`, `execute_backup.py` (cron), `main.py` (manual trigger)
+  - **Rich context per event**:
+    - Container create — image, port mappings, volume mounts
+    - Container start/stop/delete — container type (DOCKER / LXC / K8S)
+    - VM create — CPU cores, memory MB, network bridge, disk count
+    - VM stop — "has been shut down"; VM delete — "has been permanently deleted"
+    - Backup success — size in MB, backup path
+    - Backup failure — full error message
+  - All notification operations (config save, email send, webhook post, dispatch) are written to the activity log
+  - **Settings UI**: new fourth tab "Notifications" in Settings with Email card, Webhook card and Events card
+  - API routes: `GET /settings/notifications`, `POST /settings/notifications`, `POST /settings/notifications/test/email`, `POST /settings/notifications/test/webhook`
 - **Structured Activity Logging**: All service modules now write human-readable activity entries to `/var/log/upservx/activity.log` via the `upservx_logger` module
   - `log_container` — container lifecycle events, Docker/LXC volume & storage pool create/delete, image pull & delete (`containers.py`, `api/images.py`)
   - `log_vm` — VM create, start, stop, delete, clone, update, snapshot create/delete/restore (`vms.py`)
