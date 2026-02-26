@@ -100,20 +100,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
   - Restore testing
   - Backup health monitoring
 
-### Monitoring & Alerting
-
-- [ ] **Alert System**
-  - Email notifications
-  - Telegram/Discord webhooks
-  - Slack integration
-  - Custom notification channels
-
-- [ ] **Health Checks**
-  - Service health monitoring
-  - Automatic service restart on failure
-  - Custom health check scripts
-  - Status page
-
 ## 📦 App Store
 
 - [ ] **New App Templates Needed**
