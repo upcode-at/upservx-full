@@ -14,8 +14,9 @@ import urllib.error
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from models import NotificationConfig, NotificationEmailConfig, NotificationWebhookConfig, NotificationEvents
+from upservx_logger import log_system
 
-NOTIFICATIONS_FILE = os.path.join(os.path.dirname(__file__), "notifications.json")
+NOTIFICATIONS_FILE = "/etc/upservx/notifications.json"
 
 
 # ---------------------------------------------------------------------------
@@ -36,8 +37,10 @@ def load_notifications() -> NotificationConfig:
 
 def save_notifications(config: NotificationConfig) -> None:
     """Persist notification configuration to file."""
+    os.makedirs(os.path.dirname(NOTIFICATIONS_FILE), exist_ok=True)
     with open(NOTIFICATIONS_FILE, "w") as f:
         json.dump(config.dict(), f, indent=2)
+    log_system("Notification configuration saved")
 
 
 # ---------------------------------------------------------------------------
@@ -78,19 +81,27 @@ def send_email(cfg: NotificationEmailConfig, subject: str, body: str) -> None:
                     server.login(cfg.smtp_user, cfg.smtp_password)
                 server.sendmail(msg["From"], cfg.to_addresses, msg.as_string())
     except smtplib.SMTPAuthenticationError:
-        raise RuntimeError("SMTP authentication failed – check username and password")
+        msg = "SMTP authentication failed – check username and password"
+        log_system(f"Notification email error: {msg}", error=True)
+        raise RuntimeError(msg)
     except smtplib.SMTPConnectError:
-        raise RuntimeError(f"Could not connect to SMTP server {cfg.smtp_host}:{cfg.smtp_port}")
+        msg = f"Could not connect to SMTP server {cfg.smtp_host}:{cfg.smtp_port}"
+        log_system(f"Notification email error: {msg}", error=True)
+        raise RuntimeError(msg)
     except Exception as e:
+        log_system(f"Notification email error: {e}", error=True)
         raise RuntimeError(f"Failed to send email: {e}")
+    log_system(f"Notification email sent to {', '.join(cfg.to_addresses)} – subject: {subject}")
 
 
 def test_email(cfg: NotificationEmailConfig) -> dict:
     """Send a test email. Returns {'ok': True} or {'ok': False, 'error': str}."""
     try:
         send_email(cfg, "UpservX – Test Notification", "This is a test notification from UpservX.")
+        log_system("Notification test email sent successfully")
         return {"ok": True}
     except Exception as e:
+        log_system(f"Notification test email failed: {e}", error=True)
         return {"ok": False, "error": str(e)}
 
 
@@ -117,17 +128,22 @@ def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> No
             if resp.status not in range(200, 300):
                 raise RuntimeError(f"Webhook returned HTTP {resp.status}")
     except urllib.error.URLError as e:
+        log_system(f"Notification webhook error: {e.reason}", error=True)
         raise RuntimeError(f"Webhook request failed: {e.reason}")
     except Exception as e:
+        log_system(f"Notification webhook error: {e}", error=True)
         raise RuntimeError(f"Webhook error: {e}")
+    log_system(f"Notification webhook sent to {cfg.url} – event: {event}")
 
 
 def test_webhook(cfg: NotificationWebhookConfig) -> dict:
     """Send a test webhook payload. Returns {'ok': True} or {'ok': False, 'error': str}."""
     try:
         send_webhook(cfg, "test", "This is a test notification from UpservX.")
+        log_system("Notification test webhook sent successfully")
         return {"ok": True}
     except Exception as e:
+        log_system(f"Notification test webhook failed: {e}", error=True)
         return {"ok": False, "error": str(e)}
 
 
@@ -159,19 +175,20 @@ def notify(event: str, message: str) -> None:
         if not event_map.get(event, True):
             return
 
+        log_system(f"Dispatching notification: event={event} – {message}")
         subject = f"UpservX – {event.replace('_', ' ').title()}"
 
         if config.email.enabled:
             try:
                 send_email(config.email, subject, message)
-            except Exception:
-                pass
+            except Exception as e:
+                log_system(f"Notification email dispatch failed for event '{event}': {e}", error=True)
 
         if config.webhook.enabled:
             try:
                 send_webhook(config.webhook, event, message)
-            except Exception:
-                pass
+            except Exception as e:
+                log_system(f"Notification webhook dispatch failed for event '{event}': {e}", error=True)
 
     except Exception:
         pass
