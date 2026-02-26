@@ -1,53 +1,36 @@
-## Release v0.1.0 - Initial Pre-Release 🚀
+## Release v0.2.0 - Notifications, Activity Logging & Cluster Replication 🔔
 
-### 🎉 What's New in UpservX v0.1.0
+**Release Date:** 2026-02-26
 
-**UpservX** is a comprehensive web-based server management platform that simplifies managing your server infrastructure with a modern, user-friendly interface.
+### 🎉 What's New in UpservX v0.2.0
 
-### ✨ Key Features
+This release focuses on observability, alerting and cluster operations. Every important action on your node is now logged to a structured activity log, critical events trigger instant push notifications via Email or Webhook (Discord, Slack, custom), and the cluster now supports full container and VM replication between nodes.
 
-#### 📦 Container & VM Management
-- Full container lifecycle management
-- Real-time logs and monitoring
-- Image management and registry integration
-- VM management with VNC support
+### ✨ Highlights
 
-#### 🏪 Integrated App Store
-Over 25 pre-configured application templates for quick deployments:
-- **CMS & Web**: WordPress, TYPO3, Nextcloud, Jitsi
-- **Media**: Jellyfin, Emby, Plex, Ombi
-- **Development**: Gitea, n8n, Jenkins, Jupyter
-- **Databases**: MySQL, PostgreSQL, MongoDB, InfluxDB, Redis
-- **Monitoring**: Grafana, Prometheus, Uptime Kuma
-- **Network**: Nginx Proxy Manager, Pi-hole, TeamSpeak
-- **Security**: Vaultwarden, Paperless-ngx
+#### 🔔 Notification System
+- Email (SMTP) and Webhook (Discord / Slack / custom) push notifications
+- Node hostname included in every message — useful in multi-node setups
+- 12 per-event toggles: Container create/start/stop/crash/delete, VM create/start/stop/delete, Backup success/failure, System alert
+- Rich context per event (image, ports, CPU, memory, backup size/path, error messages)
+- New *Notifications* tab in Settings UI
 
-#### 💾 Automated Backup System
-- Scheduled backups with Cron
-- Local and SSH remote storage
-- Encryption and compression
-- Recovery functions
+#### 📋 Structured Activity Logging
+- All service modules write to `/var/log/upservx/activity.log`
+- Consistent `YYYY-MM-DD HH:MM:SS [TAG] Message` format with INFO / ERROR levels
+- 174 cluster `print()` calls now dual-write via `_clog()` helper
 
-#### 👥 User & Group Management
-- System user management
-- SSH key management
-- Permissions and access control
+#### 🔁 Cluster Replication
+- Replicate Docker containers and KVM VMs between nodes from the Cluster UI
+- Full export/import including volumes, disk images, port mappings and environment variables
+- Manual trigger per replication entry
 
-#### 🌐 Network Management
-- Network interface configuration
-- IP address management
-- Firewall rules
+#### 🗄️ Persistent Storage Mounts
+- Drives mounted via UI are persisted to `/etc/fstab` with UUID-based identification
+- Automatic fstab cleanup on unmount, backup before every modification
 
-#### 🛠️ System Services
-- SystemD service management
-- Service monitoring and control
+#### 🔒 12 Security Fixes
+WebSocket shell auth, debug endpoint removal, path traversal (ISO, tarfile, SSH keys), SSRF, exception leak, rate limiting, input validation, shell allowlist, logout bug.
 
-#### 📊 System Monitoring
-- Real-time metrics (CPU, RAM, Disk, Network)
-- Resource monitoring
-- Performance analysis
-
-#### 🗄️ Storage Management
-- Disk management
-- ZFS pool support
-- Mount point configuration
+### 📄 Full Release Notes
+See [releases/0.2.0.md](releases/0.2.0.md) for complete details including all API changes and upgrade notes.

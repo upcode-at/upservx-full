@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-02-26
+
+> Full release notes: [releases/0.2.0.md](releases/0.2.0.md)
+
 ### Added
 - **Notification System**: New push notification system that alerts on container, VM and backup events via Email (SMTP) and Webhook
   - Configuration persisted to `/etc/upservx/notifications.json`
@@ -94,4 +100,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-02-15
 
-Initial pre-release - see [releases/0.1.0.md](releases/0.1.0.md) for full details.
+Initial pre-release — see [releases/0.1.0.md](releases/0.1.0.md) for full details.
