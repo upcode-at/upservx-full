@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Structured Activity Logging**: All service modules now write human-readable activity entries to `/var/log/upservx/activity.log` via the `upservx_logger` module
+  - `log_container` — container lifecycle events, Docker/LXC volume & storage pool create/delete, image pull & delete (`containers.py`, `api/images.py`)
+  - `log_vm` — VM create, start, stop, delete, clone, update, snapshot create/delete/restore (`vms.py`)
+  - `log_storage` — drive mount/unmount/format, ZFS pool creation (`storage.py`)
+  - `log_network` — network interface configuration, DNS settings save (`network.py`)
+  - `log_user` — system user and group create/update/delete (`users.py`)
+  - `log_service` — systemd service start/stop/enable/disable (`services.py`)
+  - `log_firewall` — firewall rule add/delete, chain flush, chain policy, port forwarding, masquerade, ruleset save/load (`firewall.py`)
+  - `log_proxy` — reverse proxy config create/delete, SSL certificate obtain/renew/revoke (`reverse_proxy.py`)
+  - `log_appstore` — app install/uninstall (`app_store.py`)
+  - `log_iso` — ISO download, upload, delete (`isos.py`)
+  - `log_ssh` — SSH key pair generate/store/delete, authorized_keys setup (`ssh_keys.py`)
+- **Cluster activity logging**: All 174 `print()` debug statements in `api/cluster.py` (`[CLUSTER]`, `[REPLICATION]`, `[IMPORT]`, `[EXPORT]`, `[RESOURCES]`, `[METRICS]`, `[UPLOAD]`, `[DOWNLOAD]` tags) are now routed through a `_clog()` helper that writes simultaneously to stdout and the activity log — 39 error/failure lines are logged at ERROR level
 - Automatic `/etc/fstab` management when mounting drives via Storage Management UI
 - Unmount functionality with automatic fstab cleanup
 - UUID-based device identification for stable mounting
@@ -27,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Child node config now stores `cluster_key` field in addition to `key` for forward compatibility
 
 ### Changed
+- All `print()` warning statements in `vms.py` replaced with `log_vm(..., error=True)` — warnings now appear in the activity log instead of being silently swallowed in production
+- `app_store.py` and `storage.py` error prints replaced with structured log calls
 - Improved fstab formatting with properly aligned columns
 - Mount operations now create persistent entries automatically
 - Cluster metrics endpoint moved from `/metrics` to `/cluster/node/metrics` to avoid conflicts with system metrics
