@@ -95,7 +95,7 @@ from ssh_keys import ssh_key_manager
 from crontab_manager import crontab_manager
 from reverse_proxy import reverse_proxy_manager
 from config_manager import get_config_manager
-from notifications import load_notifications, save_notifications, test_email, test_webhook
+from notifications import load_notifications, save_notifications, test_email, test_webhook, notify
 from upservx_logger import (
     log_auth, log_container, log_vm, log_backup, log_storage,
     log_network, log_user, log_service, log_firewall, log_proxy,
@@ -1344,6 +1344,7 @@ async def execute_backup_job(job_id: int):
                     'error_message': None
                 })
                 log_backup(f"Backup job [{job['name']}] completed successfully (size: {result.get('size', 0)} bytes)")
+                notify("backup_success", f"Backup job '{job['name']}' completed successfully (size: {result.get('size', 0)} bytes)")
                 return {
                     "message": "Backup job executed successfully", 
                     "instance_id": instance_id,
@@ -1357,6 +1358,7 @@ async def execute_backup_job(job_id: int):
                     'error_message': result.get('error', 'Backup execution failed')
                 })
                 log_backup(f"Backup job [{job['name']}] failed: {result.get('error')}", error=True)
+                notify("backup_failure", f"Backup job '{job['name']}' failed: {result.get('error', 'Unknown error')}")
                 raise HTTPException(status_code=500, detail=f"Backup failed: {result.get('error')}")
                 
         except Exception as backup_error:

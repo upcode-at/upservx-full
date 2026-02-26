@@ -18,6 +18,7 @@ sys.path.append(current_dir)
 from backup_db import backup_db
 from backup import BackupManager
 from upservx_logger import log_backup
+from notifications import notify
 
 # Setup logging
 logging.basicConfig(
@@ -88,6 +89,7 @@ def execute_backup_job(job_id: int) -> bool:
                 })
                 logger.info(f"Backup job {job_id} completed successfully")
                 log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) completed successfully")
+                notify("backup_success", f"Backup job '{job['name']}' completed successfully")
                 return True
             else:
                 backup_db.update_backup_instance(instance_id, {
@@ -97,6 +99,7 @@ def execute_backup_job(job_id: int) -> bool:
                 })
                 logger.error(f"Backup job {job_id} failed: {result.get('error')}")
                 log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) failed: {result.get('error')}", error=True)
+                notify("backup_failure", f"Backup job '{job['name']}' failed: {result.get('error', 'Unknown error')}")
                 return False
                 
         except Exception as e:
