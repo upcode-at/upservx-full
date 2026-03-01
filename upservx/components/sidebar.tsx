@@ -133,7 +133,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <p className="text-sm text-muted-foreground font-medium">{hostname || "Local Server"}</p>
           </div>
-          <p className="text-xs text-muted-foreground/60 font-mono pl-4">v0.1.0</p>
+          <p className="text-xs text-muted-foreground/60 font-mono pl-4">v0.2.0</p>
         </div>
       </div>
       <nav className="flex-1 p-4 space-y-6">
