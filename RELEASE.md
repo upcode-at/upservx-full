@@ -1,6 +1,6 @@
 ## Release v0.2.0 - Notifications, Activity Logging & Cluster Replication 🔔
 
-**Release Date:** 2026-02-26
+**Release Date:** 2026-03-01
 
 ### 🎉 What's New in UpservX v0.2.0
 
