@@ -4,11 +4,13 @@ import React, { createContext, useContext, useEffect, useState } from "react"
 interface AuthContextType {
   token: string | null
   setToken: (token: string | null) => void
+  isLoaded: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
   setToken: () => {},
+  isLoaded: false,
 })
 
 export function useAuth() {
@@ -17,11 +19,13 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
     const stored = localStorage.getItem("authToken")
     if (stored) setTokenState(stored)
+    setIsLoaded(true)
   }, [])
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, setToken }}>
+    <AuthContext.Provider value={{ token, setToken, isLoaded }}>
       {children}
     </AuthContext.Provider>
   )
