@@ -18,10 +18,14 @@ import {
   GitBranch,
   ChevronDown,
   ChevronRight,
+  LogOut,
+  User,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/components/auth-provider"
+import { useRouter } from "next/navigation"
 
 interface SidebarProps {
   activeSection: string
@@ -30,8 +34,16 @@ interface SidebarProps {
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
+  const [username, setUsername] = useState("")
   const { theme } = useTheme()
   const [storageExpanded, setStorageExpanded] = useState(false)
+  const { token, setToken } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    setToken(null)
+    router.push("/login")
+  }
 
   useEffect(() => {
     const loadHostname = async () => {
@@ -47,6 +59,18 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     }
     loadHostname()
   }, [])
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const decoded = atob(token)
+        const name = decoded.split(":")[0]
+        setUsername(name)
+      } catch {
+        setUsername("")
+      }
+    }
+  }, [token])
 
   const categories = [
     {
@@ -195,6 +219,22 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
           </div>
         ))}
       </nav>
+      <div className="p-4 border-t border-sidebar-border/30">
+        <div className="flex items-center space-x-2 px-3 py-2 mb-2">
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0">
+            <User className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <span className="text-sm font-medium text-muted-foreground truncate">{username || "User"}</span>
+        </div>
+        <Button
+          variant="ghost"
+          className="w-full justify-start h-10 font-medium rounded-none hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+          onClick={handleLogout}
+        >
+          <LogOut className="mr-3 h-4 w-4" />
+          Logout
+        </Button>
+      </div>
     </div>
   )
 }
