@@ -1,0 +1,486 @@
+version: '3.8'
+
+# ============================================================
+# Mailcow – Dockerized Mail Server Suite
+# Based on: https://github.com/mailcow/mailcow-dockerized
+#
+# REQUIRED: Edit all values marked with ← before starting!
+# See README.md for full setup instructions.
+# ============================================================
+
+x-env-common: &env-common
+  TZ: Europe/Berlin                           # ← your timezone
+  MAILCOW_HOSTNAME: mail.example.com          # ← your mail hostname (FQDN)
+  DBNAME: mailcow
+  DBUSER: mailcow
+  DBPASS: changeme_db_password                # ← strong password
+  DBROOT: changeme_db_root_password           # ← strong root password
+  REDISPASS: changeme_redis_password          # ← strong redis password
+  IPV4_NETWORK: "172.22.1"
+  IPV6_NETWORK: "fd4d:6169:6c63:6f77::/64"
+  ENABLE_IPV6: "true"
+  LOG_LINES: "9999"
+  SKIP_LETS_ENCRYPT: "n"                      # ← set to y for local/test setups
+  SKIP_CLAMD: "n"
+  SKIP_SOGO: "n"
+  SKIP_OLEFY: "n"
+  SKIP_FTS: "y"
+  USE_WATCHDOG: "y"
+  COMPOSE_PROJECT_NAME: mailcow-dockerized
+  HTTP_PORT: "80"
+  HTTPS_PORT: "443"
+  SMTP_PORT: "25"
+  SMTPS_PORT: "465"
+  SUBMISSION_PORT: "587"
+  IMAP_PORT: "143"
+  IMAPS_PORT: "993"
+  POP_PORT: "110"
+  POPS_PORT: "995"
+  SIEVE_PORT: "4190"
+  MAILCOW_PASS_SCHEME: BLF-CRYPT
+  ACL_ANYONE: disallow
+  MASTER: "y"
+  DEV_MODE: "n"
+  DEMO_MODE: "n"
+
+services:
+
+  unbound-mailcow:
+    image: ghcr.io/mailcow/unbound:1.24
+    restart: always
+    tty: true
+    environment:
+      <<: *env-common
+      SKIP_UNBOUND_HEALTHCHECK: "n"
+    volumes:
+      - /opt/upservx/data/mailcow/conf/unbound:/etc/unbound:z
+    networks:
+      mailcow-network:
+        ipv4_address: 172.22.1.254
+        aliases:
+          - unbound
+    healthcheck:
+      test: ["CMD", "unbound-control", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  mysql-mailcow:
+    image: mariadb:10.11
+    restart: always
+    stop_grace_period: 45s
+    depends_on:
+      - unbound-mailcow
+      - netfilter-mailcow
+    environment:
+      <<: *env-common
+      MYSQL_ROOT_PASSWORD: changeme_db_root_password   # must match DBROOT ↑
+      MYSQL_DATABASE: mailcow
+      MYSQL_USER: mailcow
+      MYSQL_PASSWORD: changeme_db_password             # must match DBPASS ↑
+      MYSQL_INITDB_SKIP_TZINFO: "1"
+    volumes:
+      - mysql-vol-1:/var/lib/mysql/
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+      - /opt/upservx/data/mailcow/conf/mysql:/etc/mysql/conf.d/:ro,Z
+    ports:
+      - "127.0.0.1:13306:3306"
+    networks:
+      mailcow-network:
+        aliases:
+          - mysql
+
+  redis-mailcow:
+    image: redis:7.4-alpine
+    restart: always
+    depends_on:
+      - netfilter-mailcow
+    command: ["sh", "-c", "redis-server --requirepass changeme_redis_password"]  # must match REDISPASS ↑
+    volumes:
+      - redis-vol-1:/data/
+    ports:
+      - "127.0.0.1:7654:6379"
+    sysctls:
+      - net.core.somaxconn=4096
+    networks:
+      mailcow-network:
+        ipv4_address: 172.22.1.249
+        aliases:
+          - redis
+
+  clamd-mailcow:
+    image: ghcr.io/mailcow/clamd:1.71
+    restart: always
+    depends_on:
+      unbound-mailcow:
+        condition: service_healthy
+    environment:
+      <<: *env-common
+    volumes:
+      - /opt/upservx/data/mailcow/conf/clamav:/etc/clamav/:Z
+      - clamd-db-vol-1:/var/lib/clamav
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - clamd
+
+  rspamd-mailcow:
+    image: ghcr.io/mailcow/rspamd:3.14.2
+    restart: always
+    stop_grace_period: 30s
+    depends_on:
+      - dovecot-mailcow
+      - clamd-mailcow
+    environment:
+      <<: *env-common
+    volumes:
+      - /opt/upservx/data/mailcow/conf/rspamd/custom:/etc/rspamd/custom:z
+      - /opt/upservx/data/mailcow/conf/rspamd/override.d:/etc/rspamd/override.d:Z
+      - /opt/upservx/data/mailcow/conf/rspamd/local.d:/etc/rspamd/local.d:Z
+      - /opt/upservx/data/mailcow/conf/rspamd/plugins.d:/etc/rspamd/plugins.d:Z
+      - /opt/upservx/data/mailcow/conf/rspamd/lua:/etc/rspamd/lua/:ro,Z
+      - rspamd-vol-1:/var/lib/rspamd
+    hostname: rspamd
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - rspamd
+
+  memcached-mailcow:
+    image: memcached:alpine
+    restart: always
+    environment:
+      <<: *env-common
+    networks:
+      mailcow-network:
+        aliases:
+          - memcached
+
+  php-fpm-mailcow:
+    image: ghcr.io/mailcow/phpfpm:8.2.29-1
+    restart: always
+    command: "php-fpm -d date.timezone=Europe/Berlin -d expose_php=0"
+    depends_on:
+      - redis-mailcow
+    environment:
+      <<: *env-common
+      ADDITIONAL_SAN: ""
+      ADDITIONAL_SERVER_NAMES: ""
+      API_KEY: invalid
+      API_KEY_READ_ONLY: invalid
+      API_ALLOW_FROM: invalid
+      ALLOW_ADMIN_EMAIL_LOGIN: "n"
+      SOGO_EXPIRE_SESSION: "480"
+      WEBAUTHN_ONLY_TRUSTED_VENDORS: "n"
+    volumes:
+      - /opt/upservx/data/mailcow/web:/web:z
+      - /opt/upservx/data/mailcow/conf/rspamd/dynmaps:/dynmaps:ro,z
+      - /opt/upservx/data/mailcow/conf/rspamd/custom:/rspamd_custom_maps:z
+      - /opt/upservx/data/mailcow/conf/sogo:/etc/sogo/:z
+      - /opt/upservx/data/mailcow/ssl:/etc/ssl/mail/:ro,z
+      - rspamd-vol-1:/var/lib/rspamd
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - phpfpm
+
+  sogo-mailcow:
+    image: ghcr.io/mailcow/sogo:5.12.4-1
+    restart: always
+    environment:
+      <<: *env-common
+      ALLOW_ADMIN_EMAIL_LOGIN: "n"
+      SOGO_EXPIRE_SESSION: "480"
+      SOGO_URL_ENCRYPTION_KEY: SOGoSuperSecret0
+    volumes:
+      - /opt/upservx/data/mailcow/conf/sogo:/etc/sogo/:z
+      - sogo-web-vol-1:/sogo_web
+      - sogo-userdata-backup-vol-1:/sogo_backup
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        ipv4_address: 172.22.1.248
+        aliases:
+          - sogo
+
+  dovecot-mailcow:
+    image: ghcr.io/mailcow/dovecot:2.3.21.1-1
+    restart: always
+    tty: true
+    depends_on:
+      - mysql-mailcow
+      - netfilter-mailcow
+      - redis-mailcow
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      <<: *env-common
+      ALLOW_ADMIN_EMAIL_LOGIN: "n"
+      MAILDIR_GC_TIME: "7200"
+      MAILDIR_SUB: ""
+      FTS_HEAP: "512"
+      FTS_PROCS: "3"
+    volumes:
+      - /opt/upservx/data/mailcow/conf/dovecot:/etc/dovecot:z
+      - /opt/upservx/data/mailcow/ssl:/etc/ssl/mail/:ro,z
+      - /opt/upservx/data/mailcow/conf/sogo:/etc/sogo/:z
+      - /opt/upservx/data/mailcow/assets/templates:/templates:z
+      - /opt/upservx/data/mailcow/conf/rspamd/custom:/etc/rspamd/custom:z
+      - vmail-vol-1:/var/vmail
+      - vmail-index-vol-1:/var/vmail_index
+      - crypt-vol-1:/mail_crypt/
+      - rspamd-vol-1:/var/lib/rspamd
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+    ports:
+      - "127.0.0.1:19991:12345"
+      - "143:143"
+      - "993:993"
+      - "110:110"
+      - "995:995"
+      - "4190:4190"
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        ipv4_address: 172.22.1.250
+        aliases:
+          - dovecot
+
+  postfix-mailcow:
+    image: ghcr.io/mailcow/postfix:3.7.11-1
+    restart: always
+    depends_on:
+      - mysql-mailcow
+      unbound-mailcow:
+        condition: service_healthy
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      <<: *env-common
+      SPAMHAUS_DQS_KEY: ""
+    volumes:
+      - /opt/upservx/data/mailcow/conf/postfix:/opt/postfix/conf:z
+      - /opt/upservx/data/mailcow/ssl:/etc/ssl/mail/:ro,z
+      - postfix-vol-1:/var/spool/postfix
+      - crypt-vol-1:/var/lib/zeyple
+      - rspamd-vol-1:/var/lib/rspamd
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        ipv4_address: 172.22.1.253
+        aliases:
+          - postfix
+
+  nginx-mailcow:
+    image: ghcr.io/mailcow/nginx:1.05
+    restart: always
+    depends_on:
+      - redis-mailcow
+      - php-fpm-mailcow
+      - sogo-mailcow
+      - rspamd-mailcow
+    environment:
+      <<: *env-common
+      ADDITIONAL_SERVER_NAMES: ""
+      HTTP_REDIRECT: "n"
+      NGINX_USE_PROXY_PROTOCOL: "n"
+      TRUSTED_PROXIES: ""
+    volumes:
+      - /opt/upservx/data/mailcow/web:/web:ro,z
+      - /opt/upservx/data/mailcow/conf/rspamd/dynmaps:/dynmaps:ro,z
+      - /opt/upservx/data/mailcow/ssl:/etc/ssl/mail/:ro,z
+      - /opt/upservx/data/mailcow/conf/nginx:/etc/nginx/conf.d/:z
+      - sogo-web-vol-1:/usr/lib/GNUstep/SOGo/
+    ports:
+      - "443:443"
+      - "80:80"
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - nginx
+
+  acme-mailcow:
+    image: ghcr.io/mailcow/acme:1.95
+    restart: always
+    depends_on:
+      nginx-mailcow:
+        condition: service_started
+      unbound-mailcow:
+        condition: service_healthy
+    environment:
+      <<: *env-common
+      ADDITIONAL_SAN: ""
+      AUTODISCOVER_SAN: "y"
+      ENABLE_SSL_SNI: "n"
+      SKIP_IP_CHECK: "n"
+      SKIP_HTTP_VERIFICATION: "n"
+      ONLY_MAILCOW_HOSTNAME: "n"
+      LE_STAGING: "n"
+      DIRECTORY_URL: ""
+      SNAT_TO_SOURCE: "n"
+      SNAT6_TO_SOURCE: "n"
+    volumes:
+      - /opt/upservx/data/mailcow/web/.well-known/acme-challenge:/var/www/acme:z
+      - /opt/upservx/data/mailcow/ssl:/var/lib/acme/:z
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - acme
+
+  netfilter-mailcow:
+    image: ghcr.io/mailcow/netfilter:1.63
+    restart: always
+    stop_grace_period: 30s
+    privileged: true
+    environment:
+      <<: *env-common
+      SNAT_TO_SOURCE: "n"
+      SNAT6_TO_SOURCE: "n"
+      DISABLE_NETFILTER_ISOLATION_RULE: "n"
+    volumes:
+      - /lib/modules:/lib/modules:ro
+    network_mode: host
+
+  watchdog-mailcow:
+    image: ghcr.io/mailcow/watchdog:2.09
+    restart: always
+    tmpfs:
+      - /tmp
+    depends_on:
+      - postfix-mailcow
+      - dovecot-mailcow
+      - mysql-mailcow
+      - acme-mailcow
+      - redis-mailcow
+    environment:
+      <<: *env-common
+      WATCHDOG_NOTIFY_EMAIL: ""
+      WATCHDOG_NOTIFY_BAN: "y"
+      WATCHDOG_NOTIFY_START: "y"
+      WATCHDOG_SUBJECT: "Watchdog ALERT"
+      WATCHDOG_NOTIFY_WEBHOOK: ""
+      WATCHDOG_NOTIFY_WEBHOOK_BODY: ""
+      WATCHDOG_EXTERNAL_CHECKS: "n"
+      WATCHDOG_VERBOSE: "n"
+      SNAT_TO_SOURCE: "n"
+      SNAT6_TO_SOURCE: "n"
+      CHECK_UNBOUND: "1"
+      IP_BY_DOCKER_API: "0"
+      MAILQ_THRESHOLD: "20"
+      MAILQ_CRIT: "30"
+    volumes:
+      - rspamd-vol-1:/var/lib/rspamd
+      - mysql-socket-vol-1:/var/run/mysqld/:z
+      - postfix-vol-1:/var/spool/postfix
+      - /opt/upservx/data/mailcow/ssl:/etc/ssl/mail/:ro,z
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - watchdog
+
+  dockerapi-mailcow:
+    image: ghcr.io/mailcow/dockerapi:2.11
+    restart: always
+    security_opt:
+      - label=disable
+    environment:
+      <<: *env-common
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    dns:
+      - 172.22.1.254
+    networks:
+      mailcow-network:
+        aliases:
+          - dockerapi
+
+  olefy-mailcow:
+    image: ghcr.io/mailcow/olefy:1.15
+    restart: always
+    environment:
+      <<: *env-common
+      OLEFY_BINDADDRESS: "0.0.0.0"
+      OLEFY_BINDPORT: "10055"
+      OLEFY_TMPDIR: "/tmp"
+      OLEFY_PYTHON_PATH: "/usr/bin/python3"
+      OLEFY_OLEVBA_PATH: "/usr/bin/olevba"
+      OLEFY_LOGLVL: "20"
+      OLEFY_MINLENGTH: "500"
+      OLEFY_DEL_TMP: "1"
+    networks:
+      mailcow-network:
+        aliases:
+          - olefy
+
+  ofelia-mailcow:
+    image: mcuadros/ofelia:latest
+    restart: always
+    command: daemon --docker -f label=com.docker.compose.project=mailcow-dockerized
+    depends_on:
+      - sogo-mailcow
+      - dovecot-mailcow
+    security_opt:
+      - label=disable
+    labels:
+      ofelia.enabled: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      <<: *env-common
+    networks:
+      mailcow-network:
+        aliases:
+          - ofelia
+
+networks:
+  mailcow-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-mailcow
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.22.1.0/24
+        - subnet: "fd4d:6169:6c63:6f77::/64"
+
+volumes:
+  vmail-vol-1:
+  vmail-index-vol-1:
+  mysql-vol-1:
+  mysql-socket-vol-1:
+  redis-vol-1:
+  rspamd-vol-1:
+  postfix-vol-1:
+  crypt-vol-1:
+  sogo-web-vol-1:
+  sogo-userdata-backup-vol-1:
+  clamd-db-vol-1:
+  postfix-tlspol-vol-1:
