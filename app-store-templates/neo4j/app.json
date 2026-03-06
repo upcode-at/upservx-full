@@ -2,7 +2,7 @@
   "name": "Neo4j",
   "description": "Leading graph database management system. Store, query and visualize highly connected data using the Cypher query language. Includes Neo4j Browser for interactive graph exploration.",
   "version": "5",
-  "category": "other",
+  "category": "database",
   "icon": "🕸️",
   "author": "Neo4j, Inc.",
   "ports": [
