@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP protocol (producers & consumers)
+      - "15672:15672"   # Management UI (HTTP)
+    volumes:
+      - /opt/upservx/data/rabbitmq/data:/var/lib/rabbitmq
+      - /opt/upservx/data/rabbitmq/logs:/var/log/rabbitmq
+    environment:
+      # Admin credentials ← change before exposing publicly!
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=changeme_strong_password
+      - RABBITMQ_DEFAULT_VHOST=/
+    hostname: rabbitmq

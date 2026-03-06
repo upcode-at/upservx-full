@@ -1,0 +1,21 @@
+{
+  "name": "RabbitMQ",
+  "description": "Open-source message broker supporting AMQP, MQTT, and STOMP protocols. Enables reliable asynchronous communication between services. Includes the RabbitMQ Management UI for monitoring queues, exchanges, and connections.",
+  "version": "4-management",
+  "category": "other",
+  "icon": "🐇",
+  "author": "Broadcom / VMware",
+  "ports": [
+    "5672:5672",
+    "15672:15672"
+  ],
+  "volumes": [
+    "/opt/upservx/data/rabbitmq/data:/var/lib/rabbitmq",
+    "/opt/upservx/data/rabbitmq/logs:/var/log/rabbitmq"
+  ],
+  "environment": {
+    "RABBITMQ_DEFAULT_USER": "admin",
+    "RABBITMQ_DEFAULT_PASS": "changeme_strong_password",
+    "RABBITMQ_DEFAULT_VHOST": "/"
+  }
+}
