@@ -1,0 +1,25 @@
+{
+  "name": "Neo4j",
+  "description": "Leading graph database management system. Store, query and visualize highly connected data using the Cypher query language. Includes Neo4j Browser for interactive graph exploration.",
+  "version": "5",
+  "category": "other",
+  "icon": "🕸️",
+  "author": "Neo4j, Inc.",
+  "ports": [
+    "7474:7474",
+    "7687:7687"
+  ],
+  "volumes": [
+    "/opt/upservx/data/neo4j/data:/data",
+    "/opt/upservx/data/neo4j/logs:/logs",
+    "/opt/upservx/data/neo4j/import:/var/lib/neo4j/import",
+    "/opt/upservx/data/neo4j/plugins:/plugins"
+  ],
+  "environment": {
+    "NEO4J_AUTH": "neo4j/changeme_strong_password",
+    "NEO4J_PLUGINS": "[\"apoc\"]",
+    "NEO4J_dbms_memory_heap_initial__size": "512m",
+    "NEO4J_dbms_memory_heap_max__size": "1G",
+    "NEO4J_dbms_memory_pagecache_size": "512m"
+  }
+}
