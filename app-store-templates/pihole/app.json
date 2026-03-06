@@ -2,7 +2,7 @@
   "name": "Pi-hole",
   "description": "Network-wide ad blocker. DNS sinkhole that protects your devices from unwanted content without installing client-side software.",
   "version": "latest",
-  "category": "network",
+  "category": "networking",
   "icon": "🛡️",
   "author": "Pi-hole LLC",
   "ports": [
