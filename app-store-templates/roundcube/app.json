@@ -1,0 +1,24 @@
+{
+  "name": "Roundcube",
+  "description": "Open-source browser-based IMAP email client with a modern UI. Supports SMTP sending, address book, calendar (with plugins), HTML email, and S/MIME encryption.",
+  "version": "latest",
+  "category": "productivity",
+  "icon": "✉️",
+  "author": "The Roundcube Community",
+  "ports": [
+    "8090:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/roundcube/www:/var/www/html",
+    "/opt/upservx/data/roundcube/db:/var/roundcube/db"
+  ],
+  "environment": {
+    "ROUNDCUBEMAIL_DEFAULT_HOST": "ssl://mail.example.com",
+    "ROUNDCUBEMAIL_DEFAULT_PORT": "993",
+    "ROUNDCUBEMAIL_SMTP_SERVER": "tls://mail.example.com",
+    "ROUNDCUBEMAIL_SMTP_PORT": "587",
+    "ROUNDCUBEMAIL_DB_TYPE": "sqlite",
+    "ROUNDCUBEMAIL_SKIN": "elastic",
+    "ROUNDCUBEMAIL_PLUGINS": "archive,zipdownload,managesieve"
+  }
+}
