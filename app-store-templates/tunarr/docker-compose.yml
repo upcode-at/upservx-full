@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  tunarr:
+    image: ghcr.io/chrisbenincasa/tunarr:latest
+    container_name: tunarr
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/upservx/data/tunarr/config:/config
+    environment:
+      - TZ=Europe/Berlin   # ← change to your timezone

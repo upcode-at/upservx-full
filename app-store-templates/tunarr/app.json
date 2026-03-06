@@ -1,0 +1,17 @@
+{
+  "name": "Tunarr",
+  "description": "Create live TV channels from your Plex, Jellyfin, or Emby media libraries. Stream via HDHR or M3U to any player or DVR. Schedule movies, shows, and filler content on custom virtual channels.",
+  "version": "latest",
+  "category": "media",
+  "icon": "📺",
+  "author": "Tunarr Community",
+  "ports": [
+    "8000:8000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/tunarr/config:/config"
+  ],
+  "environment": {
+    "TZ": "Europe/Berlin"
+  }
+}
