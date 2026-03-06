@@ -1,0 +1,18 @@
+{
+  "name": "OctoPrint",
+  "description": "The snappy web interface for your 3D printer. Monitor and control your printer remotely, manage print jobs, view webcam streams, and extend functionality with hundreds of plugins.",
+  "version": "latest",
+  "category": "other",
+  "icon": "🖨️",
+  "author": "Gina Häußge",
+  "ports": [
+    "5000:5000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/octoprint:/octoprint"
+  ],
+  "environment": {
+    "OCTOPRINT_PORT": "5000",
+    "ENABLE_MJPG_STREAMER": "false"
+  }
+}
