@@ -1,0 +1,21 @@
+{
+  "name": "Elasticsearch",
+  "description": "Distributed, RESTful search and analytics engine. Store, search and analyze large volumes of data in near real-time. Includes Kibana for visualization and data exploration.",
+  "version": "8.17.0",
+  "category": "other",
+  "icon": "🔍",
+  "author": "Elastic",
+  "ports": [
+    "9200:9200",
+    "5601:5601"
+  ],
+  "volumes": [
+    "/opt/upservx/data/elasticsearch/data:/usr/share/elasticsearch/data",
+    "/opt/upservx/data/elasticsearch/kibana:/usr/share/kibana/data"
+  ],
+  "environment": {
+    "discovery.type": "single-node",
+    "ELASTIC_PASSWORD": "changeme_strong_password",
+    "xpack.security.enabled": "true"
+  }
+}
