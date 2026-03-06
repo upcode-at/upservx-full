@@ -1,0 +1,32 @@
+{
+  "name": "ONLYOFFICE Docs",
+  "description": "Full ONLYOFFICE Community Edition stack with Document Server, Community Server (portal, CRM, projects) and built-in Mail Server. Compatible with Microsoft Office formats.",
+  "version": "latest",
+  "category": "productivity",
+  "icon": "📝",
+  "author": "Ascensio System SIA",
+  "ports": [
+    "8090:80",
+    "8091:80",
+    "25:25",
+    "143:143",
+    "587:587",
+    "993:993",
+    "5222:5222"
+  ],
+  "volumes": [
+    "/opt/upservx/data/onlyoffice-docs/logs:/var/log/onlyoffice",
+    "/opt/upservx/data/onlyoffice-docs/data:/var/www/onlyoffice/Data",
+    "/opt/upservx/data/onlyoffice-docs/lib:/var/lib/onlyoffice",
+    "/opt/upservx/data/onlyoffice-docs/community/data:/var/www/onlyoffice/Data",
+    "/opt/upservx/data/onlyoffice-docs/mail/vmail:/var/vmail",
+    "/opt/upservx/data/onlyoffice-docs/mysql:/var/lib/mysql"
+  ],
+  "environment": {
+    "JWT_ENABLED": "true",
+    "JWT_SECRET": "changeme_use_a_strong_secret",
+    "MYSQL_SERVER_USER": "onlyoffice_user",
+    "MYSQL_SERVER_PASS": "onlyoffice_password",
+    "MAIL_DOMAIN": "mail.example.com"
+  }
+}
