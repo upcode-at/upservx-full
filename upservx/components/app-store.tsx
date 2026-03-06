@@ -24,8 +24,15 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, CheckCircle } from "lucide-react"
+import { Search, Download, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface App {
   id: string
@@ -59,6 +66,8 @@ export function AppStore() {
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [pageSize, setPageSize] = useState(20)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const getApiUrl = apiUrl
 
@@ -80,12 +89,16 @@ export function AppStore() {
     }
 
     setFilteredApps(filtered)
+    setCurrentPage(1)
   }
 
   useEffect(() => {
     filterApps()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apps, selectedCategory, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredApps.length / pageSize))
+  const paginatedApps = filteredApps.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const loadApps = useCallback(async () => {
     try {
@@ -227,8 +240,33 @@ export function AppStore() {
         </div>
       </div>
 
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {filteredApps.length} App{filteredApps.length !== 1 ? "s" : ""} gefunden
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Apps pro Seite:</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(val) => {
+              setPageSize(Number(val))
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-20 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[10, 20, 30, 50].map((size) => (
+                <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.isArray(filteredApps) && filteredApps.map((app) => (
+        {Array.isArray(paginatedApps) && paginatedApps.map((app) => (
           <Card key={app.id} className="flex flex-col">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -300,6 +338,60 @@ export function AppStore() {
       {filteredApps.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">No apps found</p>
+        </div>
+      )}
+
+      {filteredApps.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Seite {currentPage} von {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((page) =>
+                page === 1 ||
+                page === totalPages ||
+                Math.abs(page - currentPage) <= 2
+              )
+              .reduce<(number | "...")[]>((acc, page, idx, arr) => {
+                if (idx > 0 && typeof arr[idx - 1] === "number" && (page as number) - (arr[idx - 1] as number) > 1) {
+                  acc.push("...")
+                }
+                acc.push(page)
+                return acc
+              }, [])
+              .map((item, idx) =>
+                item === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="text-sm text-muted-foreground px-1">...</span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={currentPage === item ? "default" : "outline"}
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                    onClick={() => setCurrentPage(item as number)}
+                  >
+                    {item}
+                  </Button>
+                )
+              )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 
