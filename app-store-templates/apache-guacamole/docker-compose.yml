@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  guacd:
+    image: guacamole/guacd:latest
+    container_name: guacamole-guacd
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/apache-guacamole/drive:/drive:rw
+      - /opt/upservx/data/apache-guacamole/record:/record:rw
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: guacamole-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=guacamole_db
+      - POSTGRES_USER=guacamole_user
+      - POSTGRES_PASSWORD=guacamole_password
+    volumes:
+      - /opt/upservx/data/apache-guacamole/postgres:/var/lib/postgresql/data
+      - /opt/upservx/data/apache-guacamole/init:/docker-entrypoint-initdb.d:ro
+
+  guacamole:
+    image: guacamole/guacamole:latest
+    container_name: guacamole-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - GUACD_HOSTNAME=guacd
+      - GUACD_PORT=4822
+      - POSTGRESQL_HOSTNAME=postgres
+      - POSTGRESQL_PORT=5432
+      - POSTGRESQL_DATABASE=guacamole_db
+      - POSTGRESQL_USER=guacamole_user
+      - POSTGRESQL_PASSWORD=guacamole_password
+    depends_on:
+      - guacd
+      - postgres

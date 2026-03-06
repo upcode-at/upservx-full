@@ -1,0 +1,22 @@
+{
+  "name": "Apache Guacamole",
+  "description": "Clientless remote desktop gateway. Access VNC, RDP, and SSH connections directly from your browser – no plugins or client software required.",
+  "version": "latest",
+  "category": "networking",
+  "icon": "🌐",
+  "author": "Apache Software Foundation",
+  "ports": [
+    "8080:8080"
+  ],
+  "volumes": [
+    "/opt/upservx/data/apache-guacamole/drive:/drive",
+    "/opt/upservx/data/apache-guacamole/record:/record"
+  ],
+  "environment": {
+    "GUACD_HOSTNAME": "guacd",
+    "GUACD_PORT": "4822",
+    "POSTGRES_DATABASE": "guacamole_db",
+    "POSTGRES_USER": "guacamole_user",
+    "POSTGRES_PASSWORD": "guacamole_password"
+  }
+}
