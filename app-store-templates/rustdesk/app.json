@@ -1,0 +1,22 @@
+{
+  "name": "RustDesk",
+  "description": "Open-source remote desktop software with self-hosted server. Provides secure, encrypted remote access without relying on third-party servers. Full alternative to TeamViewer or AnyDesk.",
+  "version": "latest",
+  "category": "networking",
+  "icon": "🖥️",
+  "author": "RustDesk",
+  "ports": [
+    "21115:21115",
+    "21116:21116",
+    "21116:21116/udp",
+    "21117:21117",
+    "21118:21118",
+    "21119:21119"
+  ],
+  "volumes": [
+    "/opt/upservx/data/rustdesk:/data"
+  ],
+  "environment": {
+    "ENCRYPTED_ONLY": "1"
+  }
+}
