@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  registry:
+    image: registry:23
+    container_name: docker-registry
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - /opt/upservx/data/registry/data:/var/lib/registry
+      - /opt/upservx/data/registry/config:/etc/docker/registry
+      - /opt/upservx/data/registry/auth:/auth
+    environment:
+      - REGISTRY_HTTP_ADDR=0.0.0.0:5000
+      - REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/var/lib/registry
+      - REGISTRY_HTTP_SECRET=changeme_registry_secret
+      # Uncomment to enable basic auth (requires htpasswd file, see README)
+      # - REGISTRY_AUTH=htpasswd
+      # - REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm
+      # - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+
+  registry-ui:
+    image: joxit/docker-registry-ui:latest
+    container_name: docker-registry-ui
+    restart: unless-stopped
+    ports:
+      - "8085:80"
+    environment:
+      - SINGLE_REGISTRY=true
+      - REGISTRY_TITLE=Docker Registry
+      - NGINX_PROXY_PASS_URL=http://registry:5000
+      - SHOW_CONTENT_DIGEST=true
+      - SHOW_CATALOG_NB_TAGS=true
+      - DELETE_IMAGES=true
+    depends_on:
+      - registry

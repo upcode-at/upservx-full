@@ -1,0 +1,21 @@
+{
+  "name": "Docker Registry",
+  "description": "Simple, lightweight private Docker container image registry. Store and distribute Docker images within your own infrastructure without relying on Docker Hub.",
+  "version": "latest",
+  "category": "development",
+  "icon": "🗃️",
+  "author": "Docker Inc.",
+  "ports": [
+    "5000:5000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/registry/data:/var/lib/registry",
+    "/opt/upservx/data/registry/config:/etc/docker/registry",
+    "/opt/upservx/data/registry/auth:/auth"
+  ],
+  "environment": {
+    "REGISTRY_HTTP_ADDR": "0.0.0.0:5000",
+    "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY": "/var/lib/registry",
+    "REGISTRY_HTTP_SECRET": "changeme_registry_secret"
+  }
+}
