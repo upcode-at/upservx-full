@@ -166,7 +166,7 @@ def _check_ws_ticket_rate_limit(ip: str) -> bool:
 # ---------------------------------------------------------------------------
 # One-time WebSocket tickets — shared with all routers via ws_tickets module
 from ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
-from permissions import get_user_groups, check_path_permission, get_permission_summary, is_admin
+from permissions import get_user_groups, check_path_permission, get_permission_summary, is_admin, has_shell_access
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
@@ -388,9 +388,9 @@ async def system_shell_websocket(websocket: WebSocket):
         await websocket.close(code=4401)
         return
 
-    # --- Group-based access: system shell requires admin (sudo / wheel) ---
+    # --- Group-based access: system shell requires tty or sudo/wheel ---
     _shell_groups = get_user_groups(shell_username or "")
-    if not is_admin(shell_username or "", _shell_groups):
+    if not has_shell_access(shell_username or "", _shell_groups):
         await websocket.accept()
         await websocket.close(code=4403)
         return

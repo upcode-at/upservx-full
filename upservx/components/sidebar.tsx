@@ -36,7 +36,7 @@ interface SidebarItem {
   id: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  requires: "admin" | "containers" | "vms" | "storage" | null
+  requires: "admin" | "containers" | "vms" | "storage" | "shell" | null
   subItems?: { id: string; label: string }[]
 }
 
@@ -72,7 +72,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       title: "System",
       items: [
         { id: "dashboard", label: "Dashboard", icon: BarChart3, requires: null },
-        { id: "shell",     label: "Shell",     icon: Terminal,  requires: "admin" as const },
+        { id: "shell",     label: "Shell",     icon: Terminal,  requires: "shell" as const },
         { id: "cluster",  label: "Cluster",   icon: GitBranch, requires: null },
       ],
     },
@@ -115,7 +115,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   ]
 
   // Filter items the current user has no access to
-  const hasPermission = (requires: "admin" | "containers" | "vms" | "storage" | null) => {
+  const hasPermission = (requires: "admin" | "containers" | "vms" | "storage" | "shell" | null) => {
     if (!requires) return true
     return permissions[requires] === true
   }
