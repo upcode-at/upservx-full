@@ -6,6 +6,7 @@ export interface UserPermissions {
   admin: boolean
   containers: boolean
   vms: boolean
+  storage: boolean
 }
 
 export interface AuthContextType {
@@ -18,7 +19,7 @@ export interface AuthContextType {
   reloadPermissions: () => Promise<void>
 }
 
-const DEFAULT_PERMISSIONS: UserPermissions = { admin: false, containers: false, vms: false }
+const DEFAULT_PERMISSIONS: UserPermissions = { admin: false, containers: false, vms: false, storage: false }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
