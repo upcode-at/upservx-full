@@ -154,18 +154,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
   - CSRF protection
   - Rate limiting
   - Input validation improvements
-
-- [ ] **Compliance**
-  - Audit logging
-  - Compliance reports
-  - Security scanning integration
-
-## 📱 Advanced Features
-
-- [ ] **Multi-Server Management**
-  - Manage multiple servers from one interface
-  - Server groups
-  - Cluster management
   
 ## 🤝 How to Contribute
 
