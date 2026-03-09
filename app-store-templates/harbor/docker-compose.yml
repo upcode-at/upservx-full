@@ -1,0 +1,121 @@
+version: '3.8'
+
+# Harbor is a multi-service application.
+# This compose file covers all core services.
+# For production, use the official Harbor installer:
+# https://goharbor.io/docs/latest/install-config/
+
+services:
+
+  harbor-log:
+    image: goharbor/harbor-log:v2.11.0
+    container_name: harbor-log
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/log:/var/log/docker
+    ports:
+      - "127.0.0.1:1514:10514"
+
+  harbor-db:
+    image: goharbor/harbor-db:v2.11.0
+    container_name: harbor-db
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=harbor
+    depends_on:
+      - harbor-log
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: goharbor/redis-photon:v2.11.0
+    container_name: harbor-redis
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/redis:/var/lib/redis
+    depends_on:
+      - harbor-log
+
+  registry:
+    image: goharbor/registry-photon:v2.11.0
+    container_name: harbor-registry
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/data:/storage
+      - /opt/upservx/data/harbor/config/registry/:/etc/registry/:z
+    environment:
+      - GODEBUG=http2server=0
+    depends_on:
+      - harbor-log
+
+  registryctl:
+    image: goharbor/harbor-registryctl:v2.11.0
+    container_name: harbor-registryctl
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/data:/storage
+      - /opt/upservx/data/harbor/config/registry/:/etc/registry/:z
+    environment:
+      - CORE_SECRET=changeme_core_secret
+      - JOBSERVICE_SECRET=changeme_job_secret
+    depends_on:
+      - harbor-log
+
+  harbor-core:
+    image: goharbor/harbor-core:v2.11.0
+    container_name: harbor-core
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/config/core/app.conf:/etc/core/app.conf:z
+      - /opt/upservx/data/harbor/data:/data
+      - /opt/upservx/data/harbor/config/core/certificates/:/etc/core/certificates/:z
+    environment:
+      - HARBOR_ADMIN_PASSWORD=Harbor12345
+      - DATABASE_PASSWORD=harbor
+      - CORE_SECRET=changeme_core_secret
+      - JOBSERVICE_SECRET=changeme_job_secret
+      - HARBOR_HOSTNAME=localhost
+    depends_on:
+      harbor-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  harbor-jobservice:
+    image: goharbor/harbor-jobservice:v2.11.0
+    container_name: harbor-jobservice
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/harbor/data/job_logs:/var/log/jobs:z
+      - /opt/upservx/data/harbor/config/jobservice/config.yml:/etc/jobservice/config.yml:z
+    environment:
+      - CORE_SECRET=changeme_core_secret
+      - JOBSERVICE_SECRET=changeme_job_secret
+    depends_on:
+      - harbor-core
+
+  harbor-portal:
+    image: goharbor/harbor-portal:v2.11.0
+    container_name: harbor-portal
+    restart: unless-stopped
+    depends_on:
+      - harbor-core
+
+  nginx:
+    image: goharbor/nginx-photon:v2.11.0
+    container_name: harbor-nginx
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - /opt/upservx/data/harbor/config/nginx:/etc/nginx:z
+    depends_on:
+      - harbor-portal
+      - harbor-core
+      - harbor-jobservice

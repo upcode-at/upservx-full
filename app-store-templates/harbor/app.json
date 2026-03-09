@@ -1,0 +1,24 @@
+{
+  "name": "Harbor",
+  "description": "Open-source container image registry with role-based access control, image vulnerability scanning, content signing, and replication. The enterprise-grade alternative to Docker Hub.",
+  "version": "latest",
+  "category": "development",
+  "icon": "⚓",
+  "author": "CNCF / VMware",
+  "ports": [
+    "80:8080",
+    "443:8443"
+  ],
+  "volumes": [
+    "/opt/upservx/data/harbor/data:/data",
+    "/opt/upservx/data/harbor/config:/etc/harbor",
+    "/opt/upservx/data/harbor/log:/var/log/harbor"
+  ],
+  "environment": {
+    "HARBOR_ADMIN_PASSWORD": "Harbor12345",
+    "DATABASE_PASSWORD": "harbor",
+    "CORE_SECRET": "changeme_core_secret",
+    "JOBSERVICE_SECRET": "changeme_job_secret",
+    "HARBOR_HOSTNAME": "localhost"
+  }
+}
