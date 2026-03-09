@@ -1,0 +1,18 @@
+{
+  "name": "MotionEye",
+  "description": "Web-based frontend for the motion daemon. Turn any camera into a network camera and manage multiple video surveillance streams from a single interface.",
+  "version": "latest",
+  "category": "monitoring",
+  "icon": "📷",
+  "author": "ccrisan / jshridha",
+  "ports": [
+    "8765:8765"
+  ],
+  "volumes": [
+    "/opt/upservx/data/motioneye/config:/etc/motioneye",
+    "/opt/upservx/data/motioneye/media:/var/lib/motioneye"
+  ],
+  "environment": {
+    "TZ": "Europe/Berlin"
+  }
+}
