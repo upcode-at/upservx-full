@@ -1,0 +1,18 @@
+{
+  "name": "Loki",
+  "description": "Horizontally scalable, highly available log aggregation system inspired by Prometheus. Like Prometheus, but for logs.",
+  "version": "latest",
+  "category": "monitoring",
+  "icon": "🪵",
+  "author": "Grafana Labs",
+  "ports": [
+    "3100:3100"
+  ],
+  "volumes": [
+    "/opt/upservx/data/loki/data:/loki",
+    "/opt/upservx/data/loki/config:/etc/loki"
+  ],
+  "environment": {
+    "LOKI_STORAGE_FILESYSTEM_DIRECTORY": "/loki/chunks"
+  }
+}
