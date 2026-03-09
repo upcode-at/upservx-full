@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Save, Key, Play, Square, Download, RefreshCw, Bell, Mail, Webhook, Send, Plus, X } from "lucide-react"
+import { Save, Key, Play, Square, Download, RefreshCw, Bell, Mail, Webhook, Send, Plus, X, Paintbrush, Upload, Trash2 } from "lucide-react"
 import { apiUrl } from "@/lib/api"
+import { useAuth } from "@/components/auth-provider"
 import ReverseProxyManagement from "./reverse-proxy-management"
 
 export function Settings() {
+  const { permissions } = useAuth()
+
   interface SettingsData {
     hostname: string
     timezone: string
@@ -107,6 +110,16 @@ export function Settings() {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [updateOutput, setUpdateOutput] = useState<string>("")
   const [updateStatus, setUpdateStatus] = useState<"running" | "success" | "error">("running")
+
+  // Customization
+  const [customBannerTitle, setCustomBannerTitle] = useState("Welcome to UpServX")
+  const [customBannerSubtitle, setCustomBannerSubtitle] = useState("Professional Server Management Platform")
+  const [hasCustomLogo, setHasCustomLogo] = useState(false)
+  const [hasCustomBanner, setHasCustomBanner] = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   const loadSettings = async () => {
     try {
@@ -202,10 +215,126 @@ export function Settings() {
     }
   }
 
+  const loadCustomization = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/customization"))
+      if (res.ok) {
+        const data = await res.json()
+        setCustomBannerTitle(data.banner_title)
+        setCustomBannerSubtitle(data.banner_subtitle)
+        setHasCustomLogo(data.has_logo)
+        setHasCustomBanner(data.has_banner)
+        setLogoPreview(data.has_logo ? apiUrl("/settings/customization/logo/file") : null)
+        setBannerPreview(data.has_banner ? apiUrl("/settings/customization/banner/file") : null)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const saveCustomization = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/customization"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          banner_title: customBannerTitle,
+          banner_subtitle: customBannerSubtitle,
+        }),
+      })
+      if (res.ok) {
+        setSuccess("Customization saved successfully")
+      } else {
+        setError("Failed to save customization")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save customization")
+    }
+  }
+
+  const uploadLogo = async (file: File) => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch(apiUrl("/settings/customization/logo"), { method: "POST", body: fd })
+      if (res.ok) {
+        setSuccess("Logo uploaded successfully")
+        const url = apiUrl("/settings/customization/logo/file") + "?t=" + Date.now()
+        setLogoPreview(url)
+        setHasCustomLogo(true)
+      } else {
+        const d = await res.json()
+        setError(d.detail || "Failed to upload logo")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload logo")
+    }
+  }
+
+  const deleteLogo = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/customization/logo"), { method: "DELETE" })
+      if (res.ok) {
+        setSuccess("Custom logo removed")
+        setLogoPreview(null)
+        setHasCustomLogo(false)
+      } else {
+        setError("Failed to remove logo")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove logo")
+    }
+  }
+
+  const uploadBanner = async (file: File) => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch(apiUrl("/settings/customization/banner"), { method: "POST", body: fd })
+      if (res.ok) {
+        setSuccess("Banner image uploaded successfully")
+        const url = apiUrl("/settings/customization/banner/file") + "?t=" + Date.now()
+        setBannerPreview(url)
+        setHasCustomBanner(true)
+      } else {
+        const d = await res.json()
+        setError(d.detail || "Failed to upload banner")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload banner")
+    }
+  }
+
+  const deleteBanner = async () => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl("/settings/customization/banner"), { method: "DELETE" })
+      if (res.ok) {
+        setSuccess("Custom banner removed")
+        setBannerPreview(null)
+        setHasCustomBanner(false)
+      } else {
+        setError("Failed to remove banner")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove banner")
+    }
+  }
+
   useEffect(() => {
     loadSettings()
     loadVpnStatus()
     loadNotifications()
+    loadCustomization()
   }, [])
 
   const saveSettings = async () => {
@@ -381,7 +510,7 @@ export function Settings() {
       </Dialog>
 
       <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={`grid w-full ${permissions.admin ? "grid-cols-5" : "grid-cols-4"}`}>
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="vpn">VPN</TabsTrigger>
           <TabsTrigger value="proxy">Reverse Proxy & SSL</TabsTrigger>
@@ -389,6 +518,12 @@ export function Settings() {
             <Bell className="h-4 w-4 mr-2" />
             Notifications
           </TabsTrigger>
+          {permissions.admin && (
+            <TabsTrigger value="customization">
+              <Paintbrush className="h-4 w-4 mr-2" />
+              Customization
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="system" className="space-y-6">
@@ -775,6 +910,147 @@ export function Settings() {
             </Button>
           </div>
         </TabsContent>
+
+        {permissions.admin && (
+          <TabsContent value="customization" className="space-y-6">
+            {/* Login Banner Text */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Paintbrush className="h-5 w-5" />
+                  Login Screen Text
+                </CardTitle>
+                <CardDescription>
+                  Customize the title and subtitle displayed on the login page
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="banner-title">Banner Title</Label>
+                  <Input
+                    id="banner-title"
+                    value={customBannerTitle}
+                    onChange={(e) => setCustomBannerTitle(e.target.value)}
+                    placeholder="Welcome to UpServX"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="banner-subtitle">Banner Subtitle</Label>
+                  <Input
+                    id="banner-subtitle"
+                    value={customBannerSubtitle}
+                    onChange={(e) => setCustomBannerSubtitle(e.target.value)}
+                    placeholder="Professional Server Management Platform"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveCustomization}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Text
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Logo */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Logo</CardTitle>
+                <CardDescription>
+                  Upload a custom logo shown in the login screen. PNG, JPG, SVG or WebP recommended.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {logoPreview && (
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={logoPreview}
+                      alt="Current logo"
+                      className="h-20 w-auto object-contain border rounded p-2 bg-muted"
+                    />
+                    <span className="text-sm text-muted-foreground">Current logo</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadLogo(file)
+                      e.target.value = ""
+                    }}
+                  />
+                  <Button variant="outline" onClick={() => logoInputRef.current?.click()}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {hasCustomLogo ? "Replace Logo" : "Upload Logo"}
+                  </Button>
+                  {hasCustomLogo && (
+                    <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={deleteLogo}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                {!hasCustomLogo && (
+                  <p className="text-sm text-muted-foreground">Using default logo (/public/logo.png)</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Banner Image */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Login Banner Image</CardTitle>
+                <CardDescription>
+                  Upload a custom background image for the left side of the login page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {bannerPreview && (
+                  <div className="relative w-full max-w-sm h-40 overflow-hidden rounded border">
+                    <img
+                      src={bannerPreview}
+                      alt="Current banner"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                      <span className="text-white text-xs">Current banner</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={bannerInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadBanner(file)
+                      e.target.value = ""
+                    }}
+                  />
+                  <Button variant="outline" onClick={() => bannerInputRef.current?.click()}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {hasCustomBanner ? "Replace Banner" : "Upload Banner"}
+                  </Button>
+                  {hasCustomBanner && (
+                    <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={deleteBanner}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                {!hasCustomBanner && (
+                  <p className="text-sm text-muted-foreground">Using default banner (/public/login.jpg)</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
