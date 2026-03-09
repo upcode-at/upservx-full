@@ -1,0 +1,27 @@
+{
+  "name": "Traefik",
+  "description": "Modern HTTP reverse proxy and load balancer that makes deploying microservices easy. Supports automatic SSL via Let's Encrypt, Docker-native service discovery, and a built-in dashboard.",
+  "version": "latest",
+  "category": "networking",
+  "icon": "🔀",
+  "author": "Traefik Labs",
+  "ports": [
+    "80:80",
+    "443:443",
+    "8080:8080"
+  ],
+  "volumes": [
+    "/opt/upservx/data/traefik/config:/etc/traefik",
+    "/opt/upservx/data/traefik/acme:/acme",
+    "/var/run/docker.sock:/var/run/docker.sock:ro"
+  ],
+  "environment": {
+    "TRAEFIK_API_INSECURE": "true",
+    "TRAEFIK_API_DASHBOARD": "true",
+    "TRAEFIK_PROVIDERS_DOCKER": "true",
+    "TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT": "false",
+    "TRAEFIK_ENTRYPOINTS_WEB_ADDRESS": ":80",
+    "TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS": ":443",
+    "TRAEFIK_LOG_LEVEL": "INFO"
+  }
+}
