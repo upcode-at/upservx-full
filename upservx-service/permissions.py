@@ -9,6 +9,7 @@ Linux group → subsystem mapping
   libvirt / kvm  →  virtual machine management, ISO management
   disk / storage →  physical storage management
   tty            →  system shell access
+  adm / log      →  log access
 
 Any group not listed above gives access only to read-only metadata endpoints
 (/metrics, /, auth endpoints).
@@ -27,6 +28,7 @@ CONTAINER_GROUPS: Set[str] = DOCKER_GROUPS | LXD_GROUPS
 LIBVIRT_GROUPS: Set[str] = {"libvirt", "kvm"}
 STORAGE_GROUPS: Set[str] = {"disk", "storage"}
 SHELL_GROUPS:   Set[str] = {"tty"}
+LOG_GROUPS:     Set[str] = {"adm", "log"}
 
 # Non-PAM principals (API key, cluster tokens) receive implicit admin rights.
 SYSTEM_PRINCIPALS: Set[str] = {"api-key", "cluster-node", "cluster-master"}
@@ -45,6 +47,9 @@ _STORAGE_PREFIXES = ("/drives",)
 # Paths that require tty / sudo group (system shell)
 _SHELL_PATHS = ("/system/shell",)
 
+# Paths that require adm / log group (or admin)
+_LOG_PREFIXES = ("/logs", "/activity-log")
+
 # Paths that require full admin (sudo / wheel)
 _ADMIN_PREFIXES = (
     "/firewall",
@@ -52,8 +57,6 @@ _ADMIN_PREFIXES = (
     "/users",
     "/groups",
     "/services",
-    "/logs",
-    "/activity-log",
     "/settings",
     "/backup",
     "/proxy",
@@ -108,6 +111,11 @@ def has_shell_access(username: str, groups: Set[str]) -> bool:
     return is_admin(username, groups) or bool(groups & SHELL_GROUPS)
 
 
+def has_log_access(username: str, groups: Set[str]) -> bool:
+    """True if the user may view logs (adm/log group, or admin)."""
+    return is_admin(username, groups) or bool(groups & LOG_GROUPS)
+
+
 def check_path_permission(username: str, groups: Set[str], path: str) -> bool:
     """Return True when *username* (with resolved *groups*) may access *path*.
 
@@ -133,6 +141,11 @@ def check_path_permission(username: str, groups: Set[str], path: str) -> bool:
         if path.startswith(prefix):
             return has_shell_access(username, groups)
 
+    # Logs: adm / log group (or admin)
+    for prefix in _LOG_PREFIXES:
+        if path.startswith(prefix):
+            return has_log_access(username, groups)
+
     # Admin-only subsystems
     for prefix in _ADMIN_PREFIXES:
         if path.startswith(prefix):
@@ -153,5 +166,6 @@ def get_permission_summary(username: str, groups: Set[str]) -> dict:
             "vms": has_vm_access(username, groups),
             "storage": has_storage_access(username, groups),
             "shell": has_shell_access(username, groups),
+            "logs": has_log_access(username, groups),
         },
     }
