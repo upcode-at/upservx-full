@@ -147,11 +147,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
   - Frontend component tests
   - Integration tests
 
-- [ ] **Documentation**
-  - User manual
-  - Video tutorials
-  - Architecture documentation
-
 ## 🔒 Security
 
 - [ ] **Security Hardening**
