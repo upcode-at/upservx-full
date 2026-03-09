@@ -13,7 +13,7 @@ import shutil
 
 router = APIRouter(prefix="/settings/customization", tags=["customization"])
 
-CUSTOMIZATION_DIR = "/opt/upservx/customization"
+CUSTOMIZATION_DIR = "/etc/upservx/customization"
 CONFIG_FILE = os.path.join(CUSTOMIZATION_DIR, "config.json")
 
 SUPPORTED_IMAGE_TYPES = {
