@@ -1,0 +1,25 @@
+{
+  "name": "OpenLDAP",
+  "description": "Open-source implementation of the Lightweight Directory Access Protocol (LDAP). Centrally manage users, groups, and authentication for your infrastructure.",
+  "version": "latest",
+  "category": "security",
+  "icon": "📒",
+  "author": "OpenLDAP Foundation",
+  "ports": [
+    "389:389",
+    "636:636"
+  ],
+  "volumes": [
+    "/opt/upservx/data/openldap/data:/var/lib/ldap",
+    "/opt/upservx/data/openldap/config:/etc/ldap/slapd.d"
+  ],
+  "environment": {
+    "LDAP_ORGANISATION": "My Organisation",
+    "LDAP_DOMAIN": "example.com",
+    "LDAP_ADMIN_PASSWORD": "admin",
+    "LDAP_CONFIG_PASSWORD": "config",
+    "LDAP_READONLY_USER": "false",
+    "LDAP_TLS": "true",
+    "LDAP_TLS_VERIFY_CLIENT": "never"
+  }
+}

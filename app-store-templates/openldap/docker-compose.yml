@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  openldap:
+    image: bitnami/openldap:latest
+    container_name: openldap
+    restart: unless-stopped
+    ports:
+      - "389:1389"
+      - "636:1636"
+    volumes:
+      - /opt/upservx/data/openldap/data:/bitnami/openldap/data
+      - /opt/upservx/data/openldap/config:/bitnami/openldap/slapd.d
+    environment:
+      - LDAP_ORGANISATION=My Organisation
+      - LDAP_DOMAIN=example.com
+      - LDAP_ADMIN_USERNAME=admin
+      - LDAP_ADMIN_PASSWORD=admin
+      - LDAP_CONFIG_ADMIN_ENABLED=yes
+      - LDAP_CONFIG_ADMIN_USERNAME=config
+      - LDAP_CONFIG_ADMIN_PASSWORD=config
+      - LDAP_ENABLE_TLS=no
+      - LDAP_SKIP_DEFAULT_TREE=no
+
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    environment:
+      - PHPLDAPADMIN_LDAP_HOSTS=openldap
+      - PHPLDAPADMIN_HTTPS=false
+    depends_on:
+      - openldap
