@@ -122,7 +122,6 @@ export function getAuthHeaders(): HeadersInit {
 
 export function getJsonHeaders(): HeadersInit {
   return {
-    ...getAuthHeaders(),
     'Content-Type': 'application/json'
   }
 }

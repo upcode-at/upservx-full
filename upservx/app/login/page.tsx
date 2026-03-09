@@ -14,20 +14,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const token = btoa(`${username}:${password}`)
     try {
-      const res = await fetch(apiUrl("/"), {
-        headers: { Authorization: `Basic ${token}` },
+      const res = await fetch(apiUrl("/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
       })
       if (res.ok) {
-        setToken(token)
+        setToken("session")
         router.push("/")
       } else {
-        setToken(null)
         setError("Login failed")
       }
     } catch {
-      setToken(null)
       setError("Login failed")
     }
   }

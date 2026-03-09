@@ -44,7 +44,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
   const { theme } = useTheme()
   const [storageExpanded, setStorageExpanded] = useState(false)
-  const { token, setToken, username, permissions } = useAuth()
+  const { setToken, username, permissions } = useAuth()
   const router = useRouter()
 
   const handleLogout = () => {
