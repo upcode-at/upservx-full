@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    restart: unless-stopped
+    hostname: localhost
+    ports:
+      - "80:80"
+      - "443:443"
+      - "22:22"
+    volumes:
+      - /opt/upservx/data/gitlab/config:/etc/gitlab
+      - /opt/upservx/data/gitlab/logs:/var/log/gitlab
+      - /opt/upservx/data/gitlab/data:/var/opt/gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost'
+        gitlab_rails['gitlab_shell_ssh_port'] = 22
+        gitlab_rails['time_zone'] = 'UTC'
+        # Reduce memory usage for smaller servers
+        puma['worker_processes'] = 2
+        sidekiq['concurrency'] = 10
+        prometheus_monitoring['enable'] = false
+    shm_size: '256m'

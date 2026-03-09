@@ -1,0 +1,21 @@
+{
+  "name": "GitLab",
+  "description": "Complete DevSecOps platform. Manage Git repositories, CI/CD pipelines, container registry, issue tracking, and more — all in one self-hosted application.",
+  "version": "latest",
+  "category": "development",
+  "icon": "🦊",
+  "author": "GitLab Inc.",
+  "ports": [
+    "80:80",
+    "443:443",
+    "22:22"
+  ],
+  "volumes": [
+    "/opt/upservx/data/gitlab/config:/etc/gitlab",
+    "/opt/upservx/data/gitlab/logs:/var/log/gitlab",
+    "/opt/upservx/data/gitlab/data:/var/opt/gitlab"
+  ],
+  "environment": {
+    "GITLAB_OMNIBUS_CONFIG": "external_url 'http://localhost'; gitlab_rails['gitlab_shell_ssh_port'] = 22;"
+  }
+}
