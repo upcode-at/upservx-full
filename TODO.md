@@ -69,26 +69,7 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
 
 ## 🔧 Medium Priority
 
-### Firewall Enhancements
-
-- [ ] **Docker Integration**
-  - Manage DOCKER-USER chain
-  - Block/Allow specific container ports
-  - Container-specific firewall rules
-
-- [ ] **UI Improvements**
-  - Rule reordering (drag & drop)
-  - Rule groups/categories
-  - Rule search and filtering
-  - Bulk operations
-
 ### Backup System
-
-- [ ] **Cloud Storage Integration**
-  - AWS S3 support
-  - Backblaze B2 support
-  - Google Cloud Storage
-  - Azure Blob Storage
 
 - [ ] **Backup Encryption**
   - Encrypt backups at rest
