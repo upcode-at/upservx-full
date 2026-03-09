@@ -1,0 +1,20 @@
+{
+  "name": "Heimdall",
+  "description": "An elegant solution to organise all your web applications. Heimdall is a dashboard for all your web applications — and it doesn't have to be limited to web applications.",
+  "version": "latest",
+  "category": "dashboard",
+  "icon": "🏠",
+  "author": "linuxserver.io",
+  "ports": [
+    "8888:80",
+    "8889:443"
+  ],
+  "volumes": [
+    "/opt/upservx/data/heimdall:/config"
+  ],
+  "environment": {
+    "PUID": "1000",
+    "PGID": "1000",
+    "TZ": "Europe/Berlin"
+  }
+}
