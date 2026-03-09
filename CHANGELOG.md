@@ -7,9 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **App Store Pagination**: Configurable pagination for the App Store UI
+  - Page size selector with options 10, 20, 30 and 50 apps per page (default: 20)
+  - Numbered page buttons with `...` ellipsis for large page counts, Prev/Next navigation
+  - App count display ("X Apps gefunden") and current page indicator ("Seite X von Y")
+  - Resetting to page 1 automatically when the search query, category filter or page size changes
+- **App Store Templates** – 11 new pre-configured one-click applications:
+  - **RustDesk** (`networking`) – Self-hosted remote desktop relay and ID server (KRaft mode, `hbbs` + `hbbr` containers)
+  - **Apache Guacamole** (`networking`) – Clientless browser-based RDP/VNC/SSH gateway (guacd + web + PostgreSQL)
+  - **ONLYOFFICE Community Edition** (`productivity`) – Full office suite stack: DocumentServer, CommunityServer (portal, CRM, projects), MailServer and MySQL
+  - **Apache Kafka** (`other`) – Distributed event streaming platform in KRaft mode (no ZooKeeper) with Kafka UI
+  - **Elasticsearch** (`other`) – Distributed search and analytics engine (v8.17.0) with Kibana, xpack security enabled
+  - **Mailcow** (`other`) – Complete self-hosted mail server suite: Postfix, Dovecot, Rspamd, ClamAV, SOGo webmail, Nginx, ACME/Let's Encrypt, Netfilter, Watchdog and more (17 containers)
+  - **Roundcube** (`productivity`) – Browser-based IMAP webmail client with SQLite backend and Mailcow integration guide
+  - **Neo4j** (`other`) – Graph database (v5) with APOC plugin and Neo4j Browser UI (ports 7474 + 7687)
+  - **RabbitMQ** (`other`) – Message broker supporting AMQP/MQTT/STOMP with Management UI (`rabbitmq:4-management`)
+  - **OctoPrint** (`other`) – Web interface for 3D printers; USB serial device and webcam (mjpg-streamer) support via commented config
+  - **Tunarr** (`media`) – Virtual live TV channels from Plex/Jellyfin/Emby libraries, exposed as HDHomeRun or M3U/XMLTV
+  - **Loki** (`monitoring`) – Horizontally scalable log aggregation system by Grafana Labs; label-based indexing, LogQL, native Grafana integration and Promtail agent support
+  - **Traefik** (`networking`) – Modern HTTP reverse proxy and load balancer with automatic Docker service discovery, Let's Encrypt SSL, built-in dashboard and middleware support (port 80/443/8080)
+  - **Keycloak** (`security`) – Open-source Identity and Access Management; SSO, OIDC/OAuth 2.0/SAML 2.0, social login, user federation, 2FA — backed by PostgreSQL with healthcheck dependency
+  - **Harbor** (`development`) – Enterprise container image registry with RBAC, vulnerability scanning (Trivy), content signing, replication and multi-tenancy; full multi-service stack (core, portal, jobservice, registry, registryctl, db, redis, nginx) at v2.11.0
+  - **GitLab** (`development`) – Complete DevSecOps platform: Git repositories, CI/CD pipelines, container registry, issue tracking, wikis and OIDC/LDAP auth; Omnibus single-container setup with Puma/Sidekiq memory tuning
+  - **OpenLDAP** (`security`) – Centralised LDAP directory for user and group management; Bitnami image with phpLDAPadmin web UI (port 8090); integration guides for Keycloak, GitLab and Grafana
+  - **Docker Registry** (`development`) – Lightweight private container image registry (Registry v2) with Docker Registry UI (port 8085, joxit); optional htpasswd basic auth and Traefik reverse-proxy support
+  - **MotionEye** (`monitoring`) – Web frontend for the motion daemon; supports USB cameras, IP/RTSP/MJPEG streams, motion-triggered recording, snapshots, notifications and timeline view (port 8765)
+
+- **Group-based Access Control (RBAC via Linux groups)**: New `permissions.py` module maps Linux groups to subsystem access — authenticated users only see and can access what their groups permit
+  - `sudo` / `wheel` → full administrator access (all endpoints)
+  - `docker` → container management (Docker), Docker images, App Store
+  - `lxd` / `lxc` → container management (LXC), LXC images
+  - `libvirt` / `kvm` → virtual machine management, ISO management
+  - `disk` / `storage` → physical storage management (`/drives/*`)
+  - `tty` → system shell access (`/system/shell`)
+  - `adm` / `log` → log viewer access (`/logs`, `/activity-log`)
+  - API keys and cluster tokens receive implicit full-admin rights
+- **`GET /auth/me`** endpoint: returns the authenticated user's username, resolved Linux groups and a `permissions` object (`admin`, `containers`, `vms`, `storage`, `shell`, `logs`) — used by the frontend to build the permission-aware sidebar
+- **`GET /info`** endpoint: public (but authenticated) endpoint returning the server hostname — used by the sidebar so non-admin users can see the hostname without requiring `/settings` access
+- **Session-cookie authentication**: login now issues an `HttpOnly` `SameSite=Lax` cookie via `POST /auth/login`; `localStorage` token storage removed entirely
+  - `fetch` interceptor in `AuthProvider` forwards `credentials: "include"` on every request instead of injecting `Authorization` headers
+  - `POST /auth/logout` deletes the cookie server-side
+  - Session validity is verified on page load via `/auth/me` + cookie; `isLoaded` is only set to `true` after permissions are resolved (prevents sidebar flash)
+
+### Changed
+- **Auth middleware**: after successful PAM / API-key authentication, the middleware now resolves the user's Linux groups and calls `check_path_permission()` — returns HTTP 403 for paths the user's groups do not cover
+- **System shell WebSocket**: access guard changed from `is_admin()` to `has_shell_access()` — `tty` group members may now open the shell in addition to `sudo`/`wheel`; unauthorised connections are closed with WebSocket code `4403`
+- **Sidebar**: each navigation item now carries a `requires` field (`"admin"`, `"containers"`, `"vms"`, `"storage"`, `"shell"`, `"logs"` or `null`); items and entire categories are hidden when the logged-in user lacks the required permission — no client-side workarounds needed
+- **`AuthContext`**: extended with `username`, `groups[]`, `permissions` and `reloadPermissions()` — `useAuth()` consumers can read current permissions without additional fetches; `token` kept as compatibility shim (`"__session__"` when authenticated, `null` otherwise)
+- **`getAuthHeaders()` / `getJsonHeaders()`** in `api.ts`: removed the `admin:admin` Basic-auth fallback; auth is now handled exclusively via session cookie
+
+### Security
+- **Group-based authorisation**: every API request is now checked against the caller's Linux groups — users without the appropriate group receive HTTP 403 instead of having unrestricted access to all endpoints
+- **Removed `admin:admin` fallback**: `api.ts` no longer falls back to hardcoded credentials when no session exists
+- **HttpOnly session cookie**: the auth token is no longer stored in `localStorage` (accessible to JavaScript); the `HttpOnly` flag prevents client-side script access to the session cookie
+
+### Added
+- **Application Customization Module**: New "Customization" tab in Settings (visible to admins only) to personalize the login screen and dashboard branding
+  - **Login Banner Text**: Configurable title and subtitle displayed on the left side of the login page
+  - **Custom Logo**: Upload a PNG, JPG, SVG, GIF or WebP logo — replaces the default logo on both the login screen and the sidebar in the dashboard
+  - **Custom Banner Image**: Upload a background image for the left panel of the login screen
+  - Image previews shown directly in the settings UI; existing files can be removed to revert to defaults
+  - Customization files stored in `/etc/upservx/customization/`, text config in `/etc/upservx/customization/config.json`
+  - **Login page** dynamically loads banner title, subtitle, logo and background image from the API at render time — falls back silently to defaults if the API is unreachable
+  - **Sidebar logo** dynamically loads the custom logo when one is uploaded; falls back to `logo.png` / `logo_light.png` depending on theme
+  - All `GET` customization endpoints (`/settings/customization`, `/settings/customization/logo/file`, `/settings/customization/banner/file`) are public (no authentication required) so the login screen can fetch them before a session exists
+  - Write/delete operations remain auth-protected and are restricted to admin users in the UI
+  - API routes: `GET /settings/customization`, `POST /settings/customization`, `POST /settings/customization/logo`, `DELETE /settings/customization/logo`, `GET /settings/customization/logo/file`, `POST /settings/customization/banner`, `DELETE /settings/customization/banner`, `GET /settings/customization/banner/file`
+
 ---
 
-## [0.2.0] - 2026-02-26
+## [0.2.0] - 2026-03-01
 
 > Full release notes: [releases/0.2.0.md](releases/0.2.0.md)
 
