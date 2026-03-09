@@ -46,6 +46,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [storageExpanded, setStorageExpanded] = useState(false)
   const { setToken, username, permissions } = useAuth()
   const router = useRouter()
+  const [hasCustomLogo, setHasCustomLogo] = useState(false)
+  const [logoTimestamp, setLogoTimestamp] = useState(Date.now())
 
   const handleLogout = () => {
     setToken(null)
@@ -64,7 +66,20 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         console.error(err)
       }
     }
+    const loadCustomization = async () => {
+      try {
+        const res = await fetch(apiUrl("/settings/customization"))
+        if (res.ok) {
+          const data = await res.json()
+          setHasCustomLogo(data.has_logo === true)
+          setLogoTimestamp(Date.now())
+        }
+      } catch {
+        // silently fall back to default
+      }
+    }
     loadHostname()
+    loadCustomization()
   }, [])
 
   const categories: { title: string; items: SidebarItem[] }[] = [
@@ -124,10 +139,16 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     <div className="w-64 upservx-sidebar flex flex-col">
       <div className="p-6 border-b border-sidebar-border/30">
         <div className="flex items-center space-x-3 mb-2">
-          <img 
-            src={theme === "dark" ? "/logo_light.png" : "/logo.png"} 
-            alt="UpServX Logo" 
-            className="h-16 w-auto object-contain" 
+          <img
+            src={
+              hasCustomLogo
+                ? `${apiUrl("/settings/customization/logo/file")}?t=${logoTimestamp}`
+                : theme === "dark"
+                ? "/logo_light.png"
+                : "/logo.png"
+            }
+            alt="UpServX Logo"
+            className="h-16 w-auto object-contain"
           />
         </div>
         <div className="space-y-1">

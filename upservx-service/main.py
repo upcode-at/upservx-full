@@ -187,6 +187,10 @@ async def pam_auth_middleware(request: Request, call_next):
     # Skip authentication for ISO file downloads (read-only, large files used for VM installation)
     if request.url.path.startswith("/isos/") and request.url.path.endswith("/file") and request.method == "GET":
         return await call_next(request)
+
+    # Skip authentication for customization read endpoints (public – used on login screen)
+    if request.url.path.startswith("/settings/customization") and request.method == "GET":
+        return await call_next(request)
     
     if request.url.path == "/auth/login" and request.method == "POST":
         return await call_next(request)
