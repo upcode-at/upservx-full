@@ -107,6 +107,7 @@ from api.containers import router as containers_router
 from api.images import router as images_router
 from api.firewall import router as firewall_router
 from api.cluster import router as cluster_router, get_cluster_key
+from api.customization import router as customization_router
 
 app = FastAPI(
     title="UpservX API",
@@ -340,6 +341,7 @@ app.include_router(containers_router)
 app.include_router(images_router)
 app.include_router(firewall_router)
 app.include_router(cluster_router)
+app.include_router(customization_router)
 
 # System Shell WebSocket
 @app.websocket("/system/shell")

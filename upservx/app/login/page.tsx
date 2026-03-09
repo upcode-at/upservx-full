@@ -1,16 +1,46 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { apiUrl } from "@/lib/api"
 
+interface CustomizationData {
+  banner_title: string
+  banner_subtitle: string
+  has_logo: boolean
+  has_banner: boolean
+}
+
+const DEFAULT_CUSTOMIZATION: CustomizationData = {
+  banner_title: "Welcome to UpServX",
+  banner_subtitle: "Professional Server Management Platform",
+  has_logo: false,
+  has_banner: false,
+}
+
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [customization, setCustomization] = useState<CustomizationData>(DEFAULT_CUSTOMIZATION)
   const { setToken } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    const fetchCustomization = async () => {
+      try {
+        const res = await fetch(apiUrl("/settings/customization"))
+        if (res.ok) {
+          const data = await res.json()
+          setCustomization({ ...DEFAULT_CUSTOMIZATION, ...data })
+        }
+      } catch {
+        // silently fall back to defaults
+      }
+    }
+    fetchCustomization()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,20 +66,39 @@ export default function LoginPage() {
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
       <div className="relative w-1/2 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-600/20 z-10"></div>
-        <Image
-          src="/login.jpg"
-          alt="Login illustration"
-          fill
-          sizes="50vw"
-          className="object-cover"
-        />
+        {customization.has_banner ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={apiUrl("/settings/customization/banner/file")}
+            alt="Login banner"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <Image
+            src="/login.jpg"
+            alt="Login illustration"
+            fill
+            sizes="50vw"
+            className="object-cover"
+          />
+        )}
         <div className="absolute inset-0 z-20 flex items-center justify-center">
           <div className="text-center text-white p-8">
             <div className="flex items-center justify-center mx-auto mb-6">
-              <img src="/logo.png" alt="UpServX Logo" className="h-24 w-auto object-contain" />
+              {customization.has_logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={apiUrl("/settings/customization/logo/file")}
+                  alt="Logo"
+                  className="h-24 w-auto object-contain"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/logo.png" alt="UpServX Logo" className="h-24 w-auto object-contain" />
+              )}
             </div>
-            <h1 className="text-4xl font-bold mb-4">Welcome to UpServX</h1>
-            <p className="text-xl opacity-90">Professional Server Management Platform</p>
+            <h1 className="text-4xl font-bold mb-4">{customization.banner_title}</h1>
+            <p className="text-xl opacity-90">{customization.banner_subtitle}</p>
           </div>
         </div>
       </div>
