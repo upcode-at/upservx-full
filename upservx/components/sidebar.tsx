@@ -32,12 +32,19 @@ interface SidebarProps {
   onSectionChange: (section: string) => void
 }
 
+interface SidebarItem {
+  id: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  requires: "admin" | "containers" | "vms" | null
+  subItems?: { id: string; label: string }[]
+}
+
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
-  const [username, setUsername] = useState("")
   const { theme } = useTheme()
   const [storageExpanded, setStorageExpanded] = useState(false)
-  const { token, setToken } = useAuth()
+  const { token, setToken, username, permissions } = useAuth()
   const router = useRouter()
 
   const handleLogout = () => {
@@ -48,7 +55,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   useEffect(() => {
     const loadHostname = async () => {
       try {
-        const res = await fetch(apiUrl("/settings"))
+        const res = await fetch(apiUrl("/info"))
         if (res.ok) {
           const data = await res.json()
           setHostname(data.hostname)
@@ -60,45 +67,34 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     loadHostname()
   }, [])
 
-  useEffect(() => {
-    if (token) {
-      try {
-        const decoded = atob(token)
-        const name = decoded.split(":")[0]
-        setUsername(name)
-      } catch {
-        setUsername("")
-      }
-    }
-  }, [token])
-
-  const categories = [
+  const categories: { title: string; items: SidebarItem[] }[] = [
     {
       title: "System",
       items: [
-        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "shell", label: "Shell", icon: Terminal },
-        { id: "cluster", label: "Cluster", icon: GitBranch },
+        { id: "dashboard", label: "Dashboard", icon: BarChart3, requires: null },
+        { id: "shell",     label: "Shell",     icon: Terminal,  requires: "admin" as const },
+        { id: "cluster",  label: "Cluster",   icon: GitBranch, requires: null },
       ],
     },
     {
       title: "Compute",
       items: [
-        { id: "vms", label: "Virtual Machines", icon: Server },
-        { id: "containers", label: "Container", icon: Container },
-        { id: "compose", label: "Compose Builder", icon: FileText },
+        { id: "vms",        label: "Virtual Machines", icon: Server,    requires: "vms" as const },
+        { id: "containers", label: "Container",        icon: Container, requires: "containers" as const },
+        { id: "compose",    label: "Compose Builder",  icon: FileText,  requires: "containers" as const },
       ],
     },
     {
       title: "Resources",
       items: [
-        { id: "images", label: "Images & ISOs", icon: Disc },
+        { id: "images", label: "Images & ISOs", icon: Disc, requires: null },
         {
           id: "storage",
           label: "Storage",
           icon: HardDrive,
+          requires: "admin" as const,
           subItems: [
-            { id: "storage", label: "Physical Storage" },
+            { id: "storage",           label: "Physical Storage" },
             { id: "container-storage", label: "Container Storage" },
           ]
         },
@@ -107,16 +103,22 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     {
       title: "Administration",
       items: [
-        { id: "app-store", label: "App Store", icon: Store },
-        { id: "settings", label: "Settings", icon: Settings },
-        { id: "users", label: "Users", icon: Users },
-        { id: "backup", label: "Backup", icon: Shield },
-        { id: "network", label: "Network", icon: Network },
-        { id: "firewall", label: "Firewall", icon: Shield },
-        { id: "logs", label: "Logs", icon: FileText },
+        { id: "app-store", label: "App Store", icon: Store,    requires: "containers" as const },
+        { id: "settings",  label: "Settings",  icon: Settings, requires: "admin" as const },
+        { id: "users",     label: "Users",     icon: Users,    requires: "admin" as const },
+        { id: "backup",    label: "Backup",    icon: Shield,   requires: "admin" as const },
+        { id: "network",   label: "Network",   icon: Network,  requires: "admin" as const },
+        { id: "firewall",  label: "Firewall",  icon: Shield,   requires: "admin" as const },
+        { id: "logs",      label: "Logs",      icon: FileText, requires: "admin" as const },
       ],
     },
   ]
+
+  // Filter items the current user has no access to
+  const hasPermission = (requires: "admin" | "containers" | "vms" | null) => {
+    if (!requires) return true
+    return permissions[requires] === true
+  }
 
   return (
     <div className="w-64 upservx-sidebar flex flex-col">
@@ -137,13 +139,16 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         </div>
       </div>
       <nav className="flex-1 p-4 space-y-6">
-        {categories.map((category) => (
+        {categories.map((category) => {
+          const visibleItems = category.items.filter((item) => hasPermission(item.requires ?? null))
+          if (visibleItems.length === 0) return null
+          return (
           <div key={category.title} className="space-y-3">
             <div className="px-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">
               {category.title}
             </div>
             <div className="space-y-1">
-              {category.items.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon
                 const isActive = activeSection === item.id
                 const hasSubItems = item.subItems && item.subItems.length > 0
@@ -189,7 +194,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                     </Button>
                     {hasSubItems && isExpanded && (
                       <div className="ml-6 space-y-1 mt-1">
-                        {item.subItems.map((subItem) => {
+                        {item.subItems?.map((subItem) => {
                           const subIsActive = activeSection === subItem.id
                           return (
                             <Button
@@ -217,7 +222,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
               })}
             </div>
           </div>
-        ))}
+          )
+        })}
       </nav>
       <div className="p-4 border-t border-sidebar-border/30">
         <div className="flex items-center space-x-2 px-3 py-2 mb-2">

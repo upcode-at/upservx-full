@@ -166,6 +166,7 @@ def _check_ws_ticket_rate_limit(ip: str) -> bool:
 # ---------------------------------------------------------------------------
 # One-time WebSocket tickets — shared with all routers via ws_tickets module
 from ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
+from permissions import get_user_groups, check_path_permission, get_permission_summary, is_admin
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
@@ -245,7 +246,15 @@ async def pam_auth_middleware(request: Request, call_next):
             raise ValueError
     except Exception:
         return Response(status_code=401)
-    
+
+    # ── Group-based permission check ────────────────────────────────────────────
+    _username = request.state.user
+    _groups = get_user_groups(_username)
+    request.state.groups = _groups
+    if not check_path_permission(_username, _groups, request.url.path):
+        return Response(status_code=403)
+    # ────────────────────────────────────────────────────────────────────────────
+
     response = await call_next(request)
     return response
 
@@ -306,6 +315,26 @@ async def get_ws_ticket(request: Request):
         raise HTTPException(status_code=503, detail="ticket store full — try again shortly")
     return {"ticket": ticket}
 
+@app.get("/auth/me")
+def auth_me(request: Request):
+    """Return the current user's username, Linux groups and derived permissions."""
+    username = getattr(request.state, "user", None) or "unknown"
+    groups = getattr(request.state, "groups", None)
+    if groups is None:
+        groups = get_user_groups(username)
+    return get_permission_summary(username, groups)
+
+@app.get("/info")
+def server_info():
+    """Return basic server information accessible to all authenticated users."""
+    import platform
+    try:
+        with open("/etc/hostname") as f:
+            hostname = f.read().strip()
+    except Exception:
+        hostname = platform.node() or "server"
+    return {"hostname": hostname}
+
 app.include_router(system_router)
 app.include_router(containers_router)
 app.include_router(images_router)
@@ -321,18 +350,21 @@ async def system_shell_websocket(websocket: WebSocket):
     # 2. ?token=<api-key>    – raw API key
     # 3. Basic auth cookie   – only works same-origin (cookie sent by browser)
     authenticated = False
+    shell_username: str | None = None
 
     # --- WS ticket (preferred for cross-origin) ---
     raw_token = websocket.query_params.get("token")
     if raw_token:
-        username = _consume_ws_ticket(raw_token)
-        if username:
+        ticket_user = _consume_ws_ticket(raw_token)
+        if ticket_user:
             authenticated = True
+            shell_username = ticket_user
         else:
             # Fallback: maybe it's a raw API key
             settings = load_settings()
             if settings.api_key and raw_token == settings.api_key:
                 authenticated = True
+                shell_username = "api-key"
 
     # --- Basic auth cookie (same-origin fallback) ---
     if not authenticated:
@@ -347,12 +379,20 @@ async def system_shell_websocket(websocket: WebSocket):
                 loop = asyncio.get_event_loop()
                 if await loop.run_in_executor(None, ws_pam.authenticate, ws_user, ws_password):
                     authenticated = True
+                    shell_username = ws_user
             except Exception:
                 pass
-    
+
     if not authenticated:
         await websocket.accept()
         await websocket.close(code=4401)
+        return
+
+    # --- Group-based access: system shell requires admin (sudo / wheel) ---
+    _shell_groups = get_user_groups(shell_username or "")
+    if not is_admin(shell_username or "", _shell_groups):
+        await websocket.accept()
+        await websocket.close(code=4403)
         return
 
     import fcntl
