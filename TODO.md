@@ -100,21 +100,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
   - Restore testing
   - Backup health monitoring
 
-## 📦 App Store
-
-- [ ] **New App Templates Needed**
-  - [ ] Heimdall
-  - [ ] Traefik
-  - [ ] Zigbee2MQTT
-  - [ ] PhotoPrism
-  - [ ] Calibre-Web
-  - [ ] Seafile
-  - [ ] Authentik
-
-- [ ] **App Store Features**
-  - One-click updates
-  - App dependency management
-
 ## 🌐 Networking
 
 - [ ] **Load Balancer**
