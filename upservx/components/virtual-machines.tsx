@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy, Camera, RotateCcw, Download } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy, Camera, RotateCcw, Download, Upload } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
@@ -80,6 +80,14 @@ export function VirtualMachines() {
   const [exportVm, setExportVm] = useState<VMData | null>(null)
   const [exportFormat, setExportFormat] = useState<"ova" | "ovf">("ova")
   const [exportLoading, setExportLoading] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importName, setImportName] = useState("")
+  const [importNetworkMode, setImportNetworkMode] = useState<"nat" | "bridge" | "none" | "unconfigured">("nat")
+  const [importBridgeInterface, setImportBridgeInterface] = useState("")
+  const [importAutostart, setImportAutostart] = useState(false)
+  const [importStoragePath, setImportStoragePath] = useState("")
+  const [importLoading, setImportLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -432,6 +440,46 @@ export function VirtualMachines() {
     }
   }
 
+  const handleImport = async () => {
+    if (!importFile || !importName.trim()) return
+    setImportLoading(true)
+    setSuccess(null)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append("file", importFile)
+      form.append("name", importName.trim())
+      form.append("network_mode", importNetworkMode)
+      if (importNetworkMode === "bridge" && importBridgeInterface) {
+        form.append("bridge_interface", importBridgeInterface)
+      }
+      form.append("autostart", String(importAutostart))
+      if (importStoragePath && importStoragePath !== "__default__") form.append("storage_path", importStoragePath)
+
+      const res = await fetch(apiUrl("/vms/import"), {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: form,
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok) {
+        const refreshRes = await fetch(apiUrl("/vms"), { headers: getAuthHeaders() })
+        if (refreshRes.ok) setVms(await refreshRes.json())
+        setImportOpen(false)
+        setImportFile(null)
+        setImportName("")
+        setImportStoragePath("")
+        setSuccess(`VM "${importName.trim()}" erfolgreich importiert`)
+      } else {
+        setError(data?.detail || "Import fehlgeschlagen")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import fehlgeschlagen")
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
   const openEdit = (vm: VMData) => {
     setEditing(vm)
     setName(vm.name)
@@ -473,6 +521,9 @@ export function VirtualMachines() {
         <div className="flex items-center gap-2">
           <Button variant={view === "grid" ? "secondary" : "outline"} size="icon" onClick={() => setView("grid")}> <LayoutGrid className="h-4 w-4" /></Button>
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
+          <Button variant="outline" onClick={() => { setImportFile(null); setImportName(""); setImportNetworkMode("nat"); setImportBridgeInterface(""); setImportAutostart(false); setImportStoragePath(""); setImportOpen(true) }}>
+            <Upload className="mr-2 h-4 w-4" /> Import VM
+          </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([{ size: 20, format: "qcow2" }]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setStoragePath(""); setOpen(true) }}>
@@ -916,6 +967,104 @@ export function VirtualMachines() {
                 </Table>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import VM Dialog */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent style={{ width: '60vw', maxWidth: '60vw' }} className="overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Virtual Machine</DialogTitle>
+            <DialogDescription>
+              Import a VM from an OVA or OVF file. Disks will be converted from VMDK to qcow2.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="import-file">OVA / OVF File</Label>
+              <input
+                id="import-file"
+                type="file"
+                accept=".ova,.ovf"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-muted file:text-foreground hover:file:bg-muted/80 cursor-pointer"
+                onChange={e => {
+                  const f = e.target.files?.[0] ?? null
+                  setImportFile(f)
+                  if (f && !importName) {
+                    // Pre-fill name from filename without extension
+                    setImportName(f.name.replace(/\.(ova|ovf)$/i, "").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40))
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="import-name">VM Name</Label>
+              <Input
+                id="import-name"
+                value={importName}
+                onChange={e => setImportName(e.target.value)}
+                placeholder="e.g. my-imported-vm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Network</Label>
+              <Select value={importNetworkMode} onValueChange={v => setImportNetworkMode(v as typeof importNetworkMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nat">NAT (virbr0)</SelectItem>
+                  <SelectItem value="bridge">Bridge (Direct)</SelectItem>
+                  <SelectItem value="unconfigured">Unconfigured Interface</SelectItem>
+                  <SelectItem value="none">No Network</SelectItem>
+                </SelectContent>
+              </Select>
+              {importNetworkMode === "bridge" && (
+                <div className="mt-2">
+                  <Label>Bridge Interface</Label>
+                  <Select value={importBridgeInterface} onValueChange={setImportBridgeInterface}>
+                    <SelectTrigger><SelectValue placeholder="Select interface" /></SelectTrigger>
+                    <SelectContent>
+                      {networkInterfaces.map(iface => (
+                        <SelectItem key={iface} value={iface}>{iface}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            {drives.length > 0 && (
+              <div className="space-y-2">
+                <Label>Storage (optional)</Label>
+                <Select value={importStoragePath} onValueChange={setImportStoragePath}>
+                  <SelectTrigger><SelectValue placeholder="Default (/var/lib/libvirt/images)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Default (/var/lib/libvirt/images)</SelectItem>
+                    {drives.map(d => (
+                      <SelectItem key={d.mountpoint} value={d.mountpoint}>{d.name || d.device} – {d.mountpoint}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input id="import-autostart" type="checkbox" checked={importAutostart} onChange={e => setImportAutostart(e.target.checked)} />
+              <Label htmlFor="import-autostart" className="cursor-pointer">Autostart on host boot</Label>
+            </div>
+            <div className="text-sm text-muted-foreground rounded border p-3 space-y-1">
+              <p className="font-medium">Note:</p>
+              <ul className="list-disc list-inside pl-2 space-y-0.5">
+                <li>VMDK disks will be converted to qcow2 – this may take several minutes</li>
+                <li>CPU and RAM settings are read from the OVF descriptor</li>
+                <li>The VM will be registered with libvirt and appear in stopped state</li>
+              </ul>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importLoading}>Cancel</Button>
+            <Button onClick={handleImport} disabled={importLoading || !importFile || !importName.trim()}>
+              <Upload className="mr-2 h-4 w-4" />
+              {importLoading ? "Importing…" : "Import VM"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

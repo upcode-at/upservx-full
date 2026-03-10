@@ -1139,3 +1139,286 @@ def export_vm_ova(name: str, export_format: str = "ova") -> str:
             except Exception:
                 pass
         raise
+
+
+# ──────────────────────────────────────────────
+# OVA/OVF Import
+# ──────────────────────────────────────────────
+
+IMPORT_DIR = "/etc/upservx/imports"
+
+
+def _parse_ovf(ovf_path: str) -> dict:
+    """Parse an OVF descriptor and extract VM configuration.
+
+    Returns a dict with keys: cpu, memory_mb, disk_hrefs (list of filenames).
+    Falls back to safe defaults when elements are missing.
+    """
+    import xml.etree.ElementTree as ET
+
+    tree = ET.parse(ovf_path)
+    root = tree.getroot()
+
+    # Strip namespace from tag for matching
+    def _tag(el) -> str:
+        return el.tag.split("}")[-1] if "}" in el.tag else el.tag
+
+    cpu = 1
+    memory_mb = 512
+    disk_hrefs: list[str] = []
+
+    # Collect File hrefs (actual disk file names referenced in References)
+    ns_map: dict[str, str] = {}
+    for prefix, uri in [
+        ("ovf", "http://schemas.dmtf.org/ovf/envelope/1"),
+        ("rasd", "http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData"),
+    ]:
+        ns_map[prefix] = uri
+
+    # Iterate all elements to find References/File and Item entries
+    for el in root.iter():
+        tag = _tag(el)
+
+        if tag == "File":
+            href = None
+            for attr_name, attr_val in el.attrib.items():
+                if attr_name.split("}")[-1] == "href":
+                    href = attr_val
+                    break
+            if href and (href.endswith(".vmdk") or href.endswith(".img") or href.endswith(".qcow2")):
+                disk_hrefs.append(href)
+
+        if tag == "Item":
+            resource_type = None
+            quantity = None
+            allocation_units = None
+            for child in el:
+                child_tag = _tag(child)
+                if child_tag == "ResourceType":
+                    resource_type = child.text.strip() if child.text else None
+                elif child_tag == "VirtualQuantity":
+                    quantity = child.text.strip() if child.text else None
+                elif child_tag == "AllocationUnits":
+                    allocation_units = (child.text or "").strip().lower()
+
+            if resource_type == "3" and quantity:  # CPU
+                try:
+                    cpu = int(quantity)
+                except ValueError:
+                    pass
+            elif resource_type == "4" and quantity:  # Memory
+                try:
+                    raw = int(quantity)
+                    # Convert to MB if units indicate bytes or GiB
+                    if "byte * 2^30" in allocation_units or "gib" in allocation_units:
+                        memory_mb = raw * 1024
+                    elif "byte * 2^20" in allocation_units or "mib" in allocation_units or "mb" in allocation_units:
+                        memory_mb = raw
+                    elif "byte * 2^10" in allocation_units or "kib" in allocation_units:
+                        memory_mb = max(512, raw // 1024)
+                    elif "byte" in allocation_units and "^" not in allocation_units:
+                        memory_mb = max(512, raw // (1024 * 1024))
+                    else:
+                        # Assume MB (most common OVF default)
+                        memory_mb = raw
+                except ValueError:
+                    pass
+
+    return {"cpu": cpu, "memory_mb": memory_mb, "disk_hrefs": disk_hrefs}
+
+
+def import_vm_ova(
+    source_path: str,
+    name: str,
+    network_mode: str = "nat",
+    bridge_interface: str | None = None,
+    autostart: bool = False,
+    storage_path: str | None = None,
+) -> VirtualMachine:
+    """Import a virtual machine from an OVA or OVF file.
+
+    Supports:
+    - OVA archives (.ova) – single TAR containing OVF + disks
+    - OVF descriptors (.ovf) – together with VMDK/qcow2 disk files in the same directory
+
+    The disks are converted to qcow2 via ``qemu-img`` and registered with libvirt.
+
+    Args:
+        source_path: Absolute path to the .ova or .ovf file on the server.
+        name: Desired VM name (must be unique).
+        network_mode: "nat" | "bridge" | "none" | "unconfigured"
+        bridge_interface: Physical interface name required for bridge mode.
+        autostart: Whether the VM should autostart on host boot.
+        storage_path: Optional mounted drive path; disks go to {storage_path}/vms/{name}/.
+
+    Returns:
+        The newly created VirtualMachine record.
+    """
+    for tool in ("virsh", "virt-install", "qemu-img"):
+        if shutil.which(tool) is None:
+            raise Exception(f"{tool} is not installed")
+
+    # Name collision check
+    existing = load_vms()
+    if any(v.name == name for v in existing):
+        raise Exception(f"A VM named '{name}' already exists")
+
+    work_dir = tempfile.mkdtemp(prefix=f"ovf_import_{name}_", dir=IMPORT_DIR)
+    os.makedirs(IMPORT_DIR, exist_ok=True)
+    work_dir = tempfile.mkdtemp(prefix=f"ovf_import_{name}_")
+
+    try:
+        ext = os.path.splitext(source_path)[1].lower()
+
+        if ext == ".ova":
+            import tarfile
+            log_vm(f"Extracting OVA [{source_path}] → [{work_dir}]")
+            with tarfile.open(source_path, "r") as tar:
+                # Security: reject paths with ".." or absolute paths
+                for member in tar.getmembers():
+                    if os.path.isabs(member.name) or ".." in member.name:
+                        raise Exception(f"Unsafe path in OVA archive: {member.name}")
+                tar.extractall(work_dir)
+            # Locate .ovf inside extracted directory
+            ovf_files = [f for f in os.listdir(work_dir) if f.endswith(".ovf")]
+            if not ovf_files:
+                raise Exception("No OVF descriptor found inside OVA archive")
+            ovf_path = os.path.join(work_dir, ovf_files[0])
+
+        elif ext == ".ovf":
+            # OVF descriptor passed directly – disk files must be in the same directory
+            ovf_path = source_path
+            ovf_dir = os.path.dirname(source_path)
+            # Copy relevant files into work_dir so we work in a controlled location
+            for f in os.listdir(ovf_dir):
+                if f.endswith((".ovf", ".vmdk", ".img", ".qcow2", ".mf")):
+                    shutil.copy2(os.path.join(ovf_dir, f), os.path.join(work_dir, f))
+            ovf_path = os.path.join(work_dir, os.path.basename(source_path))
+        else:
+            raise Exception("Unsupported file type: must be .ova or .ovf")
+
+        # Parse OVF to extract configuration
+        config = _parse_ovf(ovf_path)
+        cpu = max(1, config["cpu"])
+        memory_mb = max(256, config["memory_mb"])
+        disk_hrefs = config["disk_hrefs"]
+
+        log_vm(f"OVF parsed: CPU={cpu}, RAM={memory_mb} MB, disks={disk_hrefs}")
+
+        if not disk_hrefs:
+            raise Exception("OVF contains no disk references – cannot import")
+
+        # Destination directory for converted qcow2 disks
+        if storage_path and os.path.isdir(storage_path):
+            vms_root = os.path.join(storage_path, "vms")
+            dest_dir = os.path.join(vms_root, name)
+            ensure_parent_permissions(vms_root)
+            os.makedirs(dest_dir, exist_ok=True)
+            set_libvirt_permissions(dest_dir)
+        else:
+            dest_dir = os.path.join("/var/lib/libvirt/images", name)
+            os.makedirs(dest_dir, exist_ok=True)
+
+        # Convert each disk to qcow2
+        qcow2_paths: list[str] = []
+        for idx, href in enumerate(disk_hrefs):
+            src_disk = os.path.join(work_dir, os.path.basename(href))
+            if not os.path.isfile(src_disk):
+                raise Exception(f"Disk file not found in archive: {href}")
+
+            dest_disk = os.path.join(dest_dir, f"{name}_{idx + 1}.qcow2")
+            log_vm(f"Converting disk [{src_disk}] → [{dest_disk}]")
+
+            # Detect source format
+            probe = subprocess.run(
+                ["qemu-img", "info", "--output=json", src_disk],
+                capture_output=True, text=True,
+            )
+            src_fmt = "vmdk"
+            if probe.returncode == 0:
+                import json as _json
+                try:
+                    src_fmt = _json.loads(probe.stdout).get("format", "vmdk")
+                except Exception:
+                    pass
+
+            r = subprocess.run(
+                ["qemu-img", "convert", "-f", src_fmt, "-O", "qcow2", src_disk, dest_disk],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                raise Exception(f"Disk conversion failed: {r.stderr.strip()}")
+
+            set_libvirt_permissions(dest_disk)
+            qcow2_paths.append(dest_disk)
+
+        # Build virt-install command
+        network_bridge = "virbr0"
+        if network_mode == "nat":
+            network_args = ["--network", "network=default"]
+        elif network_mode == "bridge":
+            if not bridge_interface:
+                raise Exception("bridge_interface required for bridge mode")
+            actual_bridge = ensure_bridge_for_interface(bridge_interface)
+            network_args = ["--network", f"bridge={actual_bridge}"]
+            network_bridge = actual_bridge
+        elif network_mode == "unconfigured":
+            network_args = ["--network", "type=ethernet,model=virtio"]
+            network_bridge = "unconfigured"
+        else:
+            network_args = ["--network", "none"]
+            network_bridge = "none"
+
+        disk_args: list[str] = []
+        for qpath in qcow2_paths:
+            disk_args += ["--disk", f"path={qpath},format=qcow2"]
+
+        cmd = [
+            "virt-install",
+            "--name", name,
+            "--ram", str(memory_mb),
+            "--vcpus", str(cpu),
+            *disk_args,
+            "--os-variant", "generic",
+            *network_args,
+            "--graphics", "vnc",
+            "--hvm",
+            "--noautoconsole",
+            "--import",   # Skip OS installation, boot from the first disk
+        ]
+
+        log_vm(f"Registering imported VM [{name}] with libvirt")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr.strip() or "virt-install failed")
+
+        if autostart:
+            subprocess.run(["virsh", "autostart", name], capture_output=True)
+
+        vms = load_vms()
+        vm = VirtualMachine(
+            id=len(vms) + 1,
+            name=name,
+            status="stopped",
+            cpu=cpu,
+            memory=memory_mb,
+            iso="",
+            disks=qcow2_paths,
+            created=datetime.utcnow().date().isoformat(),
+            autostart=autostart,
+            network_bridge=network_bridge,
+            storage_path=storage_path,
+        )
+        vms.append(vm)
+        save_vms(vms)
+
+        log_vm(f"Imported VM [{name}] (CPU: {cpu}, RAM: {memory_mb} MB, disks: {len(qcow2_paths)})")
+        notify("vm_import", f"VM '{name}' imported successfully | CPU: {cpu} | RAM: {memory_mb} MB | Disks: {len(qcow2_paths)}")
+        return vm
+
+    finally:
+        if os.path.isdir(work_dir):
+            try:
+                shutil.rmtree(work_dir)
+            except Exception:
+                pass

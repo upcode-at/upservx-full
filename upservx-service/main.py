@@ -86,7 +86,7 @@ from settings import (
     load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
 )
-from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot, delete_snapshot, restore_snapshot, export_vm_ova, EXPORT_DIR
+from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot, delete_snapshot, restore_snapshot, export_vm_ova, import_vm_ova, EXPORT_DIR, IMPORT_DIR
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
@@ -732,6 +732,47 @@ def download_vm_export(filename: str):
         raise HTTPException(status_code=404, detail="Export file not found")
     media_type = "application/x-tar" if filename.endswith(".ova") else "application/xml"
     return FileResponse(file_path, media_type=media_type, filename=filename)
+
+@app.post("/vms/import")
+async def import_vm_endpoint(
+    file: UploadFile = File(...),
+    name: str = "",
+    network_mode: str = "nat",
+    bridge_interface: str = "",
+    autostart: bool = False,
+    storage_path: str = "",
+):
+    """Import a VM from an uploaded OVA or OVF file."""
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="name is required")
+    if not file.filename or not file.filename.lower().endswith((".ova", ".ovf")):
+        raise HTTPException(status_code=400, detail="Only .ova or .ovf files are supported")
+
+    os.makedirs(IMPORT_DIR, exist_ok=True)
+    upload_path = os.path.join(IMPORT_DIR, f"upload_{name}{os.path.splitext(file.filename)[1].lower()}")
+    try:
+        with open(upload_path, "wb") as f:
+            while chunk := await file.read(1 << 20):  # 1 MiB chunks
+                f.write(chunk)
+        vm = import_vm_ova(
+            source_path=upload_path,
+            name=name.strip(),
+            network_mode=network_mode or "nat",
+            bridge_interface=bridge_interface or None,
+            autostart=autostart,
+            storage_path=storage_path or None,
+        )
+        log_vm(f"Imported VM [{name}] from uploaded file [{file.filename}]")
+        return vm.dict()
+    except Exception as e:
+        log_vm(f"Failed to import VM [{name}]: {e}", error=True)
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        if os.path.isfile(upload_path):
+            try:
+                os.remove(upload_path)
+            except Exception:
+                pass
 
 # Network Routes
 @app.get("/network/interfaces")

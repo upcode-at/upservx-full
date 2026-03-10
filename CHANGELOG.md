@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - VM must be stopped before export; running VMs are rejected with a clear error message
   - Export button (↓ icon) added to both Grid and List views in the Virtual Machines UI
   - Export dialog lets the user choose the format with a description of what each option does and a conversion-time warning
+- **VM OVA/OVF Import**: Virtual machines can now be imported from OVA or OVF files
+  - New `POST /vms/import` endpoint – accepts a multipart file upload (`.ova` or `.ovf`) plus parameters `name`, `network_mode`, `bridge_interface`, `autostart`, `storage_path`
+  - OVA archives are extracted safely (path-traversal check); OVF directories are read directly
+  - OVF descriptor is parsed to extract CPU count, RAM size and disk file references
+  - VMDK disks are converted to qcow2 via `qemu-img convert`; source format is auto-detected via `qemu-img info`
+  - VM is registered with libvirt via `virt-install --import` and added to the UpservX registry in stopped state
+  - Import button added to the Virtual Machines header
+  - Import dialog: file picker (`.ova`/`.ovf`), VM name (pre-filled from filename), network mode, optional bridge interface, optional storage target, autostart toggle
 - **App Store Pagination**: Configurable pagination for the App Store UI
   - Page size selector with options 10, 20, 30 and 50 apps per page (default: 20)
   - Numbered page buttons with `...` ellipsis for large page counts, Prev/Next navigation
