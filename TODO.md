@@ -36,9 +36,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
 - [ ] **Enterprise Storage Integrations**
   - Ceph/RBD integration, LVM-Thin, iSCSI/NFS as first-class storage pools
   - storage pools management, replication and erasure-coding support
-- [ ] **VM- and Storage-level Snapshots**
-  - consistent VM snapshots (create / restore / delete)
-  - native storage snapshots (ZFS, Ceph)
 - [ ] **Incremental & Optimized Backups**
   - incremental/deduplicated backups, scheduling and retention policies
   - integrated restore workflows and verification mechanisms
