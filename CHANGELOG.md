@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **VM OVA/OVF Export**: Virtual machines can now be exported as portable OVA or OVF packages
+  - New `POST /vms/{name}/export` endpoint – accepts `{ "format": "ova" | "ovf" }`, converts disks from qcow2 to VMDK (`streamOptimized`) via `qemu-img` and builds a standards-compliant OVF 1.0 descriptor with CPU, RAM, network and disk mappings
+  - New `GET /vms/exports/{filename}` endpoint – streams the finished archive as a file download
+  - SHA-256 manifest file (`.mf`) is generated automatically and included in every export
+  - OVA mode: OVF descriptor + manifest + VMDKs bundled in a single TAR archive, correct OVA member order
+  - OVF mode: descriptor and VMDKs written to a named directory under `/etc/upservx/exports/`
+  - VM must be stopped before export; running VMs are rejected with a clear error message
+  - Export button (↓ icon) added to both Grid and List views in the Virtual Machines UI
+  - Export dialog lets the user choose the format with a description of what each option does and a conversion-time warning
 - **App Store Pagination**: Configurable pagination for the App Store UI
   - Page size selector with options 10, 20, 30 and 50 apps per page (default: 20)
   - Numbered page buttons with `...` ellipsis for large page counts, Prev/Next navigation
