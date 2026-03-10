@@ -10,7 +10,6 @@ This file tracks ongoing work, planned features, and areas where contributors ca
 The VM management feature exists but requires thorough testing and completion:
 
 - [ ] **Complete VM Features**
-  - [ ] VM Migration between hosts
   - [ ] VM Templates for quick deployment
   - [ ] Cloud-init integration for automated setup
 
@@ -23,7 +22,6 @@ The VM management feature exists but requires thorough testing and completion:
   - Storage pool management
 
 - [ ] **VM Import/Export**
-  - Import existing VMs
   - Backup and restore VMs
 
 ## ⚖️ Enterprise Parity (Missing Advanced Features)
