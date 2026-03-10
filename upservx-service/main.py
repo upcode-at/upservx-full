@@ -86,7 +86,7 @@ from settings import (
     load_settings, save_settings, apply_system_settings, generate_api_key, get_log_files, read_log_file,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status
 )
-from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot, delete_snapshot, restore_snapshot
+from vms import list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm, delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot, delete_snapshot, restore_snapshot, export_vm_ova, EXPORT_DIR
 from isos import get_iso_files, download_iso, save_uploaded_iso, delete_iso, get_iso_path, get_iso_dir
 from backup_db import backup_db
 from backup import backup_manager, BackupAuthConfig
@@ -705,6 +705,33 @@ def restore_vm_snapshot(name: str, snapshot_name: str):
     except Exception as e:
         log_vm(f"Failed to restore VM [{name}] to snapshot [{snapshot_name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/vms/{name}/export")
+def export_vm_endpoint(name: str, payload: dict = {}):
+    """Export a virtual machine as OVA or OVF. VM must be stopped."""
+    fmt = (payload or {}).get("format", "ova").lower()
+    if fmt not in ("ova", "ovf"):
+        raise HTTPException(status_code=400, detail="format must be 'ova' or 'ovf'")
+    try:
+        path = export_vm_ova(name, export_format=fmt)
+        filename = os.path.basename(path)
+        log_vm(f"Exported VM [{name}] as {fmt.upper()} → [{path}]")
+        return {"detail": "exported", "filename": filename, "path": path}
+    except Exception as e:
+        log_vm(f"Failed to export VM [{name}]: {e}", error=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/vms/exports/{filename}")
+def download_vm_export(filename: str):
+    """Download a previously exported VM file."""
+    import re
+    if not re.match(r'^[\w\-. ]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    file_path = os.path.join(EXPORT_DIR, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Export file not found")
+    media_type = "application/x-tar" if filename.endswith(".ova") else "application/xml"
+    return FileResponse(file_path, media_type=media_type, filename=filename)
 
 # Network Routes
 @app.get("/network/interfaces")

@@ -870,3 +870,272 @@ def restore_snapshot(vm_name: str, snapshot_name: str) -> None:
         log_vm(f"Failed to restore snapshot [{snapshot_name}] on VM [{vm_name}]: {result.stderr.strip()}", error=True)
         raise Exception(result.stderr.strip() or "Failed to restore snapshot")
     log_vm(f"Restored VM [{vm_name}] to snapshot [{snapshot_name}]")
+
+
+# ──────────────────────────────────────────────
+# OVA/OVF Export
+# ──────────────────────────────────────────────
+
+EXPORT_DIR = "/etc/upservx/exports"
+
+
+def _build_ovf(vm_name: str, cpu: int, memory_mb: int, disks: list[dict]) -> str:
+    """Generate a minimal OVF 1.0 descriptor for the given VM configuration.
+
+    Args:
+        vm_name: VM name (used as OVF display name)
+        cpu: vCPU count
+        memory_mb: RAM in MiB
+        disks: list of dicts with keys 'id', 'href', 'capacity_bytes'
+    """
+    import xml.etree.ElementTree as ET
+
+    ns_ovf = "http://schemas.dmtf.org/ovf/envelope/1"
+    ns_rasd = "http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData"
+    ns_vssd = "http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData"
+    ns_xsi = "http://www.w3.org/2001/XMLSchema-instance"
+
+    ET.register_namespace("ovf", ns_ovf)
+    ET.register_namespace("rasd", ns_rasd)
+    ET.register_namespace("vssd", ns_vssd)
+    ET.register_namespace("xsi", ns_xsi)
+
+    def _q(ns: str, tag: str) -> str:
+        return f"{{{ns}}}{tag}"
+
+    envelope = ET.Element(_q(ns_ovf, "Envelope"))
+    envelope.set("xmlns", ns_ovf)
+    envelope.set(_q(ns_xsi, "schemaLocation"), f"{ns_ovf} dsp8023.xsd")
+
+    # References
+    refs = ET.SubElement(envelope, _q(ns_ovf, "References"))
+    for d in disks:
+        f_el = ET.SubElement(refs, _q(ns_ovf, "File"))
+        f_el.set(_q(ns_ovf, "id"), d["id"])
+        f_el.set(_q(ns_ovf, "href"), d["href"])
+
+    # DiskSection
+    disk_section = ET.SubElement(envelope, _q(ns_ovf, "DiskSection"))
+    ET.SubElement(disk_section, _q(ns_ovf, "Info")).text = "Virtual disk information"
+    for d in disks:
+        disk_el = ET.SubElement(disk_section, _q(ns_ovf, "Disk"))
+        disk_el.set(_q(ns_ovf, "diskId"), d["id"])
+        disk_el.set(_q(ns_ovf, "fileRef"), d["id"])
+        disk_el.set(_q(ns_ovf, "capacity"), str(d["capacity_bytes"]))
+        disk_el.set(_q(ns_ovf, "capacityAllocationUnits"), "byte")
+        disk_el.set(_q(ns_ovf, "format"), "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized")
+        disk_el.set(_q(ns_ovf, "populatedSize"), str(d.get("populated_bytes", d["capacity_bytes"])))
+
+    # NetworkSection
+    net_section = ET.SubElement(envelope, _q(ns_ovf, "NetworkSection"))
+    ET.SubElement(net_section, _q(ns_ovf, "Info")).text = "Logical networks"
+    net_el = ET.SubElement(net_section, _q(ns_ovf, "Network"))
+    net_el.set(_q(ns_ovf, "name"), "VM Network")
+    ET.SubElement(net_el, _q(ns_ovf, "Description")).text = "Default VM Network"
+
+    # VirtualSystem
+    vs = ET.SubElement(envelope, _q(ns_ovf, "VirtualSystem"))
+    vs.set(_q(ns_ovf, "id"), vm_name)
+    ET.SubElement(vs, _q(ns_ovf, "Info")).text = f"Virtual machine {vm_name}"
+    ET.SubElement(vs, _q(ns_ovf, "Name")).text = vm_name
+
+    # OperatingSystemSection
+    os_section = ET.SubElement(vs, _q(ns_ovf, "OperatingSystemSection"))
+    os_section.set(_q(ns_ovf, "id"), "1")
+    ET.SubElement(os_section, _q(ns_ovf, "Info")).text = "Guest operating system"
+    ET.SubElement(os_section, _q(ns_ovf, "Description")).text = "Other Linux (64-bit)"
+
+    # VirtualHardwareSection
+    hw = ET.SubElement(vs, _q(ns_ovf, "VirtualHardwareSection"))
+    ET.SubElement(hw, _q(ns_ovf, "Info")).text = "Virtual hardware requirements"
+
+    system = ET.SubElement(hw, _q(ns_ovf, "System"))
+    ET.SubElement(system, _q(ns_vssd, "ElementName")).text = "Virtual Hardware Family"
+    ET.SubElement(system, _q(ns_vssd, "InstanceID")).text = "0"
+    ET.SubElement(system, _q(ns_vssd, "VirtualSystemIdentifier")).text = vm_name
+    ET.SubElement(system, _q(ns_vssd, "VirtualSystemType")).text = "vmx-13"
+
+    # CPU
+    cpu_item = ET.SubElement(hw, _q(ns_ovf, "Item"))
+    ET.SubElement(cpu_item, _q(ns_rasd, "AllocationUnits")).text = "hertz * 10^6"
+    ET.SubElement(cpu_item, _q(ns_rasd, "Description")).text = "Number of virtual CPUs"
+    ET.SubElement(cpu_item, _q(ns_rasd, "ElementName")).text = f"{cpu} virtual CPU(s)"
+    ET.SubElement(cpu_item, _q(ns_rasd, "InstanceID")).text = "1"
+    ET.SubElement(cpu_item, _q(ns_rasd, "ResourceType")).text = "3"
+    ET.SubElement(cpu_item, _q(ns_rasd, "VirtualQuantity")).text = str(cpu)
+
+    # Memory
+    mem_item = ET.SubElement(hw, _q(ns_ovf, "Item"))
+    ET.SubElement(mem_item, _q(ns_rasd, "AllocationUnits")).text = "byte * 2^20"
+    ET.SubElement(mem_item, _q(ns_rasd, "Description")).text = "Memory Size"
+    ET.SubElement(mem_item, _q(ns_rasd, "ElementName")).text = f"{memory_mb} MB of memory"
+    ET.SubElement(mem_item, _q(ns_rasd, "InstanceID")).text = "2"
+    ET.SubElement(mem_item, _q(ns_rasd, "ResourceType")).text = "4"
+    ET.SubElement(mem_item, _q(ns_rasd, "VirtualQuantity")).text = str(memory_mb)
+
+    # Network adapter
+    nic_item = ET.SubElement(hw, _q(ns_ovf, "Item"))
+    ET.SubElement(nic_item, _q(ns_rasd, "AutomaticAllocation")).text = "true"
+    ET.SubElement(nic_item, _q(ns_rasd, "Connection")).text = "VM Network"
+    ET.SubElement(nic_item, _q(ns_rasd, "Description")).text = "VirtIO Ethernet Adapter"
+    ET.SubElement(nic_item, _q(ns_rasd, "ElementName")).text = "Network adapter 1"
+    ET.SubElement(nic_item, _q(ns_rasd, "InstanceID")).text = "3"
+    ET.SubElement(nic_item, _q(ns_rasd, "ResourceSubType")).text = "VirtIO"
+    ET.SubElement(nic_item, _q(ns_rasd, "ResourceType")).text = "10"
+
+    # Disk items (SCSI controller + disks)
+    ctrl_item = ET.SubElement(hw, _q(ns_ovf, "Item"))
+    ET.SubElement(ctrl_item, _q(ns_rasd, "Address")).text = "0"
+    ET.SubElement(ctrl_item, _q(ns_rasd, "Description")).text = "SCSI Controller"
+    ET.SubElement(ctrl_item, _q(ns_rasd, "ElementName")).text = "SCSI controller 0"
+    ET.SubElement(ctrl_item, _q(ns_rasd, "InstanceID")).text = "4"
+    ET.SubElement(ctrl_item, _q(ns_rasd, "ResourceSubType")).text = "lsilogic"
+    ET.SubElement(ctrl_item, _q(ns_rasd, "ResourceType")).text = "6"
+
+    for idx, d in enumerate(disks):
+        disk_item = ET.SubElement(hw, _q(ns_ovf, "Item"))
+        ET.SubElement(disk_item, _q(ns_rasd, "AddressOnParent")).text = str(idx)
+        ET.SubElement(disk_item, _q(ns_rasd, "ElementName")).text = f"Hard disk {idx + 1}"
+        ET.SubElement(disk_item, _q(ns_rasd, "HostResource")).text = f"ovf:/disk/{d['id']}"
+        ET.SubElement(disk_item, _q(ns_rasd, "InstanceID")).text = str(10 + idx)
+        ET.SubElement(disk_item, _q(ns_rasd, "Parent")).text = "4"
+        ET.SubElement(disk_item, _q(ns_rasd, "ResourceType")).text = "17"
+
+    return ET.tostring(envelope, encoding="unicode", xml_declaration=False)
+
+
+def export_vm_ova(name: str, export_format: str = "ova") -> str:
+    """Export a virtual machine as OVA or OVF package.
+
+    The VM must be stopped before export. The resulting file is placed in
+    EXPORT_DIR and its path is returned.
+
+    Args:
+        name: Name of the VM to export.
+        export_format: 'ova' (single archive) or 'ovf' (directory with OVF+VMDKs).
+
+    Returns:
+        Absolute path to the exported .ova file or the .ovf descriptor file.
+    """
+    if shutil.which("virsh") is None:
+        raise Exception("virsh is not installed")
+    if shutil.which("qemu-img") is None:
+        raise Exception("qemu-img is not installed")
+
+    export_format = export_format.lower()
+    if export_format not in ("ova", "ovf"):
+        raise ValueError("export_format must be 'ova' or 'ovf'")
+
+    # Ensure VM exists and is stopped
+    statuses = parse_virsh_list()
+    if name not in statuses and name not in [v.name for v in load_vms()]:
+        raise Exception(f"VM '{name}' not found")
+    if statuses.get(name) == "running":
+        raise Exception("VM must be stopped before export. Please shut it down first.")
+
+    vms = load_vms()
+    vm = next((v for v in vms if v.name == name), None)
+    if not vm:
+        raise Exception(f"VM '{name}' not found in registry")
+
+    # Get actual disk paths from libvirt (excludes CD-ROMs)
+    blklist = subprocess.run(
+        ["virsh", "domblklist", name, "--details"],
+        capture_output=True, text=True,
+    )
+    source_disks: list[str] = []
+    if blklist.returncode == 0:
+        for line in blklist.stdout.splitlines()[2:]:
+            parts = line.split()
+            # parts: type  device  target  source
+            if len(parts) >= 4 and parts[0] == "file" and parts[1] == "disk":
+                src = parts[3]
+                if os.path.isfile(src):
+                    source_disks.append(src)
+    # Fallback: use stored disk list
+    if not source_disks:
+        source_disks = [d for d in (vm.disks or []) if os.path.isfile(d)]
+    if not source_disks:
+        raise Exception("No disk images found for this VM")
+
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+    work_dir = tempfile.mkdtemp(prefix=f"ovf_export_{name}_", dir=EXPORT_DIR)
+
+    try:
+        disk_meta: list[dict] = []
+        for idx, src_path in enumerate(source_disks):
+            disk_id = f"disk{idx}"
+            vmdk_name = f"{name}_disk{idx}.vmdk"
+            vmdk_path = os.path.join(work_dir, vmdk_name)
+
+            log_vm(f"Converting disk [{src_path}] → [{vmdk_path}] (streamOptimized)")
+            r = subprocess.run(
+                ["qemu-img", "convert", "-p", "-f", "qcow2", "-O", "vmdk",
+                 "-o", "subformat=streamOptimized", src_path, vmdk_path],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 0:
+                # Retry without subformat (older qemu-img versions)
+                r2 = subprocess.run(
+                    ["qemu-img", "convert", "-f", "qcow2", "-O", "vmdk", src_path, vmdk_path],
+                    capture_output=True, text=True,
+                )
+                if r2.returncode != 0:
+                    raise Exception(f"Disk conversion failed: {r2.stderr.strip()}")
+
+            capacity_bytes = os.path.getsize(src_path)
+            vmdk_size = os.path.getsize(vmdk_path)
+            disk_meta.append({
+                "id": disk_id,
+                "href": vmdk_name,
+                "capacity_bytes": capacity_bytes,
+                "populated_bytes": vmdk_size,
+            })
+
+        # Generate OVF descriptor
+        ovf_xml = _build_ovf(name, vm.cpu, vm.memory, disk_meta)
+        ovf_path = os.path.join(work_dir, f"{name}.ovf")
+        with open(ovf_path, "w", encoding="utf-8") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            f.write(ovf_xml)
+
+        # Generate simple MF (manifest) with SHA256
+        import hashlib
+        mf_path = os.path.join(work_dir, f"{name}.mf")
+        with open(mf_path, "w") as mf:
+            for entry_path in [ovf_path] + [os.path.join(work_dir, d["href"]) for d in disk_meta]:
+                h = hashlib.sha256()
+                with open(entry_path, "rb") as fp:
+                    for chunk in iter(lambda: fp.read(1 << 20), b""):
+                        h.update(chunk)
+                mf.write(f"SHA256({os.path.basename(entry_path)})= {h.hexdigest()}\n")
+
+        if export_format == "ova":
+            import tarfile
+            ova_path = os.path.join(EXPORT_DIR, f"{name}.ova")
+            # OVA spec: OVF first, then MF, then disk images
+            with tarfile.open(ova_path, "w") as tar:
+                tar.add(ovf_path, arcname=f"{name}.ovf")
+                tar.add(mf_path, arcname=f"{name}.mf")
+                for d in disk_meta:
+                    tar.add(os.path.join(work_dir, d["href"]), arcname=d["href"])
+            log_vm(f"Exported VM [{name}] as OVA → [{ova_path}]")
+            notify("vm_export", f"VM '{name}' exported as OVA ({os.path.getsize(ova_path) // (1024*1024)} MB)")
+            return ova_path
+        else:
+            # OVF: move the work_dir contents to a named directory
+            out_dir = os.path.join(EXPORT_DIR, f"{name}_ovf")
+            if os.path.exists(out_dir):
+                shutil.rmtree(out_dir)
+            shutil.move(work_dir, out_dir)
+            log_vm(f"Exported VM [{name}] as OVF → [{out_dir}]")
+            notify("vm_export", f"VM '{name}' exported as OVF package")
+            return os.path.join(out_dir, f"{name}.ovf")
+    except Exception:
+        # Cleanup temp dir on error
+        if os.path.isdir(work_dir):
+            try:
+                shutil.rmtree(work_dir)
+            except Exception:
+                pass
+        raise

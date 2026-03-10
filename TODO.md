@@ -23,7 +23,6 @@ The VM management feature exists but requires thorough testing and completion:
   - Storage pool management
 
 - [ ] **VM Import/Export**
-  - Export VMs as OVA/OVF
   - Import existing VMs
   - Backup and restore VMs
 
@@ -59,12 +58,6 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
   - managed VM/LXC templates, fast cloning and linked clones
 - [ ] **Guest Agent Integration**
   - qemu-guest-agent support for quiesce, IP/hostname reporting and graceful shutdown
-- [ ] **GUI: Cluster & Task Management**
-  - multi-node GUI, task queue, audit logs and job history
-- [ ] **Backup Repository Management & Pruning**
-  - manage external repositories (NAS, S3), automated pruning/retention
-- [ ] **Auditing & Monitoring**
-  - centralized audit logs, detailed task history and notifications
 
 
 ## 🔧 Medium Priority

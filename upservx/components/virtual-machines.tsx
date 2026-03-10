@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy, Camera, RotateCcw } from "lucide-react"
+import { LayoutGrid, List as ListIcon, Play, Square, Plus, Trash2, Pencil, Save, Monitor, Copy, Camera, RotateCcw, Download } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Table,
@@ -76,6 +76,10 @@ export function VirtualMachines() {
   const [newSnapshotName, setNewSnapshotName] = useState("")
   const [newSnapshotDesc, setNewSnapshotDesc] = useState("")
   const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportVm, setExportVm] = useState<VMData | null>(null)
+  const [exportFormat, setExportFormat] = useState<"ova" | "ovf">("ova")
+  const [exportLoading, setExportLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -390,6 +394,44 @@ export function VirtualMachines() {
     }
   }
 
+  const openExport = (vm: VMData) => {
+    setExportVm(vm)
+    setExportFormat("ova")
+    setExportOpen(true)
+  }
+
+  const handleExport = async () => {
+    if (!exportVm) return
+    setExportLoading(true)
+    setSuccess(null)
+    setError(null)
+    try {
+      const res = await fetch(apiUrl(`/vms/${exportVm.name}/export`), {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ format: exportFormat }),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.filename) {
+        // Trigger browser download
+        const link = document.createElement("a")
+        link.href = apiUrl(`/vms/exports/${encodeURIComponent(data.filename)}`)
+        link.download = data.filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        setExportOpen(false)
+        setSuccess(`VM "${exportVm.name}" exported as ${exportFormat.toUpperCase()} — download started`)
+      } else {
+        setError(data?.detail || "Export failed")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Export failed")
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
   const openEdit = (vm: VMData) => {
     setEditing(vm)
     setName(vm.name)
@@ -697,6 +739,9 @@ export function VirtualMachines() {
                 <Button variant="outline" size="icon" title="Snapshots" onClick={() => openSnapshots(vm)}>
                   <Camera className="h-4 w-4" />
                 </Button>
+                <Button variant="outline" size="icon" title="Export OVA/OVF" onClick={() => openExport(vm)}>
+                  <Download className="h-4 w-4" />
+                </Button>
                 <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -769,6 +814,9 @@ export function VirtualMachines() {
                           </Button>
                           <Button variant="outline" size="icon" title="Snapshots" onClick={() => openSnapshots(vm)}>
                             <Camera className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="icon" title="Export OVA/OVF" onClick={() => openExport(vm)}>
+                            <Download className="h-4 w-4" />
                           </Button>
                           <Button variant="destructive" size="icon" onClick={() => handleDelete(vm.name)}>
                             <Trash2 className="h-4 w-4" />
@@ -868,6 +916,50 @@ export function VirtualMachines() {
                 </Table>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export VM Dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Virtual Machine</DialogTitle>
+            <DialogDescription>
+              Export <strong>{exportVm?.name}</strong> as OVA or OVF. The VM must be stopped.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Export Format</Label>
+              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "ova" | "ovf")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ova">OVA – single archive (recommended)</SelectItem>
+                  <SelectItem value="ovf">OVF – directory with OVF + VMDKs</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground space-y-1 rounded border p-3">
+              <p className="font-medium">What happens:</p>
+              <ul className="list-disc list-inside pl-2 space-y-0.5">
+                <li>Disks are converted from qcow2 to VMDK</li>
+                <li>An OVF descriptor is generated with CPU/RAM config</li>
+                {exportFormat === "ova" && <li>Everything is packaged into a single <code>.ova</code> TAR archive</li>}
+                {exportFormat === "ovf" && <li>Files are placed in a directory on the server</li>}
+                <li>The download starts automatically when ready</li>
+              </ul>
+              <p className="mt-2 text-xs text-orange-500 font-medium">Note: Disk conversion may take several minutes depending on disk size.</p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setExportOpen(false)} disabled={exportLoading}>Cancel</Button>
+            <Button onClick={handleExport} disabled={exportLoading}>
+              <Download className="mr-2 h-4 w-4" />
+              {exportLoading ? "Exporting…" : `Export as ${exportFormat.toUpperCase()}`}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
