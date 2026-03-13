@@ -212,9 +212,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                           )}
                         </div>
                       )}
-                      {!hasSubItems && isActive && (
-                        <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
-                      )}
+
                     </Button>
                     {hasSubItems && isExpanded && (
                       <div className="ml-6 space-y-1 mt-1">
@@ -233,9 +231,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                               onClick={() => onSectionChange(subItem.id)}
                             >
                               {subItem.label}
-                              {subIsActive && (
-                                <div className="ml-auto w-2 h-2 bg-white rounded-full"></div>
-                              )}
+
                             </Button>
                           )
                         })}
