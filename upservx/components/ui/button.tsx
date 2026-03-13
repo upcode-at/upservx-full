@@ -16,12 +16,12 @@ const buttonVariants = cva(
         success:
           "!bg-green-600 !text-white !shadow-lg !hover:shadow-xl !hover:bg-green-700 !border-0 !font-medium !tracking-wide !transition-all !duration-300",
         outline:
-          "border-2 border-primary/20 bg-background/60 backdrop-blur-sm hover:bg-primary/5 hover:border-primary/40 text-white shadow-sm hover:shadow-md",
+          "border-2 border-primary/20 bg-background/60 backdrop-blur-sm hover:bg-primary/5 hover:border-primary/40 text-foreground dark:text-white shadow-sm hover:shadow-md",
         secondary:
           "bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 text-secondary-foreground shadow-sm hover:shadow-md hover:from-slate-200 hover:to-slate-300 dark:hover:from-slate-600 dark:hover:to-slate-700",
         ghost:
           "hover:bg-accent/60 hover:text-accent-foreground rounded-xl backdrop-blur-sm transition-all duration-200 hover:scale-105",
-        link: "text-white underline-offset-4 hover:underline font-medium",
+        link: "text-foreground dark:text-white underline-offset-4 hover:underline font-medium",
       },
       size: {
         default: "h-10 px-6 py-2 has-[>svg]:px-4 text-sm",
