@@ -188,6 +188,9 @@ async def pam_auth_middleware(request: Request, call_next):
         if scheme == "basic":
             decoded = base64.b64decode(credentials).decode()
             username, password = decoded.split(":", 1)
+            _settings = load_settings()
+            if _settings.deny_root_login and username == "root":
+                return Response(status_code=403)
             if not pam_auth.authenticate(username, password):
                 return Response(status_code=401)
             request.state.user = username

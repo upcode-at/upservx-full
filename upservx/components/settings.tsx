@@ -24,6 +24,7 @@ export function Settings() {
     auto_updates: boolean
     monitoring: boolean
     ssh_port: number
+    deny_root_login: boolean
     api_key?: string
   }
 
@@ -33,6 +34,7 @@ export function Settings() {
     auto_updates: false,
     monitoring: false,
     ssh_port: 22,
+    deny_root_login: false,
     api_key: "",
   })
   interface NotificationEmailConfig {
@@ -132,6 +134,7 @@ export function Settings() {
           auto_updates: data.auto_updates,
           monitoring: data.monitoring,
           ssh_port: data.ssh_port,
+          deny_root_login: data.deny_root_login ?? false,
           api_key: data.api_key || "",
         })
       }
@@ -585,6 +588,14 @@ export function Settings() {
                   onCheckedChange={(v) => setSettings({ ...settings, monitoring: v })}
                 />
                 <Label htmlFor="monitoring">Enable system monitoring</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="deny-root-login"
+                  checked={settings.deny_root_login}
+                  onCheckedChange={(v) => setSettings({ ...settings, deny_root_login: v })}
+                />
+                <Label htmlFor="deny-root-login">Deny root login</Label>
               </div>
               <div className="space-y-2 pt-4">
                 <Label htmlFor="api-key">API Key</Label>

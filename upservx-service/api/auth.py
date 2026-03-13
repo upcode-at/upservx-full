@@ -62,6 +62,11 @@ async def auth_login(payload: dict, request: Request):
     if not _check_login_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="too many login attempts")
 
+    settings = load_settings()
+    if settings.deny_root_login and username == "root":
+        log_auth(f"Root login blocked for [{username}] from {client_ip}", error=True)
+        raise HTTPException(status_code=403, detail="root login is disabled")
+
     try:
         if pam_auth.authenticate(username, password):
             token = base64.b64encode(f"{username}:{password}".encode()).decode()

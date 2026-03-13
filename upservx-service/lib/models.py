@@ -127,6 +127,7 @@ class SettingsModel(BaseModel):
     auto_updates: bool
     monitoring: bool
     ssh_port: int = 22
+    deny_root_login: bool = False
     api_key: Optional[str] = None
 
 class NotificationEmailConfig(BaseModel):
