@@ -275,17 +275,12 @@ export default function ClusterManagement() {
   const loadResourcesFromNode = async (nodeHostname: string) => {
     try {
       setLoadingResources(true)
-      console.log(`Loading resources from node: ${nodeHostname}`)
-      
       const response = await fetch(getApiUrl(`/cluster/nodes/${nodeHostname}/resources`), {
         credentials: "include"
       })
 
-      console.log(`Resources response status: ${response.status}`)
-
       if (response.ok) {
         const data = await response.json()
-        console.log(`Resources data:`, data)
         setAvailableResources(data.resources || [])
       } else {
         console.error(`Failed to load resources: ${response.statusText}`)
@@ -407,31 +402,10 @@ export default function ClusterManagement() {
     )
   }
 
-  const totalContainers = clusterInfo?.nodes?.reduce((sum, node) => {
-    const count = node.resources?.total_containers || 0
-    console.log(`[CLUSTER] Node ${node.hostname}: total_containers=${count}`, node.resources)
-    return sum + count
-  }, 0) || 0
-
-  const runningContainers = clusterInfo?.nodes?.reduce((sum, node) => {
-    const count = node.resources?.running_containers || 0
-    console.log(`[CLUSTER] Node ${node.hostname}: running_containers=${count}`)
-    return sum + count
-  }, 0) || 0
-
-  const totalVMs = clusterInfo?.nodes?.reduce((sum, node) => {
-    const count = node.resources?.total_vms || 0
-    console.log(`[CLUSTER] Node ${node.hostname}: total_vms=${count}`)
-    return sum + count
-  }, 0) || 0
-
-  const runningVMs = clusterInfo?.nodes?.reduce((sum, node) => {
-    const count = node.resources?.running_vms || 0
-    console.log(`[CLUSTER] Node ${node.hostname}: running_vms=${count}`)
-    return sum + count
-  }, 0) || 0
-
-  console.log(`[CLUSTER] Totals: containers=${totalContainers}/${runningContainers}, vms=${totalVMs}/${runningVMs}`)
+  const totalContainers = clusterInfo?.nodes?.reduce((sum, node) => sum + (node.resources?.total_containers || 0), 0) || 0
+  const runningContainers = clusterInfo?.nodes?.reduce((sum, node) => sum + (node.resources?.running_containers || 0), 0) || 0
+  const totalVMs = clusterInfo?.nodes?.reduce((sum, node) => sum + (node.resources?.total_vms || 0), 0) || 0
+  const runningVMs = clusterInfo?.nodes?.reduce((sum, node) => sum + (node.resources?.running_vms || 0), 0) || 0
 
   if (loading) {
     return (

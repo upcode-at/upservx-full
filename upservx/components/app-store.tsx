@@ -106,7 +106,6 @@ export function AppStore() {
       if (typeof window === "undefined") return
       
       const url = getApiUrl("/containers/app-store/apps")
-      console.log("Loading apps from:", url) // Debug log
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
@@ -123,7 +122,6 @@ export function AppStore() {
       if (typeof window === "undefined") return
       
       const url = getApiUrl("/containers/app-store/categories")
-      console.log("Loading categories from:", url) // Debug log
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
