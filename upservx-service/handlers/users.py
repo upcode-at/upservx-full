@@ -8,8 +8,8 @@ import subprocess
 import pwd
 import grp
 from typing import List
-from models import SystemUserModel, SystemGroupModel
-from upservx_logger import log_user
+from lib.models import SystemUserModel, SystemGroupModel
+from lib.logger import log_user
 
 # Only allow safe POSIX usernames/groupnames
 _NAME_RE = re.compile(r'^[a-zA-Z0-9_][a-zA-Z0-9_\-\.]{0,31}$')

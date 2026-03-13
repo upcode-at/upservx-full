@@ -10,8 +10,8 @@ import asyncio
 import httpx
 import json
 import os
-from compose_manager import ComposeManager
-from load_balancer import get_load_balancer, LoadBalancingStrategy
+from handlers.compose_manager import ComposeManager
+from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
 
 UPSERVX_CONFIG_DIR = "/etc/upservx"
 SYNC_STATE_FILE = os.path.join(UPSERVX_CONFIG_DIR, "sync_state.json")

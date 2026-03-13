@@ -10,10 +10,10 @@ import os
 import shutil
 import subprocess
 import httpx
-from load_balancer import get_load_balancer, LoadBalancingStrategy
-from container_sync import get_sync_manager, SyncRule, SyncStrategy
-from metrics_collector import get_metrics_collector
-from upservx_logger import log_system
+from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
+from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
+from lib.metrics_collector import get_metrics_collector
+from lib.logger import log_system
 
 def _clog(msg: str, error: bool = False) -> None:
     """Print to console AND write to activity log file."""
@@ -213,7 +213,7 @@ def get_system_resources():
     
     # Get container counts (same logic as dashboard - include_compose=False to avoid double counting)
     try:
-        from containers import list_all_containers
+        from handlers.containers import list_all_containers
         all_containers = list_all_containers(include_compose=False)
         running_containers = 0
         total_containers = len(all_containers)
@@ -232,7 +232,7 @@ def get_system_resources():
         total_containers = 0
     
     try:
-        from vms import list_vms_with_status
+        from handlers.vms import list_vms_with_status
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
@@ -368,7 +368,7 @@ async def get_node_metrics():
     """Get current node metrics (for cluster communication)"""
     # Get container counts (same logic as dashboard - include_compose=False to avoid double counting)
     try:
-        from containers import list_all_containers
+        from handlers.containers import list_all_containers
         all_containers = list_all_containers(include_compose=False)
         running_containers = 0
         total_containers = len(all_containers)
@@ -388,7 +388,7 @@ async def get_node_metrics():
     
     # Get VM counts
     try:
-        from vms import list_vms_with_status
+        from handlers.vms import list_vms_with_status
         vms = list_vms_with_status()
         running_vms = sum(1 for vm in vms if vm.status == "running")
         total_vms = len(vms)
@@ -1661,8 +1661,8 @@ async def get_node_resources(hostname: str):
     
     if hostname == get_hostname():
         try:
-            from containers import list_all_containers
-            from vms import list_vms_with_status
+            from handlers.containers import list_all_containers
+            from handlers.vms import list_vms_with_status
             
             containers = list_all_containers(include_compose=False)
             vms = list_vms_with_status()

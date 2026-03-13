@@ -10,7 +10,7 @@ import json
 import re
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from upservx_logger import log_firewall
+from lib.logger import log_firewall
 
 class ChainType(str, Enum):
     """Chain types in nftables"""

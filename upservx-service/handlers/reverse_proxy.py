@@ -8,7 +8,7 @@ import re
 import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
-from upservx_logger import log_proxy
+from lib.logger import log_proxy
 
 
 NGINX_SITES_AVAILABLE = "/etc/nginx/sites-available"

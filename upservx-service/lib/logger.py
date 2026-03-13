@@ -7,7 +7,7 @@ in the format:
   YYYY-MM-DD HH:MM:SS [TAG] Message
 
 Usage:
-    from upservx_logger import log_backup, log_container, log_auth, ...
+    from lib.logger import log_backup, log_container, log_auth, ...
 
     log_backup("Successfully connected to Backup Server [my-nas]")
     log_container("Started container [nginx]")

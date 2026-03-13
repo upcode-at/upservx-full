@@ -14,8 +14,8 @@ import fcntl
 import json
 from datetime import datetime
 
-from models import ContainerCreate, Container, ImagePullRequest, DockerVolumeCreate, LXCStorageCreate
-from containers import (
+from lib.models import ContainerCreate, Container, ImagePullRequest, DockerVolumeCreate, LXCStorageCreate
+from handlers.containers import (
     list_all_containers, get_docker_images, get_lxc_images,
     get_docker_image_details, get_lxc_image_details,
     find_container_type, create_api_container
@@ -28,12 +28,12 @@ from fastapi import File, UploadFile
 import tempfile
 import tarfile
 import shutil
-from compose_manager import compose_manager
-from app_store import app_store
+from handlers.compose_manager import compose_manager
+from handlers.app_store import app_store
 from pydantic import BaseModel
 from typing import Optional
-from upservx_logger import log_container, log_appstore
-from notifications import notify
+from lib.logger import log_container, log_appstore
+from handlers.notifications import notify
 
 router = APIRouter(prefix="/containers")
 
@@ -84,7 +84,7 @@ def create_container(payload: ContainerCreate):
         ports_str = ", ".join(payload.ports) if payload.ports else "none"
         mounts_str = ", ".join(payload.mounts) if payload.mounts else "none"
         notify("container_create", f"Docker container '{payload.name}' created | Image: {payload.image} | Ports: {ports_str} | Volumes: {mounts_str}")
-        from containers import get_docker_containers
+        from handlers.containers import get_docker_containers
         container_list = [c for c in get_docker_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
 
@@ -106,7 +106,7 @@ def create_container(payload: ContainerCreate):
         
         log_container(f"Created LXC container [{payload.name}] from image [{payload.image}]")
         notify("container_create", f"LXC container '{payload.name}' created | Image: {payload.image}")
-        from containers import get_lxc_containers
+        from handlers.containers import get_lxc_containers
         container_list = [c for c in get_lxc_containers() if c.name == payload.name]
         return container_list[0].dict() if container_list else {"detail": "created"}
 
@@ -118,7 +118,7 @@ def create_container(payload: ContainerCreate):
         if result.returncode != 0:
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to create")
         
-        from containers import get_k8s_pods
+        from handlers.containers import get_k8s_pods
         pods = [c for c in get_k8s_pods() if c.name == payload.name]
         return pods[0].dict() if pods else {"detail": "created"}
 
@@ -155,7 +155,7 @@ def start_container(name: str):
                 raise HTTPException(status_code=400, detail="failed to start")
     
     elif ctype == "api":
-        from containers import containers
+        from handlers.containers import containers
         for c in containers:
             if c.name == name:
                 c.status = "running"
@@ -196,7 +196,7 @@ def stop_container(name: str):
                 raise HTTPException(status_code=400, detail="failed to stop")
     
     elif ctype == "api":
-        from containers import containers
+        from handlers.containers import containers
         for c in containers:
             if c.name == name:
                 c.status = "stopped"
@@ -257,7 +257,7 @@ def delete_container(name: str):
             raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to delete")
     
     elif ctype == "api":
-        from containers import containers
+        from handlers.containers import containers
         containers[:] = [c for c in containers if c.name != name]
     else:
         raise HTTPException(status_code=404, detail="container not found")
@@ -270,8 +270,8 @@ def delete_container(name: str):
 async def container_terminal(websocket: WebSocket, name: str):
     """Provide interactive shell access to a container via websocket."""
     # Authenticate before accepting — middleware bypasses all WS upgrades
-    from ws_tickets import consume_ticket
-    from settings import load_settings
+    from lib.ws_tickets import consume_ticket
+    from handlers.settings import load_settings
     authenticated = False
     raw_token = websocket.query_params.get("token")
     if raw_token:
@@ -830,21 +830,21 @@ def uninstall_app_from_store(project_name: str):
 @router.get("/volumes")
 def list_docker_volumes():
     """List Docker volumes."""
-    from containers import get_docker_volumes
+    from handlers.containers import get_docker_volumes
     volumes = get_docker_volumes()
     return [v.dict() for v in volumes]
 
 @router.get("/storages")
 def list_lxc_storages():
     """List LXC storage pools."""
-    from containers import get_lxc_storages
+    from handlers.containers import get_lxc_storages
     storages = get_lxc_storages()
     return [s.dict() for s in storages]
 
 @router.post("/storages")
 def create_lxc_storage(payload: LXCStorageCreate):
     """Create a new LXC storage pool."""
-    from containers import create_lxc_storage
+    from handlers.containers import create_lxc_storage
     success, message = create_lxc_storage(payload.name, payload.driver, payload.source)
     if success:
         return {"message": message}
@@ -854,7 +854,7 @@ def create_lxc_storage(payload: LXCStorageCreate):
 @router.post("/volumes")
 def create_docker_volume(payload: DockerVolumeCreate):
     """Create a new Docker volume."""
-    from containers import create_docker_volume
+    from handlers.containers import create_docker_volume
     success = create_docker_volume(payload.name)
     if success:
         return {"message": "Volume created successfully"}
@@ -863,7 +863,7 @@ def create_docker_volume(payload: DockerVolumeCreate):
 @router.delete("/volumes/{name}")
 def delete_docker_volume(name: str):
     """Delete a Docker volume."""
-    from containers import delete_docker_volume
+    from handlers.containers import delete_docker_volume
     success = delete_docker_volume(name)
     if success:
         return {"message": "Volume deleted successfully"}
@@ -872,7 +872,7 @@ def delete_docker_volume(name: str):
 @router.delete("/storages/{name}")
 def delete_lxc_storage(name: str):
     """Delete an LXC storage pool."""
-    from containers import delete_lxc_storage
+    from handlers.containers import delete_lxc_storage
     success = delete_lxc_storage(name)
     if success:
         return {"message": "Storage pool deleted successfully"}

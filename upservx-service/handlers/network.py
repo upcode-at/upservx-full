@@ -9,8 +9,8 @@ import socket
 import psutil
 import ipaddress
 from typing import List
-from models import NetworkInterfaceInfo, NetworkSettingsModel, InterfaceConfigModel
-from upservx_logger import log_network
+from lib.models import NetworkInterfaceInfo, NetworkSettingsModel, InterfaceConfigModel
+from lib.logger import log_network
 
 NETWORK_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "network_settings.json")
 

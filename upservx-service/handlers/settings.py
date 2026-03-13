@@ -7,7 +7,7 @@ import json
 import subprocess
 import secrets
 import platform
-from models import SettingsModel
+from lib.models import SettingsModel
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
 VPN_DIR = os.path.join(os.path.dirname(__file__), "vpn")

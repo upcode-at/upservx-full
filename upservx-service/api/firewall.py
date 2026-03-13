@@ -4,14 +4,14 @@ Firewall API endpoints for nftables management
 
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
-from models import (
+from lib.models import (
     FirewallRuleCreate,
     FirewallRuleDelete,
     FirewallChainPolicy,
     PortForwardCreate,
     MasqueradeCreate
 )
-from firewall import firewall_manager
+from handlers.firewall import firewall_manager
 
 router = APIRouter(prefix="/firewall", tags=["firewall"])
 

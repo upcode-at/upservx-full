@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 from cryptography.fernet import Fernet
 import base64
-from upservx_logger import log_backup
+from lib.logger import log_backup
 
 try:
     logging.basicConfig(
@@ -673,7 +673,7 @@ class BackupManager:
                         vm_was_running = False
 
                         try:
-                            from vms import load_vms
+                            from handlers.vms import load_vms
                             vms_list = load_vms()
                             vm_obj = next((v for v in vms_list if v.name == vm_name), None)
                             if vm_obj:

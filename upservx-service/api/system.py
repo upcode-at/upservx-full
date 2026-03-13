@@ -3,7 +3,7 @@ API routes for system metrics and overview.
 """
 
 from fastapi import APIRouter
-from system_utils import collect_metrics
+from lib.system_utils import collect_metrics
 
 router = APIRouter()
 

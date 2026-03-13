@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 import logging
-from upservx_logger import log_ssh
+from lib.logger import log_ssh
 
 logger = logging.getLogger(__name__)
 

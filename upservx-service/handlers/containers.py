@@ -7,8 +7,8 @@ import json
 import shutil
 from typing import List
 from datetime import datetime
-from models import Container, ContainerImageInfo, DockerVolumeInfo, LXCStorageInfo
-from upservx_logger import log_container
+from lib.models import Container, ContainerImageInfo, DockerVolumeInfo, LXCStorageInfo
+from lib.logger import log_container
 
 
 # Containers that are created via the API are stored here in-memory. Containers

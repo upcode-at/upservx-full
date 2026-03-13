@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from encryption import get_encryption_manager
+from lib.encryption import get_encryption_manager
 
 CONFIG_DIR = "/etc/upservx"
 BACKUP_SERVERS_FILE = os.path.join(CONFIG_DIR, "backup_servers.json")

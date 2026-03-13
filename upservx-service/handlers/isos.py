@@ -8,8 +8,8 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 from typing import List
-from models import ISOInfo
-from upservx_logger import log_iso
+from lib.models import ISOInfo
+from lib.logger import log_iso
 
 
 def _safe_iso_path(name: str, iso_dir: str) -> str:

@@ -5,12 +5,12 @@ API routes for image management.
 from fastapi import APIRouter, HTTPException
 import subprocess
 import shutil
-from models import ImagePullRequest
-from containers import (
+from lib.models import ImagePullRequest
+from handlers.containers import (
     get_docker_images, get_lxc_images,
     get_docker_image_details, get_lxc_image_details
 )
-from upservx_logger import log_container
+from lib.logger import log_container
 
 router = APIRouter(prefix="/images")
 

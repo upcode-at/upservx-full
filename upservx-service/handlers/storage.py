@@ -9,8 +9,8 @@ import shutil
 import psutil
 from typing import List
 from datetime import datetime
-from models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
-from upservx_logger import log_storage
+from lib.models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
+from lib.logger import log_storage
 
 def _drive_type(dev: str) -> str:
     """Return the type for a device or partition."""

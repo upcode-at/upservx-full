@@ -15,10 +15,10 @@ import traceback
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
-from backup_db import backup_db
-from backup import BackupManager
-from upservx_logger import log_backup
-from notifications import notify
+from lib.backup_db import backup_db
+from handlers.backup import BackupManager
+from lib.logger import log_backup
+from handlers.notifications import notify
 
 # Setup logging
 logging.basicConfig(

@@ -7,7 +7,7 @@ import subprocess
 import shutil
 import psutil
 from typing import List
-from upservx_logger import log_service
+from lib.logger import log_service
 
 
 def list_systemd_services() -> List[dict]:

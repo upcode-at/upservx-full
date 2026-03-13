@@ -14,8 +14,8 @@ import urllib.request
 import urllib.error
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from models import NotificationConfig, NotificationEmailConfig, NotificationWebhookConfig, NotificationEvents
-from upservx_logger import log_system
+from lib.models import NotificationConfig, NotificationEmailConfig, NotificationWebhookConfig, NotificationEvents
+from lib.logger import log_system
 
 NOTIFICATIONS_FILE = "/etc/upservx/notifications.json"
 

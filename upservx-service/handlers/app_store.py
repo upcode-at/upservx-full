@@ -8,7 +8,7 @@ import shutil
 import json
 from typing import List, Dict, Optional
 from pathlib import Path
-from upservx_logger import log_appstore
+from lib.logger import log_appstore
 
 APP_STORE_DIR = "/opt/upservx/app-store"
 COMPOSE_BASE_DIR = "/opt/upservx/compose"
@@ -115,7 +115,7 @@ class AppStore:
     
     def install_app(self, app_id: str, custom_name: Optional[str] = None) -> Dict:
         """Install an app from the store."""
-        from compose_manager import normalize_project_name, compose_manager
+        from handlers.compose_manager import normalize_project_name, compose_manager
         
         app_dir = os.path.join(APP_STORE_DIR, app_id)
         compose_file = os.path.join(app_dir, "docker-compose.yml")
@@ -143,7 +143,7 @@ class AppStore:
     
     def uninstall_app(self, project_name: str) -> Dict:
         """Uninstall an app (removes the project)."""
-        from compose_manager import compose_manager
+        from handlers.compose_manager import compose_manager
         result = compose_manager.delete_project(project_name, remove_volumes=True)
         if result.get("success"):
             log_appstore(f"Uninstalled app / project [{project_name}]")

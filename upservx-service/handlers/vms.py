@@ -11,9 +11,9 @@ import pwd
 import grp
 from typing import List
 from datetime import datetime
-from models import VirtualMachine
-from upservx_logger import log_vm
-from notifications import notify
+from lib.models import VirtualMachine
+from lib.logger import log_vm
+from handlers.notifications import notify
 
 import time
 
