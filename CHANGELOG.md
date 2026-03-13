@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-03-13
 
-### Added
-- **VM OVA/OVF Export**: Virtual machines can now be exported as portable OVA or OVF packages
+> Full release notes: [releases/0.3.0.md](releases/0.3.0.md)
+: Virtual machines can now be exported as portable OVA or OVF packages
   - New `POST /vms/{name}/export` endpoint – accepts `{ "format": "ova" | "ovf" }`, converts disks from qcow2 to VMDK (`streamOptimized`) via `qemu-img` and builds a standards-compliant OVF 1.0 descriptor with CPU, RAM, network and disk mappings
   - New `GET /vms/exports/{filename}` endpoint – streams the finished archive as a file download
   - SHA-256 manifest file (`.mf`) is generated automatically and included in every export

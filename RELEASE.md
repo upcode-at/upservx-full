@@ -1,36 +1,35 @@
-## Release v0.2.0 - Notifications, Activity Logging & Cluster Replication 🔔
+## Release v0.3.0 - RBAC, VM Portability & App Store Expansion 🔐
 
-**Release Date:** 2026-03-01
+**Release Date:** 2026-03-13
 
-### 🎉 What's New in UpservX v0.2.0
+### 🎉 What's New in UpservX v0.3.0
 
-This release focuses on observability, alerting and cluster operations. Every important action on your node is now logged to a structured activity log, critical events trigger instant push notifications via Email or Webhook (Discord, Slack, custom), and the cluster now supports full container and VM replication between nodes.
+This release is the biggest security and feature update since the initial launch. The authentication layer has been fully rewritten around HttpOnly session cookies and Linux-group-based access control, VMs can now be exported and imported as industry-standard OVA/OVF packages, the App Store grows by 19 new one-click templates, and the UI receives a full customization system together with a polished light/dark/system theme toggle.
 
 ### ✨ Highlights
 
-#### 🔔 Notification System
-- Email (SMTP) and Webhook (Discord / Slack / custom) push notifications
-- Node hostname included in every message — useful in multi-node setups
-- 12 per-event toggles: Container create/start/stop/crash/delete, VM create/start/stop/delete, Backup success/failure, System alert
-- Rich context per event (image, ports, CPU, memory, backup size/path, error messages)
-- New *Notifications* tab in Settings UI
+#### 🔐 Group-based Access Control (RBAC)
+- Linux-group mapping: `docker`, `libvirt`, `tty`, `disk`, `adm`, `sudo` and more
+- Per-path HTTP 403 enforcement in the API middleware
+- Permission-aware sidebar — items hidden when the user lacks the required group
+- New `GET /auth/me` and `GET /info` endpoints
 
-#### 📋 Structured Activity Logging
-- All service modules write to `/var/log/upservx/activity.log`
-- Consistent `YYYY-MM-DD HH:MM:SS [TAG] Message` format with INFO / ERROR levels
-- 174 cluster `print()` calls now dual-write via `_clog()` helper
+#### 🍪 HttpOnly Session Cookies
+- Auth token moved from `localStorage` to `HttpOnly SameSite=Lax` cookie
+- `admin:admin` Basic-auth fallback permanently removed
+- Session verified on page load via `/auth/me` — no sidebar flash
 
-#### 🔁 Cluster Replication
-- Replicate Docker containers and KVM VMs between nodes from the Cluster UI
-- Full export/import including volumes, disk images, port mappings and environment variables
-- Manual trigger per replication entry
+#### 📦 VM OVA/OVF Export & Import
+- Export running or stopped VMs as standards-compliant OVA or OVF packages
+- Import `.ova` / `.ovf` files from any compatible hypervisor
+- SHA-256 manifest and VMDK conversion via `qemu-img` included
 
-#### 🗄️ Persistent Storage Mounts
-- Drives mounted via UI are persisted to `/etc/fstab` with UUID-based identification
-- Automatic fstab cleanup on unmount, backup before every modification
+#### 🛒 19 New App Store Templates
+Traefik, Harbor, GitLab, Keycloak, OpenLDAP, Docker Registry, Kafka, Elasticsearch, Mailcow, Loki, MotionEye, RustDesk, Guacamole, ONLYOFFICE, Roundcube, Neo4j, RabbitMQ, OctoPrint, Tunarr
 
-#### 🔒 12 Security Fixes
-WebSocket shell auth, debug endpoint removal, path traversal (ISO, tarfile, SSH keys), SSRF, exception leak, rate limiting, input validation, shell allowlist, logout bug.
+#### 🎨 Application Customization & Theme Toggle
+- Custom logo, login banner text and background image via Settings
+- Light/Dark toggle + System mode button in the sidebar
 
 ### 📄 Full Release Notes
-See [releases/0.2.0.md](releases/0.2.0.md) for complete details including all API changes and upgrade notes.
+See [releases/0.3.0.md](releases/0.3.0.md) for complete details including all API changes and upgrade notes.
