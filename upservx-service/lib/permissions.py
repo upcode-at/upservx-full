@@ -21,7 +21,7 @@ from typing import Set
 
 # ── Group sets ────────────────────────────────────────────────────────────────
 
-ADMIN_GROUPS: Set[str] = {"sudo", "wheel"}
+ADMIN_GROUPS: Set[str] = {"sudo", "wheel", "root"}
 DOCKER_GROUPS: Set[str] = {"docker"}
 LXD_GROUPS: Set[str] = {"lxd", "lxc"}
 CONTAINER_GROUPS: Set[str] = DOCKER_GROUPS | LXD_GROUPS
@@ -88,6 +88,12 @@ def get_user_groups(username: str) -> Set[str]:
 
 def is_admin(username: str, groups: Set[str]) -> bool:
     """True if the user has full administrator (sudo/wheel) access."""
+    # UID 0 (root) is always admin regardless of group membership
+    try:
+        if pwd.getpwnam(username).pw_uid == 0:
+            return True
+    except KeyError:
+        pass
     return username in SYSTEM_PRINCIPALS or bool(groups & ADMIN_GROUPS)
 
 

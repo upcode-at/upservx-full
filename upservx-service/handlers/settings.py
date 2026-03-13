@@ -57,6 +57,7 @@ def load_settings() -> SettingsModel:
         auto_updates=data.get("auto_updates", False),
         monitoring=data.get("monitoring", True),
         ssh_port=data.get("ssh_port", _system_ssh_port()),
+        deny_root_login=data.get("deny_root_login", False),
         api_key=data.get("api_key"),
     )
 
