@@ -31,9 +31,9 @@ def api_list_users():
 def api_create_user(payload: UserCreateModel):
     """Create a system user."""
     try:
-        user = create_user(payload)
+        create_user(payload.username, payload.password, payload.groups, payload.shell)
         log_user(f"Created user [{payload.username}]")
-        return user.dict()
+        return {"detail": "created", "username": payload.username}
     except Exception as e:
         log_user(f"Failed to create user [{payload.username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -43,9 +43,9 @@ def api_create_user(payload: UserCreateModel):
 def api_update_user(username: str, payload: UserUpdateModel):
     """Update a system user."""
     try:
-        user = update_user(username, payload)
+        update_user(username, shell=payload.shell, groups=payload.groups)
         log_user(f"Updated user [{username}]")
-        return user.dict()
+        return {"detail": "updated"}
     except Exception as e:
         log_user(f"Failed to update user [{username}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -96,9 +96,9 @@ def api_list_groups():
 def api_create_group(payload: GroupCreateModel):
     """Create a system group."""
     try:
-        group = create_group(payload)
+        create_group(payload.name, payload.members)
         log_user(f"Created group [{payload.name}]")
-        return group.dict()
+        return {"detail": "created", "name": payload.name}
     except Exception as e:
         log_user(f"Failed to create group [{payload.name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -108,9 +108,9 @@ def api_create_group(payload: GroupCreateModel):
 def api_update_group(name: str, payload: GroupUpdateModel):
     """Update a system group."""
     try:
-        group = update_group(name, payload)
+        update_group(name, members=payload.members)
         log_user(f"Updated group [{name}]")
-        return group.dict()
+        return {"detail": "updated"}
     except Exception as e:
         log_user(f"Failed to update group [{name}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
