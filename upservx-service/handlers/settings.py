@@ -9,7 +9,8 @@ import secrets
 import platform
 from lib.models import SettingsModel
 
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+SETTINGS_FILE = "/etc/upservx/settings.json"
+os.makedirs("/etc/upservx", exist_ok=True)
 VPN_DIR = os.path.join(os.path.dirname(__file__), "vpn")
 VPN_PIDFILE = "/var/run/upservx_vpn.pid"
 VPN_OVPN_NAME = "client.ovpn"
