@@ -20,6 +20,9 @@ import {
   ChevronRight,
   LogOut,
   User,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -42,7 +45,7 @@ interface SidebarItem {
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
-  const { theme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
   const [storageExpanded, setStorageExpanded] = useState(false)
   const { setToken, username, permissions } = useAuth()
   const router = useRouter()
@@ -247,6 +250,40 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         })}
       </nav>
       <div className="p-4 border-t border-sidebar-border/30">
+        <div className="flex items-center gap-2 px-3 py-2 mb-1">
+          <div className="flex items-center gap-1.5 flex-1">
+            <Sun className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <button
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className={cn(
+                "relative w-8 h-4 rounded-full transition-colors shrink-0",
+                resolvedTheme === "dark" ? "bg-primary" : "bg-muted-foreground/40"
+              )}
+              aria-label="Toggle light/dark mode"
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200",
+                  resolvedTheme === "dark" ? "translate-x-0" : "translate-x-4"
+                )}
+              />
+            </button>
+            <Moon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          </div>
+          <button
+            onClick={() => setTheme("system")}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors",
+              theme === "system"
+                ? "bg-primary/20 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+            )}
+            aria-label="Use system theme"
+          >
+            <Monitor className="h-3 w-3" />
+            <span>System</span>
+          </button>
+        </div>
         <div className="flex items-center space-x-2 px-3 py-2 mb-2">
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0">
             <User className="h-3.5 w-3.5 text-primary" />
