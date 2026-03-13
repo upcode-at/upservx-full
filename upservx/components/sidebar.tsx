@@ -284,20 +284,19 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             <span>System</span>
           </button>
         </div>
-        <div className="flex items-center space-x-2 px-3 py-2 mb-2">
+        <div className="flex items-center space-x-2 px-3 py-2">
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0">
             <User className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="text-sm font-medium text-muted-foreground truncate">{username || "User"}</span>
+          <span className="text-sm font-medium text-muted-foreground truncate flex-1">{username || "User"}</span>
+          <button
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+            aria-label="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
-        <Button
-          variant="ghost"
-          className="w-full justify-start h-10 font-medium rounded-none hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
-          onClick={handleLogout}
-        >
-          <LogOut className="mr-3 h-4 w-4" />
-          Logout
-        </Button>
       </div>
     </div>
   )
