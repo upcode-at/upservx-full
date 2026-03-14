@@ -1,8 +1,8 @@
 """
-Unit-Tests für lib/system_utils.py
+Unit tests for lib/system_utils.py
 ===================================
-Testet Hilfsfunktionen zur Systemanalyse isoliert – ohne echten Systemzugriff.
-Externe Aufrufe (subprocess, psutil, /proc/…) werden gemockt.
+Tests helper functions for system analysis in isolation – without real system access.
+External calls (subprocess, psutil, /proc/…) are mocked.
 """
 
 import sys
@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock, mock_open
 
 
 # ---------------------------------------------------------------------------
-# Stub: psutil (läuft in CI möglicherweise ohne Hardware)
+# Stub: psutil (may be unavailable in CI without hardware)
 # ---------------------------------------------------------------------------
 _psutil_stub = types.ModuleType("psutil")
 _psutil_stub.net_io_counters = MagicMock(return_value=MagicMock(bytes_sent=0, bytes_recv=0))
@@ -40,7 +40,7 @@ class TestFormatUptime:
         assert format_uptime(3661) == "1h 1m"
 
     def test_days_hours_minutes(self):
-        # 1 Tag, 2 Stunden, 3 Minuten = 86400 + 7200 + 180 = 93780 Sekunden
+        # 1 day, 2 hours, 3 minutes = 86400 + 7200 + 180 = 93780 seconds
         assert format_uptime(93780) == "1d 2h 3m"
 
     def test_exactly_one_hour(self):
@@ -50,7 +50,7 @@ class TestFormatUptime:
         assert format_uptime(86400) == "1d"
 
     def test_large_uptime(self):
-        # 10 Tage, 5 Stunden
+        # 10 days, 5 hours
         seconds = 10 * 86400 + 5 * 3600
         result = format_uptime(seconds)
         assert "10d" in result

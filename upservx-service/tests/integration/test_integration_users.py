@@ -1,8 +1,8 @@
 """
-Integrations-Tests für api/users.py
+Integration tests for api/users.py
 ======================================
-Testet Benutzer- und Gruppen-Verwaltungsendpunkte.
-Systemaufrufe (pwd, grp, subprocess) werden gemockt.
+Tests user and group management endpoints.
+System calls (pwd, grp, subprocess) are mocked.
 """
 
 import pytest
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
-# Hilfsobjekte
+# Helper objects
 # ---------------------------------------------------------------------------
 
 def _make_user_app():
@@ -86,7 +86,7 @@ class TestCreateUser:
 
     def test_successful_create_returns_200(self):
         app = _make_user_app()
-        # api.users bereits importiert → Binding auf api.users.create_user patchen
+        # api.users already imported → patch api.users.create_user binding
         with patch("api.users.create_user"):
             with TestClient(app, raise_server_exceptions=False) as client:
                 resp = client.post("/users", json=self._payload)

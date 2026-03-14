@@ -1,11 +1,11 @@
 """
-Integrations-Tests für api/auth.py
+Integration tests for api/auth.py
 =====================================
-Testet Login, Logout, WS-Ticket und /auth/me über den echten FastAPI-Router.
-PAM und systemabhängige Komponenten werden gemockt.
+Tests login, logout, WS ticket, and /auth/me via the real FastAPI router.
+PAM and system-dependent components are mocked.
 
-Hinweis: Die Tests bauen eine schlanke Test-App auf, die den Auth-Router
-ohne die vollständige PAM-Middleware einbindet.
+Note: Tests build a lightweight test app that includes the auth router
+without the full PAM middleware.
 """
 
 import base64
@@ -16,11 +16,11 @@ from fastapi.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
-# Minimale Test-App (nur auth-Router, ohne PAM-Middleware)
+# Minimal test app (auth router only, without PAM middleware)
 # ---------------------------------------------------------------------------
 
 def _make_auth_app(pam_ok: bool = True):
-    """Erstellt eine isolierte FastAPI-App mit auth-Router und gemocktem PAM."""
+    """Creates an isolated FastAPI app with auth router and mocked PAM."""
     app = FastAPI()
 
     # Zustand für request.state vorbelegen (wird von /auth/me genutzt)
@@ -55,7 +55,7 @@ def _make_auth_app(pam_ok: bool = True):
 
 class TestAuthLogin:
     def setup_method(self):
-        """Rate-Limiter zurücksetzen, damit Tests sich nicht gegenseitig blockieren."""
+        """Reset rate limiter so tests do not block each other."""
         import api.auth as auth_mod
         auth_mod._rl_buckets.clear()
 
@@ -145,11 +145,11 @@ class TestAuthLogout:
     def test_logout_clears_auth_cookie(self):
         app, _ = _make_auth_app()
         with TestClient(app, raise_server_exceptions=False) as client:
-            # Einloggen
+            # Log in
             client.post("/auth/login", json={"username": "alice", "password": "pw"})
-            # Ausloggen
+            # Log out
             resp = client.post("/auth/logout")
-        # FastAPI setzt beim Löschen eines Cookies max-age=0 oder expires in Vergangenheit
+        # FastAPI sets max-age=0 or a past expires date when deleting a cookie
         assert resp.status_code == 200
         response_body = resp.json()
         assert response_body.get("detail") == "logged_out"

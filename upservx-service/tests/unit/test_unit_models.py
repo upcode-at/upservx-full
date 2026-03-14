@@ -1,8 +1,8 @@
 """
-Unit-Tests für lib/models.py
+Unit tests for lib/models.py
 ==============================
-Prüft die Pydantic-Modelle auf korrekte Validierung, Defaultwerte und
-Serialisierung.  Keine externen Abhängigkeiten nötig.
+Verifies Pydantic models for correct validation, default values, and
+serialization. No external dependencies required.
 """
 
 import pytest
@@ -76,11 +76,11 @@ class TestContainerCreate:
 
     def test_required_fields(self):
         with pytest.raises(ValidationError):
-            ContainerCreate(name="x")  # type und image fehlen
+            ContainerCreate(name="x")  # type and image missing
 
 
 # ---------------------------------------------------------------------------
-# ISO-Modelle
+# ISO models
 # ---------------------------------------------------------------------------
 
 class TestISOInfo:
@@ -115,7 +115,7 @@ class TestISODownloadRequest:
 
 
 # ---------------------------------------------------------------------------
-# Image-Modelle
+# Image models
 # ---------------------------------------------------------------------------
 
 class TestContainerImageInfo:
@@ -136,7 +136,7 @@ class TestImagePullRequest:
 
 
 # ---------------------------------------------------------------------------
-# Drive-Modelle
+# Drive models
 # ---------------------------------------------------------------------------
 
 class TestDriveInfo:
@@ -201,7 +201,7 @@ class TestSettingsModel:
 
 
 # ---------------------------------------------------------------------------
-# User-Modelle
+# User models
 # ---------------------------------------------------------------------------
 
 class TestUserCreateModel:
@@ -253,7 +253,7 @@ class TestVirtualMachineCreate:
 
     def test_required_fields(self):
         with pytest.raises(ValidationError):
-            VirtualMachineCreate(name="x", cpu=2)          # memory und iso fehlen
+            VirtualMachineCreate(name="x", cpu=2)          # memory and iso missing
 
 
 # ---------------------------------------------------------------------------

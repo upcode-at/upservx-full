@@ -1,8 +1,8 @@
 """
-Unit-Tests für lib/permissions.py
+Unit tests for lib/permissions.py
 ====================================
-Prüft alle Berechtigungslogiken isoliert.
-Kein echter PAM-/Systemaufruf – pwd/grp werden gemockt.
+Verifies all permission logic in isolation.
+No real PAM/system calls – pwd/grp are mocked.
 """
 
 import sys
@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 # ---------------------------------------------------------------------------
-# Stub pwd und grp, damit Tests auch ohne entsprechende Benutzer laufen
+# Stub pwd and grp so tests work without real system users
 # ---------------------------------------------------------------------------
 
 _mock_pw = MagicMock()
@@ -48,7 +48,7 @@ from lib.permissions import (  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Hilfswerte
+# Helper values
 # ---------------------------------------------------------------------------
 
 ADMIN_GROUPS = {"sudo"}
@@ -88,7 +88,7 @@ class TestIsAdmin:
 
 
 # ---------------------------------------------------------------------------
-# Containerzugriff
+# Container access
 # ---------------------------------------------------------------------------
 
 class TestHasContainerAccess:
@@ -107,7 +107,7 @@ class TestHasContainerAccess:
 
 
 # ---------------------------------------------------------------------------
-# VM-Zugriff
+# VM access
 # ---------------------------------------------------------------------------
 
 class TestHasVmAccess:
@@ -123,7 +123,7 @@ class TestHasVmAccess:
 
 
 # ---------------------------------------------------------------------------
-# Storage-Zugriff
+# Storage access
 # ---------------------------------------------------------------------------
 
 class TestHasStorageAccess:
@@ -139,7 +139,7 @@ class TestHasStorageAccess:
 
 
 # ---------------------------------------------------------------------------
-# Shell-Zugriff
+# Shell access
 # ---------------------------------------------------------------------------
 
 class TestHasShellAccess:
@@ -155,11 +155,11 @@ class TestHasShellAccess:
 
 
 # ---------------------------------------------------------------------------
-# Check_path_permission (Routing-Tabelle)
+# check_path_permission (routing table)
 # ---------------------------------------------------------------------------
 
 class TestCheckPathPermission:
-    """check_path_permission folgt hierarchischen Präfixen."""
+    """check_path_permission follows hierarchical prefixes."""
 
     def _admin(self):
         return {"sudo"}
@@ -167,7 +167,7 @@ class TestCheckPathPermission:
     def _user(self):
         return set()
 
-    # Container-Pfade
+    # Container paths
     def test_containers_path_allowed_for_docker_group(self):
         assert check_path_permission("u", {"docker"}, "/containers") is True
 
@@ -175,7 +175,7 @@ class TestCheckPathPermission:
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", set(), "/containers") is False
 
-    # VM-Pfade
+    # VM paths
     def test_vms_path_allowed_for_libvirt(self):
         assert check_path_permission("u", {"libvirt"}, "/vms") is True
 
@@ -183,7 +183,7 @@ class TestCheckPathPermission:
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", {"docker"}, "/vms") is False
 
-    # Admin-Pfade
+    # Admin paths
     def test_firewall_requires_admin(self):
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", {"docker"}, "/firewall") is False
@@ -193,7 +193,7 @@ class TestCheckPathPermission:
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", {"docker"}, "/users") is False
 
-    # Öffentliche Pfade
+    # Public paths
     def test_root_path_always_allowed(self):
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", set(), "/") is True
@@ -202,7 +202,7 @@ class TestCheckPathPermission:
         with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
             assert check_path_permission("u", set(), "/auth/login") is True
 
-    # Log-Pfade
+    # Log paths
     def test_logs_allowed_for_adm_group(self):
         assert check_path_permission("u", {"adm"}, "/logs") is True
 

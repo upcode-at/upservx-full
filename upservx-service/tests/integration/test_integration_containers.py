@@ -1,8 +1,8 @@
 """
-Integrations-Tests für api/containers.py
+Integration tests for api/containers.py
 ==========================================
-Testet Container-Endpunkte über den FastAPI-Router.
-Docker-/LXC-Prozesse werden durch Mocks ersetzt.
+Tests container endpoints via the FastAPI router.
+Docker/LXC processes are replaced with mocks.
 """
 
 import pytest
@@ -12,11 +12,11 @@ from fastapi.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
-# Test-App-Factory
+# Test app factory
 # ---------------------------------------------------------------------------
 
 def _make_container_app():
-    """Erstellt eine isolierte Test-App mit Container-Router."""
+    """Creates an isolated test app with container router."""
     app = FastAPI()
 
     @app.middleware("http")
@@ -126,13 +126,13 @@ class TestCreateDockerContainer:
         assert resp.status_code == 400
 
     def test_unknown_container_type_creates_api_container(self):
-        """Unbekannte Typen werden als API-Container gespeichert (kein Fehler)."""
+        """Unknown types are stored as API containers (no error)."""
         payload = {**self._payload, "type": "unknowntype"}
         app = _make_container_app()
         with patch("api.containers.shutil.which", return_value="/usr/bin/docker"):
             with TestClient(app, raise_server_exceptions=False) as client:
                 resp = client.post("/containers", json=payload)
-        # Der else-Zweig in create_container erstellt einen API-Container → 200
+        # The else branch in create_container creates an API container → 200
         assert resp.status_code == 200
 
 

@@ -1,12 +1,12 @@
 """
-Shared pytest fixtures für den UpservX-Backend-Teststack.
+Shared pytest fixtures for the UpservX backend test stack.
 
-Struktur
---------
-- `app`          – FastAPI-Testapplikation mit gemocktem PAM und deaktivierten
-                   Seiteneffekten (TeeWriter, VNC-Proxy, …).
-- `client`       – synchroner httpx-Testclient für Integrations-/Funktionstests.
-- `auth_headers` – Basic-Auth-Header als "eingeloggter" Benutzer.
+Structure
+---------
+- `app`          – FastAPI test application with mocked PAM and disabled
+                   side effects (TeeWriter, VNC proxy, …).
+- `client`       – synchronous httpx test client for integration/functional tests.
+- `auth_headers` – Basic Auth header representing a logged-in user.
 """
 
 import sys
@@ -19,44 +19,44 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 # ---------------------------------------------------------------------------
-# Stub-Module registrieren, die nur auf dem echten Server vorhanden sind
-# (pam, uvicorn, usw.)  – müssen VOR dem ersten `import main` gesetzt werden.
+# Register stub modules that only exist on the real server
+# (pam, uvicorn, etc.) – must be set BEFORE the first `import main`.
 # ---------------------------------------------------------------------------
 
 def _register_stub(name: str, **attrs):
-    """Erstellt ein leeres Stub-Modul und registriert es in sys.modules."""
+    """Creates an empty stub module and registers it in sys.modules."""
     mod = types.ModuleType(name)
     for k, v in attrs.items():
         setattr(mod, k, v)
     sys.modules.setdefault(name, mod)
 
 
-# pam – PAM-Authentifizierung (läuft nicht in CI)
+# pam – PAM authentication (not available in CI)
 _pam_instance = MagicMock()
 _pam_instance.authenticate.return_value = True
 _pam_class = MagicMock(return_value=_pam_instance)
 _register_stub("pam", pam=_pam_class)
 
-# uvicorn – wird in main.py nur unter __main__ gebraucht
+# uvicorn – only used in main.py under __main__
 _register_stub("uvicorn")
 
 
 # ---------------------------------------------------------------------------
-# Seiteneffekte in main.py unterdrücken (TeeWriter, VNC-Proxy, Logging-Files)
+# Suppress side effects in main.py (TeeWriter, VNC proxy, logging files)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def app():
     """
-    Gibt eine fertig konfigurierte FastAPI-Testapp zurück.
+    Returns a fully configured FastAPI test application.
 
-    Der Aufbau geschieht nur einmal pro Test-Session (scope='session'), weil
-    main.py beim Import Logging-Dateien anlegt und Middleware registriert.
+    Setup happens only once per test session (scope='session') because
+    main.py creates logging files and registers middleware on import.
     """
     with (
-        patch("builtins.open", wraps=open),                  # FS-Schreibzugriffe erlaubt
-        patch("os.makedirs"),                                  # kein /etc/upservx anlegen
-        patch("lib.vnc_proxy.ensure_proxy_running"),           # kein VNC-Prozess starten
+        patch("builtins.open", wraps=open),                  # allow filesystem writes
+        patch("os.makedirs"),                                  # do not create /etc/upservx
+        patch("lib.vnc_proxy.ensure_proxy_running"),           # do not start VNC process
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
             api_key="test-api-key",
@@ -74,7 +74,7 @@ def app():
 
 @pytest.fixture(scope="session")
 def client(app):
-    """Synchroner TestClient für Integrations- und Funktionstests."""
+    """Synchronous TestClient for integration and functional tests."""
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
 
@@ -82,10 +82,10 @@ def client(app):
 @pytest.fixture()
 def auth_headers():
     """
-    Basic-Auth-Header für einen fiktiven User `testuser`.
+    Basic Auth header for a fictional user `testuser`.
 
-    In den Integrationstests wird PAM gemockt, sodass jedes Passwort akzeptiert
-    wird.  Der Header hat das Format, das die Middleware erwartet.
+    In integration tests, PAM is mocked so that any password is accepted.
+    The header uses the format expected by the middleware.
     """
     import base64
     token = base64.b64encode(b"testuser:testpassword").decode()
@@ -94,5 +94,5 @@ def auth_headers():
 
 @pytest.fixture()
 def api_key_headers():
-    """Bearer-Token für API-Key-Authentifizierung (test-api-key)."""
+    """Bearer token for API key authentication (test-api-key)."""
     return {"Authorization": "Bearer test-api-key"}

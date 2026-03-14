@@ -1,14 +1,14 @@
 """
-Funktions-Tests für UpservX-Backend-Workflows
+Functional tests for UpservX backend workflows
 ===============================================
-Testet vollständige Benutzerszenarien, die mehrere Komponenten umfassen:
+Tests complete user scenarios spanning multiple components:
 
-  1. Login-Flow: Einloggen → Session nutzen → Ausloggen
-  2. Container-Lifecycle: Container anlegen → starten → stoppen → löschen
-  3. Benutzer-Lifecycle: Benutzer anlegen → SSH-Key setzen → Benutzer löschen
-  4. WS-Ticket-Flow: Login → Ticket holen → Ticket einmalig verwenden
-  5. Verschlüsselung im API-Kontext: Backup-Server mit Passwort anlegen und auslesen
-  6. Berechtigungseszenarien: Unprivilegierter Benutzer greift auf gesperrte Routen zu
+  1. Login flow: log in → use session → log out
+  2. Container lifecycle: create → start → stop → delete
+  3. User lifecycle: create user → set SSH key → delete user
+  4. WS ticket flow: login → request ticket → consume once
+  5. Encryption in API context: create backup server with password and read it back
+  6. Permission scenarios: unprivileged user accesses restricted routes
 """
 
 import base64
@@ -24,9 +24,9 @@ from fastapi.testclient import TestClient
 
 def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = None):
     """
-    Erstellt eine FastAPI-Test-App mit auth- und weiteren Routern.
-    Die PAM-Middleware wird durch einen einfachen BasicAuth-Parser ersetzt,
-    der den gemockten PAM-Handler aufruft.
+    Creates a FastAPI test app with auth and additional routers.
+    The PAM middleware is replaced by a simple BasicAuth parser
+    that calls the mocked PAM handler.
     """
     if groups is None:
         groups = {"sudo"}
@@ -38,7 +38,7 @@ def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = Non
 
     @app.middleware("http")
     async def fake_auth_middleware(request: Request, call_next):
-        # Auth-Endpunkte ohne Credential-Prüfung durchlassen
+        # Pass auth endpoints through without credential check
         if request.url.path in ("/auth/login", "/auth/logout") and request.method == "POST":
             return await call_next(request)
 
@@ -78,12 +78,12 @@ def _basic_header(username="testuser", password="testpass"):
 
 
 # ---------------------------------------------------------------------------
-# 1. Login-Flow
+# 1. Login flow
 # ---------------------------------------------------------------------------
 
 class TestLoginFlow:
     def test_login_use_and_logout(self):
-        """Vollständiger Login → Session → Logout-Zyklus."""
+        """Complete login → session → logout cycle."""
         import api.auth as auth_mod
         auth_mod._rl_buckets.clear()
 
@@ -98,7 +98,7 @@ class TestLoginFlow:
             assert login_resp.status_code == 200
             assert "auth" in login_resp.cookies
 
-            # Authentifizierte Anfrage
+            # Authenticated request
             me_resp = client.get("/auth/me", headers=_basic_header())
             assert me_resp.status_code == 200
 
@@ -109,7 +109,7 @@ class TestLoginFlow:
     def test_unauthenticated_request_fails(self):
         app, _ = _full_app()
         with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.get("/auth/me")   # kein Auth-Header
+            resp = client.get("/auth/me")   # no auth header
         assert resp.status_code == 401
 
     def test_wrong_credentials_denied(self):
@@ -120,13 +120,13 @@ class TestLoginFlow:
 
 
 # ---------------------------------------------------------------------------
-# 2. Container-Lifecycle
+# 2. Container lifecycle
 # ---------------------------------------------------------------------------
 
 class TestContainerLifecycle:
     """
-    Simuliert: Container erstellen → starten → stoppen → löschen.
-    Docker-Befehle werden vollständig gemockt.
+    Simulates: create container → start → stop → delete.
+    Docker commands are fully mocked.
     """
 
     _create_payload = {
@@ -189,7 +189,7 @@ class TestContainerLifecycle:
                 stop_resp = client.post("/containers/lifecycle-test/stop", headers=headers)
             assert stop_resp.status_code == 200
 
-            # DELETE – verwendet HTTP DELETE, nicht POST /delete
+            # DELETE – uses HTTP DELETE, not POST /delete
             with (
                 patch("api.containers.subprocess.run", return_value=MagicMock(
                     returncode=0, stdout="", stderr=""
@@ -202,7 +202,7 @@ class TestContainerLifecycle:
             assert delete_resp.status_code == 200
 
     def test_create_failure_stops_lifecycle(self):
-        """Wenn CREATE fehlschlägt, werden keine weiteren Schritte ausgeführt."""
+        """If CREATE fails, no further steps are executed."""
         app, _ = _full_app()
         headers = _basic_header()
 
@@ -219,18 +219,18 @@ class TestContainerLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# 3. Benutzer-Lifecycle
+# 3. User lifecycle
 # ---------------------------------------------------------------------------
 
 class TestUserLifecycle:
-    """Benutzer anlegen → SSH-Key setzen → Benutzer löschen."""
+    """Create user → set SSH key → delete user."""
 
     def test_user_creation_and_deletion(self):
         app, _ = _full_app()
         headers = _basic_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
-            # User anlegen
+            # Create user
             with patch("api.users.create_user"):
                 create_resp = client.post("/users", json={
                     "username": "newdev",
@@ -241,7 +241,7 @@ class TestUserLifecycle:
             assert create_resp.status_code == 200
             assert create_resp.json()["username"] == "newdev"
 
-            # SSH-Key setzen
+            # Set SSH key
             pub_key = "ssh-rsa AAAAB3Nza...== dev@machine"
             with patch("api.users.write_authorized_keys"):
                 key_resp = client.put("/users/newdev/keys",
@@ -249,23 +249,23 @@ class TestUserLifecycle:
                                       headers=headers)
             assert key_resp.status_code == 200
 
-            # SSH-Key auslesen
+            # Read SSH key
             with patch("api.users.read_authorized_keys", return_value=[pub_key]):
                 get_key_resp = client.get("/users/newdev/keys", headers=headers)
             assert get_key_resp.json()["keys"] == [pub_key]
 
-            # User löschen
+            # Delete user
             with patch("api.users.delete_user"):
                 del_resp = client.delete("/users/newdev", headers=headers)
             assert del_resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
-# 4. WS-Ticket-Flow
+# 4. WS ticket flow
 # ---------------------------------------------------------------------------
 
 class TestWsTicketFlow:
-    """Login → Ticket anfordern → Ticket einmalig verwenden."""
+    """Login → request ticket → consume once."""
 
     def test_ticket_issued_and_consumed(self):
         import lib.ws_tickets as wst
@@ -284,11 +284,11 @@ class TestWsTicketFlow:
             assert ticket_resp.status_code == 200
             ticket = ticket_resp.json()["ticket"]
 
-            # Ticket verbrauchen (simuliert WS-Verbindungsaufbau)
+            # Consume ticket (simulates WS connection establishment)
             username = wst.consume_ticket(ticket)
             assert username is not None
 
-            # Ticket ist jetzt verbraucht
+            # Ticket is now consumed
             assert wst.consume_ticket(ticket) is None
 
     def test_expired_ticket_rejected(self):
@@ -304,7 +304,7 @@ class TestWsTicketFlow:
             ticket_resp = client.get("/auth/ws-ticket", headers=headers)
             ticket = ticket_resp.json()["ticket"]
 
-        # Ablaufzeit manuell in die Vergangenheit setzen
+        # Manually move expiry time into the past
         with wst._lock:
             u, _ = wst._tickets[ticket]
             wst._tickets[ticket] = (u, datetime.utcnow() - timedelta(seconds=1))
@@ -313,14 +313,14 @@ class TestWsTicketFlow:
 
 
 # ---------------------------------------------------------------------------
-# 5. Berechtigungs-Szenarien
+# 5. Permission scenarios
 # ---------------------------------------------------------------------------
 
 class TestPermissionScenarios:
     """
-    Prüft, dass unprivilegierte Benutzer auf Admin-Routen keinen Zugriff
-    erhalten und privilegierte Benutzer korrekt durchgelassen werden.
-    Nutzt die echte Permissions-Logik (nur pwd/grp gemockt).
+    Verifies that unprivileged users cannot access admin routes,
+    and that privileged users are correctly allowed through.
+    Uses real permission logic (only pwd/grp mocked).
     """
 
     def test_docker_user_can_list_containers(self):
@@ -341,7 +341,7 @@ class TestPermissionScenarios:
         assert resp.status_code == 200
 
     def test_docker_user_cannot_list_users(self):
-        """Docker-Benutzer ohne sudo darf /users nicht aufrufen."""
+        """Docker user without sudo must not call /users."""
         app, _ = _full_app(groups={"docker"})
 
         # Überschreibe die Middleware, sodass check_path_permission korrekt zieht
@@ -354,5 +354,5 @@ class TestPermissionScenarios:
 
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/users", headers=_basic_header())
-        # Entweder 401 (kein Auth in dieser App-Variante) oder 403
+        # Either 401 (no auth in this app variant) or 403
         assert resp.status_code in (401, 403)

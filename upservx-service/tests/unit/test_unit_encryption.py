@@ -1,9 +1,9 @@
 """
-Unit-Tests für lib/encryption.py
+Unit tests for lib/encryption.py
 ====================================
-Testet EncryptionManager vollständig isoliert.
-Die Schlüsseldatei (/etc/upservx/encryption.key) wird durch ein temporäres
-Verzeichnis ersetzt, sodass keine Root-Rechte erforderlich sind.
+Tests EncryptionManager fully in isolation.
+The key file (/etc/upservx/encryption.key) is replaced with a temporary
+directory so no root privileges are required.
 """
 
 import os
@@ -22,20 +22,20 @@ from lib.encryption import EncryptionManager
 
 @pytest.fixture()
 def tmp_key_dir(tmp_path):
-    """Liefert einen temporären Pfad für die Schlüsseldatei."""
+    """Returns a temporary path for the key file."""
     return str(tmp_path / "encryption.key")
 
 
 @pytest.fixture()
 def manager(tmp_key_dir):
-    """EncryptionManager mit temporärer Schlüsseldatei."""
+    """EncryptionManager with a temporary key file."""
     with patch.object(EncryptionManager, "KEY_FILE", tmp_key_dir):
         mgr = EncryptionManager()
     return mgr
 
 
 # ---------------------------------------------------------------------------
-# Schlüsselerzeugung und -laden
+# Key creation and loading
 # ---------------------------------------------------------------------------
 
 class TestKeyManagement:
@@ -47,15 +47,15 @@ class TestKeyManagement:
     def test_key_persisted_between_instances(self, tmp_key_dir):
         with patch.object(EncryptionManager, "KEY_FILE", tmp_key_dir):
             mgr1 = EncryptionManager()
-            key1 = mgr1._cipher._signing_key  # interne Fernet-Signatur
+            key1 = mgr1._cipher._signing_key  # internal Fernet signing key
 
             mgr2 = EncryptionManager()
             key2 = mgr2._cipher._signing_key
 
-        assert key1 == key2, "Beide Instanzen sollen denselben Schlüssel verwenden"
+        assert key1 == key2, "Both instances should use the same key"
 
     def test_init_raises_on_corrupted_key(self, tmp_key_dir):
-        # Ungültigen Schlüssel schreiben
+        # Write an invalid key
         Path(tmp_key_dir).parent.mkdir(parents=True, exist_ok=True)
         Path(tmp_key_dir).write_bytes(b"not-a-valid-fernet-key")
         with patch.object(EncryptionManager, "KEY_FILE", tmp_key_dir):
@@ -64,7 +64,7 @@ class TestKeyManagement:
 
 
 # ---------------------------------------------------------------------------
-# Verschlüsselung / Entschlüsselung
+# Encrypt / Decrypt
 # ---------------------------------------------------------------------------
 
 class TestEncryptDecrypt:
@@ -90,7 +90,7 @@ class TestEncryptDecrypt:
         assert ciphertext != plaintext
 
     def test_two_encryptions_produce_different_ciphertext(self, manager):
-        """Fernet nutzt einen zufälligen IV – gleicher Klartext → verschiedener Chiffretext."""
+        """Fernet uses a random IV – same plaintext → different ciphertext."""
         ct1 = manager.encrypt("same")
         ct2 = manager.encrypt("same")
         assert ct1 != ct2
@@ -108,7 +108,7 @@ class TestEncryptDecrypt:
             mgr1 = EncryptionManager()
             ciphertext = mgr1.encrypt("secret")
 
-        # Zweite Instanz mit anderem Schlüssel
+        # Second instance with a different key
         other_key_path = str(tmp_path / "other.key")
         with patch.object(EncryptionManager, "KEY_FILE", other_key_path):
             mgr2 = EncryptionManager()
@@ -127,13 +127,13 @@ class TestEncryptDecrypt:
 class TestEnsureKeyExists:
     def test_returns_true_when_key_exists(self, tmp_key_dir):
         with patch.object(EncryptionManager, "KEY_FILE", tmp_key_dir):
-            EncryptionManager()          # erzeugt Schlüssel
+            EncryptionManager()          # creates the key
             result = EncryptionManager.ensure_key_exists()
         assert result is True
 
     def test_returns_false_when_no_key(self, tmp_path):
         missing_path = str(tmp_path / "nonexistent.key")
         with patch.object(EncryptionManager, "KEY_FILE", missing_path):
-            # ensure_key_exists() instantiiert einen Manager → erzeugt den Schlüssel
-            # Deshalb testen wir via Path.exists direkt BEVOR wir ensure_key_exists aufrufen
+            # ensure_key_exists() instantiates a manager → creates the key
+            # So we verify via Path.exists directly BEFORE calling ensure_key_exists
             assert not Path(missing_path).exists()

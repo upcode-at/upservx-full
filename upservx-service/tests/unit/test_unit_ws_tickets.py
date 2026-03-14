@@ -1,8 +1,8 @@
 """
-Unit-Tests für lib/ws_tickets.py
-==================================
-Testet Ticket-Erstellung, -Verbrauch, Ablauf und Thread-Sicherheit.
-Kein Netzwerkzugriff oder Dateisystem nötig.
+Unit tests for lib/ws_tickets.py
+=================================
+Tests ticket creation, consumption, expiry, and thread safety.
+No network access or filesystem required.
 """
 
 import time
@@ -17,7 +17,7 @@ import lib.ws_tickets as ws_tickets_mod
 
 
 def _reset_tickets():
-    """Hilfsfunktion: leert den internen Ticket-Speicher zwischen Tests."""
+    """Helper: clears the internal ticket store between tests."""
     with ws_tickets_mod._lock:
         ws_tickets_mod._tickets.clear()
 
@@ -37,7 +37,7 @@ class TestCreateTicket:
     def test_ticket_is_uuid_format(self):
         import uuid
         ticket = ws_tickets_mod.create_ticket("alice")
-        # Sollte als UUID parsebar sein
+        # Should be parseable as a UUID
         uuid.UUID(ticket)
 
     def test_tickets_are_unique(self):
@@ -50,7 +50,7 @@ class TestCreateTicket:
         assert ticket in ws_tickets_mod._tickets
 
     def test_raises_when_store_full(self):
-        # MAX_LIVE_TICKETS temporär auf 0 setzen
+        # Temporarily set MAX_LIVE_TICKETS to 0
         with patch.object(ws_tickets_mod, "_MAX_LIVE_TICKETS", 0):
             _reset_tickets()
             with pytest.raises(RuntimeError, match="ticket store full"):
@@ -80,12 +80,12 @@ class TestConsumeTicket:
     def test_returns_none_for_double_consumption(self):
         ticket = ws_tickets_mod.create_ticket("dave")
         ws_tickets_mod.consume_ticket(ticket)
-        # Zweiter Aufruf – Ticket bereits verbraucht
+        # Second call – ticket already consumed
         assert ws_tickets_mod.consume_ticket(ticket) is None
 
     def test_returns_none_for_expired_ticket(self):
         ticket = ws_tickets_mod.create_ticket("eve")
-        # Ablaufzeit in die Vergangenheit setzen
+        # Move expiry time into the past
         with ws_tickets_mod._lock:
             username, _ = ws_tickets_mod._tickets[ticket]
             ws_tickets_mod._tickets[ticket] = (username, datetime.utcnow() - timedelta(seconds=1))
@@ -101,7 +101,7 @@ class TestThreadSafety:
         _reset_tickets()
 
     def test_concurrent_create_and_consume(self):
-        """Mehrere Threads erstellen und verbrauchen parallel Tickets – kein Deadlock."""
+        """Multiple threads create and consume tickets concurrently – no deadlock."""
         results = []
         errors = []
 
@@ -134,11 +134,11 @@ class TestPruning:
 
     def test_prune_removes_expired_entries(self):
         ticket = ws_tickets_mod.create_ticket("frank")
-        # Ticket manuell ablaufen lassen
+        # Manually expire the ticket
         with ws_tickets_mod._lock:
             username, _ = ws_tickets_mod._tickets[ticket]
             ws_tickets_mod._tickets[ticket] = (username, datetime.utcnow() - timedelta(seconds=1))
 
-        # Neues Ticket erstellen löst _prune() aus
+        # Creating a new ticket triggers _prune()
         ws_tickets_mod.create_ticket("grace")
         assert ticket not in ws_tickets_mod._tickets
