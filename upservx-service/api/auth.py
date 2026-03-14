@@ -6,6 +6,7 @@ import os
 import pty
 import pam
 import platform
+import subprocess
 import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -113,6 +114,46 @@ def auth_me(request: Request):
     if groups is None:
         groups = get_user_groups(username)
     return get_permission_summary(username, groups)
+
+
+@router.post("/auth/change-password")
+async def change_password(payload: dict, request: Request):
+    """Change the current user's own password via PAM verification + chpasswd."""
+    username = getattr(request.state, "user", None)
+    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+        raise HTTPException(status_code=403, detail="not allowed for this auth method")
+
+    current_password = payload.get("current_password", "")
+    new_password = payload.get("new_password", "")
+
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="current_password and new_password required")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="new password must be at least 8 characters")
+
+    # Verify current password via PAM
+    _pam = pam.pam()
+    if not _pam.authenticate(username, current_password):
+        log_auth(f"Password change failed (wrong current password) for user [{username}]", error=True)
+        raise HTTPException(status_code=401, detail="current password is incorrect")
+
+    # Change password using chpasswd
+    try:
+        proc = subprocess.run(
+            ["chpasswd"],
+            input=f"{username}:{new_password}",
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if proc.returncode != 0:
+            log_auth(f"Password change failed for user [{username}]: {proc.stderr.strip()}", error=True)
+            raise HTTPException(status_code=500, detail="failed to change password")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="password change timed out")
+
+    log_auth(f"Password changed successfully for user [{username}]")
+    return {"detail": "password changed successfully"}
 
 
 @router.get("/info")

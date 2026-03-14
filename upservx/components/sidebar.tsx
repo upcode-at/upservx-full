@@ -29,6 +29,7 @@ import { apiUrl } from "@/lib/api"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
+import { UserSettings } from "@/components/user-settings"
 
 interface SidebarProps {
   activeSection: string
@@ -47,6 +48,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [storageExpanded, setStorageExpanded] = useState(false)
+  const [userSettingsOpen, setUserSettingsOpen] = useState(false)
   const { setToken, username, permissions } = useAuth()
   const router = useRouter()
   const [hasCustomLogo, setHasCustomLogo] = useState(false)
@@ -280,19 +282,25 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             <span>System</span>
           </button>
         </div>
-        <div className="flex items-center space-x-2 px-3 py-2">
-          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0">
+        <div
+          onClick={() => setUserSettingsOpen(true)}
+          className="flex items-center space-x-2 px-3 py-2 w-full rounded-md transition-colors hover:bg-primary/10 cursor-pointer group"
+          role="button"
+          aria-label="Open user settings"
+        >
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0 group-hover:bg-primary/30 transition-colors">
             <User className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="text-sm font-medium text-muted-foreground truncate flex-1">{username || "User"}</span>
+          <span className="text-sm font-medium text-muted-foreground truncate flex-1 text-left">{username || "User"}</span>
           <button
-            onClick={handleLogout}
+            onClick={(e) => { e.stopPropagation(); handleLogout() }}
             className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
           </button>
         </div>
+        <UserSettings open={userSettingsOpen} onOpenChange={setUserSettingsOpen} />
       </div>
     </div>
   )
