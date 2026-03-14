@@ -19,6 +19,7 @@ from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as
 from lib.permissions import get_user_groups, get_permission_summary, has_shell_access
 from lib.logger import log_auth
 from handlers.settings import load_settings
+import lib.totp as totp_lib
 
 router = APIRouter()
 
@@ -70,6 +71,15 @@ async def auth_login(payload: dict, request: Request):
 
     try:
         if pam_auth.authenticate(username, password):
+            # Check if 2FA is enabled for this user
+            if totp_lib.is_enabled(username):
+                login_token = totp_lib.create_login_token(username, password)
+                log_auth(f"2FA required for user [{username}] from {client_ip}")
+                return Response(
+                    content=f'{{"2fa_required": true, "login_token": "{login_token}"}}',
+                    media_type="application/json",
+                    status_code=200,
+                )
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
             resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
@@ -83,6 +93,29 @@ async def auth_login(payload: dict, request: Request):
     except Exception:
         log_auth(f"Login error for user [{username}] from {client_ip}", error=True)
         raise HTTPException(status_code=401, detail="invalid credentials")
+
+
+@router.post("/auth/2fa/complete")
+async def auth_2fa_complete(payload: dict, request: Request):
+    """Complete login after 2FA verification. Consumes the temp login_token."""
+    login_token = payload.get("login_token", "")
+    code = payload.get("code", "")
+    client_ip = request.client.host if request.client else "unknown"
+
+    if not login_token or not code:
+        raise HTTPException(status_code=400, detail="login_token and code required")
+
+    result = totp_lib.consume_login_token(login_token, code)
+    if not result:
+        log_auth(f"2FA verification failed from {client_ip}", error=True)
+        raise HTTPException(status_code=401, detail="invalid or expired 2FA code")
+
+    username, password = result
+    auth_token = base64.b64encode(f"{username}:{password}".encode()).decode()
+    resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
+    resp.set_cookie("auth", auth_token, httponly=True, samesite="Lax", max_age=3600)
+    log_auth(f"2FA login successful for user [{username}] from {client_ip}")
+    return resp
 
 
 @router.post("/auth/logout")
@@ -114,6 +147,71 @@ def auth_me(request: Request):
     if groups is None:
         groups = get_user_groups(username)
     return get_permission_summary(username, groups)
+
+
+# ---------------------------------------------------------------------------
+# 2FA management endpoints (all require authentication)
+# ---------------------------------------------------------------------------
+
+@router.get("/auth/2fa/status")
+def auth_2fa_status(request: Request):
+    """Return whether 2FA is enabled for the current user."""
+    username = getattr(request.state, "user", None)
+    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+        raise HTTPException(status_code=403, detail="not allowed for this auth method")
+    return {"enabled": totp_lib.is_enabled(username)}
+
+
+@router.post("/auth/2fa/setup")
+def auth_2fa_setup(request: Request):
+    """Begin 2FA setup: generate a new TOTP secret and return the provisioning URI."""
+    username = getattr(request.state, "user", None)
+    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+        raise HTTPException(status_code=403, detail="not allowed for this auth method")
+    if totp_lib.is_enabled(username):
+        raise HTTPException(status_code=400, detail="2FA is already enabled")
+    setup_token, uri = totp_lib.create_pending_setup(username)
+    return {"setup_token": setup_token, "uri": uri}
+
+
+@router.post("/auth/2fa/verify-setup")
+def auth_2fa_verify_setup(payload: dict, request: Request):
+    """Confirm 2FA setup by verifying the first TOTP code."""
+    username = getattr(request.state, "user", None)
+    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+        raise HTTPException(status_code=403, detail="not allowed for this auth method")
+    setup_token = payload.get("setup_token", "")
+    code = payload.get("code", "")
+    if not setup_token or not code:
+        raise HTTPException(status_code=400, detail="setup_token and code required")
+    if not totp_lib.verify_and_activate(setup_token, code):
+        raise HTTPException(status_code=400, detail="invalid or expired code")
+    log_auth(f"2FA enabled for user [{username}]")
+    return {"detail": "2FA enabled successfully"}
+
+
+@router.post("/auth/2fa/disable")
+def auth_2fa_disable(payload: dict, request: Request):
+    """Disable 2FA for the current user (requires current password + TOTP code)."""
+    username = getattr(request.state, "user", None)
+    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+        raise HTTPException(status_code=403, detail="not allowed for this auth method")
+    if not totp_lib.is_enabled(username):
+        raise HTTPException(status_code=400, detail="2FA is not enabled")
+    password = payload.get("password", "")
+    code = payload.get("code", "")
+    if not password or not code:
+        raise HTTPException(status_code=400, detail="password and code required")
+    # Verify password
+    _pam = pam.pam()
+    if not _pam.authenticate(username, password):
+        raise HTTPException(status_code=401, detail="password is incorrect")
+    # Verify current TOTP code
+    if not totp_lib.verify_code(username, code):
+        raise HTTPException(status_code=401, detail="invalid 2FA code")
+    totp_lib.disable_2fa(username)
+    log_auth(f"2FA disabled for user [{username}]")
+    return {"detail": "2FA disabled successfully"}
 
 
 @router.post("/auth/change-password")

@@ -155,6 +155,10 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.url.path == "/auth/login" and request.method == "POST":
         return await call_next(request)
 
+    # Skip authentication for 2FA completion (uses its own temp-token auth)
+    if request.url.path == "/auth/2fa/complete" and request.method == "POST":
+        return await call_next(request)
+
     # Skip authentication for /cluster/register (validates cluster key internally)
     if request.url.path == "/cluster/register" and request.method == "POST":
         return await call_next(request)

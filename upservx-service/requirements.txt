@@ -17,3 +17,4 @@ python-multipart==0.0.22
 python-pam==2.0.2
 six==1.17.0
 pyyaml==6.0.2
+pyotp==2.9.0
