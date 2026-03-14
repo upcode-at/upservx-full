@@ -282,19 +282,22 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             <span>System</span>
           </button>
         </div>
-        <div
-          onClick={() => setUserSettingsOpen(true)}
-          className="flex items-center space-x-2 px-3 py-2 w-full rounded-md transition-colors hover:bg-primary/10 cursor-pointer group"
-          role="button"
-          aria-label="Open user settings"
-        >
-          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0 group-hover:bg-primary/30 transition-colors">
-            <User className="h-3.5 w-3.5 text-primary" />
+        <div className="flex items-center gap-1">
+          <div
+            onClick={() => setUserSettingsOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 flex-1 min-w-0 rounded-md transition-colors hover:bg-primary/10 cursor-pointer group"
+            role="button"
+            aria-label="Open user settings"
+          >
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 shrink-0 group-hover:bg-primary/30 transition-colors">
+              <User className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground truncate">{username || "User"}</span>
           </div>
-          <span className="text-sm font-medium text-muted-foreground truncate flex-1 text-left">{username || "User"}</span>
+          <div className="w-px h-6 bg-sidebar-border/40 shrink-0" />
           <button
-            onClick={(e) => { e.stopPropagation(); handleLogout() }}
-            className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-2.5 py-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
