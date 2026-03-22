@@ -11,7 +11,7 @@ import sys
 
 from cli.output import error, header, info
 
-LOG_FILE = "/etc/upservx.log"
+LOG_FILE = "/var/log/upservx.log"
 
 
 def cmd_show(args) -> int:

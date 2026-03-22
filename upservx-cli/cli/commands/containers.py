@@ -18,7 +18,7 @@ from cli.output import error, header, info, kv, ok, table, warn
 def cmd_list(args) -> int:
     header("Containers")
     try:
-        data = get_client().get("/api/containers")
+        data = get_client().get("/containers")
     except APIError as e:
         error(str(e))
         return 1
@@ -62,7 +62,7 @@ def _format_ports(ports) -> str:
 def cmd_start(args) -> int:
     info(f"Starting container '{args.name}'...")
     try:
-        get_client().post(f"/api/containers/{args.name}/start")
+        get_client().post(f"/containers/{args.name}/start")
         ok(f"Container '{args.name}' started.")
     except APIError as e:
         error(str(e))
@@ -73,7 +73,7 @@ def cmd_start(args) -> int:
 def cmd_stop(args) -> int:
     info(f"Stopping container '{args.name}'...")
     try:
-        get_client().post(f"/api/containers/{args.name}/stop")
+        get_client().post(f"/containers/{args.name}/stop")
         ok(f"Container '{args.name}' stopped.")
     except APIError as e:
         error(str(e))
@@ -84,7 +84,7 @@ def cmd_stop(args) -> int:
 def cmd_restart(args) -> int:
     info(f"Restarting container '{args.name}'...")
     try:
-        get_client().post(f"/api/containers/{args.name}/restart")
+        get_client().post(f"/containers/{args.name}/restart")
         ok(f"Container '{args.name}' restarted.")
     except APIError as e:
         error(str(e))
@@ -95,7 +95,7 @@ def cmd_restart(args) -> int:
 def cmd_remove(args) -> int:
     info(f"Removing container '{args.name}'...")
     try:
-        get_client().delete(f"/api/containers/{args.name}")
+        get_client().delete(f"/containers/{args.name}")
         ok(f"Container '{args.name}' removed.")
     except APIError as e:
         error(str(e))
@@ -105,7 +105,7 @@ def cmd_remove(args) -> int:
 
 def cmd_logs(args) -> int:
     try:
-        resp = get_client().get(f"/api/containers/{args.name}/logs?lines={args.lines}")
+        resp = get_client().get(f"/containers/{args.name}/logs?lines={args.lines}")
         logs = resp.get("logs") or resp.get("output") or str(resp)
         print(logs)
     except APIError as e:
@@ -117,7 +117,7 @@ def cmd_logs(args) -> int:
 def cmd_inspect(args) -> int:
     header(f"Container: {args.name}")
     try:
-        data = get_client().get(f"/api/containers/{args.name}")
+        data = get_client().get(f"/containers/{args.name}")
     except APIError as e:
         error(str(e))
         return 1

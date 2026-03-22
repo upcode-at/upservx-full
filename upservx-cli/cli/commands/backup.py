@@ -14,7 +14,7 @@ from cli.output import error, header, info, kv, ok, table, warn
 def cmd_list(args) -> int:
     header("Backups")
     try:
-        data = get_client().get("/api/backup")
+        data = get_client().get("/backup/jobs")
     except APIError as e:
         error(str(e))
         return 1
@@ -43,7 +43,7 @@ def cmd_create(args) -> int:
         payload["target"] = args.target
     info("Creating backup...")
     try:
-        resp = get_client().post("/api/backup/create", payload or None)
+        resp = get_client().post("/backup/jobs", payload or None)
         ok("Backup started.")
         if isinstance(resp, dict) and resp.get("message"):
             info(resp["message"])
@@ -56,7 +56,7 @@ def cmd_create(args) -> int:
 def cmd_status(args) -> int:
     header("Backup Status")
     try:
-        data = get_client().get("/api/backup/status")
+        data = get_client().get("/backup/cron-jobs")
     except APIError as e:
         error(str(e))
         return 1

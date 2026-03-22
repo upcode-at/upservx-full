@@ -1,41 +1,85 @@
 """
-CLI Configuration – reads /etc/upservx-cli.conf or environment variables.
+CLI Configuration – reads /etc/upservx-cli.conf, ~/.upservx-cli.conf or env vars.
+
+Stored fields:
+  api_url      – backend base URL
+  credentials  – base64(username:password) for HTTP Basic Auth
+  token        – optional Bearer API key (overrides basic auth if set)
 """
 
+import base64
 import json
 import os
 
-CONFIG_FILE = "/etc/upservx-cli.conf"
+# System-wide config (written by install.sh / root)
+SYSTEM_CONFIG_FILE = "/etc/upservx-cli.conf"
+# Per-user config (used when system file is not writable)
+USER_CONFIG_FILE = os.path.expanduser("~/.upservx-cli.conf")
 DEFAULT_API_URL = "http://127.0.0.1:9500"
 
 
+def _config_path() -> str:
+    """Return the config file path that exists or the preferred write target."""
+    if os.path.isfile(USER_CONFIG_FILE):
+        return USER_CONFIG_FILE
+    if os.path.isfile(SYSTEM_CONFIG_FILE):
+        return SYSTEM_CONFIG_FILE
+    # Prefer user file for new writes
+    return USER_CONFIG_FILE
+
+
 def load_config() -> dict:
-    """Load config from file, fall back to env / defaults."""
-    cfg = {
-        "api_url": os.environ.get("UPSERVX_API_URL", DEFAULT_API_URL),
-        "token": os.environ.get("UPSERVX_TOKEN", ""),
+    """Load config from file(s) + environment variables."""
+    cfg: dict = {
+        "api_url": DEFAULT_API_URL,
+        "credentials": "",
+        "token": "",
     }
 
-    if os.path.isfile(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE) as f:
-                file_cfg = json.load(f)
-            cfg.update({k: v for k, v in file_cfg.items() if v})
-        except Exception:
-            pass
+    # System config first, then user config overrides
+    for path in (SYSTEM_CONFIG_FILE, USER_CONFIG_FILE):
+        if os.path.isfile(path):
+            try:
+                with open(path) as f:
+                    file_cfg = json.load(f)
+                cfg.update({k: v for k, v in file_cfg.items() if v})
+            except Exception:
+                pass
+
+    # Environment variables take highest priority
+    if os.environ.get("UPSERVX_API_URL"):
+        cfg["api_url"] = os.environ["UPSERVX_API_URL"]
+    if os.environ.get("UPSERVX_TOKEN"):
+        cfg["token"] = os.environ["UPSERVX_TOKEN"]
+    if os.environ.get("UPSERVX_CREDENTIALS"):
+        cfg["credentials"] = os.environ["UPSERVX_CREDENTIALS"]
 
     return cfg
 
 
 def save_config(cfg: dict) -> None:
-    """Persist config to /etc/upservx-cli.conf (requires root or write permission)."""
+    """Persist config to user config file."""
+    path = USER_CONFIG_FILE
+    # Try system-wide if it already exists and is writable
+    if os.path.isfile(SYSTEM_CONFIG_FILE) and os.access(SYSTEM_CONFIG_FILE, os.W_OK):
+        path = SYSTEM_CONFIG_FILE
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+    os.chmod(path, 0o600)
+
+
+def encode_credentials(username: str, password: str) -> str:
+    """Return base64(username:password) suitable for Basic Auth."""
+    return base64.b64encode(f"{username}:{password}".encode()).decode()
+
+
+def get_username_from_config() -> str:
+    """Decode stored credentials and return just the username."""
+    creds = load_config().get("credentials", "")
+    if not creds:
+        return ""
     try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(cfg, f, indent=2)
-        os.chmod(CONFIG_FILE, 0o600)
-    except PermissionError:
-        # Fall back to user home
-        user_conf = os.path.expanduser("~/.upservx-cli.conf")
-        with open(user_conf, "w") as f:
-            json.dump(cfg, f, indent=2)
-        os.chmod(user_conf, 0o600)
+        decoded = base64.b64decode(creds).decode()
+        return decoded.split(":", 1)[0]
+    except Exception:
+        return ""

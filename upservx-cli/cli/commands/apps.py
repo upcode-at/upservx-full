@@ -14,7 +14,7 @@ from cli.output import error, header, info, kv, ok, table, warn
 def cmd_list(args) -> int:
     header("App Store")
     try:
-        data = get_client().get("/api/app-store/apps")
+        data = get_client().get("/containers/app-store/apps")
     except APIError as e:
         error(str(e))
         return 1
@@ -39,7 +39,7 @@ def cmd_list(args) -> int:
 def cmd_info(args) -> int:
     header(f"App: {args.app}")
     try:
-        data = get_client().get(f"/api/app-store/apps/{args.app}")
+        data = get_client().get(f"/containers/app-store/apps/{args.app}")
     except APIError as e:
         error(str(e))
         return 1
@@ -53,7 +53,7 @@ def cmd_info(args) -> int:
 def cmd_install(args) -> int:
     info(f"Installing '{args.app}'...")
     try:
-        resp = get_client().post(f"/api/app-store/install", {"app_name": args.app})
+        resp = get_client().post(f"/containers/app-store/apps/{args.app}/install", {})
         ok(f"App '{args.app}' installation started.")
         if isinstance(resp, dict) and resp.get("message"):
             info(resp["message"])

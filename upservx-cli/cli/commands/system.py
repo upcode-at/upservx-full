@@ -13,30 +13,57 @@ from cli.output import error, header, info, kv, table, warn
 def cmd_info(args) -> int:
     header("System Information")
     try:
-        data = get_client().get("/api/system/info")
+        data = get_client().get("/metrics")
     except APIError as e:
         error(str(e))
         return 1
-    if isinstance(data, dict):
-        kv(data, indent=2)
-    else:
-        print(data)
+
+    cpu     = data.get("cpu") or {}
+    mem     = data.get("memory") or {}
+    storage = data.get("storage") or {}
+    info_data = {
+        "CPU":          cpu.get("model", "?"),
+        "Cores":        str(cpu.get("cores", "?")),
+        "Architecture": data.get("architecture", "?"),
+        "Kernel":       data.get("kernel", "?"),
+        "Memory":       f"{mem.get('total', '?')} GB",
+        "Disk":         f"{storage.get('total', '?')} GB",
+        "GPU":          data.get("gpu", "?"),
+        "Uptime":       data.get("uptime", "?"),
+    }
+    kv(info_data, indent=2)
+    print()
+
+    # Services sub-table
+    services = data.get("services", [])
+    if services:
+        header("Service Status")
+        table(
+            [{"name": s["name"], "status": s["status"]} for s in services],
+            ["name", "status"],
+        )
     return 0
 
 
 def cmd_stats(args) -> int:
     header("System Stats")
     try:
-        data = get_client().get("/api/system/stats")
+        data = get_client().get("/metrics")
     except APIError as e:
         error(str(e))
         return 1
 
+    cpu     = data.get("cpu") or {}
+    mem     = data.get("memory") or {}
+    storage = data.get("storage") or {}
+    net     = data.get("network") or {}
     stats = {
-        "CPU":    f"{data.get('cpu_percent', '?')}%",
-        "Memory": f"{data.get('memory_used', '?')} / {data.get('memory_total', '?')} ({data.get('memory_percent', '?')}%)",
-        "Disk":   f"{data.get('disk_used', '?')} / {data.get('disk_total', '?')} ({data.get('disk_percent', '?')}%)",
-        "Uptime": data.get("uptime", "?"),
+        "CPU":     f"{cpu.get('usage', '?')}%  ({cpu.get('cores', '?')} cores, {cpu.get('model', '')})",
+        "Memory":  f"{mem.get('used', '?')} GB / {mem.get('total', '?')} GB  ({mem.get('usage', '?')}%)",
+        "Disk":    f"{storage.get('used', '?')} GB / {storage.get('total', '?')} GB  ({storage.get('usage', '?')}%)",
+        "Network": f"↓ {net.get('in', '?')} MB/s  ↑ {net.get('out', '?')} MB/s",
+        "Uptime":  data.get("uptime", "?"),
+        "Kernel":  data.get("kernel", "?"),
     }
     kv(stats, indent=2)
     print()
@@ -46,7 +73,7 @@ def cmd_stats(args) -> int:
 def cmd_services(args) -> int:
     header("SystemD Services")
     try:
-        data = get_client().get("/api/services")
+        data = get_client().get("/services")
     except APIError as e:
         error(str(e))
         return 1

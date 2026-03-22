@@ -7,7 +7,7 @@ import sys
 
 from cli.output import BOLD, CYAN, GREEN, RESET, _c
 
-from cli.commands import apps, backup, containers, logs, service, system
+from cli.commands import apps, auth, backup, containers, logs, service, system
 
 VERSION = "0.3.0"
 
@@ -28,6 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  upservx auth login
+  upservx auth whoami
   upservx service status
   upservx containers list
   upservx containers logs myapp --lines 200
@@ -50,6 +52,7 @@ Examples:
     subparsers.required = True
 
     # Register all commands
+    auth.register(subparsers)
     service.register(subparsers)
     containers.register(subparsers)
     system.register(subparsers)

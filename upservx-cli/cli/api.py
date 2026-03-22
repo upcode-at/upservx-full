@@ -1,5 +1,9 @@
 """
 HTTP client for the UpservX API – uses requests.
+
+Auth priority:
+  1. UPSERVX_TOKEN env / config token  → Bearer <token>
+  2. UPSERVX_CREDENTIALS env / config credentials  → Basic <base64>
 """
 
 from typing import Any, Optional
@@ -20,11 +24,15 @@ class APIClient:
     def __init__(self):
         cfg = load_config()
         self.base_url = cfg["api_url"].rstrip("/")
-        self.token = cfg.get("token", "")
         self.session = requests.Session()
         self.session.headers.update({"Accept": "application/json"})
-        if self.token:
-            self.session.headers["Authorization"] = f"Bearer {self.token}"
+
+        token = cfg.get("token", "")
+        credentials = cfg.get("credentials", "")
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
+        elif credentials:
+            self.session.headers["Authorization"] = f"Basic {credentials}"
 
     def _request(self, method: str, path: str, body: Optional[dict] = None) -> Any:
         url = f"{self.base_url}{path}"
@@ -38,6 +46,8 @@ class APIClient:
                 detail = resp.json().get("detail", resp.text)
             except Exception:
                 detail = resp.text
+            if resp.status_code == 401:
+                detail = "Not authenticated. Run: upservx auth login"
             raise APIError(resp.status_code, detail)
 
         return resp.json() if resp.content else {}
