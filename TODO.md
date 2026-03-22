@@ -80,9 +80,7 @@ This list summarizes major enterprise-grade virtualization, storage, and cluster
 ## 👥 User Management
 
 - [ ] **Authentication**
-  - 2FA/TOTP support
   - LDAP/Active Directory integration
-  - OAuth2/OIDC support
   - API key management
 
 ## 🎨 UI/UX Improvements
