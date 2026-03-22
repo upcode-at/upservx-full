@@ -1,12 +1,11 @@
 """
-HTTP client for the UpservX API – uses only stdlib (urllib + json).
+HTTP client for the UpservX API – uses requests.
 """
 
-import json
-import urllib.error
-import urllib.parse
-import urllib.request
 from typing import Any, Optional
+
+import requests
+from requests.exceptions import ConnectionError, Timeout
 
 from cli.config import load_config
 
@@ -22,30 +21,26 @@ class APIClient:
         cfg = load_config()
         self.base_url = cfg["api_url"].rstrip("/")
         self.token = cfg.get("token", "")
-
-    def _headers(self) -> dict:
-        h = {"Content-Type": "application/json", "Accept": "application/json"}
+        self.session = requests.Session()
+        self.session.headers.update({"Accept": "application/json"})
         if self.token:
-            h["Authorization"] = f"Bearer {self.token}"
-        return h
+            self.session.headers["Authorization"] = f"Bearer {self.token}"
 
     def _request(self, method: str, path: str, body: Optional[dict] = None) -> Any:
         url = f"{self.base_url}{path}"
-        data = json.dumps(body).encode() if body else None
-        req = urllib.request.Request(url, data=data, headers=self._headers(), method=method)
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                raw = resp.read()
-                return json.loads(raw) if raw else {}
-        except urllib.error.HTTPError as e:
-            body_text = e.read().decode(errors="replace")
+            resp = self.session.request(method, url, json=body, timeout=10)
+        except (ConnectionError, Timeout) as e:
+            raise APIError(0, f"Cannot reach API at {self.base_url}: {e}") from e
+
+        if not resp.ok:
             try:
-                detail = json.loads(body_text).get("detail", body_text)
+                detail = resp.json().get("detail", resp.text)
             except Exception:
-                detail = body_text
-            raise APIError(e.code, detail) from e
-        except urllib.error.URLError as e:
-            raise APIError(0, f"Cannot reach API at {self.base_url}: {e.reason}") from e
+                detail = resp.text
+            raise APIError(resp.status_code, detail)
+
+        return resp.json() if resp.content else {}
 
     def get(self, path: str) -> Any:
         return self._request("GET", path)

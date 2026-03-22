@@ -249,23 +249,26 @@ spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
 # === 9. Install CLI =========================================================
-step "Install upservx CLI"
+step "Install upservx CLI – venv"
 {
-  CLI_SRC="$APP_DIR/upservx-cli"
-  CLI_BIN="/usr/local/bin/upservx"
+  cd "$APP_DIR/upservx-cli"
+  python3 -m venv venv
+  source venv/bin/activate
+  pip install --quiet -r requirements.txt
+  deactivate
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
 
-  # Remove old symlink / binary if present
+step "Install upservx CLI – link binary"
+{
+  CLI_BIN="/usr/local/bin/upservx"
   rm -f "$CLI_BIN"
 
-  # Create a self-contained wrapper so it always uses the installed path
-  cat > "$CLI_BIN" <<'EOF_CLI'
-#!/usr/bin/env python3
-import os, sys
-_DIR = "/opt/upservx/upservx-cli"
-if _DIR not in sys.path:
-    sys.path.insert(0, _DIR)
-from cli.main import main
-sys.exit(main())
+  # Shell wrapper: activates the CLI venv and runs the entry point
+  cat > "$CLI_BIN" <<EOF_CLI
+#!/usr/bin/env bash
+exec "$APP_DIR/upservx-cli/venv/bin/python" "$APP_DIR/upservx-cli/upservx" "\$@"
 EOF_CLI
 
   chmod +x "$CLI_BIN"

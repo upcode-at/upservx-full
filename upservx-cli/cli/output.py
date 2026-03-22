@@ -1,10 +1,17 @@
 """
-Terminal output helpers – color, tables, banners.
+Terminal output helpers – powered by rich.
 """
 
 import sys
 
-# ANSI colors
+from rich.console import Console
+from rich.table import Table
+from rich import print as rprint
+
+console = Console()
+err_console = Console(stderr=True)
+
+# Keep bare color constants for legacy compat (used in main.py banner)
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
@@ -14,63 +21,48 @@ BOLD = "\033[1m"
 DIM = "\033[2m"
 RESET = "\033[0m"
 
-_NO_COLOR = not sys.stdout.isatty()
-
 
 def _c(color: str, text: str) -> str:
-    if _NO_COLOR:
+    """Legacy helper – still used in a few places."""
+    if not sys.stdout.isatty():
         return text
     return f"{color}{text}{RESET}"
 
 
 def ok(msg: str) -> None:
-    print(_c(GREEN, "✔ ") + msg)
+    console.print(f"[bold green]✔[/bold green] {msg}")
 
 
 def warn(msg: str) -> None:
-    print(_c(YELLOW, "⚠ ") + msg)
+    console.print(f"[bold yellow]⚠[/bold yellow]  {msg}")
 
 
 def error(msg: str) -> None:
-    print(_c(RED, "✖ ") + msg, file=sys.stderr)
+    err_console.print(f"[bold red]✖[/bold red] {msg}")
 
 
 def info(msg: str) -> None:
-    print(_c(CYAN, "  ") + msg)
+    console.print(f"[cyan]  {msg}[/cyan]")
 
 
 def header(msg: str) -> None:
-    print()
-    print(_c(BOLD, msg))
-    print(_c(DIM, "─" * len(msg)))
+    console.print()
+    console.rule(f"[bold]{msg}[/bold]")
 
 
 def table(rows: list[dict], columns: list[str]) -> None:
-    """Print a fixed-width table from a list of dicts."""
-    # Calculate column widths
-    widths = {col: len(col) for col in columns}
+    """Print a rich table from a list of dicts."""
+    t = Table(show_header=True, header_style="bold")
+    for col in columns:
+        t.add_column(col.upper())
     for row in rows:
-        for col in columns:
-            val = str(row.get(col, ""))
-            widths[col] = max(widths[col], len(val))
-
-    # Header row
-    header_line = "  ".join(
-        _c(BOLD, col.upper().ljust(widths[col])) for col in columns
-    )
-    print(header_line)
-    print(_c(DIM, "  ".join("─" * widths[col] for col in columns)))
-
-    # Data rows
-    for row in rows:
-        line = "  ".join(str(row.get(col, "")).ljust(widths[col]) for col in columns)
-        print(line)
-
-    print()
+        t.add_row(*[str(row.get(col, "")) for col in columns])
+    console.print(t)
+    console.print()
 
 
 def kv(data: dict, indent: int = 0) -> None:
     """Print key-value pairs."""
     pad = " " * indent
     for key, value in data.items():
-        print(f"{pad}{_c(BOLD, key + ':')} {value}")
+        console.print(f"{pad}[bold]{key}:[/bold] {value}")
