@@ -248,6 +248,32 @@ step "Enable and start service"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === 9. Install CLI =========================================================
+step "Install upservx CLI"
+{
+  CLI_SRC="$APP_DIR/upservx-cli"
+  CLI_BIN="/usr/local/bin/upservx"
+
+  # Remove old symlink / binary if present
+  rm -f "$CLI_BIN"
+
+  # Create a self-contained wrapper so it always uses the installed path
+  cat > "$CLI_BIN" <<'EOF_CLI'
+#!/usr/bin/env python3
+import os, sys
+_DIR = "/opt/upservx/upservx-cli"
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
+from cli.main import main
+sys.exit(main())
+EOF_CLI
+
+  chmod +x "$CLI_BIN"
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 printf "\n${GREEN}Installation complete!${NC}\n"
 printf "Check status with: ${BLUE}systemctl status ${SERVICE_NAME}${NC}\n"
+printf "CLI available:    ${BLUE}upservx --help${NC}\n"
 systemctl restart ${SERVICE_NAME}
