@@ -73,24 +73,6 @@ upservx backup create [--target]  # Create a backup
 upservx backup status             # Show backup job status
 ```
 
-## Configuration
-
-The CLI reads configuration from `/etc/upservx-cli.conf` (JSON) or environment variables:
-
-| Variable            | Default                   | Description            |
-|---------------------|---------------------------|------------------------|
-| `UPSERVX_API_URL`   | `http://127.0.0.1:9500`   | Backend API base URL   |
-| `UPSERVX_TOKEN`     | *(empty)*                 | Bearer auth token      |
-
-Example `/etc/upservx-cli.conf`:
-
-```json
-{
-  "api_url": "http://127.0.0.1:9500",
-  "token": "your-token-here"
-}
-```
-
 ## Structure
 
 ```
