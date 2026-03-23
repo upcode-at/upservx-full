@@ -39,5 +39,8 @@ Welcome to the complete technical documentation for the **UpservX** project.
 ### App Store
 - [App Store Templates](./app-store/README.md)
 
+### CLI (`upservx-cli/`)
+- [CLI Overview & Installation](./cli/README.md)
+
 ### API
 - [API Endpoint Reference](./api/endpoints.md)
