@@ -56,10 +56,15 @@ export function VirtualMachines() {
   const [disks, setDisks] = useState<Array<{ size: number; format: "qcow2" | "raw" | "vmdk" }>>([{ size: 20, format: "qcow2" }])
   const [autostart, setAutostart] = useState(false)
   const [cloudInit, setCloudInit] = useState("")
-  const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none" | "unconfigured">("nat")
+  const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none" | "unconfigured" | "internal">("nat")
   const [bridgeInterface, setBridgeInterface] = useState<string>("")
   const [vlanId, setVlanId] = useState<number | "">("")
   const [networkInterfaces, setNetworkInterfaces] = useState<string[]>([])
+  const [internalNetworks, setInternalNetworks] = useState<Array<{ name: string; active: boolean; autostart: boolean; details: { forward_mode?: string; subnet?: string; dhcp_range?: string; bridge?: string } }>>([])  
+  const [selectedInternalNetwork, setSelectedInternalNetwork] = useState<string>("")
+  const [netMgmtOpen, setNetMgmtOpen] = useState(false)
+  const [newNetName, setNewNetName] = useState("")
+  const [netMgmtLoading, setNetMgmtLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
   const [view, setView] = useState<"grid" | "list">("list")
@@ -85,9 +90,10 @@ export function VirtualMachines() {
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importName, setImportName] = useState("")
-  const [importNetworkMode, setImportNetworkMode] = useState<"nat" | "bridge" | "none" | "unconfigured">("nat")
+  const [importNetworkMode, setImportNetworkMode] = useState<"nat" | "bridge" | "none" | "unconfigured" | "internal">("nat")
   const [importBridgeInterface, setImportBridgeInterface] = useState("")
   const [importVlanId, setImportVlanId] = useState<number | "">("") 
+  const [importInternalNetwork, setImportInternalNetwork] = useState("")
   const [importAutostart, setImportAutostart] = useState(false)
   const [importStoragePath, setImportStoragePath] = useState("")
   const [importLoading, setImportLoading] = useState(false)
@@ -186,12 +192,29 @@ export function VirtualMachines() {
     loadInterfaces()
   }, [])
 
+  const loadInternalNetworks = async () => {
+    try {
+      const res = await fetch(apiUrl("/vm-networks"), { headers: getAuthHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setInternalNetworks(data)
+        if (data.length > 0 && !selectedInternalNetwork) setSelectedInternalNetwork(data[0].name)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    loadInternalNetworks()
+  }, [])
+
   const handleSave = async () => {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, storage_path: storagePath || undefined }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, storage_path: storagePath || undefined }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: networkMode === "bridge" ? bridgeInterface : undefined, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, network_name: networkMode === "internal" ? selectedInternalNetwork : undefined, storage_path: storagePath || undefined }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: networkMode === "bridge" ? bridgeInterface : undefined, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, network_name: networkMode === "internal" ? selectedInternalNetwork : undefined, storage_path: storagePath || undefined }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = editing ? editing.name : name
@@ -457,6 +480,9 @@ export function VirtualMachines() {
         form.append("bridge_interface", importBridgeInterface)
         if (importVlanId !== "") form.append("vlan_id", String(importVlanId))
       }
+      if (importNetworkMode === "internal" && importInternalNetwork) {
+        form.append("network_name", importInternalNetwork)
+      }
       form.append("autostart", String(importAutostart))
       if (importStoragePath && importStoragePath !== "__default__") form.append("storage_path", importStoragePath)
 
@@ -496,10 +522,17 @@ export function VirtualMachines() {
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setStoragePath("")
-    const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : vm.network_bridge === "unconfigured" ? "unconfigured" : "bridge"
-    setNetworkMode(mode)
+    const mode = vm.network_bridge === "virbr0" ? "nat"
+      : vm.network_bridge === "none" ? "none"
+      : vm.network_bridge === "unconfigured" ? "unconfigured"
+      : vm.network_bridge?.startsWith("network:") ? "internal"
+      : "bridge"
+    setNetworkMode(mode as typeof networkMode)
     if (mode === "bridge" && vm.network_bridge) {
       setBridgeInterface(vm.network_bridge)
+    }
+    if (mode === "internal" && vm.network_bridge) {
+      setSelectedInternalNetwork(vm.network_bridge.replace("network:", ""))
     }
     setVlanId(vm.vlan_id ?? "")
     setOpen(true)
@@ -526,12 +559,15 @@ export function VirtualMachines() {
         <div className="flex items-center gap-2">
           <Button variant={view === "grid" ? "secondary" : "outline"} size="icon" onClick={() => setView("grid")}> <LayoutGrid className="h-4 w-4" /></Button>
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
-          <Button variant="outline" onClick={() => { setImportFile(null); setImportName(""); setImportNetworkMode("nat"); setImportBridgeInterface(""); setImportVlanId(""); setImportAutostart(false); setImportStoragePath(""); setImportOpen(true) }}>
+          <Button variant="outline" onClick={() => { setImportFile(null); setImportName(""); setImportNetworkMode("nat"); setImportBridgeInterface(""); setImportVlanId(""); setImportInternalNetwork(""); setImportAutostart(false); setImportStoragePath(""); setImportOpen(true) }}>
             <Upload className="mr-2 h-4 w-4" /> Import VM
+          </Button>
+          <Button variant="outline" onClick={() => { loadInternalNetworks(); setNetMgmtOpen(true) }}>
+            Networks
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([{ size: 20, format: "qcow2" }]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setVlanId(""); setStoragePath(""); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([{ size: 20, format: "qcow2" }]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setVlanId(""); setSelectedInternalNetwork(internalNetworks[0]?.name || ""); setStoragePath(""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -573,13 +609,14 @@ export function VirtualMachines() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vm-network">Network</Label>
-                    <Select value={networkMode} onValueChange={(v) => setNetworkMode(v as "bridge" | "nat" | "none" | "unconfigured")}>
+                    <Select value={networkMode} onValueChange={(v) => setNetworkMode(v as typeof networkMode)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select network mode" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="nat">NAT (virbr0)</SelectItem>
                         <SelectItem value="bridge">Bridge (Direct)</SelectItem>
+                        <SelectItem value="internal">Internal Network</SelectItem>
                         <SelectItem value="unconfigured">Unconfigured Interface</SelectItem>
                         <SelectItem value="none">No Network</SelectItem>
                       </SelectContent>
@@ -613,8 +650,28 @@ export function VirtualMachines() {
                         </div>
                       </div>
                     )}
+                    {networkMode === "internal" && (
+                      <div className="mt-2 space-y-2">
+                        <Label>Internal Network</Label>
+                        {internalNetworks.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No internal networks defined yet. Create one via &quot;Manage Networks&quot;.</p>
+                        ) : (
+                          <Select value={selectedInternalNetwork} onValueChange={setSelectedInternalNetwork}>
+                            <SelectTrigger><SelectValue placeholder="Select network" /></SelectTrigger>
+                            <SelectContent>
+                              {internalNetworks.map(n => (
+                                <SelectItem key={n.name} value={n.name}>
+                                  {n.name} {n.details?.subnet ? `(${n.details.subnet})` : ""} {!n.active && "(inactive)"}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button variant="outline" size="sm" type="button" onClick={() => setNetMgmtOpen(true)}>Manage Networks</Button>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      NAT: Internet access via host NAT | Bridge: Direct network access | Unconfigured: Manual network setup required | None: No network
+                      NAT: Internet access via host NAT | Bridge: Direct network access | Internal: Isolated VM-to-VM network | Unconfigured: Manual setup | None: No network
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -1033,6 +1090,7 @@ export function VirtualMachines() {
                 <SelectContent>
                   <SelectItem value="nat">NAT (virbr0)</SelectItem>
                   <SelectItem value="bridge">Bridge (Direct)</SelectItem>
+                  <SelectItem value="internal">Internal Network</SelectItem>
                   <SelectItem value="unconfigured">Unconfigured Interface</SelectItem>
                   <SelectItem value="none">No Network</SelectItem>
                 </SelectContent>
@@ -1061,6 +1119,25 @@ export function VirtualMachines() {
                     />
                     <p className="text-xs text-muted-foreground mt-1">Creates a VLAN sub-interface (e.g. eth0.100) and bridges to it</p>
                   </div>
+                </div>
+              )}
+              {importNetworkMode === "internal" && (
+                <div className="mt-2">
+                  <Label>Internal Network</Label>
+                  {internalNetworks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No internal networks defined yet.</p>
+                  ) : (
+                    <Select value={importInternalNetwork} onValueChange={setImportInternalNetwork}>
+                      <SelectTrigger><SelectValue placeholder="Select network" /></SelectTrigger>
+                      <SelectContent>
+                        {internalNetworks.map(n => (
+                          <SelectItem key={n.name} value={n.name}>
+                            {n.name} {n.details?.subnet ? `(${n.details.subnet})` : ""} {!n.active && "(inactive)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               )}
             </div>
@@ -1186,6 +1263,117 @@ export function VirtualMachines() {
               <Copy className="mr-2 h-4 w-4" />
               Duplicate
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Internal Network Management Dialog */}
+      <Dialog open={netMgmtOpen} onOpenChange={setNetMgmtOpen}>
+        <DialogContent className="overflow-y-auto" style={{ maxWidth: "640px", maxHeight: "90vh" }}>
+          <DialogHeader>
+            <DialogTitle>Internal VM Networks</DialogTitle>
+            <DialogDescription>Create and manage isolated libvirt networks for VM-to-VM communication</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Existing networks table */}
+            {internalNetworks.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Subnet</TableHead>
+                    <TableHead>DHCP</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {internalNetworks.map(n => (
+                    <TableRow key={n.name}>
+                      <TableCell className="font-mono">{n.name}</TableCell>
+                      <TableCell className="font-mono text-xs">{n.details?.subnet || "—"}</TableCell>
+                      <TableCell>{n.details?.dhcp_range ? "yes" : "no"}</TableCell>
+                      <TableCell>{n.details?.forward_mode === "isolated" || !n.details?.forward_mode ? "internal" : n.details.forward_mode}</TableCell>
+                      <TableCell>
+                        <Badge className={n.active ? "bg-green-600 text-white" : "bg-gray-500 text-white"}>
+                          {n.active ? "active" : "inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="flex gap-1 justify-end">
+                        {n.active ? (
+                          <Button variant="outline" size="sm" onClick={async () => {
+                            try {
+                              await fetch(apiUrl(`/vm-networks/${n.name}/stop`), { method: "POST", headers: getAuthHeaders() })
+                              await loadInternalNetworks()
+                            } catch (e) { console.error(e) }
+                          }}>Stop</Button>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={async () => {
+                            try {
+                              await fetch(apiUrl(`/vm-networks/${n.name}/start`), { method: "POST", headers: getAuthHeaders() })
+                              await loadInternalNetworks()
+                            } catch (e) { console.error(e) }
+                          }}>Start</Button>
+                        )}
+                        {n.name !== "default" && (
+                          <Button variant="destructive" size="sm" onClick={async () => {
+                            if (!confirm(`Delete network "${n.name}"?`)) return
+                            try {
+                              await fetch(apiUrl(`/vm-networks/${n.name}`), { method: "DELETE", headers: getAuthHeaders() })
+                              await loadInternalNetworks()
+                            } catch (e) { console.error(e) }
+                          }}><Trash2 className="h-3 w-3" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-sm text-muted-foreground">No internal networks defined yet.</p>
+            )}
+
+            {/* Create new network form */}
+            <div className="border rounded-md p-4 space-y-3">
+              <p className="font-medium text-sm">Create New Network</p>
+              <div className="space-y-1">
+                <Label>Name</Label>
+                <Input value={newNetName} onChange={e => setNewNetName(e.target.value)} placeholder="e.g. vmnet1" />
+                <p className="text-xs text-muted-foreground">Creates an isolated L2 network. IP configuration is done inside the VMs.</p>
+              </div>
+              <Button
+                size="sm"
+                disabled={netMgmtLoading || !newNetName.trim()}
+                onClick={async () => {
+                  setNetMgmtLoading(true)
+                  try {
+                    const res = await fetch(apiUrl("/vm-networks"), {
+                      method: "POST",
+                      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: newNetName.trim() }),
+                    })
+                    if (res.ok) {
+                      setNewNetName("")
+                      await loadInternalNetworks()
+                    } else {
+                      const err = await res.json()
+                      alert(err.detail || "Failed to create network")
+                    }
+                  } catch (e) {
+                    console.error(e)
+                  } finally {
+                    setNetMgmtLoading(false)
+                  }
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {netMgmtLoading ? "Creating…" : "Create Network"}
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-end mt-2">
+            <Button variant="outline" onClick={() => setNetMgmtOpen(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>

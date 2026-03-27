@@ -315,15 +315,17 @@ def _validate_disk_format(fmt: str) -> str:
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: str,
               network_mode: str = "nat", bridge_interface: str | None = None,
-              vlan_id: int | None = None, autostart: bool = False,
+              vlan_id: int | None = None, network_name: str | None = None,
+              autostart: bool = False,
               cloud_init: str | None = None, storage_path: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
     Supports optional cloud-init user-data (string). If `cloud_init` is provided
     a small seed ISO will be created and attached as a CD-ROM.
-    network_mode: "nat" (virbr0), "bridge" (direct to physical), or "none" (no network)
+    network_mode: "nat" (virbr0), "bridge" (direct to physical), "internal" (libvirt network), or "none" (no network)
     bridge_interface: physical interface name for bridge mode (e.g. "wlp3s0", "enp0s31f6")
     vlan_id: optional VLAN tag (1-4094) for bridge mode; creates a VLAN sub-interface
+    network_name: libvirt network name for internal mode (e.g. "mynet")
     storage_path: optional path to mounted drive for VM disks (e.g., /mnt/ssd1)
                   VM disks will be stored in {storage_path}/vms/{vm_name}/
     """
@@ -412,6 +414,11 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
             actual_bridge = ensure_bridge_for_interface(phys_iface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
+        elif network_mode == "internal":
+            if not network_name:
+                raise Exception("network_name required for internal network mode")
+            network_args = ["--network", f"network={network_name}"]
+            network_bridge = f"network:{network_name}"
         elif network_mode == "unconfigured":
             # Create unconfigured network interface - requires manual configuration
             # Using type=ethernet creates a network interface without automatic configuration
@@ -488,7 +495,8 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
              iso: str | None = None, add_disks: List | None = None, iso_dir: str = "",
              autostart: bool | None = None, remove_disks: List[str] | None = None,
              network_mode: str | None = None, bridge_interface: str | None = None,
-             vlan_id: int | None = None, storage_path: str | None = None) -> VirtualMachine:
+             vlan_id: int | None = None, network_name: str | None = None,
+             storage_path: str | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration.
     
     storage_path: optional path to mounted drive for new VM disks (e.g., /mnt/ssd1)
@@ -643,6 +651,11 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
                 vm.vlan_id = vlan_id
             else:
                 raise Exception("bridge_interface required for bridge mode")
+        elif network_mode == "internal":
+            if not network_name:
+                raise Exception("network_name required for internal network mode")
+            vm.network_bridge = f"network:{network_name}"
+            vm.vlan_id = None
         elif network_mode == "unconfigured":
             vm.network_bridge = "unconfigured"
             vm.vlan_id = None
@@ -1272,6 +1285,7 @@ def import_vm_ova(
     network_mode: str = "nat",
     bridge_interface: str | None = None,
     vlan_id: int | None = None,
+    network_name: str | None = None,
     autostart: bool = False,
     storage_path: str | None = None,
 ) -> VirtualMachine:
@@ -1405,6 +1419,11 @@ def import_vm_ova(
             actual_bridge = ensure_bridge_for_interface(phys_iface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
+        elif network_mode == "internal":
+            if not network_name:
+                raise Exception("network_name required for internal network mode")
+            network_args = ["--network", f"network={network_name}"]
+            network_bridge = f"network:{network_name}"
         elif network_mode == "unconfigured":
             network_args = ["--network", "type=ethernet,model=virtio"]
             network_bridge = "unconfigured"

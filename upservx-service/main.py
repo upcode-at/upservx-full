@@ -245,6 +245,7 @@ from api.cluster import router as cluster_router
 from api.customization import router as customization_router
 from api.isos import router as isos_router
 from api.vms import router as vms_router
+from api.vm_networks import router as vm_networks_router
 from api.network import router as network_router
 from api.storage import router as storage_router
 from api.users import router as users_router
@@ -263,6 +264,7 @@ app.include_router(cluster_router)
 app.include_router(customization_router)
 app.include_router(isos_router)
 app.include_router(vms_router)
+app.include_router(vm_networks_router)
 app.include_router(network_router)
 app.include_router(storage_router)
 app.include_router(users_router)

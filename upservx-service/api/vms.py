@@ -35,6 +35,7 @@ def create_vm_endpoint(payload: VirtualMachineCreate):
             network_mode=getattr(payload, "network_mode", "nat"),
             bridge_interface=getattr(payload, "bridge_interface", None),
             vlan_id=getattr(payload, "vlan_id", None),
+            network_name=getattr(payload, "network_name", None),
             autostart=getattr(payload, "autostart", False),
             cloud_init=getattr(payload, "cloud_init", None),
             storage_path=getattr(payload, "storage_path", None),
@@ -58,6 +59,7 @@ def update_vm_endpoint(name: str, payload: VirtualMachineUpdate):
             network_mode=getattr(payload, "network_mode", None),
             bridge_interface=getattr(payload, "bridge_interface", None),
             vlan_id=getattr(payload, "vlan_id", None),
+            network_name=getattr(payload, "network_name", None),
             storage_path=getattr(payload, "storage_path", None),
         )
         return vm.dict()
@@ -210,6 +212,7 @@ async def import_vm_endpoint(
     network_mode: str = "nat",
     bridge_interface: str = "",
     vlan_id: int = 0,
+    network_name: str = "",
     autostart: bool = False,
     storage_path: str = "",
 ):
@@ -231,6 +234,7 @@ async def import_vm_endpoint(
             network_mode=network_mode or "nat",
             bridge_interface=bridge_interface or None,
             vlan_id=vlan_id if vlan_id > 0 else None,
+            network_name=network_name or None,
             autostart=autostart,
             storage_path=storage_path or None,
         )
