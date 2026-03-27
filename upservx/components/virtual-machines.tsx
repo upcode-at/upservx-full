@@ -33,6 +33,7 @@ export function VirtualMachines() {
     created: string
     autostart?: boolean
     network_bridge?: string
+    vlan_id?: number
     graphics?: string
     cloud_init_iso?: string
     storage_path?: string
@@ -57,6 +58,7 @@ export function VirtualMachines() {
   const [cloudInit, setCloudInit] = useState("")
   const [networkMode, setNetworkMode] = useState<"bridge" | "nat" | "none" | "unconfigured">("nat")
   const [bridgeInterface, setBridgeInterface] = useState<string>("")
+  const [vlanId, setVlanId] = useState<number | "">("")
   const [networkInterfaces, setNetworkInterfaces] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<VMData | null>(null)
@@ -85,6 +87,7 @@ export function VirtualMachines() {
   const [importName, setImportName] = useState("")
   const [importNetworkMode, setImportNetworkMode] = useState<"nat" | "bridge" | "none" | "unconfigured">("nat")
   const [importBridgeInterface, setImportBridgeInterface] = useState("")
+  const [importVlanId, setImportVlanId] = useState<number | "">("") 
   const [importAutostart, setImportAutostart] = useState(false)
   const [importStoragePath, setImportStoragePath] = useState("")
   const [importLoading, setImportLoading] = useState(false)
@@ -187,8 +190,8 @@ export function VirtualMachines() {
     setSuccess(null)
     setError(null)
     const payload = editing
-      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
-      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, storage_path: storagePath || undefined }
+      ? { cpu, memory, iso, add_disks: disks, autostart, remove_disks: disksToRemove, network_mode: networkMode, bridge_interface: bridgeInterface, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, storage_path: storagePath || undefined }
+      : { name, cpu, memory, iso, disks, autostart, cloud_init: cloudInit, network_mode: networkMode, bridge_interface: bridgeInterface, vlan_id: networkMode === "bridge" && vlanId !== "" ? vlanId : undefined, storage_path: storagePath || undefined }
     const target = editing ? `/vms/${editing.name}` : "/vms"
     const method = editing ? "PATCH" : "POST"
     const vmName = editing ? editing.name : name
@@ -452,6 +455,7 @@ export function VirtualMachines() {
       form.append("network_mode", importNetworkMode)
       if (importNetworkMode === "bridge" && importBridgeInterface) {
         form.append("bridge_interface", importBridgeInterface)
+        if (importVlanId !== "") form.append("vlan_id", String(importVlanId))
       }
       form.append("autostart", String(importAutostart))
       if (importStoragePath && importStoragePath !== "__default__") form.append("storage_path", importStoragePath)
@@ -492,11 +496,12 @@ export function VirtualMachines() {
     setAutostart(!!vm.autostart)
     setCloudInit("")
     setStoragePath("")
-    const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : "bridge"
+    const mode = vm.network_bridge === "virbr0" ? "nat" : vm.network_bridge === "none" ? "none" : vm.network_bridge === "unconfigured" ? "unconfigured" : "bridge"
     setNetworkMode(mode)
     if (mode === "bridge" && vm.network_bridge) {
       setBridgeInterface(vm.network_bridge)
     }
+    setVlanId(vm.vlan_id ?? "")
     setOpen(true)
   }
 
@@ -521,12 +526,12 @@ export function VirtualMachines() {
         <div className="flex items-center gap-2">
           <Button variant={view === "grid" ? "secondary" : "outline"} size="icon" onClick={() => setView("grid")}> <LayoutGrid className="h-4 w-4" /></Button>
           <Button variant={view === "list" ? "secondary" : "outline"} size="icon" onClick={() => setView("list")}> <ListIcon className="h-4 w-4" /></Button>
-          <Button variant="outline" onClick={() => { setImportFile(null); setImportName(""); setImportNetworkMode("nat"); setImportBridgeInterface(""); setImportAutostart(false); setImportStoragePath(""); setImportOpen(true) }}>
+          <Button variant="outline" onClick={() => { setImportFile(null); setImportName(""); setImportNetworkMode("nat"); setImportBridgeInterface(""); setImportVlanId(""); setImportAutostart(false); setImportStoragePath(""); setImportOpen(true) }}>
             <Upload className="mr-2 h-4 w-4" /> Import VM
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([{ size: 20, format: "qcow2" }]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setStoragePath(""); setOpen(true) }}>
+                <Button onClick={() => { setEditing(null); setName(""); setCpu(1); setMemory(2048); setIso(""); setDisks([{ size: 20, format: "qcow2" }]); setAutostart(false); setCloudInit(""); setNetworkMode("nat"); setBridgeInterface(networkInterfaces[0] || ""); setVlanId(""); setStoragePath(""); setOpen(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Create VM
               </Button>
             </DialogTrigger>
@@ -592,6 +597,20 @@ export function VirtualMachines() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <div className="mt-2">
+                          <Label htmlFor="vlan-id">VLAN ID (optional)</Label>
+                          <input
+                            id="vlan-id"
+                            type="number"
+                            min={1}
+                            max={4094}
+                            placeholder="e.g. 100"
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            value={vlanId}
+                            onChange={e => setVlanId(e.target.value === "" ? "" : parseInt(e.target.value))}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">Creates a VLAN sub-interface (e.g. eth0.100) and bridges to it</p>
+                        </div>
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
@@ -1029,6 +1048,19 @@ export function VirtualMachines() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="mt-2">
+                    <Label>VLAN ID (optional)</Label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={4094}
+                      placeholder="e.g. 100"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={importVlanId}
+                      onChange={e => setImportVlanId(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Creates a VLAN sub-interface (e.g. eth0.100) and bridges to it</p>
+                  </div>
                 </div>
               )}
             </div>

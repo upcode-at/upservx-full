@@ -61,6 +61,31 @@ def ensure_parent_permissions(path: str) -> None:
     except (KeyError, PermissionError) as e:
         log_vm(f"Warning: could not ensure parent permissions for [{path}]: {e}", error=True)
 
+def ensure_vlan_interface(parent: str, vlan_id: int) -> str:
+    """Ensure a VLAN sub-interface exists for the given parent interface and VLAN ID.
+    Returns the VLAN interface name (e.g., eth0.100).
+    """
+    if vlan_id < 1 or vlan_id > 4094:
+        raise Exception(f"Invalid VLAN ID {vlan_id}: must be between 1 and 4094")
+    vlan_iface = f"{parent}.{vlan_id}"
+    result = subprocess.run(["ip", "link", "show", vlan_iface], capture_output=True, text=True)
+    if result.returncode == 0:
+        # Interface already exists, make sure it is up
+        subprocess.run(["ip", "link", "set", vlan_iface, "up"], capture_output=True)
+        return vlan_iface
+    try:
+        subprocess.run(
+            ["ip", "link", "add", "link", parent, "name", vlan_iface, "type", "vlan", "id", str(vlan_id)],
+            check=True, capture_output=True,
+        )
+        subprocess.run(["ip", "link", "set", vlan_iface, "up"], check=True, capture_output=True)
+        log_vm(f"Created VLAN sub-interface [{vlan_iface}] on [{parent}] (VLAN ID {vlan_id})")
+        return vlan_iface
+    except subprocess.CalledProcessError as e:
+        log_vm(f"Warning: could not create VLAN interface [{vlan_iface}]: {e}", error=True)
+        return parent
+
+
 def ensure_bridge_for_interface(interface: str) -> str:
     """Ensure a Linux bridge exists for the given physical interface.
     Returns the bridge name (e.g., br0).
@@ -289,7 +314,8 @@ def _validate_disk_format(fmt: str) -> str:
 
 
 def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: str,
-              network_mode: str = "nat", bridge_interface: str | None = None, autostart: bool = False,
+              network_mode: str = "nat", bridge_interface: str | None = None,
+              vlan_id: int | None = None, autostart: bool = False,
               cloud_init: str | None = None, storage_path: str | None = None) -> VirtualMachine:
     """Create a new virtual machine using virt-install.
 
@@ -297,6 +323,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
     a small seed ISO will be created and attached as a CD-ROM.
     network_mode: "nat" (virbr0), "bridge" (direct to physical), or "none" (no network)
     bridge_interface: physical interface name for bridge mode (e.g. "wlp3s0", "enp0s31f6")
+    vlan_id: optional VLAN tag (1-4094) for bridge mode; creates a VLAN sub-interface
     storage_path: optional path to mounted drive for VM disks (e.g., /mnt/ssd1)
                   VM disks will be stored in {storage_path}/vms/{vm_name}/
     """
@@ -378,8 +405,11 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
         elif network_mode == "bridge":
             if not bridge_interface:
                 raise Exception("bridge_interface required for bridge mode")
-            
-            actual_bridge = ensure_bridge_for_interface(bridge_interface)
+
+            phys_iface = bridge_interface
+            if vlan_id:
+                phys_iface = ensure_vlan_interface(bridge_interface, vlan_id)
+            actual_bridge = ensure_bridge_for_interface(phys_iface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
         elif network_mode == "unconfigured":
@@ -437,6 +467,7 @@ def create_vm(name: str, cpu: int, memory: int, iso: str, disks: List, iso_dir: 
             created=datetime.utcnow().date().isoformat(),
             autostart=autostart,
             network_bridge=network_bridge,
+            vlan_id=vlan_id if network_mode == "bridge" else None,
             cloud_init_iso=seed_iso_path,
             storage_path=storage_path,
         )
@@ -457,7 +488,7 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
              iso: str | None = None, add_disks: List | None = None, iso_dir: str = "",
              autostart: bool | None = None, remove_disks: List[str] | None = None,
              network_mode: str | None = None, bridge_interface: str | None = None,
-             storage_path: str | None = None) -> VirtualMachine:
+             vlan_id: int | None = None, storage_path: str | None = None) -> VirtualMachine:
     """Update an existing virtual machine configuration.
     
     storage_path: optional path to mounted drive for new VM disks (e.g., /mnt/ssd1)
@@ -601,15 +632,23 @@ def update_vm(name: str, cpu: int | None = None, memory: int | None = None,
     if network_mode is not None:
         if network_mode == "nat":
             vm.network_bridge = "virbr0"
+            vm.vlan_id = None
         elif network_mode == "bridge":
             if bridge_interface:
-                vm.network_bridge = bridge_interface
+                phys_iface = bridge_interface
+                if vlan_id:
+                    phys_iface = ensure_vlan_interface(bridge_interface, vlan_id)
+                actual_bridge = ensure_bridge_for_interface(phys_iface)
+                vm.network_bridge = actual_bridge
+                vm.vlan_id = vlan_id
             else:
                 raise Exception("bridge_interface required for bridge mode")
         elif network_mode == "unconfigured":
             vm.network_bridge = "unconfigured"
+            vm.vlan_id = None
         elif network_mode == "none":
             vm.network_bridge = "none"
+            vm.vlan_id = None
     
     save_vms(vms)
     log_vm(f"Updated VM [{name}]")
@@ -1232,6 +1271,7 @@ def import_vm_ova(
     name: str,
     network_mode: str = "nat",
     bridge_interface: str | None = None,
+    vlan_id: int | None = None,
     autostart: bool = False,
     storage_path: str | None = None,
 ) -> VirtualMachine:
@@ -1359,7 +1399,10 @@ def import_vm_ova(
         elif network_mode == "bridge":
             if not bridge_interface:
                 raise Exception("bridge_interface required for bridge mode")
-            actual_bridge = ensure_bridge_for_interface(bridge_interface)
+            phys_iface = bridge_interface
+            if vlan_id:
+                phys_iface = ensure_vlan_interface(bridge_interface, vlan_id)
+            actual_bridge = ensure_bridge_for_interface(phys_iface)
             network_args = ["--network", f"bridge={actual_bridge}"]
             network_bridge = actual_bridge
         elif network_mode == "unconfigured":
@@ -1407,6 +1450,7 @@ def import_vm_ova(
             created=datetime.utcnow().date().isoformat(),
             autostart=autostart,
             network_bridge=network_bridge,
+            vlan_id=vlan_id if network_mode == "bridge" else None,
             storage_path=storage_path,
         )
         vms.append(vm)

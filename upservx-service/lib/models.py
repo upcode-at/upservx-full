@@ -223,6 +223,7 @@ class VirtualMachine(BaseModel):
     created: str
     autostart: bool | None = None
     network_bridge: str | None = None
+    vlan_id: Optional[int] = None
     graphics: str | None = None
     cloud_init_iso: str | None = None
     storage_path: str | None = None
@@ -241,6 +242,7 @@ class VirtualMachineCreate(BaseModel):
     disks: List[DiskConfig] = []
     network_mode: str = "nat"  # "nat", "bridge", "none", "unconfigured"
     bridge_interface: str | None = None  # physical interface for bridge mode
+    vlan_id: Optional[int] = None  # VLAN tag (1-4094), only used in bridge mode
     autostart: bool = False
     cloud_init: str | None = None
     storage_path: str | None = None  # path to mounted drive for VM disks (e.g., /mnt/ssd1)
@@ -253,6 +255,7 @@ class VirtualMachineUpdate(BaseModel):
     autostart: Optional[bool] = None
     network_mode: Optional[str] = None
     bridge_interface: Optional[str] = None
+    vlan_id: Optional[int] = None  # VLAN tag (1-4094), only used in bridge mode
     remove_disks: List[str] = []
     storage_path: Optional[str] = None  # path to mounted drive for new VM disks
 
