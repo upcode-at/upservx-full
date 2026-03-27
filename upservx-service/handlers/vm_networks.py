@@ -152,15 +152,7 @@ def delete_vm_network(name: str) -> None:
         raise Exception("The 'default' network cannot be deleted")
 
     # Destroy (stop) if active
-    info = _virsh("net-info", name)
-    if info.returncode != 0:
-        raise Exception(f"Network '{name}' not found")
-
-    active = any(
-        "Active:" in line and "yes" in line.lower()
-        for line in info.stdout.splitlines()
-    )
-    if active:
+    if _is_network_active(name):
         r = _virsh("net-destroy", name)
         if r.returncode != 0:
             raise Exception(r.stderr.strip() or "net-destroy failed")
@@ -176,7 +168,19 @@ def delete_vm_network(name: str) -> None:
 # Start / Stop
 # ---------------------------------------------------------------------------
 
+def _is_network_active(name: str) -> bool:
+    info = _virsh("net-info", name)
+    if info.returncode != 0:
+        raise Exception(f"Network '{name}' not found")
+    return any(
+        "Active:" in line and "yes" in line.lower()
+        for line in info.stdout.splitlines()
+    )
+
+
 def start_vm_network(name: str) -> None:
+    if _is_network_active(name):
+        return  # already running — no-op
     r = _virsh("net-start", name)
     if r.returncode != 0:
         raise Exception(r.stderr.strip() or "net-start failed")
@@ -184,6 +188,8 @@ def start_vm_network(name: str) -> None:
 
 
 def stop_vm_network(name: str) -> None:
+    if not _is_network_active(name):
+        return  # already stopped — no-op
     r = _virsh("net-destroy", name)
     if r.returncode != 0:
         raise Exception(r.stderr.strip() or "net-destroy failed")
