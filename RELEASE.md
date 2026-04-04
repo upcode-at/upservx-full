@@ -1,35 +1,26 @@
-## Release v0.3.0 - RBAC, VM Portability & App Store Expansion 🔐
+## Release v0.4.0 - VM Network Isolation & VLAN Support 🌐
 
-**Release Date:** 2026-03-13
+**Release Date:** 2026-04-04
 
-### 🎉 What's New in UpservX v0.3.0
+### 🎉 What's New in UpservX v0.4.0
 
-This release is the biggest security and feature update since the initial launch. The authentication layer has been fully rewritten around HttpOnly session cookies and Linux-group-based access control, VMs can now be exported and imported as industry-standard OVA/OVF packages, the App Store grows by 19 new one-click templates, and the UI receives a full customization system together with a polished light/dark/system theme toggle.
+This release extends the virtual machine networking stack with two new capabilities: VLAN tagging for bridge-mode interfaces and full lifecycle management of isolated internal libvirt networks — enabling air-gapped VM communication with no IP configuration on the host side.
 
 ### ✨ Highlights
 
-#### 🔐 Group-based Access Control (RBAC)
-- Linux-group mapping: `docker`, `libvirt`, `tty`, `disk`, `adm`, `sudo` and more
-- Per-path HTTP 403 enforcement in the API middleware
-- Permission-aware sidebar — items hidden when the user lacks the required group
-- New `GET /auth/me` and `GET /info` endpoints
+#### 🔖 VLAN Support for VMs
+- Bridge-mode VM interfaces now support optional VLAN tagging (802.1Q)
+- Specify a VLAN ID (1–4094) when creating, editing or importing a VM
+- A tagged sub-interface (e.g. `eth0.100`) is created automatically on the host if it does not yet exist
+- VLAN ID stored in the VM registry and restored on edit
 
-#### 🍪 HttpOnly Session Cookies
-- Auth token moved from `localStorage` to `HttpOnly SameSite=Lax` cookie
-- `admin:admin` Basic-auth fallback permanently removed
-- Session verified on page load via `/auth/me` — no sidebar flash
-
-#### 📦 VM OVA/OVF Export & Import
-- Export running or stopped VMs as standards-compliant OVA or OVF packages
-- Import `.ova` / `.ovf` files from any compatible hypervisor
-- SHA-256 manifest and VMDK conversion via `qemu-img` included
-
-#### 🛒 19 New App Store Templates
-Traefik, Harbor, GitLab, Keycloak, OpenLDAP, Docker Registry, Kafka, Elasticsearch, Mailcow, Loki, MotionEye, RustDesk, Guacamole, ONLYOFFICE, Roundcube, Neo4j, RabbitMQ, OctoPrint, Tunarr
-
-#### 🎨 Application Customization & Theme Toggle
-- Custom logo, login banner text and background image via Settings
-- Light/Dark toggle + System mode button in the sidebar
+#### 🔒 Internal VM Networks
+- New **Internal Network** mode alongside NAT, Bridge and None
+- Create isolated L2 libvirt networks with a name — no subnet, no DHCP, no host routing
+- All IP addressing happens inside the VMs themselves; the host gains no route
+- Full network lifecycle: create, start, stop and delete via the new **Manage Networks** dialog in the VM dashboard
+- Network state (active / inactive) shown in the networks table with one-click start/stop toggles
+- New API endpoints: `GET /vm-networks`, `POST /vm-networks`, `DELETE /vm-networks/{name}`, `POST /vm-networks/{name}/start`, `POST /vm-networks/{name}/stop`
 
 ### 📄 Full Release Notes
-See [releases/0.3.0.md](releases/0.3.0.md) for complete details including all API changes and upgrade notes.
+See [releases/0.4.0.md](releases/0.4.0.md) for complete details including all API changes and upgrade notes.
