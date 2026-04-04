@@ -22,5 +22,9 @@ This release extends the virtual machine networking stack with two new capabilit
 - Network state (active / inactive) shown in the networks table with one-click start/stop toggles
 - New API endpoints: `GET /vm-networks`, `POST /vm-networks`, `DELETE /vm-networks/{name}`, `POST /vm-networks/{name}/start`, `POST /vm-networks/{name}/stop`
 
+#### 🖥️ CLI Version Bump
+- `upservx` CLI updated to v0.4.0
+- All existing commands remain unchanged: `auth`, `service`, `containers`, `system`, `apps`, `backup`, `logs`
+
 ### 📄 Full Release Notes
 See [releases/0.4.0.md](releases/0.4.0.md) for complete details including all API changes and upgrade notes.
