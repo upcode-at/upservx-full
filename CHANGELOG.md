@@ -5,7 +5,38 @@ All notable changes to UpservX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-03-13
+## [0.4.0] - 2026-04-04
+
+> Full release notes: [releases/0.4.0.md](releases/0.4.0.md)
+
+### Added
+- **VLAN Support for VMs**: Bridge-mode VM interfaces now accept an optional VLAN ID (1–4094)
+  - `ensure_vlan_interface(parent, vlan_id)` creates a tagged sub-interface (e.g. `eth0.100`) on the host automatically if it does not exist
+  - `vlan_id` field added to `VirtualMachine`, `VirtualMachineCreate` and `VirtualMachineUpdate` models
+  - `create_vm`, `update_vm` and `import_vm_ova` pass `vlan_id` through to the host-interface setup logic
+  - VLAN ID input (1–4094) added to the Create VM, Edit VM and Import VM dialogs (bridge mode only)
+  - VLAN ID is stored in the VM registry and restored correctly when editing an existing VM
+- **Internal VM Networks**: New `"internal"` network mode for VMs — isolated L2 libvirt networks with no DHCP, no subnet and no host routing
+  - New `handlers/vm_networks.py` — `list_vm_networks`, `create_vm_network`, `delete_vm_network`, `start_vm_network`, `stop_vm_network`
+  - New `api/vm_networks.py` — REST endpoints registered at `/vm-networks`
+  - `network_name` field added to `VirtualMachineCreate` and `VirtualMachineUpdate`; stored as `network:<name>` in the VM registry
+  - `create_vm`, `update_vm` and `import_vm_ova` handle `"internal"` mode via `--network network=<name>`
+  - **Manage Networks** dialog in the VM dashboard: table of all libvirt networks with Start/Stop/Delete actions and a name-only create form
+  - **Networks** toolbar button opens the dialog; shortcut link also available inside the VM create/edit dialog
+  - `start_vm_network` and `stop_vm_network` are idempotent — no error if the network is already in the target state
+- **New API endpoints**:
+  - `GET /vm-networks` — list all defined libvirt networks (active and inactive) with details
+  - `POST /vm-networks` — create a new isolated internal network (body: `{ "name": "..." }`)
+  - `DELETE /vm-networks/{name}` — stop (if active) and permanently delete a network
+  - `POST /vm-networks/{name}/start` — activate a network (idempotent)
+  - `POST /vm-networks/{name}/stop` — deactivate a network (idempotent)
+- **CLI v0.4.0**: `upservx` CLI version bumped to `0.4.0`
+
+### Changed
+- `VirtualMachineCreate.network_mode` now accepts `"internal"` in addition to `"nat"`, `"bridge"`, `"unconfigured"` and `"none"`
+- `import_vm_ova` endpoint now accepts `vlan_id: int` (0 = none) and `network_name: str` (empty = none) form fields
+
+
 
 > Full release notes: [releases/0.3.0.md](releases/0.3.0.md)
 : Virtual machines can now be exported as portable OVA or OVF packages
