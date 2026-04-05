@@ -9,7 +9,7 @@ from cli.output import BOLD, CYAN, GREEN, RESET, _c
 
 from cli.commands import apps, auth, backup, containers, logs, service, system
 
-VERSION = "0.3.0"
+VERSION = "0.4.1"
 
 BANNER = r"""
   _   _       __                     __  __
