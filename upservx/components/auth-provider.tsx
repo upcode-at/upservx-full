@@ -14,7 +14,7 @@ export interface UserPermissions {
 export interface AuthContextType {
   /** Non-null when the HttpOnly session cookie is valid; null otherwise. */
   token: string | null
-  setToken: (token: string | null) => void
+  setToken: (token: string | null) => Promise<void>
   isLoaded: boolean
   username: string | null
   groups: string[]
@@ -29,7 +29,8 @@ const DEFAULT_PERMISSIONS: UserPermissions = {
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
-  setToken: () => {},
+  setToken: async () => {},
+
   isLoaded: false,
   username: null,
   groups: [],
@@ -117,9 +118,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    *                     from the freshly-set session cookie.
    * setToken(null)   → logout: clears the cookie server-side, resets state.
    */
-  const setToken = (t: string | null) => {
+  const setToken = async (t: string | null): Promise<void> => {
     if (t !== null) {
-      fetchMe()
+      await fetchMe()
     } else {
       fetch(apiUrl("/auth/logout"), { method: "POST", credentials: "include" }).catch(() => {})
       resetAuth()

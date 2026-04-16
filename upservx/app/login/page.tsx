@@ -73,7 +73,7 @@ export default function LoginPage() {
           setLoginToken(data.login_token)
           setStep("totp")
         } else {
-          setToken("session")
+          await setToken("session")
           router.push("/")
         }
       } else {
@@ -97,7 +97,7 @@ export default function LoginPage() {
         body: JSON.stringify({ login_token: loginToken, code: totpCode.trim() }),
       })
       if (res.ok) {
-        setToken("session")
+        await setToken("session")
         router.push("/")
       } else {
         setError("Invalid or expired 2FA code. Please try again.")
