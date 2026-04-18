@@ -1,0 +1,26 @@
+{
+  "name": "Mattermost",
+  "description": "A secure, open-source platform for developer collaboration. Mattermost is a self-hosted messaging solution with team channels, direct messages, file sharing, and integrations – a powerful alternative to Slack.",
+  "version": "latest",
+  "category": "communication",
+  "icon": "💬",
+  "author": "Mattermost",
+  "ports": [
+    "8065:8065"
+  ],
+  "volumes": [
+    "/opt/upservx/data/mattermost/config:/mattermost/config",
+    "/opt/upservx/data/mattermost/data:/mattermost/data",
+    "/opt/upservx/data/mattermost/logs:/mattermost/logs",
+    "/opt/upservx/data/mattermost/plugins:/mattermost/plugins",
+    "/opt/upservx/data/mattermost-db:/var/lib/postgresql/data"
+  ],
+  "environment": {
+    "MM_SQLSETTINGS_DRIVERNAME": "postgres",
+    "MM_SQLSETTINGS_DATASOURCE": "postgres://mattermost:mattermost@mattermost-db/mattermost?sslmode=disable",
+    "MM_BLEVESETTINGS_INDEXDIR": "/mattermost/bleve-indexes",
+    "POSTGRES_DB": "mattermost",
+    "POSTGRES_USER": "mattermost",
+    "POSTGRES_PASSWORD": "mattermost"
+  }
+}
