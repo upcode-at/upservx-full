@@ -1,0 +1,18 @@
+{
+  "name": "CrowdSec",
+  "description": "A modern, open-source, collaborative security engine. CrowdSec detects and blocks malicious IPs and behaviors by analyzing logs, sharing threat intelligence across a global community, and enforcing bans via bouncers.",
+  "version": "latest",
+  "category": "security",
+  "icon": "🛡️",
+  "author": "CrowdSec",
+  "ports": [
+    "8080:8080",
+    "6060:6060"
+  ],
+  "volumes": [
+    "/opt/upservx/data/crowdsec/config:/etc/crowdsec",
+    "/opt/upservx/data/crowdsec/data:/var/lib/crowdsec/data",
+    "/var/log:/var/log:ro"
+  ],
+  "environment": {}
+}
