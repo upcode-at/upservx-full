@@ -1,0 +1,18 @@
+{
+  "name": "Open WebUI",
+  "description": "A user-friendly, self-hosted web interface for running large language models locally via Ollama or remotely via OpenAI-compatible APIs. Supports chat history, model management, system prompts, and multi-user access.",
+  "version": "latest",
+  "category": "ai",
+  "icon": "🤖",
+  "author": "Open WebUI",
+  "ports": [
+    "3000:8080"
+  ],
+  "volumes": [
+    "/opt/upservx/data/open-webui:/app/backend/data"
+  ],
+  "environment": {
+    "OLLAMA_BASE_URL": "http://ollama:11434",
+    "WEBUI_SECRET_KEY": "changeme-use-a-random-secret"
+  }
+}
