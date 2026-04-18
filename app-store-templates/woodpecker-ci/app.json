@@ -1,0 +1,24 @@
+{
+  "name": "Woodpecker CI",
+  "description": "A lightweight, open-source CI/CD engine built on top of Docker. Woodpecker is a community fork of Drone CI and integrates natively with Gitea, GitHub, GitLab, and Forgejo for automated build, test, and deploy pipelines.",
+  "version": "latest",
+  "category": "development",
+  "icon": "🪵",
+  "author": "Woodpecker CI",
+  "ports": [
+    "8000:8000",
+    "9000:9000"
+  ],
+  "volumes": [
+    "/opt/upservx/data/woodpecker-server:/var/lib/woodpecker",
+    "/var/run/docker.sock:/var/run/docker.sock"
+  ],
+  "environment": {
+    "WOODPECKER_HOST": "http://your-server:8000",
+    "WOODPECKER_GITEA": "true",
+    "WOODPECKER_GITEA_URL": "http://your-gitea:3000",
+    "WOODPECKER_GITEA_CLIENT": "your-oauth2-client-id",
+    "WOODPECKER_GITEA_SECRET": "your-oauth2-client-secret",
+    "WOODPECKER_AGENT_SECRET": "changeme-random-secret"
+  }
+}
