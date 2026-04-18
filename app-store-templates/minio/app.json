@@ -1,0 +1,19 @@
+{
+  "name": "MinIO",
+  "description": "A high-performance, S3-compatible object storage server. MinIO is ideal for storing unstructured data such as backups, logs, images, and videos – fully self-hosted and API-compatible with Amazon S3.",
+  "version": "latest",
+  "category": "storage",
+  "icon": "🪣",
+  "author": "MinIO",
+  "ports": [
+    "9000:9000",
+    "9001:9001"
+  ],
+  "volumes": [
+    "/opt/upservx/data/minio:/data"
+  ],
+  "environment": {
+    "MINIO_ROOT_USER": "admin",
+    "MINIO_ROOT_PASSWORD": "changeme-min-12-chars"
+  }
+}
