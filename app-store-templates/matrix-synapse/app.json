@@ -1,0 +1,24 @@
+{
+  "name": "Matrix Synapse + Element",
+  "description": "A self-hosted, federated, end-to-end encrypted messaging platform. Matrix Synapse is the reference homeserver for the Matrix protocol, and Element is the feature-rich web client – together providing a privacy-first alternative to Slack, Teams, or Discord.",
+  "version": "latest",
+  "category": "communication",
+  "icon": "🔐",
+  "author": "Matrix.org / Element",
+  "ports": [
+    "8008:8008",
+    "8448:8448",
+    "8009:80"
+  ],
+  "volumes": [
+    "/opt/upservx/data/synapse:/data",
+    "/opt/upservx/data/synapse-db:/var/lib/postgresql/data"
+  ],
+  "environment": {
+    "SYNAPSE_SERVER_NAME": "your-domain.com",
+    "SYNAPSE_REPORT_STATS": "no",
+    "POSTGRES_DB": "synapse",
+    "POSTGRES_USER": "synapse",
+    "POSTGRES_PASSWORD": "changeme"
+  }
+}
