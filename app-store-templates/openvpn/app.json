@@ -1,0 +1,15 @@
+{
+  "name": "OpenVPN",
+  "description": "A full-featured, open-source SSL/TLS VPN solution. OpenVPN allows you to create secure point-to-point or site-to-site connections with routed or bridged configurations and remote access for clients.",
+  "version": "latest",
+  "category": "network",
+  "icon": "🔒",
+  "author": "OpenVPN",
+  "ports": [
+    "1194:1194/udp"
+  ],
+  "volumes": [
+    "/opt/upservx/data/openvpn:/etc/openvpn"
+  ],
+  "environment": {}
+}
