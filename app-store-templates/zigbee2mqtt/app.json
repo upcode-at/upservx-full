@@ -1,0 +1,20 @@
+{
+  "name": "Zigbee2MQTT",
+  "description": "Bridge your Zigbee devices to MQTT. Zigbee2MQTT allows you to use your Zigbee devices without vendor bridges or cloud services by connecting them via a Zigbee USB adapter to a local MQTT broker.",
+  "version": "latest",
+  "category": "iot",
+  "icon": "📡",
+  "author": "Zigbee2MQTT",
+  "ports": [
+    "8080:8080"
+  ],
+  "volumes": [
+    "/opt/upservx/data/zigbee2mqtt:/app/data",
+    "/opt/upservx/data/mosquitto/config:/mosquitto/config",
+    "/opt/upservx/data/mosquitto/data:/mosquitto/data",
+    "/opt/upservx/data/mosquitto/log:/mosquitto/log"
+  ],
+  "environment": {
+    "ZIGBEE2MQTT_DATA": "/app/data"
+  }
+}

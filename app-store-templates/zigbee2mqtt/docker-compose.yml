@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ZIGBEE2MQTT_DATA=/app/data
+    volumes:
+      - /opt/upservx/data/zigbee2mqtt:/app/data
+      # Pass through the Zigbee USB adapter – adjust the device path if needed
+      - /run/udev:/run/udev:ro
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    volumes:
+      - /opt/upservx/data/mosquitto/config:/mosquitto/config
+      - /opt/upservx/data/mosquitto/data:/mosquitto/data
+      - /opt/upservx/data/mosquitto/log:/mosquitto/log
