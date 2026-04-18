@@ -1,0 +1,20 @@
+{
+  "name": "Immich",
+  "description": "A high-performance, self-hosted photo and video backup solution. Immich offers automatic mobile backup, facial recognition, object detection, map view, shared albums, and a Google Photos-like experience – all on your own server.",
+  "version": "latest",
+  "category": "media",
+  "icon": "📸",
+  "author": "Immich",
+  "ports": [
+    "2283:2283"
+  ],
+  "volumes": [
+    "/opt/upservx/data/immich/upload:/usr/src/app/upload",
+    "/opt/upservx/data/immich-db:/var/lib/postgresql/data"
+  ],
+  "environment": {
+    "DB_PASSWORD": "changeme",
+    "DB_USERNAME": "immich",
+    "DB_DATABASE_NAME": "immich"
+  }
+}
