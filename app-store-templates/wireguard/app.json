@@ -1,0 +1,22 @@
+{
+  "name": "WireGuard",
+  "description": "A fast, modern, and secure VPN tunnel. WireGuard is extremely simple to configure and deploy, with state-of-the-art cryptography. Includes wg-easy for a built-in web UI to manage clients and connections.",
+  "version": "latest",
+  "category": "network",
+  "icon": "🛡️",
+  "author": "WireGuard / wg-easy",
+  "ports": [
+    "51820:51820/udp",
+    "51821:51821/tcp"
+  ],
+  "volumes": [
+    "/opt/upservx/data/wireguard:/etc/wireguard"
+  ],
+  "environment": {
+    "WG_HOST": "your-server-ip-or-domain",
+    "PASSWORD_HASH": "changeme",
+    "WG_DEFAULT_DNS": "1.1.1.1",
+    "WG_DEFAULT_ADDRESS": "10.8.0.x",
+    "WG_ALLOWED_IPS": "0.0.0.0/0"
+  }
+}
