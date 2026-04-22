@@ -201,8 +201,7 @@ ok
 step "Generate encryption key"
 {
   cd "$APP_DIR/upservx-service" &&
-  source venv/bin/activate &&
-  python3 -c "from encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
+  venv/bin/python3 -c "from encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
