@@ -185,9 +185,8 @@ class ReverseProxyManager:
         
         if ssl_enabled and certs_exist:
             config_lines.append(f"server {{")
-            config_lines.append(f"    listen 443 ssl;")
-            config_lines.append(f"    listen [::]:443 ssl;")
-            config_lines.append(f"    http2 on;")
+            config_lines.append(f"    listen 443 ssl http2;")
+            config_lines.append(f"    listen [::]:443 ssl http2;")
             config_lines.append(f"    server_name {domain};")
             config_lines.append(f"")
             config_lines.append(f"    ssl_certificate {cert_path};")
