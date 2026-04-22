@@ -5,7 +5,8 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev python3-certbot python3-certbot-nginx nginx certbot git nodejs npm lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc"
+PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc"
+NODE_REQUIRED_MAJOR=20
 
 # === Colors & Spinner ========================================================
 GREEN="\e[32m"
@@ -104,6 +105,18 @@ step "Copy project to $APP_DIR"
   mkdir -p "$APP_DIR" &&
   cp -R . "$APP_DIR" &&
   chown -R $USER:$USER "$APP_DIR"
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+# === 2.5. Install compatible Node.js version ================================
+step "Install Node.js >= ${NODE_REQUIRED_MAJOR}"
+{
+  CURRENT_MAJOR=$(node --version 2>/dev/null | grep -oP '(?<=v)\d+' | head -1 || echo 0)
+  if [ "$CURRENT_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
+    curl -fsSL https://deb.nodesource.com/setup_${NODE_REQUIRED_MAJOR}.x | bash -
+    apt-get install -y nodejs
+  fi
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
