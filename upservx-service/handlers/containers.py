@@ -11,6 +11,21 @@ from lib.models import Container, ContainerImageInfo, DockerVolumeInfo, LXCStora
 from lib.logger import log_container
 
 
+def _lxc_available() -> bool:
+    """Return True only if the lxc binary exists AND actually executes successfully."""
+    if shutil.which("lxc") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["lxc", "list", "--format", "json"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 # Containers that are created via the API are stored here in-memory. Containers
 # discovered from Docker, LXC or Kubernetes are queried on demand and not stored
 # in this list.
@@ -69,7 +84,7 @@ def get_docker_containers() -> List[Container]:
 
 def get_lxc_containers() -> List[Container]:
     """Return LXC/LXD containers using the lxc CLI if available."""
-    if shutil.which("lxc") is None:
+    if not _lxc_available():
         return []
     try:
         output = subprocess.check_output(
@@ -207,7 +222,7 @@ def get_docker_image_details() -> List[ContainerImageInfo]:
 
 def get_lxc_image_details() -> List[ContainerImageInfo]:
     """Return detailed information about LXC images."""
-    if shutil.which("lxc") is None:
+    if not _lxc_available():
         return []
     try:
         output = subprocess.check_output(["lxc", "image", "list", "--format", "json"], text=True).strip()

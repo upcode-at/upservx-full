@@ -216,6 +216,16 @@ step "Setup log file"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
+# === 6.32. Fix PAM config (pam_lastlog.so removed in newer Debian/Ubuntu) ====
+step "Fix PAM config"
+{
+  for f in /etc/pam.d/login /etc/pam.d/sshd /etc/pam.d/common-session; do
+    [ -f "$f" ] && sed -i '/pam_lastlog\.so/d' "$f" || true
+  done
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
 # === 6.4. Create ISO directory ==============================================
 step "Create ISO directory"
 {
