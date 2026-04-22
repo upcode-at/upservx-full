@@ -294,6 +294,7 @@ step "Install upservx CLI – venv"
   python3 -m venv --without-pip venv
   curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3
   venv/bin/pip install --quiet -r requirements.txt
+  pip3 install -r requirements.txt --break-system-packages
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
