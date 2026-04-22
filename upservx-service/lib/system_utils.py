@@ -133,7 +133,7 @@ def collect_metrics() -> dict:
         {"name": "Docker", "service": "docker", "port": 2376},
         {"name": "Kubernetes", "service": "k3s", "port": 6443},
         {"name": "LXC", "service": "lxd", "port": None},
-        {"name": "SSH", "service": "sshd", "port": _system_ssh_port()},
+        {"name": "SSH", "service": _system_ssh_service(), "port": _system_ssh_port()},
         {"name": "ZFS", "service": "zfs.target", "port": None},
     ]
 
@@ -184,6 +184,19 @@ def _system_hostname() -> str:
     except Exception:
         pass
     return platform.node() or "server"
+
+def _system_ssh_service() -> str:
+    """Return 'ssh' or 'sshd' depending on which systemd unit exists."""
+    import subprocess
+    for name in ("ssh", "sshd"):
+        result = subprocess.run(
+            ["systemctl", "cat", name],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return name
+    return "sshd"
+
 
 def _system_ssh_port() -> int:
     """Return the SSH port from /etc/ssh/sshd_config or 22."""
