@@ -50,9 +50,11 @@ step "Install system packages"
   #sed -r -i'.BAK' 's/^deb(.*)$/deb\1 contrib/g' /etc/apt/sources.list
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y $PACKAGES
+  for pkg in $PACKAGES; do
+    apt-get install -y --ignore-missing "$pkg" || true
+  done
   apt-get update
-  apt-get install -y zfsutils-linux
+  apt-get install -y --ignore-missing zfsutils-linux || true
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
