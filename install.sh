@@ -109,14 +109,29 @@ step "Copy project to $APP_DIR"
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
 
-# === 2.5. Install compatible Node.js version ================================
-step "Install Node.js >= ${NODE_REQUIRED_MAJOR}"
+# === 2.5. Install compatible Node.js version via nvm ========================
+step "Install nvm"
 {
-  CURRENT_MAJOR=$(node --version 2>/dev/null | grep -oP '(?<=v)\d+' | head -1 || echo 0)
-  if [ "$CURRENT_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_REQUIRED_MAJOR}.x | bash -
-    apt-get install -y nodejs
-  fi
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+  export NVM_DIR="$HOME/.nvm"
+  # shellcheck source=/dev/null
+  [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+} &>/tmp/install.log &
+spin $!
+if [ $? -eq 0 ]; then ok; else fail; fi
+
+step "Install Node.js ${NODE_REQUIRED_MAJOR} via nvm"
+{
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+  nvm install "${NODE_REQUIRED_MAJOR}"
+  nvm use "${NODE_REQUIRED_MAJOR}"
+  nvm alias default "${NODE_REQUIRED_MAJOR}"
+  # Make node/npm globally available
+  NODE_BIN_DIR="$(dirname "$(nvm which current)")"
+  ln -sf "$NODE_BIN_DIR/node" /usr/local/bin/node
+  ln -sf "$NODE_BIN_DIR/npm"  /usr/local/bin/npm
+  ln -sf "$NODE_BIN_DIR/npx"  /usr/local/bin/npx
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
