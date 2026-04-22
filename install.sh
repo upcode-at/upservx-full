@@ -174,7 +174,7 @@ cat <<'EOS' > "$APP_DIR/start.sh"
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
 ( cd upservx && npm start ) &
-( cd upservx-service && source venv/bin/activate && python3 main.py ) &
+( cd upservx-service && venv/bin/python3 main.py ) &
 wait -n
 EOS
 chmod +x "$APP_DIR/start.sh"
