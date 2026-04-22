@@ -177,9 +177,9 @@ if [ -f "$APP_DIR/upservx-service/requirements.txt" ]; then
   step "Install Python requirements"
   {
     cd "$APP_DIR/upservx-service" &&
-    python3 -m venv venv &&
-    source venv/bin/activate &&
-    pip install -r requirements.txt
+    python3 -m venv --without-pip venv &&
+    curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3 &&
+    venv/bin/pip install -r requirements.txt
   } &>/tmp/install.log &
   spin $!
   if [ $? -eq 0 ]; then ok; else fail; fi
@@ -282,10 +282,9 @@ if [ $? -eq 0 ]; then ok; else fail; fi
 step "Install upservx CLI – venv"
 {
   cd "$APP_DIR/upservx-cli"
-  python3 -m venv venv
-  source venv/bin/activate
-  pip install --quiet -r requirements.txt
-  deactivate
+  python3 -m venv --without-pip venv
+  curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3
+  venv/bin/pip install --quiet -r requirements.txt
 } &>/tmp/install.log &
 spin $!
 if [ $? -eq 0 ]; then ok; else fail; fi
