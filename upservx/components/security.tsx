@@ -190,6 +190,8 @@ export default function SecurityManagement() {
   const [cveData, setCveData] = useState<CveData | null>(null)
   const [loadingCve, setLoadingCve] = useState(false)
   const [cveFilter, setCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
+  const [portProtoFilter, setPortProtoFilter] = useState<"all" | "tcp" | "udp">("all")
+  const [portAddrFilter, setPortAddrFilter] = useState<"all" | "public" | "loopback">("all")
 
   const [loadingFail2ban, setLoadingFail2ban] = useState(false)
   const [loadingPackages, setLoadingPackages] = useState(false)
@@ -695,22 +697,53 @@ export default function SecurityManagement() {
         {/* Open Ports Tab                                                     */}
         {/* ---------------------------------------------------------------- */}
         <TabsContent value="ports" className="space-y-4 mt-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-lg font-semibold">Listening Ports</h2>
-              {portsData && (
-                <Badge variant="outline">{portsData.total} sockets</Badge>
+              {portsData?.available !== false && (
+                <Badge variant="outline">
+                  {(portsData?.ports ?? []).filter((p) => {
+                    const protoOk = portProtoFilter === "all" || p.proto === portProtoFilter
+                    const isPublic = p.address !== "127.0.0.1" && p.address !== "::1"
+                    const addrOk = portAddrFilter === "all" || (portAddrFilter === "public" ? isPublic : !isPublic)
+                    return protoOk && addrOk
+                  }).length} sockets
+                </Badge>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchPorts}
-              disabled={loadingPorts}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loadingPorts ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              {(["all", "tcp", "udp"] as const).map((f) => (
+                <Button
+                  key={f}
+                  variant={portProtoFilter === f ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPortProtoFilter(f)}
+                >
+                  {f === "all" ? "All Protocols" : f.toUpperCase()}
+                </Button>
+              ))}
+              <div className="w-px bg-border mx-1" />
+              {(["all", "public", "loopback"] as const).map((f) => (
+                <Button
+                  key={f}
+                  variant={portAddrFilter === f ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPortAddrFilter(f)}
+                >
+                  {f === "all" ? "All Addresses" : f.charAt(0).toUpperCase() + f.slice(1)}
+                </Button>
+              ))}
+              <div className="w-px bg-border mx-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchPorts}
+                disabled={loadingPorts}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loadingPorts ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
           {portsData?.available === false ? (
@@ -735,7 +768,12 @@ export default function SecurityManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(portsData?.ports ?? []).map((p, i) => (
+                    {(portsData?.ports ?? []).filter((p) => {
+                      const protoOk = portProtoFilter === "all" || p.proto === portProtoFilter
+                      const isPublic = p.address !== "127.0.0.1" && p.address !== "::1"
+                      const addrOk = portAddrFilter === "all" || (portAddrFilter === "public" ? isPublic : !isPublic)
+                      return protoOk && addrOk
+                    }).map((p, i) => (
                       <TableRow key={i}>
                         <TableCell>
                           <Badge
