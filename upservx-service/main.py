@@ -254,6 +254,7 @@ from api.logs import router as logs_router
 from api.settings import router as settings_router
 from api.backup import router as backup_router
 from api.proxy import router as proxy_router
+from api.security import router as security_router
 
 app.include_router(auth_router)
 app.include_router(system_router)
@@ -273,6 +274,7 @@ app.include_router(logs_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(proxy_router)
+app.include_router(security_router)
 
 # ---------------------------------------------------------------------------
 # Entry point

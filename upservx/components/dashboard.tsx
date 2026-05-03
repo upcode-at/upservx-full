@@ -19,6 +19,7 @@ import { AppStore } from "@/components/app-store"
 import FirewallManagement from "@/components/firewall-management"
 import ClusterManagement from "@/components/cluster-management"
 import { ContainerStorage } from "@/components/container-storage"
+import SecurityManagement from "@/components/security"
 
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -59,6 +60,8 @@ export function Dashboard() {
         return <ClusterManagement />
       case "container-storage":
         return <ContainerStorage />
+      case "security":
+        return <SecurityManagement />
       default:
         return <SystemOverview />
     }
