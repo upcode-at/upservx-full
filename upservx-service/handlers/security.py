@@ -178,6 +178,33 @@ def get_upgradeable_packages() -> Dict[str, Any]:
     }
 
 
+def upgrade_package(package_name: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Upgrade a single package or all packages via apt-get.
+    package_name=None means full system upgrade.
+    """
+    if not shutil.which("apt-get"):
+        return {"success": False, "error": "apt-get not available on this system"}
+
+    # Validate package name to prevent injection
+    if package_name is not None:
+        if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.+\-]*$", package_name):
+            return {"success": False, "error": "Invalid package name"}
+
+    cmd = ["apt-get", "install", "--only-upgrade", "-y", "--", package_name] \
+        if package_name else ["apt-get", "upgrade", "-y"]
+
+    stdout, stderr, rc = _run(cmd, timeout=300)
+    if rc != 0:
+        last_err = next(
+            (l.strip() for l in reversed(stderr.splitlines()) if l.strip()),
+            stderr.strip() or "Unknown error",
+        )
+        return {"success": False, "error": last_err, "output": stdout[-2000:]}
+
+    return {"success": True, "output": stdout[-2000:]}
+
+
 # ---------------------------------------------------------------------------
 # SSL / TLS certificates
 # ---------------------------------------------------------------------------

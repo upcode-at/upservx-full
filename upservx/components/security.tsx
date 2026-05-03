@@ -21,6 +21,7 @@ import {
   Clock,
   Bug,
   Search,
+  ArrowUpCircle,
 } from "lucide-react"
 
 // ---------------------------------------------------------------------------
@@ -192,6 +193,8 @@ export default function SecurityManagement() {
   const [cveFilter, setCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
   const [portProtoFilter, setPortProtoFilter] = useState<"all" | "tcp" | "udp">("all")
   const [portAddrFilter, setPortAddrFilter] = useState<"all" | "public" | "loopback">("all")
+  const [upgradingAll, setUpgradingAll] = useState(false)
+  const [upgradingPkg, setUpgradingPkg] = useState<string | null>(null)
 
   const [loadingFail2ban, setLoadingFail2ban] = useState(false)
   const [loadingPackages, setLoadingPackages] = useState(false)
@@ -277,7 +280,31 @@ export default function SecurityManagement() {
     fetchPackages()
   }, [fetchFail2ban, fetchCerts, fetchPorts, fetchPackages])
 
-  // -- Actions --
+  const handleUpgrade = async (pkg?: string) => {
+    if (pkg) {
+      setUpgradingPkg(pkg)
+    } else {
+      setUpgradingAll(true)
+    }
+    try {
+      const url = pkg
+        ? apiUrl(`/security/packages/upgrade/${encodeURIComponent(pkg)}`)
+        : apiUrl("/security/packages/upgrade")
+      const res = await fetch(url, { method: "POST", credentials: "include" })
+      if (!res.ok) {
+        const err = await res.json()
+        setError(err.detail || "Upgrade failed")
+        return
+      }
+      setSuccess(pkg ? `${pkg} successfully upgraded` : "All packages upgraded")
+      fetchPackages()
+    } catch {
+      setError("Network error during upgrade")
+    } finally {
+      setUpgradingPkg(null)
+      setUpgradingAll(false)
+    }
+  }
 
   const handleUnban = async (jail: string, ip: string) => {
     try {
@@ -556,6 +583,21 @@ export default function SecurityManagement() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${loadingPackages ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
+              {(packagesData?.total ?? 0) > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => handleUpgrade()}
+                  disabled={upgradingAll || loadingPackages}
+                >
+                  {upgradingAll ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Update All
+                </Button>
+              )}
             </div>
           </div>
 
@@ -592,6 +634,7 @@ export default function SecurityManagement() {
                       <TableHead>Available</TableHead>
                       <TableHead>Origin</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -607,6 +650,22 @@ export default function SecurityManagement() {
                           ) : (
                             <Badge variant="outline" className="text-xs">Regular</Badge>
                           )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-400 border-green-600 hover:bg-green-600/10"
+                            onClick={() => handleUpgrade(pkg.name)}
+                            disabled={upgradingPkg === pkg.name || upgradingAll}
+                          >
+                            {upgradingPkg === pkg.name ? (
+                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <ArrowUpCircle className="h-3 w-3 mr-1" />
+                            )}
+                            Update
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
