@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Bug,
+  Search,
 } from "lucide-react"
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,33 @@ interface PortsData {
   ports: PortInfo[]
 }
 
+interface CveVuln {
+  package: string
+  version: string
+  vuln_id: string
+  cve_id: string
+  summary: string
+  severity: "critical" | "high" | "medium" | "low" | "unknown"
+  cvss_score: number | null
+  published: string
+}
+
+interface CveData {
+  available: boolean
+  error?: string
+  ecosystem?: string
+  packages_scanned?: number
+  total_vulns?: number
+  severity_counts?: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+    unknown: number
+  }
+  vulnerabilities?: CveVuln[]
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -133,6 +162,21 @@ function DaysUntilBadge({ days }: { days: number | null | undefined }) {
   )
 }
 
+function SeverityBadge({ severity, score }: { severity: string; score?: number | null }) {
+  const map: Record<string, string> = {
+    critical: "bg-red-700 text-white",
+    high: "bg-red-500 text-white",
+    medium: "bg-yellow-500 text-black",
+    low: "bg-blue-500 text-white",
+    unknown: "bg-muted text-muted-foreground",
+  }
+  return (
+    <Badge className={`text-xs ${map[severity] ?? map.unknown}`}>
+      {severity.toUpperCase()}{score != null ? ` ${score.toFixed(1)}` : ""}
+    </Badge>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -143,11 +187,14 @@ export default function SecurityManagement() {
   const [certsData, setCertsData] = useState<CertsData | null>(null)
   const [portsData, setPortsData] = useState<PortsData | null>(null)
 
+  const [cveData, setCveData] = useState<CveData | null>(null)
+  const [loadingCve, setLoadingCve] = useState(false)
+  const [cveFilter, setCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
+
   const [loadingFail2ban, setLoadingFail2ban] = useState(false)
   const [loadingPackages, setLoadingPackages] = useState(false)
   const [loadingCerts, setLoadingCerts] = useState(false)
   const [loadingPorts, setLoadingPorts] = useState(false)
-
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -207,6 +254,19 @@ export default function SecurityManagement() {
     }
   }, [])
 
+  const fetchCves = useCallback(async () => {
+    setLoadingCve(true)
+    try {
+      const res = await fetch(apiUrl("/security/cve"), { credentials: "include" })
+      const data = await res.json()
+      setCveData(data)
+    } catch {
+      setCveData({ available: false, error: "Failed to reach the CVE scanner" })
+    } finally {
+      setLoadingCve(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchFail2ban()
     fetchCerts()
@@ -258,14 +318,14 @@ export default function SecurityManagement() {
           <div>
             <h1 className="text-2xl font-bold">Security</h1>
             <p className="text-sm text-muted-foreground">
-              Fail2Ban · Package Updates · Certificates · Open Ports
+              Fail2Ban · Package Updates · CVE Scan · Certificates · Open Ports
             </p>
           </div>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -333,11 +393,29 @@ export default function SecurityManagement() {
             <p className="text-xs text-muted-foreground">listening sockets</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Bug className="h-4 w-4" /> CVEs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-red-400">
+              {cveData?.total_vulns ?? "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {cveData?.severity_counts
+                ? `${cveData.severity_counts.critical} critical · ${cveData.severity_counts.high} high`
+                : cveData === null ? "Not scanned yet" : "Loading…"}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="fail2ban">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="fail2ban" className="flex items-center gap-2">
             <Ban className="h-4 w-4" /> Fail2Ban
           </TabsTrigger>
@@ -349,6 +427,9 @@ export default function SecurityManagement() {
           </TabsTrigger>
           <TabsTrigger value="ports" className="flex items-center gap-2">
             <Network className="h-4 w-4" /> Open Ports
+          </TabsTrigger>
+          <TabsTrigger value="cve" className="flex items-center gap-2">
+            <Bug className="h-4 w-4" /> CVE Scan
           </TabsTrigger>
         </TabsList>
 
@@ -684,6 +765,127 @@ export default function SecurityManagement() {
                         </TableCell>
                       </TableRow>
                     ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* CVE Scanner Tab                                                    */}
+        {/* ---------------------------------------------------------------- */}
+        <TabsContent value="cve" className="space-y-4 mt-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold">CVE Vulnerability Scan</h2>
+              {cveData?.available && (
+                <>
+                  <Badge variant="outline">{cveData.packages_scanned} packages scanned</Badge>
+                  <Badge variant="outline" className="text-muted-foreground">{cveData.ecosystem}</Badge>
+                </>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {cveData?.available && (
+                <>
+                  {(["all", "critical", "high", "medium", "low"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      variant={cveFilter === f ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCveFilter(f)}
+                    >
+                      {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                      {f !== "all" && cveData.severity_counts?.[f] !== undefined && (
+                        <span className="ml-1 opacity-70">({cveData.severity_counts[f]})</span>
+                      )}
+                    </Button>
+                  ))}
+                </>
+              )}
+              <Button
+                variant={cveData === null ? "default" : "outline"}
+                size="sm"
+                onClick={fetchCves}
+                disabled={loadingCve}
+              >
+                {loadingCve ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                {cveData === null ? "Start Scan" : "Re-Scan"}
+              </Button>
+            </div>
+          </div>
+
+          {cveData === null && !loadingCve ? (
+            <Card>
+              <CardContent className="pt-10 pb-10 text-center text-muted-foreground space-y-3">
+                <Bug className="mx-auto h-10 w-10 text-muted-foreground/40" />
+                <p className="font-medium">CVE Scan not started yet</p>
+                <p className="text-xs">
+                  Queries installed packages against the <span className="font-mono">osv.dev</span> vulnerability database.
+                  Requires a Debian/Ubuntu system and internet access.
+                </p>
+              </CardContent>
+            </Card>
+          ) : loadingCve ? (
+            <Card>
+              <CardContent className="pt-10 pb-10 text-center text-muted-foreground space-y-3">
+                <RefreshCw className="mx-auto h-8 w-8 animate-spin" />
+                <p>Scanning packages against OSV.dev… this may take 30–60 seconds.</p>
+              </CardContent>
+            </Card>
+          ) : cveData?.available === false ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <AlertTriangle className="mx-auto h-8 w-8 mb-2 text-yellow-500" />
+                <p>CVE scan is not available on this system.</p>
+                <p className="text-xs mt-1">{cveData.error}</p>
+              </CardContent>
+            </Card>
+          ) : (cveData?.vulnerabilities?.length ?? 0) === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <CheckCircle2 className="mx-auto h-8 w-8 mb-2 text-green-500" />
+                <p>No known CVEs found in scanned packages.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>CVE</TableHead>
+                      <TableHead>Package</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Summary</TableHead>
+                      <TableHead>Published</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(cveData?.vulnerabilities ?? [])
+                      .filter((v) => cveFilter === "all" || v.severity === cveFilter)
+                      .map((v, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <SeverityBadge severity={v.severity} score={v.cvss_score} />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-medium">
+                            {v.cve_id || v.vuln_id}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{v.package}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{v.version}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-80 truncate" title={v.summary}>
+                            {v.summary || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{v.published || "—"}</TableCell>
+                        </TableRow>
+                      ))}
                   </TableBody>
                 </Table>
               </CardContent>

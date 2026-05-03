@@ -8,7 +8,7 @@ Covers:
 - Open port / network exposure scanning
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Dict, Any
 
@@ -18,6 +18,7 @@ from handlers.security import (
     get_upgradeable_packages,
     get_certificates,
     get_open_ports,
+    scan_cves,
 )
 
 router = APIRouter(prefix="/security", tags=["security"])
@@ -90,5 +91,20 @@ async def list_open_ports() -> Dict[str, Any]:
     """Return all listening TCP/UDP ports with process information."""
     try:
         return get_open_ports()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# CVE Scanner
+# ---------------------------------------------------------------------------
+
+@router.get("/cve")
+async def scan_cve_vulnerabilities(
+    limit: int = Query(default=300, ge=50, le=1000, description="Max packages to scan")
+) -> Dict[str, Any]:
+    """Scan installed packages for CVEs via OSV.dev (Debian/Ubuntu only)."""
+    try:
+        return scan_cves(limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

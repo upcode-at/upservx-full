@@ -12,6 +12,10 @@ import subprocess
 import re
 import os
 import glob
+import json
+import shutil
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
@@ -321,3 +325,150 @@ def get_open_ports() -> Dict[str, Any]:
         })
 
     return {"available": True, "total": len(ports), "ports": ports}
+
+
+# ---------------------------------------------------------------------------
+# CVE Scanner (via OSV.dev API)
+# ---------------------------------------------------------------------------
+
+_OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
+_SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+
+
+def _get_ecosystem() -> str:
+    """Detect OS ecosystem string for the OSV API (e.g. 'Debian:12', 'Ubuntu:24.04')."""
+    try:
+        with open("/etc/os-release") as f:
+            content = f.read()
+        data: Dict[str, str] = {}
+        for line in content.splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                data[k.strip()] = v.strip().strip('"')
+        name = data.get("NAME", "").lower()
+        version_id = data.get("VERSION_ID", "")
+        if "ubuntu" in name:
+            return f"Ubuntu:{version_id}"
+        elif "debian" in name:
+            major = version_id.split(".")[0] if version_id else "12"
+            return f"Debian:{major}"
+    except Exception:
+        pass
+    return "Debian:12"
+
+
+def _get_dpkg_packages() -> List[Dict[str, str]]:
+    """Return installed Debian/Ubuntu packages (name + version) via dpkg-query."""
+    stdout, _, rc = _run(
+        ["dpkg-query", "-W", "-f=${Package}\t${Version}\n"],
+        timeout=30,
+    )
+    if rc != 0:
+        return []
+    packages: List[Dict[str, str]] = []
+    for line in stdout.splitlines():
+        parts = line.strip().split("\t")
+        if len(parts) >= 2 and parts[0] and parts[1] and parts[1] not in ("<none>", "-"):
+            # Strip epoch prefix (e.g. "2:1.2.3-1" → "1.2.3-1")
+            ver = re.sub(r"^\d+:", "", parts[1])
+            packages.append({"name": parts[0], "version": ver})
+    return packages
+
+
+def scan_cves(limit: int = 300) -> Dict[str, Any]:
+    """Scan installed packages against the OSV.dev vulnerability database."""
+    if not shutil.which("dpkg-query"):
+        return {
+            "available": False,
+            "error": "dpkg-query not found – CVE scanning requires a Debian/Ubuntu system.",
+        }
+
+    ecosystem = _get_ecosystem()
+    packages = _get_dpkg_packages()
+
+    if not packages:
+        return {"available": False, "error": "Could not retrieve installed package list."}
+
+    packages = packages[:limit]
+    all_vulns: List[Dict[str, Any]] = []
+
+    for i in range(0, len(packages), 100):
+        batch = packages[i : i + 100]
+        queries = [
+            {
+                "version": pkg["version"],
+                "package": {"name": pkg["name"], "ecosystem": ecosystem},
+            }
+            for pkg in batch
+        ]
+        payload = json.dumps({"queries": queries}).encode()
+        req = urllib.request.Request(
+            _OSV_BATCH_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+        except Exception:
+            continue
+
+        for j, res in enumerate(result.get("results", [])):
+            for vuln in res.get("vulns", []):
+                pkg = batch[j]
+                severity = "unknown"
+                score: Optional[float] = None
+
+                for s in vuln.get("severity", []):
+                    if s.get("type") in ("CVSS_V3", "CVSS_V4"):
+                        try:
+                            score = float(s["score"])
+                            if score >= 9.0:
+                                severity = "critical"
+                            elif score >= 7.0:
+                                severity = "high"
+                            elif score >= 4.0:
+                                severity = "medium"
+                            else:
+                                severity = "low"
+                        except (ValueError, KeyError):
+                            pass
+                        break
+                    elif s.get("type") == "CVSS_V2" and score is None:
+                        try:
+                            score = float(s["score"])
+                            severity = "high" if score >= 7.0 else ("medium" if score >= 4.0 else "low")
+                        except (ValueError, KeyError):
+                            pass
+
+                aliases = [a for a in vuln.get("aliases", []) if a.startswith("CVE-")]
+                cve_id = aliases[0] if aliases else vuln.get("id", "")
+
+                all_vulns.append({
+                    "package": pkg["name"],
+                    "version": pkg["version"],
+                    "vuln_id": vuln.get("id", ""),
+                    "cve_id": cve_id,
+                    "summary": vuln.get("summary", ""),
+                    "severity": severity,
+                    "cvss_score": score,
+                    "published": (vuln.get("published", "") or "")[:10],
+                })
+
+    all_vulns.sort(
+        key=lambda v: (_SEV_ORDER.get(v["severity"], 4), -(v["cvss_score"] or 0))
+    )
+
+    severity_counts: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
+    for v in all_vulns:
+        severity_counts[v["severity"]] = severity_counts.get(v["severity"], 0) + 1
+
+    return {
+        "available": True,
+        "ecosystem": ecosystem,
+        "packages_scanned": len(packages),
+        "total_vulns": len(all_vulns),
+        "severity_counts": severity_counts,
+        "vulnerabilities": all_vulns,
+    }
