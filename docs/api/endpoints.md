@@ -258,6 +258,21 @@
 
 ---
 
+## Security
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/security/fail2ban` | Admin | All Fail2Ban jails with banned IPs |
+| `POST` | `/security/fail2ban/unban` | Admin | Unban an IP from a jail |
+| `GET` | `/security/packages` | Admin | Upgradeable package list |
+| `POST` | `/security/packages/upgrade` | Admin | Upgrade all packages |
+| `POST` | `/security/packages/upgrade/{name}` | Admin | Upgrade a single package |
+| `GET` | `/security/certificates` | Admin | SSL/TLS certificate inventory |
+| `GET` | `/security/ports` | Admin | Open port list |
+| `GET` | `/security/cve` | Admin | CVE scan results (`?limit=300`) |
+
+---
+
 ## Auth Header Reference
 
 | Value | Description |

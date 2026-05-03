@@ -1,30 +1,36 @@
-## Release v0.4.0 - VM Network Isolation & VLAN Support 🌐
+## Release v0.5.0 - Security Module 🔐
 
-**Release Date:** 2026-04-04
+**Release Date:** 2026-05-03
 
-### 🎉 What's New in UpservX v0.4.0
+### 🎉 What's New in UpservX v0.5.0
 
-This release extends the virtual machine networking stack with two new capabilities: VLAN tagging for bridge-mode interfaces and full lifecycle management of isolated internal libvirt networks — enabling air-gapped VM communication with no IP configuration on the host side.
+This release introduces the **Security Module** — a dedicated administration area giving server operators a unified view of their system's security posture. Five features are bundled in a single tabbed interface accessible to admin-group users: Fail2Ban management, package upgrade tracking, SSL/TLS certificate inspection, open port scanning and CVE vulnerability scanning via the OSV.dev database.
 
 ### ✨ Highlights
 
-#### 🔖 VLAN Support for VMs
-- Bridge-mode VM interfaces now support optional VLAN tagging (802.1Q)
-- Specify a VLAN ID (1–4094) when creating, editing or importing a VM
-- A tagged sub-interface (e.g. `eth0.100`) is created automatically on the host if it does not yet exist
-- VLAN ID stored in the VM registry and restored on edit
+#### 🛡️ Fail2Ban Management
+- View all configured jails with banned IP counts and total failed attempts
+- List all currently banned IPs per jail
+- Unban individual IPs directly from the dashboard
 
-#### 🔒 Internal VM Networks
-- New **Internal Network** mode alongside NAT, Bridge and None
-- Create isolated L2 libvirt networks with a name — no subnet, no DHCP, no host routing
-- All IP addressing happens inside the VMs themselves; the host gains no route
-- Full network lifecycle: create, start, stop and delete via the new **Manage Networks** dialog in the VM dashboard
-- Network state (active / inactive) shown in the networks table with one-click start/stop toggles
-- New API endpoints: `GET /vm-networks`, `POST /vm-networks`, `DELETE /vm-networks/{name}`, `POST /vm-networks/{name}/start`, `POST /vm-networks/{name}/stop`
+#### 📦 Package Upgrade Tracker
+- Discover all upgradeable packages (Debian/Ubuntu) at a glance
+- Filter to security-only updates
+- Upgrade all packages or a single package with one click
 
-#### 🖥️ CLI Version Bump
-- `upservx` CLI updated to v0.4.0
-- All existing commands remain unchanged: `auth`, `service`, `containers`, `system`, `apps`, `backup`, `logs`
+#### 🔏 SSL/TLS Certificate Inspector
+- Automatic scan of common certificate locations (`/etc/ssl/`, `/etc/letsencrypt/`, `/etc/nginx/`, etc.)
+- Status badges: VALID / EXPIRING SOON (< 30 days) / EXPIRED
+- Filter by status and sort by days remaining
+
+#### 🌐 Open Port Scanner
+- See every listening port on the system (TCP + UDP)
+- Filter by protocol and by public vs. loopback address
+
+#### 🐛 CVE Vulnerability Scanner
+- Batch-query installed packages against the OSV.dev vulnerability database
+- CVSS scores (V2/V3/V4), severity filter and advisory links
+- Manual scan trigger — no background polling
 
 ### 📄 Full Release Notes
-See [releases/0.4.0.md](releases/0.4.0.md) for complete details including all API changes and upgrade notes.
+See [releases/0.5.0.md](releases/0.5.0.md) for complete details including all API changes and upgrade notes.

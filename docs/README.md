@@ -30,6 +30,7 @@ Welcome to the complete technical documentation for the **UpservX** project.
 | [Logging](./backend/logging.md) | Activity log, structured logging |
 | [Cluster Management](./backend/cluster.md) | Master/child nodes, replication, load balancing |
 | [SystemD Services](./backend/services.md) | Service management |
+| [Security Module](./backend/security.md) | Fail2Ban, packages, certs, ports, CVE scanner |
 | [Data Models](./backend/models.md) | Pydantic models |
 
 ### Frontend (`upservx/`)

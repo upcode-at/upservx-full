@@ -36,7 +36,7 @@ upservx/                        ← Full repository
 │   │   ├── layout.tsx          ← Root layout (fonts, theme provider)
 │   │   ├── page.tsx            ← Main SPA page
 │   │   └── login/             
-│   ├── components/             ← 28 React components
+│   ├── components/             ← 29 React components
 │   ├── lib/                    ← Utility functions
 │   └── public/                 ← Static assets (logo, images)
 └── upservx-service/            ← FastAPI backend
@@ -48,6 +48,11 @@ upservx/                        ← Full repository
     │   ├── containers.py       ← Container API (images, compose)
     │   ├── firewall.py         ← Firewall API
     │   ├── images.py           ← Docker/LXC image API
+    │   ├── security.py         ← Security module API
+    │   ├── system.py           ← System API
+    │   └── customization.py    ← Customisation (logo, colors)
+    ├── handlers/               ← Business logic modules (added v0.5.0)
+    │   └── security.py         ← Security: Fail2Ban, packages, certs, ports, CVE
     │   ├── system.py           ← System API
     │   └── customization.py    ← Customisation (logo, colors)
     ├── containers.py           ← Docker/LXC/K8s container logic

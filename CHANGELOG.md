@@ -5,6 +5,29 @@ All notable changes to UpservX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-03
+
+> Full release notes: [releases/0.5.0.md](releases/0.5.0.md)
+
+### Added
+- **Security Module**: New dedicated security dashboard (admin-only) with five tabs — Fail2Ban, Packages, Certificates, Open Ports and CVE Scan
+  - New `handlers/security.py` — business logic for all security features
+  - New `api/security.py` — FastAPI router registered at `/security`
+  - New `components/security.tsx` — full frontend component with tabbed UI, summary cards, filters and sort controls
+- **Fail2Ban Management**: View all jails with banned IP counts, list banned IPs per jail, unban individual IPs via `fail2ban-client`
+  - `POST /security/fail2ban/unban` — body: `{ "jail": "...", "ip": "..." }`
+- **Package Upgrade Tracker**: List all upgradeable packages (Debian/Ubuntu), distinguish security-only updates, upgrade all or individual packages
+  - `GET /security/packages` — returns upgradeable packages with current/target version and security flag
+  - `POST /security/packages/upgrade` — upgrade all packages (non-interactive `apt-get upgrade -y`)
+  - `POST /security/packages/upgrade/{name}` — upgrade a single package (name validated with regex to prevent injection)
+- **SSL/TLS Certificate Inspector**: Scan `/etc/ssl/`, `/etc/nginx/`, `/etc/letsencrypt/`, `/etc/apache2/`, `/etc/haproxy/` for X.509 certs; shows CN, issuer, expiry date, days remaining and VALID / EXPIRING SOON / EXPIRED status; filter by status and sort by days remaining
+  - `GET /security/certificates`
+- **Open Port Scanner**: List all LISTEN sockets via `ss -tlnpu` with process name, PID, protocol and address; filter by TCP/UDP and by Public/Loopback address
+  - `GET /security/ports`
+- **CVE Vulnerability Scanner**: Batch-query installed packages against the [OSV.dev](https://osv.dev) API (`/v1/querybatch`); show CVE IDs, CVSS scores (V2/V3/V4), severity badges and advisory summaries; filter by severity
+  - `GET /security/cve?limit=300` (limit range 50–1000)
+- **Sidebar entry**: *Security* item added to the Administration section (requires admin group, icon: ShieldAlert)
+
 ## [0.4.0] - 2026-04-04
 
 > Full release notes: [releases/0.4.0.md](releases/0.4.0.md)
