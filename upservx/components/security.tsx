@@ -193,6 +193,8 @@ export default function SecurityManagement() {
   const [cveFilter, setCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
   const [portProtoFilter, setPortProtoFilter] = useState<"all" | "tcp" | "udp">("all")
   const [portAddrFilter, setPortAddrFilter] = useState<"all" | "public" | "loopback">("all")
+  const [certStatusFilter, setCertStatusFilter] = useState<"all" | "expired" | "expiring" | "valid">("all")
+  const [certSort, setCertSort] = useState<"days_asc" | "days_desc">("days_asc")
   const [upgradingAll, setUpgradingAll] = useState(false)
   const [upgradingPkg, setUpgradingPkg] = useState<string | null>(null)
 
@@ -680,8 +682,8 @@ export default function SecurityManagement() {
         {/* Certificates Tab                                                   */}
         {/* ---------------------------------------------------------------- */}
         <TabsContent value="certificates" className="space-y-4 mt-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-lg font-semibold">SSL/TLS Certificates</h2>
               {certsData && (
                 <>
@@ -695,15 +697,35 @@ export default function SecurityManagement() {
                 </>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchCerts}
-              disabled={loadingCerts}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loadingCerts ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              {(["all", "expired", "expiring", "valid"] as const).map((f) => (
+                <Button
+                  key={f}
+                  variant={certStatusFilter === f ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCertStatusFilter(f)}
+                >
+                  {f === "all" ? "All" : f === "expiring" ? "Expiring soon" : f.charAt(0).toUpperCase() + f.slice(1)}
+                </Button>
+              ))}
+              <div className="w-px bg-border mx-1" />
+              <Button
+                variant={certSort === "days_asc" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCertSort(certSort === "days_asc" ? "days_desc" : "days_asc")}
+              >
+                Days left {certSort === "days_asc" ? "↑" : "↓"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchCerts}
+                disabled={loadingCerts}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loadingCerts ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
           {(certsData?.certificates ?? []).length === 0 && !loadingCerts ? (
@@ -712,44 +734,69 @@ export default function SecurityManagement() {
                 No certificates found in common directories.
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Issuer</TableHead>
-                      <TableHead>Expires</TableHead>
-                      <TableHead>Days left</TableHead>
-                      <TableHead>Path</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(certsData?.certificates ?? []).map((cert, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="text-sm max-w-52 truncate" title={cert.subject}>
-                          {cert.subject?.replace(/.*CN\s*=\s*/, "") || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-40 truncate" title={cert.issuer}>
-                          {cert.issuer?.replace(/.*O\s*=\s*/, "").replace(/,.*/, "") || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {cert.not_after || "—"}
-                        </TableCell>
-                        <TableCell>
-                          <DaysUntilBadge days={cert.days_until_expiry} />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground max-w-56 truncate" title={cert.path}>
-                          {cert.path}
-                        </TableCell>
+          ) : (() => {
+            const filtered = (certsData?.certificates ?? []).filter((c) => {
+              if (certStatusFilter === "expired") return c.expired === true
+              if (certStatusFilter === "expiring") return c.expired !== true && (c.days_until_expiry ?? Infinity) <= 30
+              if (certStatusFilter === "valid") return c.expired !== true && (c.days_until_expiry ?? Infinity) > 30
+              return true
+            })
+            const sorted = [...filtered].sort((a, b) => {
+              const da = a.days_until_expiry ?? (certSort === "days_asc" ? Infinity : -Infinity)
+              const db = b.days_until_expiry ?? (certSort === "days_asc" ? Infinity : -Infinity)
+              return certSort === "days_asc" ? da - db : db - da
+            })
+            if (sorted.length === 0) return (
+              <Card>
+                <CardContent className="pt-6 text-center text-muted-foreground">
+                  No certificates match the selected filter.
+                </CardContent>
+              </Card>
+            )
+            return (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Issuer</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead
+                          className="cursor-pointer select-none hover:text-foreground"
+                          onClick={() => setCertSort(certSort === "days_asc" ? "days_desc" : "days_asc")}
+                        >
+                          Days left {certSort === "days_asc" ? "↑" : "↓"}
+                        </TableHead>
+                        <TableHead>Path</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+                    </TableHeader>
+                    <TableBody>
+                      {sorted.map((cert, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-sm max-w-52 truncate" title={cert.subject}>
+                            {cert.subject?.replace(/.*CN\s*=\s*/, "") || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-40 truncate" title={cert.issuer}>
+                            {cert.issuer?.replace(/.*O\s*=\s*/, "").replace(/,.*/, "") || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {cert.not_after || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <DaysUntilBadge days={cert.days_until_expiry} />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground max-w-56 truncate" title={cert.path}>
+                            {cert.path}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )
+          })()}
         </TabsContent>
 
         {/* ---------------------------------------------------------------- */}
