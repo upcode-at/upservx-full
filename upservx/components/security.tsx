@@ -240,7 +240,7 @@ export default function SecurityManagement() {
   // -- Render --
 
   const filteredPackages =
-    packagesData?.packages.filter((p) => packageFilter === "all" || p.is_security) ?? []
+    packagesData?.packages?.filter((p) => packageFilter === "all" || p.is_security) ?? []
 
   return (
     <div className="space-y-6">
