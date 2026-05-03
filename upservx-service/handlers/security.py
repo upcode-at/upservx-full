@@ -44,7 +44,13 @@ def get_fail2ban_status() -> Dict[str, Any]:
     """Return overall Fail2Ban status and list of jails."""
     stdout, stderr, rc = _run(["fail2ban-client", "status"])
     if rc != 0:
-        return {"available": False, "error": stderr.strip() or "fail2ban-client not available"}
+        # Condense multi-line tracebacks to a single readable message
+        error_text = stderr.strip() or "fail2ban-client returned a non-zero exit code"
+        first_line = next(
+            (l.strip() for l in error_text.splitlines() if l.strip() and not l.startswith(" ")),
+            error_text.splitlines()[0] if error_text else "Unknown error",
+        )
+        return {"available": False, "error": first_line}
 
     jails: List[str] = []
     for line in stdout.splitlines():

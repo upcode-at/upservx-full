@@ -5,7 +5,7 @@ set -e
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev libpam0g-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc fail2ban-client"
+PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev libpam0g-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc fail2ban"
 NODE_REQUIRED_MAJOR=20
 
 # === Colors & Spinner ========================================================
