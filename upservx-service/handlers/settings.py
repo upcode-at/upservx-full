@@ -13,9 +13,13 @@ SETTINGS_FILE = "/etc/upservx/settings.json"
 LOG_DIR = "/var/log"
 MAX_LOG_SCAN_DEPTH = 1
 os.makedirs("/etc/upservx", exist_ok=True)
-VPN_DIR = os.path.join(os.path.dirname(__file__), "vpn")
+VPN_DIR = "/etc/upservx/vpn"
 VPN_PIDFILE = "/var/run/upservx_vpn.pid"
 VPN_OVPN_NAME = "client.ovpn"
+
+def _ensure_vpn_dir() -> None:
+    """Ensure VPN_DIR exists."""
+    os.makedirs(VPN_DIR, exist_ok=True)
 
 def _system_hostname() -> str:
     """Return the system hostname from /etc/hostname or platform.node()."""
@@ -204,7 +208,7 @@ def read_log_file(name: str, lines: int = 100) -> str:
 
 def save_vpn_ovpn(content: bytes, filename: str | None = None) -> str:
     """Save uploaded .ovpn content to the VPN directory and return path."""
-    os.makedirs(VPN_DIR, exist_ok=True)
+    _ensure_vpn_dir()
     name = filename or VPN_OVPN_NAME
     safe_name = os.path.basename(name)
     path = os.path.join(VPN_DIR, safe_name)
@@ -231,6 +235,7 @@ def _read_pidfile() -> int | None:
 
 def get_vpn_status() -> dict:
     """Return VPN status dict: {'running': bool, 'pid': int|None, 'ovpn_path': str|None}"""
+    _ensure_vpn_dir()
     pid = _read_pidfile()
     running = False
     if pid:
@@ -258,6 +263,7 @@ def get_vpn_status() -> dict:
 
 def start_vpn() -> dict:
     """Start OpenVPN using the saved .ovpn file. Returns status dict."""
+    _ensure_vpn_dir()
     # Pick the configured default file, otherwise any .ovpn in the VPN_DIR
     ovpn = os.path.join(VPN_DIR, VPN_OVPN_NAME)
     if not os.path.exists(ovpn):
