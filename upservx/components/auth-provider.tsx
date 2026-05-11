@@ -97,7 +97,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return
     const origFetch = window.fetch
     window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-      return origFetch(input, { ...init, credentials: "include" }).then((response) => {
+      const requestInit: RequestInit = {
+        ...init,
+        credentials: init.credentials ?? "include",
+      }
+      return origFetch(input, requestInit).then((response) => {
         if (response.status === 401 && isAuthRef.current) {
           resetAuth()
           if (window.location.pathname !== "/login") {
