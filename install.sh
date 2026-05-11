@@ -97,7 +97,7 @@ require_root() {
 
 # === Step actions ============================================================
 step_update_codebase() {
-  git pull origin main
+  git pull origin
 }
 
 step_install_system_packages() {
