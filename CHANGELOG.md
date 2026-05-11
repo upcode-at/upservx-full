@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Activity history persistence**: The recent status list is no longer cleared on transient fetch/API errors and keeps the last known 10 entries
 - **Legacy VPN path removal**: Old `handlers/vpn` storage is no longer considered by the service, preventing outdated path usage
 - **Credential persistence removal**: Raw Base64 `username:password` values are no longer stored as primary session state in backend auth cookies or CLI login config
+- **Frontend auth header conflicts**: Removed browser-stored Authorization header injection from `getAuthHeaders()` so stale tokens can no longer override valid session-cookie auth (fixes intermittent 401 on endpoints like `POST /vm-networks` and `GET /metrics`)
 
 ## [0.5.0] - 2026-05-03
 
