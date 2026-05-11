@@ -107,17 +107,10 @@ export function wsUrl(path: string): string {
   return `ws://localhost:9500${path}`
 }
 
-// Session auth is handled via HttpOnly cookie (credentials: include)
-// or an optional Bearer token stored in localStorage for compatibility.
+// Session auth is handled via HttpOnly cookie (credentials: include).
+// Do not inject Authorization headers from browser storage, as stale
+// values can override valid cookie sessions and trigger 401 responses.
 export function getAuthHeaders(): HeadersInit {
-  if (typeof window !== "undefined") {
-    const storedToken = localStorage.getItem("authToken")?.trim()
-    if (storedToken) {
-      return {
-        'Authorization': `Bearer ${storedToken}`,
-      }
-    }
-  }
   return {}
 }
 
