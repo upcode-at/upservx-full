@@ -113,8 +113,17 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [activityLines, setActivityLines] = useState<string[]>([])
   const [lastSeenActivity, setLastSeenActivity] = useState("")
   const [activityOpen, setActivityOpen] = useState(false)
-  const [runningBackupProgress, setRunningBackupProgress] = useState<Array<{ id: number; name: string; progress: number; message: string }>>([])
-  const [runningReplicationProgress, setRunningReplicationProgress] = useState<Array<{ id: string; name: string; progress: number; message: string }>>([])
+  const [recentStatusChanges, setRecentStatusChanges] = useState<
+    Array<{
+      id: string
+      type: "backup" | "replication"
+      name: string
+      status: "running" | "completed" | "failed"
+      progress: number
+      message: string
+      updatedAt: string
+    }>
+  >([])
 
   const handleLogout = () => {
     setToken(null)
@@ -187,54 +196,83 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                 const progressRes = await fetch(apiUrl(`/backup/jobs/${job.id}/progress`))
                 if (!progressRes.ok) return null
                 const progress = (await progressRes.json()) as BackupJobProgress
-                if (progress.status !== "running") return null
+                // Only include non-idle status
+                if (progress.status === "idle") return null
                 return {
-                  id: job.id,
+                  id: `backup-${job.id}`,
+                  type: "backup" as const,
                   name: progress.job_name || job.name || `Job #${job.id}`,
+                  status: progress.status as "running" | "completed" | "failed",
                   progress: progress.progress,
                   message: progress.message,
+                  updatedAt: new Date().toISOString(),
                 }
               } catch {
                 return null
               }
             })
           )
-          setRunningBackupProgress(backupEntries.filter((entry): entry is NonNullable<typeof entry> => !!entry))
-        } else {
-          setRunningBackupProgress([])
-        }
-      } catch {
-        setRunningBackupProgress([])
-      }
+          const validBackups = backupEntries.filter(
+            (entry): entry is Exclude<typeof entry, null> => !!entry
+          ) as Array<{
+            id: string
+            type: "backup" | "replication"
+            name: string
+            status: "running" | "completed" | "failed"
+            progress: number
+            message: string
+            updatedAt: string
+          }>
 
-      try {
-        const replicationsRes = await fetch(apiUrl("/cluster/replications"))
-        if (replicationsRes.ok) {
-          const replications = (await replicationsRes.json()) as Replication[]
-          const replicationEntries = await Promise.all(
-            replications.map(async (replication) => {
-              try {
-                const progressRes = await fetch(apiUrl(`/cluster/replications/${replication.id}/progress`))
-                if (!progressRes.ok) return null
-                const progress = (await progressRes.json()) as ReplicationProgress
-                if (progress.status !== "running") return null
-                return {
-                  id: replication.id,
-                  name: progress.name || replication.name || replication.id,
-                  progress: progress.progress,
-                  message: progress.message,
+          const replicationsRes = await fetch(apiUrl("/cluster/replications"))
+          let validReplications: typeof validBackups = []
+          if (replicationsRes.ok) {
+            const replications = (await replicationsRes.json()) as Replication[]
+            const replicationEntries = await Promise.all(
+              replications.map(async (replication) => {
+                try {
+                  const progressRes = await fetch(apiUrl(`/cluster/replications/${replication.id}/progress`))
+                  if (!progressRes.ok) return null
+                  const progress = (await progressRes.json()) as ReplicationProgress
+                  // Only include non-idle status
+                  if (progress.status === "idle") return null
+                  return {
+                    id: `replication-${replication.id}`,
+                    type: "replication" as const,
+                    name: progress.name || replication.name || replication.id,
+                    status: progress.status as "running" | "completed" | "failed",
+                    progress: progress.progress,
+                    message: progress.message,
+                    updatedAt: new Date().toISOString(),
+                  }
+                } catch {
+                  return null
                 }
-              } catch {
-                return null
-              }
-            })
+              })
+            )
+            validReplications = replicationEntries.filter(
+              (entry): entry is Exclude<typeof entry, null> => !!entry
+            ) as Array<{
+              id: string
+              type: "backup" | "replication"
+              name: string
+              status: "running" | "completed" | "failed"
+              progress: number
+              message: string
+              updatedAt: string
+            }>
+          }
+
+          // Combine, sort by updatedAt (newest first), and take last 10
+          const combined = [...validBackups, ...validReplications].sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           )
-          setRunningReplicationProgress(replicationEntries.filter((entry): entry is NonNullable<typeof entry> => !!entry))
+          setRecentStatusChanges(combined.slice(0, 10))
         } else {
-          setRunningReplicationProgress([])
+          setRecentStatusChanges([])
         }
       } catch {
-        setRunningReplicationProgress([])
+        setRecentStatusChanges([])
       }
     }
 
@@ -472,42 +510,60 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                 Recent Activity
               </div>
 
-              {(runningBackupProgress.length > 0 || runningReplicationProgress.length > 0) && (
+              {recentStatusChanges.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-3 py-3 space-y-3 bg-muted/20">
-                    {runningBackupProgress.length > 0 && (
+                    {recentStatusChanges.filter((entry) => entry.type === "backup").length > 0 && (
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Running Backups</div>
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Backups</div>
                         <div className="space-y-2">
-                          {runningBackupProgress.map((entry) => (
-                            <div key={`backup-${entry.id}`} className="rounded-md border bg-background/70 px-2.5 py-2">
-                              <div className="flex items-center justify-between gap-2 text-xs mb-1">
-                                <span className="font-medium truncate">{entry.name}</span>
-                                <span className="text-muted-foreground">{entry.progress}%</span>
+                          {recentStatusChanges
+                            .filter((entry) => entry.type === "backup")
+                            .map((entry) => (
+                              <div key={entry.id} className="rounded-md border bg-background/70 px-2.5 py-2">
+                                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                                  <span className="font-medium truncate">{entry.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+                                      {entry.status}
+                                    </span>
+                                    {entry.status === "running" && (
+                                      <span className="text-muted-foreground">{entry.progress}%</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {entry.status === "running" && <Progress value={entry.progress} className="h-1.5 mb-1" />}
+                                <div className="text-[11px] text-muted-foreground truncate">{entry.message}</div>
                               </div>
-                              <Progress value={entry.progress} className="h-1.5" />
-                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{entry.message}</div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     )}
 
-                    {runningReplicationProgress.length > 0 && (
+                    {recentStatusChanges.filter((entry) => entry.type === "replication").length > 0 && (
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Running Replications</div>
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Replications</div>
                         <div className="space-y-2">
-                          {runningReplicationProgress.map((entry) => (
-                            <div key={`replication-${entry.id}`} className="rounded-md border bg-background/70 px-2.5 py-2">
-                              <div className="flex items-center justify-between gap-2 text-xs mb-1">
-                                <span className="font-medium truncate">{entry.name}</span>
-                                <span className="text-muted-foreground">{entry.progress}%</span>
+                          {recentStatusChanges
+                            .filter((entry) => entry.type === "replication")
+                            .map((entry) => (
+                              <div key={entry.id} className="rounded-md border bg-background/70 px-2.5 py-2">
+                                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                                  <span className="font-medium truncate">{entry.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+                                      {entry.status}
+                                    </span>
+                                    {entry.status === "running" && (
+                                      <span className="text-muted-foreground">{entry.progress}%</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {entry.status === "running" && <Progress value={entry.progress} className="h-1.5 mb-1" />}
+                                <div className="text-[11px] text-muted-foreground truncate">{entry.message}</div>
                               </div>
-                              <Progress value={entry.progress} className="h-1.5" />
-                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{entry.message}</div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     )}

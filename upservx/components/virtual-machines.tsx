@@ -499,12 +499,12 @@ export function VirtualMachines() {
         setImportFile(null)
         setImportName("")
         setImportStoragePath("")
-        setSuccess(`VM "${importName.trim()}" erfolgreich importiert`)
+        setSuccess(`VM "${importName.trim()}" successfully imported`)
       } else {
-        setError(data?.detail || "Import fehlgeschlagen")
+        setError(data?.detail || "Import failed")
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import fehlgeschlagen")
+      setError(e instanceof Error ? e.message : "Import failed")
     } finally {
       setImportLoading(false)
     }
