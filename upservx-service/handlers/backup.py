@@ -8,7 +8,7 @@ import subprocess
 import paramiko
 import asyncio
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime
 import json
 import io
@@ -546,9 +546,18 @@ class BackupManager:
         finally:
             await storage.disconnect()
     
-    def execute_backup(self, job: Dict[str, Any], server: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_backup(
+        self,
+        job: Dict[str, Any],
+        server: Dict[str, Any],
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> Dict[str, Any]:
         """Execute a backup job and create tar.gz archive."""
         try:
+            def _progress(value: int, message: str) -> None:
+                if progress_callback:
+                    progress_callback(value, message)
+
             print("=" * 60)
             print("BACKUP DEBUG: Starting backup execution")
             print(f"BACKUP DEBUG: Job data: {job}")
@@ -559,6 +568,7 @@ class BackupManager:
             
             logger.info(f"Starting backup execution for job: {job['name']}")
             log_backup(f"Starting backup job [{job['name']}]")
+            _progress(5, "Backup started")
             
             if not job.get('targets'):
                 error_msg = "No backup targets specified"
@@ -566,6 +576,7 @@ class BackupManager:
                 return {'success': False, 'error': error_msg}
             
             print(f"BACKUP DEBUG: Backup targets: {job['targets']}")
+            _progress(10, "Preparing backup targets")
             
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_filename = f"{job['name'].replace(' ', '_')}_{timestamp}.tar.gz"
@@ -587,9 +598,10 @@ class BackupManager:
                 print(f"BACKUP DEBUG: Remote backup path: {backup_path}")
                 
             logger.info(f"Creating backup archive: {backup_path}")
+            _progress(20, "Creating archive")
             
             print("BACKUP DEBUG: Starting tar.gz creation...")
-            success, result = self._create_tar_backup(job, backup_path, server)
+            success, result = self._create_tar_backup(job, backup_path, server, progress_callback=_progress)
             print(f"BACKUP DEBUG: Tar creation result - Success: {success}, Result: {result}")
             
             if success:
@@ -603,6 +615,7 @@ class BackupManager:
                 }
                 print(f"BACKUP DEBUG: Final success result: {final_result}")
                 log_backup(f"Backup job [{job['name']}] completed successfully — {result.get('file_count', 0)} files, {round(result.get('size', 0)/1024/1024, 2)} MB")
+                _progress(100, "Backup completed successfully")
                 return final_result
             else:
                 error_result = {
@@ -611,6 +624,7 @@ class BackupManager:
                 }
                 print(f"BACKUP DEBUG: Final error result: {error_result}")
                 log_backup(f"Backup job [{job['name']}] failed: {result.get('error', 'Unknown error')}", error=True)
+                _progress(100, f"Backup failed: {result.get('error', 'Unknown error')}")
                 return error_result
                 
         except Exception as e:
@@ -624,7 +638,13 @@ class BackupManager:
                 'error': str(e)
             }
     
-    def _create_tar_backup(self, job: Dict[str, Any], backup_path: str, server: Dict[str, Any]) -> tuple:
+    def _create_tar_backup(
+        self,
+        job: Dict[str, Any],
+        backup_path: str,
+        server: Dict[str, Any],
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> tuple:
         """Create tar.gz backup from job targets."""
         start_time = datetime.now()
         total_size = 0
@@ -632,17 +652,25 @@ class BackupManager:
         
         try:
             logger.info(f"Creating tar.gz archive: {backup_path}")
+            if progress_callback:
+                progress_callback(25, "Daten werden gesammelt")
             
             if server['type'] == 'local':
-                return self._create_local_tar_backup(job, backup_path, start_time)
+                return self._create_local_tar_backup(job, backup_path, start_time, progress_callback=progress_callback)
             else:
-                return self._create_remote_tar_backup(job, backup_path, server, start_time)
+                return self._create_remote_tar_backup(job, backup_path, server, start_time, progress_callback=progress_callback)
                 
         except Exception as e:
             logger.error(f"Tar backup creation failed: {e}")
             return False, {'error': str(e)}
     
-    def _create_local_tar_backup(self, job: Dict[str, Any], backup_path: str, start_time: datetime) -> tuple:
+    def _create_local_tar_backup(
+        self,
+        job: Dict[str, Any],
+        backup_path: str,
+        start_time: datetime,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> tuple:
         """Create local tar.gz backup."""
         try:
             print("TAR DEBUG: Starting local tar.gz creation")
@@ -656,8 +684,12 @@ class BackupManager:
             with tarfile.open(backup_path, 'w:gz', compresslevel=6) as tar:
                 print("TAR DEBUG: Tar file opened successfully")
                 
+                total_targets = max(1, len(job['targets']))
                 for i, target in enumerate(job['targets']):
                     print(f"TAR DEBUG: Processing target {i+1}/{len(job['targets'])}: '{target}'")
+                    if progress_callback:
+                        pct = 30 + int((i / total_targets) * 50)
+                        progress_callback(pct, f"Processing target {i + 1}/{len(job['targets'])}")
                     
                     if not target.strip():
                         print("TAR DEBUG: Skipping empty target")
@@ -825,6 +857,8 @@ class BackupManager:
                             logger.warning(f"Target path does not exist: {target}")
             
             print("TAR DEBUG: Tar archive creation completed")
+            if progress_callback:
+                progress_callback(85, "Archive created")
             
             if os.path.exists(backup_path):
                 archive_size = os.path.getsize(backup_path)
@@ -867,18 +901,28 @@ class BackupManager:
                 os.unlink(backup_path)
             return False, {'error': str(e)}
     
-    def _create_remote_tar_backup(self, job: Dict[str, Any], backup_path: str, server: Dict[str, Any], start_time: datetime) -> tuple:
+    def _create_remote_tar_backup(
+        self,
+        job: Dict[str, Any],
+        backup_path: str,
+        server: Dict[str, Any],
+        start_time: datetime,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> tuple:
         """Create remote tar.gz backup via SSH."""
         try:
             temp_dir = tempfile.mkdtemp()
             temp_archive = os.path.join(temp_dir, os.path.basename(backup_path))
             
-            success, result = self._create_local_tar_backup(job, temp_archive, start_time)
+            success, result = self._create_local_tar_backup(job, temp_archive, start_time, progress_callback=progress_callback)
             
             if not success:
                 shutil.rmtree(temp_dir)
                 return False, result
             
+            if progress_callback:
+                progress_callback(90, "Uploading archive to destination server")
+
             ssh_success = self._upload_to_remote_server(temp_archive, backup_path, server)
             
             shutil.rmtree(temp_dir)

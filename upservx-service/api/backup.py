@@ -2,6 +2,7 @@
 
 import json
 import logging
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 
@@ -18,6 +19,7 @@ from lib.logger import log_backup
 from handlers.backup import backup_manager, BackupAuthConfig
 from handlers.ssh_keys import ssh_key_manager
 from handlers.notifications import notify
+from lib.progress_tracker import get_progress, set_progress
 
 router = APIRouter()
 
@@ -298,8 +300,20 @@ async def execute_backup_job(job_id: int):
 
         instance_id = backup_db.create_backup_instance(instance_data)
 
+        def _progress(value: int, message: str):
+            set_progress(
+                "backup_jobs",
+                str(job_id),
+                status="running",
+                progress=value,
+                message=message,
+                extra={"job_id": job_id, "instance_id": instance_id, "job_name": job["name"]},
+            )
+
+        _progress(2, "Preparing backup")
+
         try:
-            result = backup_manager.execute_backup(job, server)
+            result = backup_manager.execute_backup(job, server, progress_callback=_progress)
 
             if result.get("success", False):
                 backup_db.update_backup_instance(
@@ -314,6 +328,14 @@ async def execute_backup_job(job_id: int):
                 )
                 log_backup(
                     f"Backup job [{job['name']}] completed successfully (size: {result.get('size', 0)} bytes)"
+                )
+                set_progress(
+                    "backup_jobs",
+                    str(job_id),
+                    status="completed",
+                    progress=100,
+                    message="Backup completed",
+                    extra={"job_id": job_id, "instance_id": instance_id, "job_name": job["name"]},
                 )
                 size_mb = round(result.get("size", 0) / 1024 / 1024, 2)
                 notify(
@@ -336,6 +358,14 @@ async def execute_backup_job(job_id: int):
                     },
                 )
                 log_backup(f"Backup job [{job['name']}] failed: {result.get('error')}", error=True)
+                set_progress(
+                    "backup_jobs",
+                    str(job_id),
+                    status="failed",
+                    progress=100,
+                    message=result.get("error", "Backup failed"),
+                    extra={"job_id": job_id, "instance_id": instance_id, "job_name": job["name"]},
+                )
                 notify(
                     "backup_failure",
                     f"Backup job '{job['name']}' failed: {result.get('error', 'Unknown error')}",
@@ -353,12 +383,55 @@ async def execute_backup_job(job_id: int):
                     "error_message": str(backup_error),
                 },
             )
+            set_progress(
+                "backup_jobs",
+                str(job_id),
+                status="failed",
+                progress=100,
+                message=str(backup_error),
+                extra={"job_id": job_id, "instance_id": instance_id, "job_name": job["name"]},
+            )
             raise HTTPException(status_code=500, detail=f"Backup execution error: {str(backup_error)}")
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to execute backup job: {str(e)}")
+
+
+async def _execute_backup_job_background(job_id: int):
+    """Run backup in background and swallow HTTP exceptions from route wrapper."""
+    try:
+        await execute_backup_job(job_id)
+    except Exception:
+        # Progress and log state are already updated by execute_backup_job.
+        return
+
+
+@router.post("/backup/jobs/{job_id}/trigger")
+async def trigger_backup_job(job_id: int):
+    """Trigger backup job asynchronously and return immediately."""
+    job = backup_db.get_backup_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Backup job not found")
+
+    asyncio.create_task(_execute_backup_job_background(job_id))
+    return {"message": "Backup triggered", "job_id": job_id}
+
+
+@router.get("/backup/jobs/{job_id}/progress")
+async def get_backup_job_progress(job_id: int):
+    """Get latest progress for a backup job."""
+    data = get_progress("backup_jobs", str(job_id))
+    if not data:
+        return {
+            "job_id": job_id,
+            "status": "idle",
+            "progress": 0,
+            "message": "No active backup run",
+            "updated_at": None,
+        }
+    return {"job_id": job_id, **data}
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NotificationContainer } from "@/components/ui/notification"
 import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play } from "lucide-react"
@@ -59,12 +60,21 @@ interface Replication {
   sync_schedule: string
 }
 
+interface ReplicationProgress {
+  replication_id: string
+  status: "idle" | "running" | "completed" | "failed"
+  progress: number
+  message: string
+  updated_at?: string | null
+}
+
 export default function ClusterManagement() {
   const [clusterInfo, setClusterInfo] = useState<ClusterInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [replications, setReplications] = useState<Replication[]>([])
+  const [replicationProgress, setReplicationProgress] = useState<Record<string, ReplicationProgress>>({})
 
   const [createClusterOpen, setCreateClusterOpen] = useState(false)
   const [joinClusterOpen, setJoinClusterOpen] = useState(false)
@@ -125,6 +135,49 @@ export default function ClusterManagement() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterInfo?.is_master])
+
+  useEffect(() => {
+    if (replications.length === 0) {
+      setReplicationProgress({})
+      return
+    }
+
+    let active = true
+
+    const loadProgress = async () => {
+      const entries = await Promise.all(
+        replications.map(async (replication) => {
+          try {
+            const response = await fetch(getApiUrl(`/cluster/replications/${replication.id}/progress`), {
+              credentials: "include"
+            })
+            if (!response.ok) return null
+            const data = await response.json()
+            return [replication.id, data as ReplicationProgress] as const
+          } catch {
+            return null
+          }
+        })
+      )
+
+      if (!active) return
+
+      const next: Record<string, ReplicationProgress> = {}
+      entries.forEach((entry) => {
+        if (entry) {
+          next[entry[0]] = entry[1]
+        }
+      })
+      setReplicationProgress(next)
+    }
+
+    loadProgress()
+    const timer = setInterval(loadProgress, 2000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [replications])
 
   useEffect(() => {
     if (replicationOriginNode) {
@@ -378,6 +431,16 @@ export default function ClusterManagement() {
         const errorData = await response.json()
         throw new Error(errorData.detail || "Failed to trigger replication")
       }
+
+      setReplicationProgress((prev) => ({
+        ...prev,
+        [replicationId]: {
+          replication_id: replicationId,
+          status: "running",
+          progress: 1,
+          message: "Replication started",
+        },
+      }))
 
       setSuccess("Replication triggered successfully")
     } catch (err) {
@@ -835,6 +898,7 @@ export default function ClusterManagement() {
                           <TableHead>Destination Node</TableHead>
                           <TableHead>Name</TableHead>
                           <TableHead>Type</TableHead>
+                          <TableHead>Progress</TableHead>
                           <TableHead>Sync Schedule</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -847,6 +911,18 @@ export default function ClusterManagement() {
                             <TableCell>{replication.name}</TableCell>
                             <TableCell>
                               <Badge variant="outline">{replication.type}</Badge>
+                            </TableCell>
+                            <TableCell className="min-w-56">
+                              {replicationProgress[replication.id] && replicationProgress[replication.id].status !== "idle" ? (
+                                <div className="space-y-1">
+                                  <Progress value={replicationProgress[replication.id].progress} />
+                                  <div className="text-xs text-muted-foreground">
+                                    {replicationProgress[replication.id].progress}% - {replicationProgress[replication.id].message}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell>{replication.sync_schedule}</TableCell>
                             <TableCell className="text-right">

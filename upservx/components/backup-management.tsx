@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
 import {
   Table,
@@ -77,6 +78,14 @@ interface BackupJob {
   created: string
 }
 
+interface BackupJobProgress {
+  job_id: number
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  progress: number
+  message: string
+  updated_at?: string | null
+}
+
 // Helper functions that use apiUrl at runtime, not at module load
 async function fetchBackupServers(): Promise<BackupServer[]> {
   const response = await fetch(apiUrl('/backup/servers'), {
@@ -140,8 +149,20 @@ async function createBackupJob(data: BackupJobCreate): Promise<BackupJob> {
 }
 
 async function executeBackupJob(jobId: number): Promise<{ message: string }> {
-  const response = await fetch(apiUrl(`/backup/jobs/${jobId}/execute`), {
+  const response = await fetch(apiUrl(`/backup/jobs/${jobId}/trigger`), {
     method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json'
+    }
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function fetchBackupJobProgress(jobId: number): Promise<BackupJobProgress> {
+  const response = await fetch(apiUrl(`/backup/jobs/${jobId}/progress`), {
+    method: 'GET',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -200,6 +221,7 @@ export default function BackupManagement() {
   const [backupJobs, setBackupJobs] = useState<BackupJob[]>([])
   const [availableVMs, setAvailableVMs] = useState<{ name: string; id: string }[]>([])
   const [availableContainers, setAvailableContainers] = useState<{ name: string; id: string }[]>([])
+  const [backupProgress, setBackupProgress] = useState<Record<number, BackupJobProgress>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
@@ -254,6 +276,46 @@ export default function BackupManagement() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (backupJobs.length === 0) {
+      setBackupProgress({})
+      return
+    }
+
+    let isActive = true
+
+    const loadProgress = async () => {
+      const entries = await Promise.all(
+        backupJobs.map(async (job) => {
+          try {
+            const progress = await fetchBackupJobProgress(job.id)
+            return [job.id, progress] as const
+          } catch {
+            return null
+          }
+        })
+      )
+
+      if (!isActive) return
+
+      const next: Record<number, BackupJobProgress> = {}
+      entries.forEach((entry) => {
+        if (entry) {
+          next[entry[0]] = entry[1]
+        }
+      })
+      setBackupProgress(next)
+    }
+
+    loadProgress()
+    const timer = setInterval(loadProgress, 2000)
+
+    return () => {
+      isActive = false
+      clearInterval(timer)
+    }
+  }, [backupJobs])
 
   const loadData = async () => {
     try {
@@ -327,8 +389,16 @@ export default function BackupManagement() {
 
   const handleExecuteJob = async (jobId: number) => {
     try {
+      setBackupProgress((prev) => ({
+        ...prev,
+        [jobId]: {
+          job_id: jobId,
+          status: 'running',
+          progress: 1,
+          message: 'Backup started',
+        },
+      }))
       await executeBackupJob(jobId)
-      await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error executing job')
     }
@@ -879,6 +949,7 @@ export default function BackupManagement() {
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
                   <TableHead>Schedule</TableHead>
                   <TableHead>Server</TableHead>
                   <TableHead>Last Run</TableHead>
@@ -901,6 +972,18 @@ export default function BackupManagement() {
                       <Badge className={job.status === "active" ? "bg-green-600 text-white" : job.status === "error" ? "bg-red-600 text-white" : "bg-gray-600 text-white"}>
                         {job.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="min-w-56">
+                      {backupProgress[job.id] && backupProgress[job.id].status !== 'idle' ? (
+                        <div className="space-y-1">
+                          <Progress value={backupProgress[job.id].progress} />
+                          <div className="text-xs text-muted-foreground">
+                            {backupProgress[job.id].progress}% - {backupProgress[job.id].message}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">{job.schedule}</TableCell>
                     <TableCell className="text-sm">{getServerName(job.server_id)}</TableCell>
