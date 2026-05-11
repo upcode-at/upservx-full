@@ -311,6 +311,10 @@ async def execute_backup_job(job_id: int):
             )
 
         _progress(2, "Preparing backup")
+        notify(
+            "backup_started",
+            f"Backup job '{job['name']}' started | Type: {job.get('backup_type', 'unknown')} | Server: {server.get('name', server.get('host', 'unknown'))}",
+        )
 
         try:
             result = backup_manager.execute_backup(job, server, progress_callback=_progress)

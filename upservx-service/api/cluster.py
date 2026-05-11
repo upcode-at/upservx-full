@@ -1563,6 +1563,10 @@ async def execute_replication(replication: dict):
         destination_node = replication['destination_node']
         resource_name = replication['name']
         resource_type = replication['type']
+        notify(
+            "replication_started",
+            f"Replication '{resource_name}' started | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
+        )
         
         master_config = read_master_config()
         if not master_config:

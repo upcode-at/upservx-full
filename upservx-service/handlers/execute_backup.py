@@ -46,6 +46,10 @@ def execute_backup_job(job_id: int) -> bool:
             return False
         
         logger.info(f"Executing backup job: {job['name']}")
+        notify(
+            "backup_started",
+            f"Backup job '{job['name']}' started | Type: {job.get('backup_type', 'unknown')} | Server ID: {job.get('server_id', 'unknown')}",
+        )
         
         # Get server details
         server = backup_db.get_backup_server(job['server_id'])

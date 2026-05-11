@@ -64,8 +64,10 @@ export function Settings() {
     vm_start: boolean
     vm_stop: boolean
     vm_delete: boolean
+    backup_started: boolean
     backup_success: boolean
     backup_failure: boolean
+    replication_started: boolean
     replication_success: boolean
     replication_failure: boolean
     system_alert: boolean
@@ -99,8 +101,10 @@ export function Settings() {
       vm_start: true,
       vm_stop: true,
       vm_delete: true,
+      backup_started: true,
       backup_success: true,
       backup_failure: true,
+      replication_started: true,
       replication_success: true,
       replication_failure: true,
       system_alert: true,
@@ -899,8 +903,10 @@ export function Settings() {
                   ["vm_start",         "VM started"],
                   ["vm_stop",          "VM stopped"],
                   ["vm_delete",        "VM deleted"],
+                  ["backup_started",   "Backup started"],
                   ["backup_success",   "Backup completed"],
                   ["backup_failure",   "Backup failed"],
+                  ["replication_started", "Replication started"],
                   ["replication_success", "Replication completed"],
                   ["replication_failure", "Replication failed"],
                   ["system_alert",     "System alert"],
