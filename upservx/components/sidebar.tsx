@@ -33,6 +33,7 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
 import { UserSettings } from "@/components/user-settings"
+import { Progress } from "@/components/ui/progress"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +56,51 @@ interface SidebarItem {
   subItems?: { id: string; label: string }[]
 }
 
+interface BackupJob {
+  id: number
+  name: string
+}
+
+interface BackupJobProgress {
+  job_id?: number
+  status: "idle" | "running" | "completed" | "failed"
+  progress: number
+  message: string
+  job_name?: string
+}
+
+interface Replication {
+  id: string
+  name: string
+}
+
+interface ReplicationProgress {
+  replication_id?: string
+  status: "idle" | "running" | "completed" | "failed"
+  progress: number
+  message: string
+  name?: string
+}
+
+const NOTIFICATION_EVENT_KEYS = new Set([
+  "container_create",
+  "container_start",
+  "container_stop",
+  "container_crash",
+  "container_delete",
+  "vm_create",
+  "vm_start",
+  "vm_stop",
+  "vm_delete",
+  "backup_started",
+  "backup_success",
+  "backup_failure",
+  "replication_started",
+  "replication_success",
+  "replication_failure",
+  "system_alert",
+])
+
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [hostname, setHostname] = useState("")
   const { theme, setTheme, resolvedTheme } = useTheme()
@@ -67,6 +113,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [activityLines, setActivityLines] = useState<string[]>([])
   const [lastSeenActivity, setLastSeenActivity] = useState("")
   const [activityOpen, setActivityOpen] = useState(false)
+  const [runningBackupProgress, setRunningBackupProgress] = useState<Array<{ id: number; name: string; progress: number; message: string }>>([])
+  const [runningReplicationProgress, setRunningReplicationProgress] = useState<Array<{ id: string; name: string; progress: number; message: string }>>([])
 
   const handleLogout = () => {
     setToken(null)
@@ -102,6 +150,12 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   }, [])
 
   useEffect(() => {
+    const extractNotificationEvent = (line: string) => {
+      const match = line.match(/event=([a-z_]+)/)
+      if (!match) return null
+      return match[1]
+    }
+
     const loadActivity = async () => {
       try {
         const res = await fetch(apiUrl("/logs/activity?lines=25"))
@@ -111,6 +165,10 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean)
+          .filter((line) => {
+            const event = extractNotificationEvent(line)
+            return !!event && NOTIFICATION_EVENT_KEYS.has(event)
+          })
           .reverse()
         setActivityLines(lines)
       } catch {
@@ -118,9 +176,76 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       }
     }
 
+    const loadRunningProgress = async () => {
+      try {
+        const backupJobsRes = await fetch(apiUrl("/backup/jobs"))
+        if (backupJobsRes.ok) {
+          const backupJobs = (await backupJobsRes.json()) as BackupJob[]
+          const backupEntries = await Promise.all(
+            backupJobs.map(async (job) => {
+              try {
+                const progressRes = await fetch(apiUrl(`/backup/jobs/${job.id}/progress`))
+                if (!progressRes.ok) return null
+                const progress = (await progressRes.json()) as BackupJobProgress
+                if (progress.status !== "running") return null
+                return {
+                  id: job.id,
+                  name: progress.job_name || job.name || `Job #${job.id}`,
+                  progress: progress.progress,
+                  message: progress.message,
+                }
+              } catch {
+                return null
+              }
+            })
+          )
+          setRunningBackupProgress(backupEntries.filter((entry): entry is NonNullable<typeof entry> => !!entry))
+        } else {
+          setRunningBackupProgress([])
+        }
+      } catch {
+        setRunningBackupProgress([])
+      }
+
+      try {
+        const replicationsRes = await fetch(apiUrl("/cluster/replications"))
+        if (replicationsRes.ok) {
+          const replications = (await replicationsRes.json()) as Replication[]
+          const replicationEntries = await Promise.all(
+            replications.map(async (replication) => {
+              try {
+                const progressRes = await fetch(apiUrl(`/cluster/replications/${replication.id}/progress`))
+                if (!progressRes.ok) return null
+                const progress = (await progressRes.json()) as ReplicationProgress
+                if (progress.status !== "running") return null
+                return {
+                  id: replication.id,
+                  name: progress.name || replication.name || replication.id,
+                  progress: progress.progress,
+                  message: progress.message,
+                }
+              } catch {
+                return null
+              }
+            })
+          )
+          setRunningReplicationProgress(replicationEntries.filter((entry): entry is NonNullable<typeof entry> => !!entry))
+        } else {
+          setRunningReplicationProgress([])
+        }
+      } catch {
+        setRunningReplicationProgress([])
+      }
+    }
+
     loadActivity()
-    const interval = window.setInterval(loadActivity, 15000)
-    return () => window.clearInterval(interval)
+    loadRunningProgress()
+    const activityInterval = window.setInterval(loadActivity, 15000)
+    const progressInterval = window.setInterval(loadRunningProgress, 3000)
+    return () => {
+      window.clearInterval(activityInterval)
+      window.clearInterval(progressInterval)
+    }
   }, [])
 
   useEffect(() => {
@@ -138,6 +263,17 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   })()
 
   const formatActivityLine = (line: string) => {
+    const eventMatch = line.match(/event=([a-z_]+)/)
+    if (eventMatch) {
+      const prettyEvent = eventMatch[1].replace(/_/g, " ")
+      const splitMarker = " – "
+      const markerIndex = line.indexOf(splitMarker)
+      const message = markerIndex >= 0 ? line.slice(markerIndex + splitMarker.length) : line
+      const prefixMatch = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[^\]]+\])/)
+      const prefix = prefixMatch ? `${prefixMatch[1]} ` : ""
+      return `${prefix}${prettyEvent.toUpperCase()} ${message}`.trim()
+    }
+
     try {
       const parsed = JSON.parse(line)
       const timestamp = parsed.timestamp || parsed.time || ""
@@ -335,6 +471,50 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
               <div className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Recent Activity
               </div>
+
+              {(runningBackupProgress.length > 0 || runningReplicationProgress.length > 0) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-3 py-3 space-y-3 bg-muted/20">
+                    {runningBackupProgress.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Running Backups</div>
+                        <div className="space-y-2">
+                          {runningBackupProgress.map((entry) => (
+                            <div key={`backup-${entry.id}`} className="rounded-md border bg-background/70 px-2.5 py-2">
+                              <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                                <span className="font-medium truncate">{entry.name}</span>
+                                <span className="text-muted-foreground">{entry.progress}%</span>
+                              </div>
+                              <Progress value={entry.progress} className="h-1.5" />
+                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{entry.message}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {runningReplicationProgress.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Running Replications</div>
+                        <div className="space-y-2">
+                          {runningReplicationProgress.map((entry) => (
+                            <div key={`replication-${entry.id}`} className="rounded-md border bg-background/70 px-2.5 py-2">
+                              <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                                <span className="font-medium truncate">{entry.name}</span>
+                                <span className="text-muted-foreground">{entry.progress}%</span>
+                              </div>
+                              <Progress value={entry.progress} className="h-1.5" />
+                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{entry.message}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
               <DropdownMenuSeparator />
               <div className="max-h-[28rem] overflow-y-auto p-3 space-y-1.5">
                 {activityLines.length === 0 ? (
