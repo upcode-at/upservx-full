@@ -10,6 +10,8 @@ import platform
 from lib.models import SettingsModel
 
 SETTINGS_FILE = "/etc/upservx/settings.json"
+LOG_DIR = "/var/log"
+MAX_LOG_SCAN_DEPTH = 1
 os.makedirs("/etc/upservx", exist_ok=True)
 VPN_DIR = os.path.join(os.path.dirname(__file__), "vpn")
 VPN_PIDFILE = "/var/run/upservx_vpn.pid"
@@ -122,38 +124,71 @@ def generate_api_key() -> str:
     save_settings(settings)
     return settings.api_key
 
+def _resolve_log_path(name: str) -> str:
+    """Resolve a log path inside LOG_DIR and block traversal outside of it."""
+    if not name:
+        raise Exception("log not found")
+
+    candidate = name if os.path.isabs(name) else os.path.join(LOG_DIR, name)
+    root = os.path.realpath(LOG_DIR)
+    resolved = os.path.realpath(candidate)
+
+    try:
+        if os.path.commonpath([root, resolved]) != root:
+            raise Exception("log not found")
+    except ValueError:
+        raise Exception("log not found")
+
+    if not os.path.isfile(resolved):
+        raise Exception("log not found")
+
+    return resolved
+
+def _iter_log_paths():
+    """Yield log files under LOG_DIR, including one nested directory level."""
+    root = os.path.realpath(LOG_DIR)
+
+    try:
+        for current_root, dirs, files in os.walk(root):
+            rel_root = os.path.relpath(current_root, root)
+            depth = 0 if rel_root == "." else rel_root.count(os.sep) + 1
+            if depth >= MAX_LOG_SCAN_DEPTH:
+                dirs[:] = []
+
+            for name in files:
+                yield os.path.join(current_root, name)
+    except Exception:
+        return
+
+def _relative_log_name(path: str) -> str:
+    """Return the path relative to LOG_DIR for stable API names."""
+    return os.path.relpath(os.path.realpath(path), os.path.realpath(LOG_DIR))
+
 def get_log_files() -> list:
     """Get a list of available log files."""
     logs = []
-    log_dir = "/var/log"
-    
+
     try:
-        for name in os.listdir(log_dir):
-            path = os.path.join(log_dir, name)
-            if os.path.isfile(path):
-                try:
-                    stat = os.stat(path)
-                    logs.append({
-                        "name": name,
-                        "size": stat.st_size,
-                        "path": path,
-                    })
-                except Exception:
-                    pass
+        for path in _iter_log_paths():
+            try:
+                stat = os.stat(path)
+                logs.append({
+                    "name": _relative_log_name(path),
+                    "size": stat.st_size,
+                    "path": path,
+                })
+            except Exception:
+                pass
     except Exception:
         pass
-    
+
+    logs.sort(key=lambda item: item["name"])
     return logs
 
 def read_log_file(name: str, lines: int = 100) -> str:
     """Read content from a log file."""
-    log_dir = "/var/log"
-    safe_name = os.path.basename(name)
-    path = os.path.join(log_dir, safe_name)
-    
-    if not os.path.isfile(path):
-        raise Exception("log not found")
-    
+    path = _resolve_log_path(name)
+
     try:
         if lines > 0:
             result = subprocess.run(["tail", "-n", str(lines), path], capture_output=True, text=True)
