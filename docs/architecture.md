@@ -68,7 +68,7 @@ upservx/                        ← Full repository
     ├── notifications.py        ← Email & webhook
     ├── metrics_collector.py    ← Metrics & alerting (458 lines)
     ├── app_store.py            ← App store logic (194 lines)
-    ├── settings.py             ← Settings, VPN (278 lines)
+      ├── handlers/settings.py    ← Settings, VPN
     ├── upservx_logger.py       ← Activity log (131 lines)
     ├── ssh_keys.py             ← SSH key manager
     ├── crontab_manager.py      ← Cron jobs

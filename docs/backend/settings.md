@@ -1,6 +1,6 @@
 # Settings
 
-**File:** `upservx-service/settings.py`
+**File:** `upservx-service/handlers/settings.py`
 **API sub-module:** `upservx-service/api/settings.py`
 
 **Required permission:** Admin for write; read access for `/settings/customization`
@@ -10,6 +10,8 @@
 ## Overview
 
 The settings module manages the globally configurable options of UpservX. Settings are stored in a JSON file at `/etc/upservx/settings.json`.
+
+VPN/OpenVPN profiles uploaded via the Settings API are stored in `/etc/upservx/vpn` (for example `/etc/upservx/vpn/client.ovpn`).
 
 ---
 
