@@ -1,36 +1,33 @@
-## Release v0.5.0 - Security Module 🔐
+## Release v0.5.1 - Auth & Activity Reliability
 
-**Release Date:** 2026-05-03
+**Release Date:** 2026-05-12
 
-### 🎉 What's New in UpservX v0.5.0
+### 🎉 What's New in UpservX v0.5.1
 
-This release introduces the **Security Module** — a dedicated administration area giving server operators a unified view of their system's security posture. Five features are bundled in a single tabbed interface accessible to admin-group users: Fail2Ban management, package upgrade tracking, SSL/TLS certificate inspection, open port scanning and CVE vulnerability scanning via the OSV.dev database.
+This release focuses on authentication hardening and activity reliability: signed session-token auth replaces persisted Basic credentials, CLI auth now uses token-based sessions, and activity/progress handling in the sidebar has been improved for clearer operational visibility and lower noise.
 
 ### ✨ Highlights
 
-#### 🛡️ Fail2Ban Management
-- View all configured jails with banned IP counts and total failed attempts
-- List all currently banned IPs per jail
-- Unban individual IPs directly from the dashboard
+#### 🔐 Signed Session Authentication
+- Signed expiring session tokens (HMAC-SHA256) for user sessions
+- Middleware validates Bearer/API/cluster/session tokens
+- Login and 2FA complete return `session_token` and set session cookie
 
-#### 📦 Package Upgrade Tracker
-- Discover all upgradeable packages (Debian/Ubuntu) at a glance
-- Filter to security-only updates
-- Upgrade all packages or a single package with one click
+#### 🖥️ CLI Token-Based Login
+- CLI now authenticates via `POST /auth/login`
+- Stores `username` + token instead of Basic credentials
+- Uses Bearer token for API calls
 
-#### 🔏 SSL/TLS Certificate Inspector
-- Automatic scan of common certificate locations (`/etc/ssl/`, `/etc/letsencrypt/`, `/etc/nginx/`, etc.)
-- Status badges: VALID / EXPIRING SOON (< 30 days) / EXPIRED
-- Filter by status and sort by days remaining
+#### 🔔 Activity & Status Improvements
+- Activity bell with larger overlay and notification-event filtering
+- Recent backup/replication status timeline with running progress bars
+- Terminal states (`completed`/`failed`) are no longer repeatedly polled
+- Polling intervals normalized to 10 seconds where applicable
 
-#### 🌐 Open Port Scanner
-- See every listening port on the system (TCP + UDP)
-- Filter by protocol and by public vs. loopback address
-
-#### 🐛 CVE Vulnerability Scanner
-- Batch-query installed packages against the OSV.dev vulnerability database
-- CVSS scores (V2/V3/V4), severity filter and advisory links
-- Manual scan trigger — no background polling
+#### 🛠️ Reliability Fixes
+- Recent status list is preserved on transient fetch errors
+- Removed frontend Authorization header injection that caused stale-token 401s
+- Standardized VPN profile storage path to `/etc/upservx/vpn`
 
 ### 📄 Full Release Notes
-See [releases/0.5.0.md](releases/0.5.0.md) for complete details including all API changes and upgrade notes.
+See [releases/0.5.1.md](releases/0.5.1.md) for complete details including API/auth changes and upgrade notes.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-12
+
+> Full release notes: [releases/0.5.1.md](releases/0.5.1.md)
+
 ### Added
 - **Activity Bell in Sidebar**: New activity dropdown above the theme switcher with a larger overlay panel for operational visibility
 - **Recent Status Timeline**: Activity panel now shows the latest 10 backup/replication status changes (`running`, `completed`, `failed`) with progress bars for running items
