@@ -66,6 +66,8 @@ export function Settings() {
     vm_delete: boolean
     backup_success: boolean
     backup_failure: boolean
+    replication_success: boolean
+    replication_failure: boolean
     system_alert: boolean
   }
 
@@ -99,6 +101,8 @@ export function Settings() {
       vm_delete: true,
       backup_success: true,
       backup_failure: true,
+      replication_success: true,
+      replication_failure: true,
       system_alert: true,
     },
   }
@@ -897,6 +901,8 @@ export function Settings() {
                   ["vm_delete",        "VM deleted"],
                   ["backup_success",   "Backup completed"],
                   ["backup_failure",   "Backup failed"],
+                  ["replication_success", "Replication completed"],
+                  ["replication_failure", "Replication failed"],
                   ["system_alert",     "System alert"],
                 ] as [keyof typeof notifications.events, string][]).map(([key, label]) => (
                   <div key={key} className="flex items-center space-x-2">

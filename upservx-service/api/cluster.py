@@ -15,6 +15,7 @@ from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
 from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
+from handlers.notifications import notify
 
 def _clog(msg: str, error: bool = False) -> None:
     """Print to console AND write to activity log file."""
@@ -1698,10 +1699,18 @@ async def execute_replication(replication: dict):
             
             _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
             _progress(100, "Replication completed successfully", status="completed")
+            notify(
+                "replication_success",
+                f"Replication '{resource_name}' completed | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
+            )
             
     except Exception as e:
         _clog(f"[REPLICATION] Error during replication: {e}", error=True)
         _progress(100, f"Error: {e}", status="failed")
+        notify(
+            "replication_failure",
+            f"Replication '{replication.get('name', 'unknown')}' failed | Type: {replication.get('type', 'unknown')} | Error: {e}",
+        )
 
         import traceback
         traceback.print_exc()

@@ -338,6 +338,8 @@ class TestNotificationConfig:
         assert cfg.webhook.enabled is False
         assert cfg.events.container_create is True
         assert cfg.events.backup_failure is True
+        assert cfg.events.replication_success is True
+        assert cfg.events.replication_failure is True
 
 
 # ---------------------------------------------------------------------------

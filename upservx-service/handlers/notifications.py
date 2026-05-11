@@ -213,6 +213,8 @@ def notify(event: str, message: str) -> None:
             "vm_delete":        events.vm_delete,
             "backup_success":   events.backup_success,
             "backup_failure":   events.backup_failure,
+            "replication_success": events.replication_success,
+            "replication_failure": events.replication_failure,
             "system_alert":     events.system_alert,
         }
 

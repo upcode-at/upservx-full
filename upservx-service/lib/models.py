@@ -157,6 +157,8 @@ class NotificationEvents(BaseModel):
     vm_delete: bool = True
     backup_success: bool = True
     backup_failure: bool = True
+    replication_success: bool = True
+    replication_failure: bool = True
     system_alert: bool = True
 
 class NotificationConfig(BaseModel):
