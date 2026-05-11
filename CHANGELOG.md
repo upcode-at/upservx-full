@@ -18,9 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI log rendering**: Log output is formatted for human-readable display instead of raw JSON lines when possible
 - **Activity filtering**: Sidebar activity list now only displays events that are part of the notification event selection set
 - **Progress labels**: Backup and replication progress/status labels introduced in this cycle are standardized to English
+- **VPN config storage location**: OpenVPN profiles are now stored and read exclusively from `/etc/upservx/vpn` instead of the legacy handler-local path
+- **Settings documentation paths**: Backend docs now reference `upservx-service/handlers/settings.py` and document VPN profile storage under `/etc/upservx/vpn`
 
 ### Fixed
 - **Activity history persistence**: The recent status list is no longer cleared on transient fetch/API errors and keeps the last known 10 entries
+- **Legacy VPN path removal**: Old `handlers/vpn` storage is no longer considered by the service, preventing outdated path usage
 
 ## [0.5.0] - 2026-05-03
 
