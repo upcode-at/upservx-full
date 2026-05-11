@@ -25,6 +25,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Bell,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { apiUrl } from "@/lib/api"
@@ -32,6 +33,14 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
 import { UserSettings } from "@/components/user-settings"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface SidebarProps {
   activeSection: string
@@ -55,6 +64,9 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const router = useRouter()
   const [hasCustomLogo, setHasCustomLogo] = useState(false)
   const [logoTimestamp, setLogoTimestamp] = useState(Date.now())
+  const [activityLines, setActivityLines] = useState<string[]>([])
+  const [lastSeenActivity, setLastSeenActivity] = useState("")
+  const [activityOpen, setActivityOpen] = useState(false)
 
   const handleLogout = () => {
     setToken(null)
@@ -88,6 +100,54 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     loadHostname()
     loadCustomization()
   }, [])
+
+  useEffect(() => {
+    const loadActivity = async () => {
+      try {
+        const res = await fetch(apiUrl("/logs/activity?lines=25"))
+        if (!res.ok) return
+        const text = await res.text()
+        const lines = text
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .reverse()
+        setActivityLines(lines)
+      } catch {
+        // Keep last known activity list if fetch fails.
+      }
+    }
+
+    loadActivity()
+    const interval = window.setInterval(loadActivity, 15000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (activityOpen && activityLines.length > 0) {
+      setLastSeenActivity(activityLines[0])
+    }
+  }, [activityOpen, activityLines])
+
+  const unreadActivities = (() => {
+    if (!activityLines.length) return 0
+    if (!lastSeenActivity) return 0
+    const seenIndex = activityLines.indexOf(lastSeenActivity)
+    if (seenIndex === -1) return Math.min(activityLines.length, 25)
+    return seenIndex
+  })()
+
+  const formatActivityLine = (line: string) => {
+    try {
+      const parsed = JSON.parse(line)
+      const timestamp = parsed.timestamp || parsed.time || ""
+      const level = parsed.level || parsed.severity || "info"
+      const message = parsed.message || parsed.msg || line
+      return `${timestamp} [${String(level).toUpperCase()}] ${message}`.trim()
+    } catch {
+      return line
+    }
+  }
 
   const categories: { title: string; items: SidebarItem[] }[] = [
     {
@@ -251,6 +311,57 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         })}
       </nav>
       <div className="p-4 border-t border-sidebar-border/30">
+        <DropdownMenu open={activityOpen} onOpenChange={setActivityOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 mb-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-colors"
+              aria-label="Show recent activity"
+            >
+              <span className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                <span>Activity</span>
+              </span>
+              {unreadActivities > 0 ? (
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs leading-5 font-semibold">
+                  {unreadActivities > 9 ? "9+" : unreadActivities}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground/70">0</span>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuContent align="end" sideOffset={8} className="w-[36rem] max-w-[calc(100vw-2rem)] p-0 z-[10000]">
+              <div className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Recent Activity
+              </div>
+              <DropdownMenuSeparator />
+              <div className="max-h-[28rem] overflow-y-auto p-3 space-y-1.5">
+                {activityLines.length === 0 ? (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">No recent activity available.</div>
+                ) : (
+                  activityLines.slice(0, 20).map((line, index) => (
+                    <div
+                      key={`${line}-${index}`}
+                      className="px-2.5 py-2 text-xs rounded-sm bg-muted/40 text-foreground break-words"
+                    >
+                      {formatActivityLine(line)}
+                    </div>
+                  ))
+                )}
+              </div>
+              {hasPermission("logs") && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => onSectionChange("logs")}>
+                    Open Logs
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenuPortal>
+        </DropdownMenu>
+
         <div className="flex items-center gap-2 px-3 py-2 mb-1">
           <div className="flex items-center gap-1.5 flex-1">
             <Sun className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
