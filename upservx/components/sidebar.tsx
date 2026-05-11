@@ -268,11 +268,10 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           )
           setRecentStatusChanges(combined.slice(0, 10))
-        } else {
-          setRecentStatusChanges([])
         }
+        // On error or non-OK response, keep the previous list
       } catch {
-        setRecentStatusChanges([])
+        // On error, keep the previous list
       }
     }
 
