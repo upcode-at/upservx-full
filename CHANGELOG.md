@@ -5,6 +5,23 @@ All notable changes to UpservX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Activity Bell in Sidebar**: New activity dropdown above the theme switcher with a larger overlay panel for operational visibility
+- **Recent Status Timeline**: Activity panel now shows the latest 10 backup/replication status changes (`running`, `completed`, `failed`) with progress bars for running items
+- **Backup/Replication Start Notifications**: New notification events `backup_started` and `replication_started` added to settings, defaults and dispatch logic
+
+### Changed
+- **Activity Log API output**: Log content endpoint now returns plain text by default for direct readability; JSON output remains available via explicit format selection
+- **Log path handling**: Improved log file resolution to correctly support nested paths such as `upservx/activity.log`
+- **CLI log rendering**: Log output is formatted for human-readable display instead of raw JSON lines when possible
+- **Activity filtering**: Sidebar activity list now only displays events that are part of the notification event selection set
+- **Progress labels**: Backup and replication progress/status labels introduced in this cycle are standardized to English
+
+### Fixed
+- **Activity history persistence**: The recent status list is no longer cleared on transient fetch/API errors and keeps the last known 10 entries
+
 ## [0.5.0] - 2026-05-03
 
 > Full release notes: [releases/0.5.0.md](releases/0.5.0.md)
@@ -59,10 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `VirtualMachineCreate.network_mode` now accepts `"internal"` in addition to `"nat"`, `"bridge"`, `"unconfigured"` and `"none"`
 - `import_vm_ova` endpoint now accepts `vlan_id: int` (0 = none) and `network_name: str` (empty = none) form fields
 
-
+## [0.3.0] - 2026-03-13
 
 > Full release notes: [releases/0.3.0.md](releases/0.3.0.md)
-: Virtual machines can now be exported as portable OVA or OVF packages
+
+### Added
+- **VM OVA/OVF Export**: Virtual machines can now be exported as portable OVA or OVF packages
   - New `POST /vms/{name}/export` endpoint – accepts `{ "format": "ova" | "ovf" }`, converts disks from qcow2 to VMDK (`streamOptimized`) via `qemu-img` and builds a standards-compliant OVF 1.0 descriptor with CPU, RAM, network and disk mappings
   - New `GET /vms/exports/{filename}` endpoint – streams the finished archive as a file download
   - SHA-256 manifest file (`.mf`) is generated automatically and included in every export
@@ -84,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Numbered page buttons with `...` ellipsis for large page counts, Prev/Next navigation
   - App count display ("X Apps gefunden") and current page indicator ("Seite X von Y")
   - Resetting to page 1 automatically when the search query, category filter or page size changes
-- **App Store Templates** – 11 new pre-configured one-click applications:
+- **App Store Templates** – 19 new pre-configured one-click applications:
   - **RustDesk** (`networking`) – Self-hosted remote desktop relay and ID server (KRaft mode, `hbbs` + `hbbr` containers)
   - **Apache Guacamole** (`networking`) – Clientless browser-based RDP/VNC/SSH gateway (guacd + web + PostgreSQL)
   - **ONLYOFFICE Community Edition** (`productivity`) – Full office suite stack: DocumentServer, CommunityServer (portal, CRM, projects), MailServer and MySQL
@@ -104,7 +123,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **OpenLDAP** (`security`) – Centralised LDAP directory for user and group management; Bitnami image with phpLDAPadmin web UI (port 8090); integration guides for Keycloak, GitLab and Grafana
   - **Docker Registry** (`development`) – Lightweight private container image registry (Registry v2) with Docker Registry UI (port 8085, joxit); optional htpasswd basic auth and Traefik reverse-proxy support
   - **MotionEye** (`monitoring`) – Web frontend for the motion daemon; supports USB cameras, IP/RTSP/MJPEG streams, motion-triggered recording, snapshots, notifications and timeline view (port 8765)
-
 - **Group-based Access Control (RBAC via Linux groups)**: New `permissions.py` module maps Linux groups to subsystem access — authenticated users only see and can access what their groups permit
   - `sudo` / `wheel` → full administrator access (all endpoints)
   - `docker` → container management (Docker), Docker images, App Store
@@ -120,20 +138,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `fetch` interceptor in `AuthProvider` forwards `credentials: "include"` on every request instead of injecting `Authorization` headers
   - `POST /auth/logout` deletes the cookie server-side
   - Session validity is verified on page load via `/auth/me` + cookie; `isLoaded` is only set to `true` after permissions are resolved (prevents sidebar flash)
-
-### Changed
-- **Auth middleware**: after successful PAM / API-key authentication, the middleware now resolves the user's Linux groups and calls `check_path_permission()` — returns HTTP 403 for paths the user's groups do not cover
-- **System shell WebSocket**: access guard changed from `is_admin()` to `has_shell_access()` — `tty` group members may now open the shell in addition to `sudo`/`wheel`; unauthorised connections are closed with WebSocket code `4403`
-- **Sidebar**: each navigation item now carries a `requires` field (`"admin"`, `"containers"`, `"vms"`, `"storage"`, `"shell"`, `"logs"` or `null`); items and entire categories are hidden when the logged-in user lacks the required permission — no client-side workarounds needed
-- **`AuthContext`**: extended with `username`, `groups[]`, `permissions` and `reloadPermissions()` — `useAuth()` consumers can read current permissions without additional fetches; `token` kept as compatibility shim (`"__session__"` when authenticated, `null` otherwise)
-- **`getAuthHeaders()` / `getJsonHeaders()`** in `api.ts`: removed the `admin:admin` Basic-auth fallback; auth is now handled exclusively via session cookie
-
-### Security
-- **Group-based authorisation**: every API request is now checked against the caller's Linux groups — users without the appropriate group receive HTTP 403 instead of having unrestricted access to all endpoints
-- **Removed `admin:admin` fallback**: `api.ts` no longer falls back to hardcoded credentials when no session exists
-- **HttpOnly session cookie**: the auth token is no longer stored in `localStorage` (accessible to JavaScript); the `HttpOnly` flag prevents client-side script access to the session cookie
-
-### Added
 - **Application Customization Module**: New "Customization" tab in Settings (visible to admins only) to personalize the login screen and dashboard branding
   - **Login Banner Text**: Configurable title and subtitle displayed on the left side of the login page
   - **Custom Logo**: Upload a PNG, JPG, SVG, GIF or WebP logo — replaces the default logo on both the login screen and the sidebar in the dashboard
@@ -146,9 +150,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Write/delete operations remain auth-protected and are restricted to admin users in the UI
   - API routes: `GET /settings/customization`, `POST /settings/customization`, `POST /settings/customization/logo`, `DELETE /settings/customization/logo`, `GET /settings/customization/logo/file`, `POST /settings/customization/banner`, `DELETE /settings/customization/banner`, `GET /settings/customization/banner/file`
 
+### Changed
+- **Auth middleware**: after successful PAM / API-key authentication, the middleware now resolves the user's Linux groups and calls `check_path_permission()` — returns HTTP 403 for paths the user's groups do not cover
+- **System shell WebSocket**: access guard changed from `is_admin()` to `has_shell_access()` — `tty` group members may now open the shell in addition to `sudo`/`wheel`; unauthorised connections are closed with WebSocket code `4403`
+- **Sidebar**: each navigation item now carries a `requires` field (`"admin"`, `"containers"`, `"vms"`, `"storage"`, `"shell"`, `"logs"` or `null`); items and entire categories are hidden when the logged-in user lacks the required permission — no client-side workarounds needed
+- **`AuthContext`**: extended with `username`, `groups[]`, `permissions` and `reloadPermissions()` — `useAuth()` consumers can read current permissions without additional fetches; `token` kept as compatibility shim (`"__session__"` when authenticated, `null` otherwise)
+- **`getAuthHeaders()` / `getJsonHeaders()`** in `api.ts`: removed the `admin:admin` Basic-auth fallback; auth is now handled exclusively via session cookie
+- **Frontend layout/theme polish**: moved the theme switch to the sidebar (with Light/Dark/System modes), removed the now-empty top header, simplified logout button to an icon, improved light-mode tab/button contrast, and removed the active-item white dot in the sidebar
+
+### Security
+- **Group-based authorisation**: every API request is now checked against the caller's Linux groups — users without the appropriate group receive HTTP 403 instead of having unrestricted access to all endpoints
+- **Removed `admin:admin` fallback**: `api.ts` no longer falls back to hardcoded credentials when no session exists
+- **HttpOnly session cookie**: the auth token is no longer stored in `localStorage` (accessible to JavaScript); the `HttpOnly` flag prevents client-side script access to the session cookie
+
 ---
 
-## [0.2.0] - 2026-03-01
+## [0.2.0] - 2026-02-26
 
 > Full release notes: [releases/0.2.0.md](releases/0.2.0.md)
 
