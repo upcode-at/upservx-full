@@ -5,7 +5,6 @@ A comprehensive server management API built with FastAPI providing
 container management, system monitoring, and server administration.
 """
 
-import base64
 import logging
 import os
 import sys
@@ -13,7 +12,6 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-import pam
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +20,7 @@ from lib.system_utils import get_server_addresses
 from lib.vnc_proxy import ensure_proxy_running
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket  # noqa: F401 – re-exported for routers
 from lib.permissions import get_user_groups, check_path_permission
+from lib.session_tokens import verify_session_token
 from handlers.settings import load_settings
 from lib.logger import log_system
 
@@ -103,8 +102,6 @@ app.add_middleware(
 
 ensure_proxy_running()
 
-pam_auth = pam.pam()
-
 # ---------------------------------------------------------------------------
 # Generic in-memory rate limiter
 # ---------------------------------------------------------------------------
@@ -173,14 +170,14 @@ async def pam_auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization")
-    # If Authorization header is missing, allow cookie named 'auth' to carry the Basic token
+    # If Authorization header is missing, allow cookie named 'auth' to carry Bearer token.
     if not auth_header:
         cookie_auth = request.cookies.get("auth")
         if cookie_auth:
-            if cookie_auth.lower().startswith("basic "):
+            if cookie_auth.lower().startswith("bearer "):
                 auth_header = cookie_auth
             else:
-                auth_header = f"Basic {cookie_auth}"
+                auth_header = f"Bearer {cookie_auth}"
 
     if not auth_header:
         return Response(status_code=401)
@@ -189,16 +186,7 @@ async def pam_auth_middleware(request: Request, call_next):
         scheme, credentials = auth_header.split(" ", 1)
         scheme = scheme.lower()
 
-        if scheme == "basic":
-            decoded = base64.b64decode(credentials).decode()
-            username, password = decoded.split(":", 1)
-            _settings = load_settings()
-            if _settings.deny_root_login and username == "root":
-                return Response(status_code=403)
-            if not pam_auth.authenticate(username, password):
-                return Response(status_code=401)
-            request.state.user = username
-        elif scheme == "bearer":
+        if scheme == "bearer":
             settings = load_settings()
             token = credentials.strip()
 
@@ -215,7 +203,12 @@ async def pam_auth_middleware(request: Request, call_next):
                     if master_config and master_config.get("key") == token:
                         request.state.user = "cluster-master"
                     else:
-                        return Response(status_code=401)
+                        username = verify_session_token(token)
+                        if not username:
+                            return Response(status_code=401)
+                        if settings.deny_root_login and username == "root":
+                            return Response(status_code=403)
+                        request.state.user = username
         else:
             raise ValueError
     except Exception:

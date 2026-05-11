@@ -2,8 +2,7 @@
 HTTP client for the UpservX API – uses requests.
 
 Auth priority:
-  1. UPSERVX_TOKEN env / config token  → Bearer <token>
-  2. UPSERVX_CREDENTIALS env / config credentials  → Basic <base64>
+    1. UPSERVX_TOKEN env / config token  → Bearer <token>
 """
 
 from typing import Any, Optional
@@ -28,11 +27,8 @@ class APIClient:
         self.session.headers.update({"Accept": "application/json"})
 
         token = cfg.get("token", "")
-        credentials = cfg.get("credentials", "")
         if token:
             self.session.headers["Authorization"] = f"Bearer {token}"
-        elif credentials:
-            self.session.headers["Authorization"] = f"Basic {credentials}"
 
     def _request(self, method: str, path: str, body: Optional[dict] = None) -> Any:
         url = f"{self.base_url}{path}"

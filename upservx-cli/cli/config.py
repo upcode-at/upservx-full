@@ -3,11 +3,10 @@ CLI Configuration – reads /etc/upservx-cli.conf, ~/.upservx-cli.conf or env va
 
 Stored fields:
   api_url      – backend base URL
-  credentials  – base64(username:password) for HTTP Basic Auth
-  token        – optional Bearer API key (overrides basic auth if set)
+    username     – last logged-in username (display only)
+    token        – Bearer session/API token
 """
 
-import base64
 import json
 import os
 
@@ -32,7 +31,7 @@ def load_config() -> dict:
     """Load config from file(s) + environment variables."""
     cfg: dict = {
         "api_url": DEFAULT_API_URL,
-        "credentials": "",
+        "username": "",
         "token": "",
     }
 
@@ -51,8 +50,8 @@ def load_config() -> dict:
         cfg["api_url"] = os.environ["UPSERVX_API_URL"]
     if os.environ.get("UPSERVX_TOKEN"):
         cfg["token"] = os.environ["UPSERVX_TOKEN"]
-    if os.environ.get("UPSERVX_CREDENTIALS"):
-        cfg["credentials"] = os.environ["UPSERVX_CREDENTIALS"]
+    if os.environ.get("UPSERVX_USERNAME"):
+        cfg["username"] = os.environ["UPSERVX_USERNAME"]
 
     return cfg
 
@@ -68,18 +67,6 @@ def save_config(cfg: dict) -> None:
     os.chmod(path, 0o600)
 
 
-def encode_credentials(username: str, password: str) -> str:
-    """Return base64(username:password) suitable for Basic Auth."""
-    return base64.b64encode(f"{username}:{password}".encode()).decode()
-
-
 def get_username_from_config() -> str:
-    """Decode stored credentials and return just the username."""
-    creds = load_config().get("credentials", "")
-    if not creds:
-        return ""
-    try:
-        decoded = base64.b64decode(creds).decode()
-        return decoded.split(":", 1)[0]
-    except Exception:
-        return ""
+    """Return stored username (display only)."""
+    return load_config().get("username", "")

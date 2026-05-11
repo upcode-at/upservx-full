@@ -27,7 +27,7 @@ import {
   Monitor,
   Bell,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { apiUrl } from "@/lib/api"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/auth-provider"
@@ -67,6 +67,7 @@ interface BackupJobProgress {
   progress: number
   message: string
   job_name?: string
+  updated_at?: string | null
 }
 
 interface Replication {
@@ -80,6 +81,17 @@ interface ReplicationProgress {
   progress: number
   message: string
   name?: string
+  updated_at?: string | null
+}
+
+type RecentStatusEntry = {
+  id: string
+  type: "backup" | "replication"
+  name: string
+  status: "running" | "completed" | "failed"
+  progress: number
+  message: string
+  updatedAt: string
 }
 
 const NOTIFICATION_EVENT_KEYS = new Set([
@@ -113,17 +125,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   const [activityLines, setActivityLines] = useState<string[]>([])
   const [lastSeenActivity, setLastSeenActivity] = useState("")
   const [activityOpen, setActivityOpen] = useState(false)
-  const [recentStatusChanges, setRecentStatusChanges] = useState<
-    Array<{
-      id: string
-      type: "backup" | "replication"
-      name: string
-      status: "running" | "completed" | "failed"
-      progress: number
-      message: string
-      updatedAt: string
-    }>
-  >([])
+  const [recentStatusChanges, setRecentStatusChanges] = useState<RecentStatusEntry[]>([])
+  const finalizedProgressIdsRef = useRef<Set<string>>(new Set())
 
   const handleLogout = () => {
     setToken(null)
@@ -191,83 +194,80 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
         if (backupJobsRes.ok) {
           const backupJobs = (await backupJobsRes.json()) as BackupJob[]
           const backupEntries = await Promise.all(
-            backupJobs.map(async (job) => {
+            backupJobs
+              .filter((job) => !finalizedProgressIdsRef.current.has(`backup-${job.id}`))
+              .map(async (job) => {
               try {
                 const progressRes = await fetch(apiUrl(`/backup/jobs/${job.id}/progress`))
                 if (!progressRes.ok) return null
                 const progress = (await progressRes.json()) as BackupJobProgress
                 // Only include non-idle status
                 if (progress.status === "idle") return null
-                return {
+                const entry: RecentStatusEntry = {
                   id: `backup-${job.id}`,
                   type: "backup" as const,
                   name: progress.job_name || job.name || `Job #${job.id}`,
                   status: progress.status as "running" | "completed" | "failed",
                   progress: progress.progress,
                   message: progress.message,
-                  updatedAt: new Date().toISOString(),
+                  updatedAt: progress.updated_at || new Date().toISOString(),
                 }
+                if (entry.status === "completed" || entry.status === "failed") {
+                  finalizedProgressIdsRef.current.add(entry.id)
+                }
+                return entry
               } catch {
                 return null
               }
             })
           )
-          const validBackups = backupEntries.filter(
-            (entry): entry is Exclude<typeof entry, null> => !!entry
-          ) as Array<{
-            id: string
-            type: "backup" | "replication"
-            name: string
-            status: "running" | "completed" | "failed"
-            progress: number
-            message: string
-            updatedAt: string
-          }>
+          const validBackups = backupEntries.filter((entry): entry is RecentStatusEntry => !!entry)
 
           const replicationsRes = await fetch(apiUrl("/cluster/replications"))
           let validReplications: typeof validBackups = []
           if (replicationsRes.ok) {
             const replications = (await replicationsRes.json()) as Replication[]
             const replicationEntries = await Promise.all(
-              replications.map(async (replication) => {
+              replications
+                .filter((replication) => !finalizedProgressIdsRef.current.has(`replication-${replication.id}`))
+                .map(async (replication) => {
                 try {
                   const progressRes = await fetch(apiUrl(`/cluster/replications/${replication.id}/progress`))
                   if (!progressRes.ok) return null
                   const progress = (await progressRes.json()) as ReplicationProgress
                   // Only include non-idle status
                   if (progress.status === "idle") return null
-                  return {
+                  const entry: RecentStatusEntry = {
                     id: `replication-${replication.id}`,
                     type: "replication" as const,
                     name: progress.name || replication.name || replication.id,
                     status: progress.status as "running" | "completed" | "failed",
                     progress: progress.progress,
                     message: progress.message,
-                    updatedAt: new Date().toISOString(),
+                    updatedAt: progress.updated_at || new Date().toISOString(),
                   }
+                  if (entry.status === "completed" || entry.status === "failed") {
+                    finalizedProgressIdsRef.current.add(entry.id)
+                  }
+                  return entry
                 } catch {
                   return null
                 }
               })
             )
-            validReplications = replicationEntries.filter(
-              (entry): entry is Exclude<typeof entry, null> => !!entry
-            ) as Array<{
-              id: string
-              type: "backup" | "replication"
-              name: string
-              status: "running" | "completed" | "failed"
-              progress: number
-              message: string
-              updatedAt: string
-            }>
+            validReplications = replicationEntries.filter((entry): entry is RecentStatusEntry => !!entry)
           }
 
-          // Combine, sort by updatedAt (newest first), and take last 10
-          const combined = [...validBackups, ...validReplications].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )
-          setRecentStatusChanges(combined.slice(0, 10))
+          // Merge fetched updates into existing cache, keep most recent 10.
+          setRecentStatusChanges((previous) => {
+            const byId = new Map<string, RecentStatusEntry>(previous.map((entry) => [entry.id, entry]))
+            for (const entry of [...validBackups, ...validReplications]) {
+              byId.set(entry.id, entry)
+            }
+            return Array.from(byId.values())
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+              .slice(0, 10)
+          })
         }
         // On error or non-OK response, keep the previous list
       } catch {
@@ -277,8 +277,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
 
     loadActivity()
     loadRunningProgress()
-    const activityInterval = window.setInterval(loadActivity, 15000)
-    const progressInterval = window.setInterval(loadRunningProgress, 3000)
+    const activityInterval = window.setInterval(loadActivity, 10000)
+    const progressInterval = window.setInterval(loadRunningProgress, 10000)
     return () => {
       window.clearInterval(activityInterval)
       window.clearInterval(progressInterval)

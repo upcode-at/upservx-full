@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Activity Bell in Sidebar**: New activity dropdown above the theme switcher with a larger overlay panel for operational visibility
 - **Recent Status Timeline**: Activity panel now shows the latest 10 backup/replication status changes (`running`, `completed`, `failed`) with progress bars for running items
 - **Backup/Replication Start Notifications**: New notification events `backup_started` and `replication_started` added to settings, defaults and dispatch logic
+- **Signed session-token module**: New `lib/session_tokens.py` for HMAC-SHA256 signed, expiring user session tokens with server-side secret management (`/etc/upservx/session_secret` or `UPSERVX_SESSION_SECRET`)
 
 ### Changed
 - **Activity Log API output**: Log content endpoint now returns plain text by default for direct readability; JSON output remains available via explicit format selection
@@ -20,10 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Progress labels**: Backup and replication progress/status labels introduced in this cycle are standardized to English
 - **VPN config storage location**: OpenVPN profiles are now stored and read exclusively from `/etc/upservx/vpn` instead of the legacy handler-local path
 - **Settings documentation paths**: Backend docs now reference `upservx-service/handlers/settings.py` and document VPN profile storage under `/etc/upservx/vpn`
+- **Authentication flow**: `POST /auth/login` and `POST /auth/2fa/complete` now issue signed session tokens (cookie + JSON `session_token`) instead of persisting Base64 credentials
+- **Auth middleware**: Request authentication now validates Bearer/API/cluster/session tokens; cookie fallback is treated as Bearer token
+- **WebSocket shell auth**: Cookie-based shell auth now validates signed session tokens instead of decoding/storing username:password credentials
+- **CLI auth model**: CLI now logs in via `POST /auth/login`, stores `username` + `token`, and uses Bearer tokens for API requests (no stored Basic credentials)
 
 ### Fixed
 - **Activity history persistence**: The recent status list is no longer cleared on transient fetch/API errors and keeps the last known 10 entries
 - **Legacy VPN path removal**: Old `handlers/vpn` storage is no longer considered by the service, preventing outdated path usage
+- **Credential persistence removal**: Raw Base64 `username:password` values are no longer stored as primary session state in backend auth cookies or CLI login config
 
 ## [0.5.0] - 2026-05-03
 

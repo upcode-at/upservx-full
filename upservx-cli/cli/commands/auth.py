@@ -12,7 +12,6 @@ import sys
 
 from cli.api import APIError, get_client
 from cli.config import (
-    encode_credentials,
     get_username_from_config,
     load_config,
     save_config,
@@ -35,20 +34,18 @@ def cmd_login(args) -> int:
         error("Password cannot be empty.")
         return 1
 
-    # Temporarily build credentials and test against the API
-    from cli.api import APIClient
     import requests
 
-    credentials = encode_credentials(username, password)
     session = requests.Session()
-    session.headers.update({
-        "Accept": "application/json",
-        "Authorization": f"Basic {credentials}",
-    })
+    session.headers.update({"Accept": "application/json"})
 
     api_url = cfg["api_url"].rstrip("/")
     try:
-        resp = session.get(f"{api_url}/", timeout=10)
+        resp = session.post(
+            f"{api_url}/auth/login",
+            json={"username": username, "password": password},
+            timeout=10,
+        )
     except Exception as e:
         error(f"Cannot reach API at {api_url}: {e}")
         return 1
@@ -59,13 +56,30 @@ def cmd_login(args) -> int:
     if resp.status_code == 403:
         error("Access denied.")
         return 1
+    if resp.status_code == 429:
+        error("Too many login attempts. Please retry in a minute.")
+        return 1
     if not resp.ok:
         error(f"Login check failed: HTTP {resp.status_code}")
         return 1
 
-    # Credentials are valid – persist them
-    cfg["credentials"] = credentials
-    cfg.pop("token", None)  # clear any old bearer token
+    try:
+        data = resp.json()
+    except Exception:
+        data = {}
+
+    if data.get("2fa_required"):
+        error("2FA is enabled for this account. Complete login via Web UI for now.")
+        return 1
+
+    session_token = data.get("session_token", "")
+    if not session_token:
+        error("Login succeeded but no session token was returned.")
+        return 1
+
+    # Persist secure session token (not raw password/Basic credentials).
+    cfg["username"] = username
+    cfg["token"] = session_token
     save_config(cfg)
 
     ok(f"Logged in as [bold]{username}[/bold]")
@@ -76,8 +90,14 @@ def cmd_logout(args) -> int:
     cfg = load_config()
     changed = False
 
-    if cfg.get("credentials"):
-        cfg["credentials"] = ""
+    # Best-effort server-side logout for cookie/session invalidation.
+    try:
+        get_client().post("/auth/logout")
+    except Exception:
+        pass
+
+    if cfg.get("username"):
+        cfg["username"] = ""
         changed = True
     if cfg.get("token"):
         cfg["token"] = ""
@@ -85,7 +105,7 @@ def cmd_logout(args) -> int:
 
     if changed:
         save_config(cfg)
-        ok("Logged out. Credentials removed.")
+        ok("Logged out. Session token removed.")
     else:
         warn("Not logged in.")
     return 0
@@ -103,7 +123,7 @@ def cmd_whoami(args) -> int:
     data = {
         "user":    username if username else "(api-key)",
         "api_url": cfg.get("api_url", ""),
-        "auth":    "Basic" if cfg.get("credentials") else "Bearer" if cfg.get("token") else "none",
+        "auth":    "Bearer" if cfg.get("token") else "none",
     }
     kv(data, indent=2)
 
@@ -128,7 +148,7 @@ def register(subparsers):
     login_p.add_argument("--username", "-u", metavar="USER", help="Username")
     login_p.add_argument("--password", "-p", metavar="PASS", help="Password (unsafe – prefer interactive prompt)")
 
-    sp.add_parser("logout", help="Remove stored credentials")
+    sp.add_parser("logout", help="Remove stored session token")
     sp.add_parser("whoami", help="Show current session info")
 
     p.set_defaults(func=_dispatch)

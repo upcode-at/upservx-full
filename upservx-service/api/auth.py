@@ -1,6 +1,5 @@
 """Authentication and system shell routes."""
 
-import base64
 import asyncio
 import os
 import pty
@@ -17,6 +16,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
 from lib.permissions import get_user_groups, get_permission_summary, has_shell_access
+from lib.session_tokens import create_session_token, verify_session_token
 from lib.logger import log_auth
 from handlers.settings import load_settings
 import lib.totp as totp_lib
@@ -54,7 +54,7 @@ def _check_ws_ticket_rate_limit(ip: str) -> bool:
 
 @router.post("/auth/login")
 async def auth_login(payload: dict, request: Request):
-    """Login – sets an HttpOnly Basic-auth cookie."""
+    """Login – sets an HttpOnly signed session-token cookie."""
     username = payload.get("username")
     password = payload.get("password")
     if not username or not password:
@@ -80,8 +80,11 @@ async def auth_login(payload: dict, request: Request):
                     media_type="application/json",
                     status_code=200,
                 )
-            token = base64.b64encode(f"{username}:{password}".encode()).decode()
-            resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
+            token = create_session_token(username, ttl_seconds=3600)
+            resp = Response(
+                content=f'{{"detail": "logged_in", "session_token": "{token}", "expires_in": 3600}}',
+                media_type="application/json",
+            )
             resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
             log_auth(f"Login successful for user [{username}] from {client_ip}")
             return resp
@@ -110,9 +113,12 @@ async def auth_2fa_complete(payload: dict, request: Request):
         log_auth(f"2FA verification failed from {client_ip}", error=True)
         raise HTTPException(status_code=401, detail="invalid or expired 2FA code")
 
-    username, password = result
-    auth_token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    resp = Response(content='{"detail": "logged_in"}', media_type="application/json")
+    username, _password = result
+    auth_token = create_session_token(username, ttl_seconds=3600)
+    resp = Response(
+        content=f'{{"detail": "logged_in", "session_token": "{auth_token}", "expires_in": 3600}}',
+        media_type="application/json",
+    )
     resp.set_cookie("auth", auth_token, httponly=True, samesite="Lax", max_age=3600)
     log_auth(f"2FA login successful for user [{username}] from {client_ip}")
     return resp
@@ -287,13 +293,10 @@ async def system_shell_websocket(websocket: WebSocket):
         auth_token = websocket.cookies.get("auth")
         if auth_token:
             try:
-                if auth_token.lower().startswith("basic "):
-                    auth_token = auth_token[6:]
-                decoded = base64.b64decode(auth_token).decode()
-                ws_user, ws_password = decoded.split(":", 1)
-                ws_pam = pam.pam()
-                loop = asyncio.get_event_loop()
-                if await loop.run_in_executor(None, ws_pam.authenticate, ws_user, ws_password):
+                if auth_token.lower().startswith("bearer "):
+                    auth_token = auth_token[7:]
+                ws_user = verify_session_token(auth_token)
+                if ws_user:
                     authenticated = True
                     shell_username = ws_user
             except Exception:
