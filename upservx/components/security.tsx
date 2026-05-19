@@ -120,6 +120,42 @@ interface CveData {
   vulnerabilities?: CveVuln[]
 }
 
+interface ContainerCveResult {
+  name: string
+  type: string
+  status: string
+  available: boolean
+  reason?: string
+  ecosystem?: string
+  packages_scanned: number
+  total_vulns: number
+  severity_counts: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+    unknown: number
+  }
+  vulnerabilities: CveVuln[]
+}
+
+interface ContainerCveData {
+  available: boolean
+  error?: string
+  containers_total: number
+  containers_scanned: number
+  containers_with_issues: number
+  total_vulns: number
+  severity_counts: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+    unknown: number
+  }
+  containers: ContainerCveResult[]
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -191,6 +227,10 @@ export default function SecurityManagement() {
   const [cveData, setCveData] = useState<CveData | null>(null)
   const [loadingCve, setLoadingCve] = useState(false)
   const [cveFilter, setCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
+  const [loadingContainerCve, setLoadingContainerCve] = useState(false)
+  const [containerCveData, setContainerCveData] = useState<ContainerCveData | null>(null)
+  const [containerCveFilter, setContainerCveFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all")
+  const [expandedContainerKey, setExpandedContainerKey] = useState<string | null>(null)
   const [portProtoFilter, setPortProtoFilter] = useState<"all" | "tcp" | "udp">("all")
   const [portAddrFilter, setPortAddrFilter] = useState<"all" | "public" | "loopback">("all")
   const [certStatusFilter, setCertStatusFilter] = useState<"all" | "expired" | "expiring" | "valid">("all")
@@ -271,6 +311,30 @@ export default function SecurityManagement() {
       setCveData({ available: false, error: "Failed to reach the CVE scanner" })
     } finally {
       setLoadingCve(false)
+    }
+  }, [])
+
+  const fetchContainerCves = useCallback(async () => {
+    setLoadingContainerCve(true)
+    try {
+      const res = await fetch(apiUrl("/security/container-cve"), { credentials: "include" })
+      const data = await res.json()
+      setContainerCveData(data)
+      setExpandedContainerKey(null)
+    } catch {
+      setContainerCveData({
+        available: false,
+        error: "Failed to reach container CVE scanner",
+        containers_total: 0,
+        containers_scanned: 0,
+        containers_with_issues: 0,
+        total_vulns: 0,
+        severity_counts: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
+        containers: [],
+      })
+      setExpandedContainerKey(null)
+    } finally {
+      setLoadingContainerCve(false)
     }
   }, [])
 
@@ -446,7 +510,7 @@ export default function SecurityManagement() {
 
       {/* Tabs */}
       <Tabs defaultValue="fail2ban">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="fail2ban" className="flex items-center gap-2">
             <Ban className="h-4 w-4" /> Fail2Ban
           </TabsTrigger>
@@ -458,6 +522,9 @@ export default function SecurityManagement() {
           </TabsTrigger>
           <TabsTrigger value="ports" className="flex items-center gap-2">
             <Network className="h-4 w-4" /> Open Ports
+          </TabsTrigger>
+          <TabsTrigger value="container-security" className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4" /> Container Security
           </TabsTrigger>
           <TabsTrigger value="cve" className="flex items-center gap-2">
             <Bug className="h-4 w-4" /> CVE Scan
@@ -913,6 +980,155 @@ export default function SecurityManagement() {
                 </Table>
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* CVE Scanner Tab                                                    */}
+        {/* ---------------------------------------------------------------- */}
+        <TabsContent value="container-security" className="space-y-4 mt-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold">Container Security</h2>
+              {containerCveData?.available && (
+                <>
+                  <Badge variant="outline">{containerCveData.containers_scanned}/{containerCveData.containers_total} scanned</Badge>
+                  <Badge variant="outline">{containerCveData.containers_with_issues} affected</Badge>
+                </>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {containerCveData?.available && (
+                <>
+                  {(["all", "critical", "high", "medium", "low"] as const).map((f) => (
+                    <Button
+                      key={f}
+                      variant={containerCveFilter === f ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setContainerCveFilter(f)}
+                    >
+                      {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                    </Button>
+                  ))}
+                </>
+              )}
+              <Button
+                variant={containerCveData === null ? "default" : "outline"}
+                size="sm"
+                onClick={fetchContainerCves}
+                disabled={loadingContainerCve}
+              >
+                {loadingContainerCve ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                {containerCveData === null ? "Start Scan" : "Re-Scan"}
+              </Button>
+            </div>
+          </div>
+
+          {containerCveData === null && !loadingContainerCve ? (
+            <Card>
+              <CardContent className="pt-10 pb-10 text-center text-muted-foreground space-y-3">
+                <ShieldAlert className="mx-auto h-10 w-10 text-muted-foreground/40" />
+                <p className="font-medium">Container CVE scan not started yet</p>
+                <p className="text-xs">
+                  Scans running Docker and LXC containers for known CVEs via <span className="font-mono">osv.dev</span>.
+                </p>
+              </CardContent>
+            </Card>
+          ) : loadingContainerCve ? (
+            <Card>
+              <CardContent className="pt-10 pb-10 text-center text-muted-foreground space-y-3">
+                <RefreshCw className="mx-auto h-8 w-8 animate-spin" />
+                <p>Scanning container packages against OSV.dev… this may take a while.</p>
+              </CardContent>
+            </Card>
+          ) : containerCveData?.available === false ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <AlertTriangle className="mx-auto h-8 w-8 mb-2 text-yellow-500" />
+                <p>Container CVE scan is not available.</p>
+                <p className="text-xs mt-1">{containerCveData.error}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {(containerCveData?.containers ?? []).map((container) => {
+                const containerKey = `${container.type}:${container.name}`
+                const isExpanded = expandedContainerKey === containerKey
+                const filteredVulns = (container.vulnerabilities ?? []).filter(
+                  (v) => containerCveFilter === "all" || v.severity === containerCveFilter
+                )
+
+                return (
+                  <Card key={containerKey}>
+                    <CardHeader
+                      className="pb-3 cursor-pointer"
+                      onClick={() => setExpandedContainerKey(isExpanded ? null : containerKey)}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CardTitle className="text-base font-medium">{container.name}</CardTitle>
+                          <Badge variant="outline" className="uppercase">{container.type}</Badge>
+                          <Badge variant={container.status.toLowerCase() === "running" || container.status.toLowerCase() === "up" ? "default" : "secondary"}>
+                            {container.status}
+                          </Badge>
+                          {container.ecosystem && <Badge variant="outline">{container.ecosystem}</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{container.packages_scanned} packages</span>
+                          <span className="border-l border-border pl-2">
+                            CVEs: <span className={container.total_vulns > 0 ? "text-red-400 font-semibold" : "text-green-400 font-semibold"}>{container.total_vulns}</span>
+                          </span>
+                          <span className="border-l border-border pl-2 font-medium text-foreground/80">
+                            {isExpanded ? "Hide CVEs" : "Show CVEs"}
+                          </span>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    {isExpanded && (
+                    <CardContent>
+                      {!container.available ? (
+                        <p className="text-sm text-muted-foreground">{container.reason || "Container scan unavailable"}</p>
+                      ) : filteredVulns.length === 0 ? (
+                        <p className="text-sm text-green-500">No CVEs found for selected filter.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Severity</TableHead>
+                              <TableHead>CVE</TableHead>
+                              <TableHead>Package</TableHead>
+                              <TableHead>Version</TableHead>
+                              <TableHead>Summary</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredVulns.slice(0, 80).map((v, i) => (
+                              <TableRow key={i}>
+                                <TableCell>
+                                  <SeverityBadge severity={v.severity} score={v.cvss_score} />
+                                </TableCell>
+                                <TableCell className="font-mono text-xs font-medium">{v.cve_id || v.vuln_id}</TableCell>
+                                <TableCell className="font-mono text-sm">{v.package}</TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground">{v.version}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground max-w-80 truncate" title={v.summary}>
+                                  {v.summary || "—"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
           )}
         </TabsContent>
 

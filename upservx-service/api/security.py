@@ -20,6 +20,7 @@ from handlers.security import (
     get_certificates,
     get_open_ports,
     scan_cves,
+    scan_container_cves,
 )
 
 router = APIRouter(prefix="/security", tags=["security"])
@@ -135,5 +136,17 @@ async def scan_cve_vulnerabilities(
     """Scan installed packages for CVEs via OSV.dev (Debian/Ubuntu only)."""
     try:
         return scan_cves(limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/container-cve")
+async def scan_container_cve_vulnerabilities(
+    container_limit: int = Query(default=30, ge=1, le=100, description="Max Docker/LXC containers to scan"),
+    package_limit: int = Query(default=200, ge=20, le=1000, description="Max packages per container"),
+) -> Dict[str, Any]:
+    """Scan running Docker and LXC containers for CVEs via OSV.dev."""
+    try:
+        return scan_container_cves(container_limit=container_limit, package_limit=package_limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
