@@ -937,10 +937,41 @@ async def leave_cluster():
                     os.remove(node_file)
         
     elif is_child_node():
+        child_config = read_child_config()
+        master_ip = None
+        master_port = 9500
+        cluster_key = None
+        assigned_hostname = None
+
+        if child_config:
+            master_ip = child_config.get("master_ip")
+            master_port = child_config.get("master_port", 9500)
+            cluster_key = child_config.get("cluster_key") or child_config.get("key")
+            assigned_hostname = child_config.get("assigned_hostname")
+
+        node_id = assigned_hostname or get_hostname()
+
+        if master_ip and cluster_key:
+            _clog(f"[CLUSTER] Notifying master about child leave: {node_id} -> {master_ip}:{master_port}")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.delete(
+                        f"http://{master_ip}:{master_port}/cluster/nodes/{node_id}",
+                        headers={"Authorization": f"Bearer {cluster_key}"},
+                    )
+
+                    if response.status_code == 200:
+                        _clog(f"[CLUSTER] Master notified successfully for child node: {node_id}")
+                    else:
+                        _clog(
+                            f"[CLUSTER] Master notification failed for child node {node_id}: HTTP {response.status_code}",
+                            error=True,
+                        )
+            except Exception as e:
+                _clog(f"[CLUSTER] Error notifying master about child leave: {e}", error=True)
+
         if os.path.exists(CHILD_CONFIG_FILE):
             os.remove(CHILD_CONFIG_FILE)
-        
-        # TODO: Notify master node
     
     return {"message": "Successfully left cluster"}
 
