@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-05-19
+
+> Full release notes: [releases/0.5.2.md](releases/0.5.2.md)
+
+### Security
+- **Next.js** updated to `16.2.6` — fixes SSRF via WebSocket upgrades, multiple Middleware/Proxy bypass vulnerabilities, Denial of Service (Server Components, Cache Components, Image Optimization), XSS in `beforeInteractive` scripts and CSP nonces, and cache poisoning issues (High/Moderate/Low)
+- **PostCSS** forced to `8.5.15` via npm `overrides` — fixes XSS via unescaped `</style>` in CSS Stringify output (Moderate)
+- **python-multipart** updated to `0.0.29` — fixes two Denial of Service vulnerabilities via unbounded headers and large preamble/epilogue data (High/Moderate)
+- **python-dotenv** updated to `1.2.2` — fixes symlink following in `set_key` allowing arbitrary file overwrite (Moderate)
+- **pytest** updated to `9.0.3` — fixes vulnerable tmpdir handling (Moderate)
+- **paramiko** updated to `5.0.0` — fixes `rsakey.py` allowing weak SHA-1 algorithm (Low)
+- **pytest-asyncio** updated to `1.3.0` — compatibility update for pytest 9.x
+
 ## [0.5.1] - 2026-05-12
 
 > Full release notes: [releases/0.5.1.md](releases/0.5.1.md)
