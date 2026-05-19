@@ -1464,7 +1464,27 @@ async def create_replication(replication: ReplicationCreate):
     replications.append(new_replication)
     write_replications(replications)
     
-    # TODO: Setup cron job for replication
+    try:
+        cron_manager = CrontabManager()
+        cron_success = cron_manager.add_replication_job(
+            new_replication["id"],
+            new_replication["sync_schedule"],
+            new_replication["name"],
+        )
+
+        if not cron_success:
+            replications = [r for r in replications if r["id"] != new_replication["id"]]
+            write_replications(replications)
+            raise HTTPException(status_code=500, detail="Failed to schedule replication job")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        replications = [r for r in replications if r["id"] != new_replication["id"]]
+        write_replications(replications)
+        _clog(f"[REPLICATION] Error scheduling cron job: {e}", error=True)
+        raise HTTPException(status_code=500, detail=f"Failed to schedule replication job: {e}")
+
     _clog(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
     
     return new_replication
@@ -1588,13 +1608,13 @@ async def execute_replication(replication: dict):
         if not master_config:
             _clog(f"[REPLICATION] No master config found")
             _progress(100, "Master configuration missing", status="failed")
-            return
+            return False
         
         cluster_key = master_config.get("key")
         if not cluster_key:
             _clog(f"[REPLICATION] No cluster key found in config")
             _progress(100, "Cluster key missing", status="failed")
-            return
+            return False
         
         _clog(f"[REPLICATION] Cluster key loaded successfully")
         
@@ -1610,7 +1630,7 @@ async def execute_replication(replication: dict):
         else:
             _clog(f"[REPLICATION] Origin node config not found: {origin_node}")
             _progress(100, f"Origin node not found: {origin_node}", status="failed")
-            return
+            return False
         
         if destination_node == get_hostname():
             dest_ip = "localhost"
@@ -1621,7 +1641,7 @@ async def execute_replication(replication: dict):
         else:
             _clog(f"[REPLICATION] Destination node config not found: {destination_node}")
             _progress(100, f"Destination node not found: {destination_node}", status="failed")
-            return
+            return False
         
         _clog(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
         _progress(20, "Exporting from origin node")
@@ -1641,7 +1661,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}", error=True)
                 _progress(100, "Export failed", status="failed")
 
-                return
+                return False
             
             export_data = export_response.json()
             export_path = export_data.get("export_path")
@@ -1649,7 +1669,7 @@ async def execute_replication(replication: dict):
             if not export_path:
                 _clog(f"[REPLICATION] No export path returned")
                 _progress(100, "No export path returned", status="failed")
-                return
+                return False
             
             _clog(f"[REPLICATION] Exported to: {export_path}")
             
@@ -1666,7 +1686,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Download failed: {download_response.status_code}", error=True)
                 _progress(100, "Download failed", status="failed")
 
-                return
+                return False
             
             archive_data = download_response.content
             _clog(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
@@ -1689,7 +1709,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}", error=True)
                 _progress(100, "Upload failed", status="failed")
 
-                return
+                return False
             
             upload_data = upload_response.json()
             uploaded_path = upload_data.get("path")
@@ -1715,7 +1735,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}", error=True)
                 _progress(100, "Import failed", status="failed")
 
-                return
+                return False
             
             _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
             _progress(100, "Replication completed successfully", status="completed")
@@ -1723,6 +1743,7 @@ async def execute_replication(replication: dict):
                 "replication_success",
                 f"Replication '{resource_name}' completed | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
             )
+            return True
             
     except Exception as e:
         _clog(f"[REPLICATION] Error during replication: {e}", error=True)
@@ -1734,6 +1755,7 @@ async def execute_replication(replication: dict):
 
         import traceback
         traceback.print_exc()
+    return False
 
 @router.get("/cluster/nodes/{hostname}/resources")
 async def get_node_resources(hostname: str):

@@ -23,7 +23,6 @@ class CrontabManager:
     REPLICATION_SECTION_END = "# === UPSERVX REPLICATION JOBS END ==="
 
     # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
-    # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
     _CRON_FIELD_RE = re.compile(r'^[0-9*,\-/]+$')
     # Allowed ranges per field position (min, max) — * and step/range also valid
     _CRON_FIELD_RANGES = [
@@ -69,6 +68,9 @@ class CrontabManager:
         # Use dynamic path based on current script location
         current_dir = os.path.dirname(os.path.abspath(__file__))
         self.backup_script_path = os.path.join(current_dir, "execute_backup.py")
+        self.replication_script_path = os.path.abspath(
+            os.path.join(current_dir, "..", "handlers", "execute_replication.py")
+        )
     
     def read_crontab(self) -> List[str]:
         """Read current crontab content."""
@@ -128,6 +130,24 @@ class CrontabManager:
         ])
         
         return lines
+
+    def ensure_replication_section(self, lines: List[str]) -> List[str]:
+        """Ensure replication section markers exist in crontab."""
+        has_start = any(self.REPLICATION_SECTION_START in line for line in lines)
+        has_end = any(self.REPLICATION_SECTION_END in line for line in lines)
+
+        if has_start and has_end:
+            return lines
+
+        if not lines or not lines[-1].endswith('\n'):
+            lines.append('\n')
+
+        lines.extend([
+            f"\n{self.REPLICATION_SECTION_START}\n",
+            f"{self.REPLICATION_SECTION_END}\n"
+        ])
+
+        return lines
     
     def get_backup_job_cron_entry(self, job_id: int, schedule: str, job_name: str) -> str:
         """Generate cron entry for a backup job."""
@@ -142,6 +162,21 @@ class CrontabManager:
         command = f"{self.python_executable} {self.backup_script_path} {job_id}"
 
         cron_entry = f"{minute} {hour} {day} {month} {weekday} {user} {command} {self.BACKUP_JOB_MARKER}_ID_{job_id} # {safe_name}\n"
+
+        return cron_entry
+
+    def get_replication_job_cron_entry(self, replication_id: str, schedule: str, replication_name: str) -> str:
+        """Generate cron entry for a replication job."""
+        minute, hour, day, month, weekday = self._validate_schedule(schedule)
+        safe_name = self._sanitize_job_name(replication_name)
+
+        user = "root"
+        command = f"{self.python_executable} {self.replication_script_path} {replication_id}"
+
+        cron_entry = (
+            f"{minute} {hour} {day} {month} {weekday} {user} {command} "
+            f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id} # {safe_name}\n"
+        )
 
         return cron_entry
     
@@ -178,6 +213,37 @@ class CrontabManager:
             
         except Exception as e:
             logger.error(f"Error adding backup job {job_id} to crontab: {e}")
+            return False
+
+    def add_replication_job(self, replication_id: str, schedule: str, replication_name: str) -> bool:
+        """Add replication job to crontab."""
+        try:
+            lines = self.read_crontab()
+            lines = self.ensure_replication_section(lines)
+
+            self.remove_replication_job(replication_id, write_immediately=False)
+            lines = self.read_crontab()
+
+            insert_index = -1
+            for i, line in enumerate(lines):
+                if self.REPLICATION_SECTION_END in line:
+                    insert_index = i
+                    break
+
+            if insert_index == -1:
+                lines = self.ensure_replication_section(lines)
+                for i, line in enumerate(lines):
+                    if self.REPLICATION_SECTION_END in line:
+                        insert_index = i
+                        break
+
+            cron_entry = self.get_replication_job_cron_entry(replication_id, schedule, replication_name)
+            lines.insert(insert_index, cron_entry)
+
+            return self.write_crontab(lines)
+
+        except Exception as e:
+            logger.error(f"Error adding replication job {replication_id} to crontab: {e}")
             return False
     
     def remove_backup_job(self, job_id: int, write_immediately: bool = True) -> bool:
@@ -263,8 +329,12 @@ class CrontabManager:
                 if write_immediately:
                     return self.write_crontab(filtered_lines)
                 else:
-                    # Store in memory for the caller to write later
-                    self._pending_filtered_lines = filtered_lines
+                    # Just update the file for the caller to write later
+                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
+                        temp_file.writelines(filtered_lines)
+                        temp_path = temp_file.name
+                    subprocess.run(['sudo', 'cp', temp_path, self.crontab_path], capture_output=True)
+                    os.unlink(temp_path)
                     return True
             
             # No matching job found (this is OK)
