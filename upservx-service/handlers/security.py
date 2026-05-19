@@ -434,6 +434,19 @@ def _normalize_ecosystem(os_release: Dict[str, str]) -> Optional[str]:
         major_minor = ".".join(version_id.split(".")[:2]) if version_id else "3.20"
         return f"Alpine:v{major_minor}"
 
+    if (
+        os_id in {"arch", "archlinux", "manjaro", "artix", "endeavouros", "garuda"}
+        or "arch" in os_id_like
+        or "arch" in os_name
+        or "arch" in os_pretty
+        or "manjaro" in os_name
+        or "manjaro" in os_pretty
+        or "artix" in os_name
+        or "artix" in os_pretty
+    ):
+        # Arch-Derivate werden auf das OSV-Ecosystem fuer Arch Linux gemappt.
+        return "Arch Linux"
+
     if os_id == "fedora" or "fedora" in os_name or "fedora" in os_id_like:
         return f"Fedora:{version_id}" if version_id else "Fedora:40"
 
