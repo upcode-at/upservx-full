@@ -15,6 +15,7 @@ from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
 from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
+from lib.crontab_manager import CrontabManager
 from handlers.notifications import notify
 
 def _clog(msg: str, error: bool = False) -> None:
@@ -1476,14 +1477,29 @@ async def delete_replication(replication_id: str):
     
     replications = read_replications()
     
-    updated_replications = [r for r in replications if r["id"] != replication_id]
+    # Find the replication before deleting it
+    replication_to_delete = None
+    for r in replications:
+        if r["id"] == replication_id:
+            replication_to_delete = r
+            break
     
-    if len(updated_replications) == len(replications):
+    if not replication_to_delete:
         raise HTTPException(status_code=404, detail="Replication not found")
     
+    # Remove from replications list
+    updated_replications = [r for r in replications if r["id"] != replication_id]
     write_replications(updated_replications)
     
-    # TODO: Remove cron job for this replication
+    # Remove cron job for this replication
+    try:
+        cron_manager = CrontabManager()
+        cron_manager.remove_replication_job(replication_id)
+        _clog(f"[REPLICATION] Removed cron job for replication: {replication_id}")
+    except Exception as e:
+        _clog(f"[REPLICATION] Error removing cron job: {e}", error=True)
+        # Log error but don't fail the deletion
+    
     _clog(f"[REPLICATION] Deleted replication: {replication_id}")
     
     return {"message": "Replication deleted successfully"}

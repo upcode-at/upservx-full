@@ -18,7 +18,11 @@ class CrontabManager:
     BACKUP_JOB_MARKER = "# UPSERVX_BACKUP_JOB"
     BACKUP_SECTION_START = "# === UPSERVX BACKUP JOBS START ==="
     BACKUP_SECTION_END = "# === UPSERVX BACKUP JOBS END ==="
+    REPLICATION_JOB_MARKER = "# UPSERVX_REPLICATION_JOB"
+    REPLICATION_SECTION_START = "# === UPSERVX REPLICATION JOBS START ==="
+    REPLICATION_SECTION_END = "# === UPSERVX REPLICATION JOBS END ==="
 
+    # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
     # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
     _CRON_FIELD_RE = re.compile(r'^[0-9*,\-/]+$')
     # Allowed ranges per field position (min, max) — * and step/range also valid
@@ -245,6 +249,30 @@ class CrontabManager:
         except Exception as e:
             logger.error(f"Error listing backup jobs: {e}")
             return []
+
+    def remove_replication_job(self, replication_id: str, write_immediately: bool = True) -> bool:
+        """Remove replication job from crontab by replication ID."""
+        try:
+            lines = self.read_crontab()
+            
+            # Filter out lines for this replication
+            marker = f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id}"
+            filtered_lines = [line for line in lines if marker not in line]
+            
+            if len(filtered_lines) != len(lines):
+                if write_immediately:
+                    return self.write_crontab(filtered_lines)
+                else:
+                    # Store in memory for the caller to write later
+                    self._pending_filtered_lines = filtered_lines
+                    return True
+            
+            # No matching job found (this is OK)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing replication job {replication_id} from crontab: {e}")
+            return False
 
 # Global instance
 crontab_manager = CrontabManager()
