@@ -418,7 +418,9 @@ def _parse_os_release(content: str) -> Dict[str, str]:
 def _normalize_ecosystem(os_release: Dict[str, str]) -> Optional[str]:
     """Map container os-release fields to an OSV ecosystem string."""
     os_id = os_release.get("ID", "").lower()
+    os_id_like = os_release.get("ID_LIKE", "").lower()
     os_name = os_release.get("NAME", "").lower()
+    os_pretty = os_release.get("PRETTY_NAME", "").lower()
     version_id = os_release.get("VERSION_ID", "")
 
     if os_id == "ubuntu" or "ubuntu" in os_name:
@@ -431,6 +433,31 @@ def _normalize_ecosystem(os_release: Dict[str, str]) -> Optional[str]:
     if os_id == "alpine" or "alpine" in os_name:
         major_minor = ".".join(version_id.split(".")[:2]) if version_id else "3.20"
         return f"Alpine:v{major_minor}"
+
+    if os_id == "fedora" or "fedora" in os_name or "fedora" in os_id_like:
+        return f"Fedora:{version_id}" if version_id else "Fedora:40"
+
+    if (
+        os_id in {"rhel", "redhat", "red hat enterprise linux"}
+        or "rhel" in os_id_like
+        or "red hat" in os_name
+        or "red hat" in os_pretty
+    ):
+        major = version_id.split(".")[0] if version_id else "9"
+        return f"Red Hat:{major}"
+
+    if os_id == "centos" or "centos" in os_name or "centos" in os_pretty:
+        major = version_id.split(".")[0] if version_id else "9"
+        # OSV nutzt kein eigenes CentOS-Ecosystem; CentOS wird auf Red Hat gemappt.
+        return f"Red Hat:{major}"
+
+    if (
+        os_id in {"opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles", "suse"}
+        or "suse" in os_name
+        or "suse" in os_pretty
+        or "suse" in os_id_like
+    ):
+        return f"openSUSE:{version_id}" if version_id else "openSUSE:15.6"
 
     return None
 
