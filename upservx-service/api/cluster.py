@@ -887,6 +887,46 @@ async def leave_cluster():
         raise HTTPException(status_code=400, detail="Not part of any cluster")
     
     if is_master_node():
+        master_config = read_master_config()
+        cluster_key = master_config.get("key") if master_config else None
+        child_nodes = [
+            node for node in list_all_nodes()
+            if node.get("hostname") != get_hostname()
+        ]
+
+        if cluster_key and child_nodes:
+            _clog(f"[CLUSTER] Notifying {len(child_nodes)} child node(s) about master leave")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    for node in child_nodes:
+                        node_ip = node.get("ip_address")
+                        node_port = node.get("port", 9500)
+                        if not node_ip:
+                            _clog(f"[CLUSTER] Skipping child node without IP: {node.get('hostname', 'unknown')}", error=True)
+                            continue
+
+                        leave_url = f"http://{node_ip}:{node_port}/cluster/leave"
+                        try:
+                            response = await client.post(
+                                leave_url,
+                                headers={"Authorization": f"Bearer {cluster_key}"}
+                            )
+
+                            if response.status_code == 200:
+                                _clog(f"[CLUSTER] Child node notified successfully: {node.get('hostname', node_ip)}")
+                            else:
+                                _clog(
+                                    f"[CLUSTER] Child node leave notification failed for {node.get('hostname', node_ip)}: HTTP {response.status_code}",
+                                    error=True,
+                                )
+                        except Exception as e:
+                            _clog(
+                                f"[CLUSTER] Error notifying child node {node.get('hostname', node_ip)}: {e}",
+                                error=True,
+                            )
+            except Exception as e:
+                _clog(f"[CLUSTER] Error while notifying child nodes: {e}", error=True)
+
         if os.path.exists(MASTER_CONFIG_FILE):
             os.remove(MASTER_CONFIG_FILE)
         
@@ -895,8 +935,6 @@ async def leave_cluster():
                 node_file = os.path.join(NODES_DIR, filename)
                 if os.path.isfile(node_file):
                     os.remove(node_file)
-        
-        # TODO: Notify all child nodes
         
     elif is_child_node():
         if os.path.exists(CHILD_CONFIG_FILE):
