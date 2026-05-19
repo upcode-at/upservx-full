@@ -533,6 +533,15 @@ def _get_container_packages(container_type: str, name: str, package_limit: int =
                 packages.append({"name": name_part, "version": version})
         return packages[:package_limit], ecosystem or "Alpine:v3.20"
 
+    stdout, _, rc = _run_in_container(container_type, name, ["pacman", "-Q"], timeout=25)
+    if rc == 0 and stdout.strip():
+        packages = []
+        for line in stdout.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                packages.append({"name": parts[0], "version": parts[1]})
+        return packages[:package_limit], ecosystem or "Arch Linux"
+
     stdout, _, rc = _run_in_container(
         container_type,
         name,
