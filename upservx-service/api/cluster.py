@@ -285,6 +285,13 @@ def get_cluster_key():
             return child_config.get("cluster_key") or child_config.get("key")
     return None
 
+def clear_child_cluster_config() -> bool:
+    """Remove local child cluster configuration if present."""
+    if os.path.exists(CHILD_CONFIG_FILE):
+        os.remove(CHILD_CONFIG_FILE)
+        return True
+    return False
+
 async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     """Fetch metrics from a child node"""
     try:
@@ -970,20 +977,62 @@ async def leave_cluster():
             except Exception as e:
                 _clog(f"[CLUSTER] Error notifying master about child leave: {e}", error=True)
 
-        if os.path.exists(CHILD_CONFIG_FILE):
-            os.remove(CHILD_CONFIG_FILE)
+        clear_child_cluster_config()
     
     return {"message": "Successfully left cluster"}
+
+@router.post("/cluster/force-leave")
+async def force_leave_cluster(_: bool = Depends(verify_cluster_auth)):
+    """Force a child node to leave the cluster without notifying the master again."""
+    if not is_child_node():
+        raise HTTPException(status_code=400, detail="This node is not a child node")
+
+    child_config = read_child_config() or {}
+    node_id = child_config.get("assigned_hostname") or get_hostname()
+
+    clear_child_cluster_config()
+    notify("system_alert", f"Node '{node_id}' was removed from the cluster by the master")
+    _clog(f"[CLUSTER] Force leave completed for child node: {node_id}")
+
+    return {"message": "Node removed from cluster successfully", "node_id": node_id}
 
 @router.delete("/cluster/nodes/{node_id}")
 async def remove_node(node_id: str):
     """Remove a node from the cluster (master only)"""
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can remove nodes")
+
+    node_config = read_node_config(node_id)
+    if not node_config:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    node_ip = node_config.get("ip_address")
+    node_port = node_config.get("port", 9500)
+    master_config = read_master_config()
+    cluster_key = master_config.get("key") if master_config else None
     
     delete_node_config(node_id)
-    
-    # TODO: Notify the removed node
+
+    if node_ip and cluster_key:
+        _clog(f"[CLUSTER] Notifying removed node {node_id} at {node_ip}:{node_port}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"http://{node_ip}:{node_port}/cluster/force-leave",
+                    headers={"Authorization": f"Bearer {cluster_key}"},
+                )
+
+                if response.status_code == 200:
+                    _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
+                else:
+                    _clog(
+                        f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
+                        error=True,
+                    )
+        except Exception as e:
+            _clog(f"[CLUSTER] Error notifying removed node {node_id}: {e}", error=True)
+    else:
+        _clog(f"[CLUSTER] Removed node {node_id} has no reachable address or cluster key", error=True)
     
     return {"message": f"Node {node_id} removed successfully"}
 
