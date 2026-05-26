@@ -97,8 +97,10 @@ class HAManager:
     # ------------------------------------------------------------------
 
     def get_config(self) -> dict:
+        """Get current config (always reloads from disk to ensure freshness)."""
         with self._lock:
-            return {**self.config}
+            current = self._load_config()
+            return {**current}
 
     def update_config(self, **kwargs) -> dict:
         with self._lock:
@@ -396,19 +398,22 @@ class HAManager:
         """Return comprehensive HA status."""
         from api.cluster import is_master_node, is_child_node  # lazy
 
+        # Always reload config from disk to get latest values (including changes from heartbeat loop)
+        current_config = self._load_config()
+
         hb_status = self.get_heartbeat_status()
         alive_count = sum(1 for h in hb_status if h["alive"])
 
         return {
-            "enabled": self.config.get("enabled", False),
-            "vip": self.config.get("vip", ""),
-            "vip_interface": self.config.get("vip_interface", ""),
+            "enabled": current_config.get("enabled", False),
+            "vip": current_config.get("vip", ""),
+            "vip_interface": current_config.get("vip_interface", ""),
             "vip_owner": self.is_vip_owner(),
-            "active_master": self.config.get("active_master"),
-            "last_election": self.config.get("last_election"),
-            "heartbeat_interval": self.config.get("heartbeat_interval", 5),
-            "failure_threshold": self.config.get("failure_threshold", 3),
-            "priority": self.config.get("priority", 100),
+            "active_master": current_config.get("active_master"),
+            "last_election": current_config.get("last_election"),
+            "heartbeat_interval": current_config.get("heartbeat_interval", 5),
+            "failure_threshold": current_config.get("failure_threshold", 3),
+            "priority": current_config.get("priority", 100),
             "my_hostname": self._get_local_hostname(),
             "my_ip": self._get_local_ip(),
             "is_master": is_master_node(),
