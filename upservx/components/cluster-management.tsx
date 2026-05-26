@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play } from "lucide-react"
+import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play, ShieldCheck, Zap, Radio } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -93,6 +94,44 @@ export default function ClusterManagement() {
   const [replicationCronSchedule, setReplicationCronSchedule] = useState("0 2 * * *") // Daily at 2 AM
   const [availableResources, setAvailableResources] = useState<Array<{name: string, type: string}>>([])
   const [loadingResources, setLoadingResources] = useState(false)
+
+  // ── High Availability ────────────────────────────────────────────────────
+  interface HAHeartbeat {
+    hostname: string
+    ip_address: string
+    port: number
+    role: string
+    priority: number
+    last_seen: string
+    alive: boolean
+    age_seconds: number
+  }
+  interface HAStatus {
+    enabled: boolean
+    vip: string
+    vip_interface: string
+    vip_owner: boolean
+    active_master: string | null
+    last_election: string | null
+    heartbeat_interval: number
+    failure_threshold: number
+    priority: number
+    my_hostname: string
+    my_ip: string
+    is_master: boolean
+    is_child: boolean
+    total_nodes_tracked: number
+    alive_nodes: number
+    heartbeats: HAHeartbeat[]
+  }
+  const [haStatus, setHaStatus] = useState<HAStatus | null>(null)
+  const [haVip, setHaVip] = useState("")
+  const [haVipInterface, setHaVipInterface] = useState("")
+  const [haHeartbeatInterval, setHaHeartbeatInterval] = useState("5")
+  const [haFailureThreshold, setHaFailureThreshold] = useState("3")
+  const [haPriority, setHaPriority] = useState("100")
+  const [haConfigOpen, setHaConfigOpen] = useState(false)
+  const [haLoading, setHaLoading] = useState(false)
 
   const getApiUrl = apiUrl
 
@@ -448,8 +487,122 @@ export default function ClusterManagement() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, "success" | "secondary" | "destructive"> = {
+  // ── HA helpers ──────────────────────────────────────────────────────────
+  const loadHaStatus = async () => {
+    try {
+      const res = await fetch(getApiUrl("/cluster/ha/status"), { credentials: "include" })
+      if (res.ok) {
+        const data = await res.json()
+        setHaStatus(data)
+        setHaVip(data.vip || "")
+        setHaVipInterface(data.vip_interface || "")
+        setHaHeartbeatInterval(String(data.heartbeat_interval ?? 5))
+        setHaFailureThreshold(String(data.failure_threshold ?? 3))
+        setHaPriority(String(data.priority ?? 100))
+      }
+    } catch { /* silent */ }
+  }
+
+  const toggleHa = async (enabled: boolean) => {
+    setHaLoading(true)
+    try {
+      const endpoint = enabled ? "/cluster/ha/enable" : "/cluster/ha/disable"
+      const res = await fetch(getApiUrl(endpoint), { method: "POST", credentials: "include" })
+      if (!res.ok) throw new Error("Failed to toggle HA")
+      setSuccess(enabled ? "High Availability enabled" : "High Availability disabled")
+      await loadHaStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to toggle HA")
+    } finally {
+      setHaLoading(false)
+    }
+  }
+
+  const saveHaConfig = async () => {
+    setHaLoading(true)
+    try {
+      const res = await fetch(getApiUrl("/cluster/ha"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          vip: haVip || null,
+          vip_interface: haVipInterface || null,
+          heartbeat_interval: parseInt(haHeartbeatInterval),
+          failure_threshold: parseInt(haFailureThreshold),
+          priority: parseInt(haPriority),
+        })
+      })
+      if (!res.ok) throw new Error("Failed to save HA config")
+      setSuccess("HA configuration saved")
+      setHaConfigOpen(false)
+      await loadHaStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save HA config")
+    } finally {
+      setHaLoading(false)
+    }
+  }
+
+  const triggerFailover = async () => {
+    if (!confirm("Trigger a manual failover? A new master election will be performed immediately.")) return
+    setHaLoading(true)
+    try {
+      const res = await fetch(getApiUrl("/cluster/ha/failover"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reason: "manual" })
+      })
+      if (!res.ok) throw new Error("Failover failed")
+      const data = await res.json()
+      setSuccess(`Failover complete. New master: ${data.new_master}`)
+      await loadHaStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failover failed")
+    } finally {
+      setHaLoading(false)
+    }
+  }
+
+  const assignVip = async () => {
+    setHaLoading(true)
+    try {
+      const res = await fetch(getApiUrl("/cluster/ha/vip/assign"), { method: "POST", credentials: "include" })
+      if (!res.ok) throw new Error("Failed to assign VIP")
+      setSuccess("VIP assigned to this node")
+      await loadHaStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign VIP")
+    } finally {
+      setHaLoading(false)
+    }
+  }
+
+  const releaseVip = async () => {
+    setHaLoading(true)
+    try {
+      const res = await fetch(getApiUrl("/cluster/ha/vip/release"), { method: "POST", credentials: "include" })
+      if (!res.ok) throw new Error("Failed to release VIP")
+      setSuccess("VIP released from this node")
+      await loadHaStatus()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to release VIP")
+    } finally {
+      setHaLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (clusterInfo?.is_member) {
+      loadHaStatus()
+      const interval = setInterval(loadHaStatus, 10000)
+      return () => clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clusterInfo?.is_member])
+
+  const getStatusBadge = (status: string) => {    const variants: Record<string, "success" | "secondary" | "destructive"> = {
       online: "success",
       offline: "destructive",
       syncing: "secondary"
@@ -615,6 +768,10 @@ export default function ClusterManagement() {
             <TabsTrigger value="workload">
               <GitBranch className="h-4 w-4 mr-2" />
               Workload Distribution
+            </TabsTrigger>
+            <TabsTrigger value="ha">
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              High Availability
             </TabsTrigger>
           </TabsList>
 
@@ -960,6 +1117,235 @@ export default function ClusterManagement() {
                 <CardContent className="pt-6">
                   <div className="text-center text-muted-foreground">
                     Workload distribution management is only available on the master node
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* ── High Availability Tab ── */}
+          <TabsContent value="ha" className="space-y-4">
+            {/* Status cards */}
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">HA Status</CardTitle>
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={haStatus?.enabled ?? false}
+                      onCheckedChange={toggleHa}
+                      disabled={haLoading}
+                    />
+                    <span className="text-sm">{haStatus?.enabled ? "Enabled" : "Disabled"}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Virtual IP</CardTitle>
+                  <Zap className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold">{haStatus?.vip || "—"}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {haStatus?.vip_owner ? "Owned by this node" : haStatus?.vip ? "Not owned" : "Not configured"}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Master</CardTitle>
+                  <Server className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold truncate">{haStatus?.active_master || "—"}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {haStatus?.last_election
+                      ? `Last election: ${new Date(haStatus.last_election).toLocaleString()}`
+                      : "No election run yet"}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Node Health</CardTitle>
+                  <Radio className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {haStatus?.alive_nodes ?? 0} / {haStatus?.total_nodes_tracked ?? 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">nodes responding</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Config + Actions row */}
+            <div className="flex gap-2 flex-wrap">
+              <Dialog open={haConfigOpen} onOpenChange={setHaConfigOpen}>
+                <Button variant="outline" onClick={() => setHaConfigOpen(true)}>
+                  <SettingsIcon className="h-4 w-4 mr-2" />
+                  Configure HA
+                </Button>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>High Availability Configuration</DialogTitle>
+                    <DialogDescription>
+                      Configure VIP, heartbeat settings and node priority
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="ha-vip">Virtual IP Address</Label>
+                      <Input
+                        id="ha-vip"
+                        placeholder="192.168.1.200"
+                        value={haVip}
+                        onChange={(e) => setHaVip(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">Floating IP that follows the active master. Include prefix length if needed (e.g. 192.168.1.200/24).</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ha-iface">Network Interface</Label>
+                      <Input
+                        id="ha-iface"
+                        placeholder="eth0"
+                        value={haVipInterface}
+                        onChange={(e) => setHaVipInterface(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="ha-interval">Heartbeat Interval (s)</Label>
+                        <Input
+                          id="ha-interval"
+                          type="number"
+                          min={1}
+                          value={haHeartbeatInterval}
+                          onChange={(e) => setHaHeartbeatInterval(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ha-threshold">Failure Threshold</Label>
+                        <Input
+                          id="ha-threshold"
+                          type="number"
+                          min={1}
+                          value={haFailureThreshold}
+                          onChange={(e) => setHaFailureThreshold(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Missed heartbeats before failover</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ha-priority">Node Priority</Label>
+                        <Input
+                          id="ha-priority"
+                          type="number"
+                          min={1}
+                          value={haPriority}
+                          onChange={(e) => setHaPriority(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Lower = preferred master</p>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setHaConfigOpen(false)}>Cancel</Button>
+                    <Button onClick={saveHaConfig} disabled={haLoading}>Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {haStatus?.is_master && (
+                <Button variant="destructive" onClick={triggerFailover} disabled={haLoading}>
+                  <Zap className="h-4 w-4 mr-2" />
+                  Trigger Failover
+                </Button>
+              )}
+
+              {haStatus?.vip && haStatus?.vip_interface && (
+                <>
+                  {!haStatus.vip_owner ? (
+                    <Button variant="outline" onClick={assignVip} disabled={haLoading}>
+                      <Zap className="h-4 w-4 mr-2" />
+                      Assign VIP to this node
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={releaseVip} disabled={haLoading}>
+                      Release VIP
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Heartbeat table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Node Heartbeats</CardTitle>
+                <CardDescription>Live health status of all tracked cluster nodes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {haStatus && haStatus.heartbeats.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Hostname</TableHead>
+                        <TableHead>IP Address</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Heartbeat</TableHead>
+                        <TableHead>Age (s)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {haStatus.heartbeats.map((hb) => (
+                        <TableRow key={hb.hostname}>
+                          <TableCell className="font-medium">{hb.hostname}</TableCell>
+                          <TableCell>{hb.ip_address}:{hb.port}</TableCell>
+                          <TableCell><Badge variant="secondary">{hb.role}</Badge></TableCell>
+                          <TableCell>{hb.priority}</TableCell>
+                          <TableCell>
+                            <Badge variant={hb.alive ? "success" : "destructive"}>
+                              {hb.alive ? "alive" : "unresponsive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(hb.last_seen).toLocaleTimeString()}</TableCell>
+                          <TableCell>{hb.age_seconds}s</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {haStatus?.enabled
+                      ? "No heartbeat data yet — waiting for nodes to check in"
+                      : "Enable HA to start tracking node health"}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Info box */}
+            {!haStatus?.enabled && (
+              <Card className="bg-muted/30">
+                <CardContent className="pt-6">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">How High Availability works in UpservX:</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>Each node periodically sends a <strong>heartbeat</strong> to the master.</li>
+                      <li>If the master misses <strong>N consecutive heartbeats</strong>, child nodes initiate an election.</li>
+                      <li>The node with the <strong>lowest priority value</strong> (configurable) becomes the new master.</li>
+                      <li>The new master automatically claims the <strong>Virtual IP (VIP)</strong> so clients stay connected.</li>
+                      <li>Configure the same VIP and interface on all nodes in the cluster.</li>
+                    </ul>
                   </div>
                 </CardContent>
               </Card>

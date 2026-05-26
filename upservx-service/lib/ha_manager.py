@@ -1,0 +1,498 @@
+"""
+High Availability Manager for UpservX Cluster.
+
+Handles:
+- Heartbeat tracking from all nodes
+- Master failure detection
+- Automatic master election (Bully algorithm by priority/IP)
+- Virtual IP (VIP) management via Linux `ip` command
+- Failover coordination
+"""
+
+import json
+import os
+import subprocess
+import threading
+import time
+import socket
+from datetime import datetime
+from typing import Optional
+
+import httpx
+
+HA_CONFIG_FILE = "/etc/upservx/ha.json"
+HA_HEARTBEATS_FILE = "/etc/upservx/ha_heartbeats.json"
+
+DEFAULT_CONFIG = {
+    "enabled": False,
+    "vip": "",
+    "vip_interface": "",
+    "heartbeat_interval": 5,
+    "failure_threshold": 3,
+    "priority": 100,  # lower = higher priority to become master
+    "last_election": None,
+    "active_master": None,
+}
+
+_ha_manager_instance: Optional["HAManager"] = None
+_ha_lock = threading.Lock()
+
+
+def get_ha_manager() -> "HAManager":
+    global _ha_manager_instance
+    with _ha_lock:
+        if _ha_manager_instance is None:
+            _ha_manager_instance = HAManager()
+        return _ha_manager_instance
+
+
+class HAManager:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._running = False
+        self.config = self._load_config()
+        self.heartbeats: dict = self._load_heartbeats()
+
+        if self.config.get("enabled"):
+            self.start()
+
+    # ------------------------------------------------------------------
+    # Config persistence
+    # ------------------------------------------------------------------
+
+    def _load_config(self) -> dict:
+        if os.path.exists(HA_CONFIG_FILE):
+            try:
+                with open(HA_CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                # Merge with defaults so new keys are available
+                merged = {**DEFAULT_CONFIG, **data}
+                return merged
+            except Exception:
+                pass
+        return {**DEFAULT_CONFIG}
+
+    def _save_config(self):
+        os.makedirs(os.path.dirname(HA_CONFIG_FILE), exist_ok=True)
+        with open(HA_CONFIG_FILE, "w") as f:
+            json.dump(self.config, f, indent=2)
+
+    def _load_heartbeats(self) -> dict:
+        if os.path.exists(HA_HEARTBEATS_FILE):
+            try:
+                with open(HA_HEARTBEATS_FILE, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    def _save_heartbeats(self):
+        os.makedirs(os.path.dirname(HA_HEARTBEATS_FILE), exist_ok=True)
+        with open(HA_HEARTBEATS_FILE, "w") as f:
+            json.dump(self.heartbeats, f, indent=2)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def get_config(self) -> dict:
+        with self._lock:
+            return {**self.config}
+
+    def update_config(self, **kwargs) -> dict:
+        with self._lock:
+            for key, value in kwargs.items():
+                if key in DEFAULT_CONFIG or key == "enabled":
+                    self.config[key] = value
+            self._save_config()
+            return {**self.config}
+
+    def enable(self) -> dict:
+        self.update_config(enabled=True)
+        self.start()
+        return self.config
+
+    def disable(self) -> dict:
+        self.stop()
+        self.update_config(enabled=False)
+        # Release VIP if we hold it
+        if self.config.get("vip") and self.config.get("vip_interface"):
+            self._release_vip_safe()
+        return self.config
+
+    def start(self):
+        """Start the background heartbeat loop."""
+        if self._running:
+            return
+        self._running = True
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop, daemon=True, name="ha-heartbeat"
+        )
+        self._heartbeat_thread.start()
+
+    def stop(self):
+        """Stop the background heartbeat loop."""
+        self._running = False
+
+    # ------------------------------------------------------------------
+    # Heartbeat recording
+    # ------------------------------------------------------------------
+
+    def record_heartbeat(self, hostname: str, ip_address: str, port: int,
+                         role: str, priority: int = 100) -> None:
+        """Called when a heartbeat is received from a node."""
+        with self._lock:
+            self.heartbeats[hostname] = {
+                "hostname": hostname,
+                "ip_address": ip_address,
+                "port": port,
+                "role": role,
+                "priority": priority,
+                "last_seen": datetime.now().isoformat(),
+                "alive": True,
+            }
+            self._save_heartbeats()
+
+    def get_heartbeat_status(self) -> list:
+        """Return heartbeat status for all known nodes with alive/stale flag."""
+        with self._lock:
+            interval = self.config.get("heartbeat_interval", 5)
+            threshold = self.config.get("failure_threshold", 3)
+            max_age = interval * threshold * 2  # seconds
+
+            result = []
+            now = datetime.now()
+            for hostname, hb in self.heartbeats.items():
+                try:
+                    last = datetime.fromisoformat(hb["last_seen"])
+                    age = (now - last).total_seconds()
+                    alive = age < max_age
+                except Exception:
+                    alive = False
+                    age = -1
+                result.append({
+                    **hb,
+                    "alive": alive,
+                    "age_seconds": round(age, 1),
+                })
+            return result
+
+    # ------------------------------------------------------------------
+    # VIP management
+    # ------------------------------------------------------------------
+
+    def assign_vip(self, vip: str, interface: str) -> bool:
+        """Add the virtual IP to the given network interface."""
+        try:
+            # Check if already assigned
+            check = subprocess.run(
+                ["ip", "addr", "show", "dev", interface],
+                capture_output=True, text=True, timeout=5
+            )
+            if vip in check.stdout:
+                return True  # already owner
+
+            # Determine prefix length – default /24 if not supplied
+            if "/" not in vip:
+                vip_cidr = f"{vip}/24"
+            else:
+                vip_cidr = vip
+                vip = vip.split("/")[0]
+
+            result = subprocess.run(
+                ["ip", "addr", "add", vip_cidr, "dev", interface],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode != 0 and "RTNETLINK answers: File exists" not in result.stderr:
+                return False
+
+            # Send gratuitous ARP so network switches update their tables
+            subprocess.run(
+                ["arping", "-c", "3", "-A", "-I", interface, vip],
+                capture_output=True, timeout=5
+            )
+            return True
+        except Exception:
+            return False
+
+    def release_vip(self, vip: str, interface: str) -> bool:
+        """Remove the virtual IP from the given network interface."""
+        try:
+            if "/" not in vip:
+                vip_cidr = f"{vip}/24"
+            else:
+                vip_cidr = vip
+
+            result = subprocess.run(
+                ["ip", "addr", "del", vip_cidr, "dev", interface],
+                capture_output=True, text=True, timeout=5
+            )
+            return result.returncode == 0 or "Cannot assign" in result.stderr
+        except Exception:
+            return False
+
+    def _release_vip_safe(self):
+        vip = self.config.get("vip", "")
+        iface = self.config.get("vip_interface", "")
+        if vip and iface:
+            self.release_vip(vip, iface)
+
+    def is_vip_owner(self) -> bool:
+        """Check if this node currently holds the VIP."""
+        vip = self.config.get("vip", "").split("/")[0]
+        iface = self.config.get("vip_interface", "")
+        if not vip or not iface:
+            return False
+        try:
+            result = subprocess.run(
+                ["ip", "addr", "show", "dev", iface],
+                capture_output=True, text=True, timeout=5
+            )
+            return vip in result.stdout
+        except Exception:
+            return False
+
+    # ------------------------------------------------------------------
+    # Master election
+    # ------------------------------------------------------------------
+
+    def _get_local_hostname(self) -> str:
+        return socket.gethostname()
+
+    def _get_local_ip(self) -> str:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"
+
+    def trigger_election(self) -> dict:
+        """
+        Bully election: collect votes from reachable nodes,
+        node with lowest priority (or IP as tiebreaker) wins.
+        Returns info about who is the new master.
+        """
+        from api.cluster import (  # lazy import to avoid circular
+            list_all_nodes, read_master_config, NODES_DIR
+        )
+
+        candidates = []
+        my_hostname = self._get_local_hostname()
+        my_ip = self._get_local_ip()
+        my_priority = self.config.get("priority", 100)
+
+        # Include self
+        candidates.append({
+            "hostname": my_hostname,
+            "ip_address": my_ip,
+            "priority": my_priority,
+            "reachable": True,
+        })
+
+        # Probe all known nodes
+        known_nodes = list_all_nodes()
+        cluster_key = None
+        master_cfg = read_master_config()
+        if master_cfg:
+            cluster_key = master_cfg.get("key")
+
+        for node in known_nodes:
+            if node.get("hostname") == my_hostname:
+                continue
+            node_ip = node.get("ip_address")
+            node_port = node.get("port", 9500)
+            reachable = False
+            node_priority = 100
+
+            if cluster_key:
+                try:
+                    resp = httpx.get(
+                        f"http://{node_ip}:{node_port}/cluster/ha/vote",
+                        headers={"Authorization": f"Bearer {cluster_key}"},
+                        timeout=3.0,
+                    )
+                    if resp.status_code == 200:
+                        vote_data = resp.json()
+                        reachable = True
+                        node_priority = vote_data.get("priority", 100)
+                except Exception:
+                    pass
+
+            candidates.append({
+                "hostname": node.get("hostname"),
+                "ip_address": node_ip,
+                "priority": node_priority,
+                "reachable": reachable,
+            })
+
+        # Choose winner: lowest priority, then lowest IP as tiebreaker
+        reachable_candidates = [c for c in candidates if c["reachable"]]
+        if not reachable_candidates:
+            reachable_candidates = candidates  # fallback
+
+        winner = min(
+            reachable_candidates,
+            key=lambda c: (c["priority"], c["ip_address"])
+        )
+
+        i_win = winner["hostname"] == my_hostname
+
+        with self._lock:
+            self.config["active_master"] = winner["hostname"]
+            self.config["last_election"] = datetime.now().isoformat()
+            self._save_config()
+
+        # If I win, take VIP
+        if i_win:
+            vip = self.config.get("vip", "")
+            iface = self.config.get("vip_interface", "")
+            if vip and iface:
+                self.assign_vip(vip, iface)
+
+        # Notify all nodes of the new master
+        for node in known_nodes:
+            if node.get("hostname") == my_hostname:
+                continue
+            try:
+                httpx.post(
+                    f"http://{node.get('ip_address')}:{node.get('port', 9500)}/cluster/ha/master-update",
+                    json={"new_master": winner["hostname"], "new_master_ip": winner["ip_address"]},
+                    headers={"Authorization": f"Bearer {cluster_key}"},
+                    timeout=3.0,
+                )
+            except Exception:
+                pass
+
+        return {
+            "winner": winner,
+            "candidates": candidates,
+            "i_am_new_master": i_win,
+        }
+
+    # ------------------------------------------------------------------
+    # Failover
+    # ------------------------------------------------------------------
+
+    def perform_failover(self, reason: str = "manual") -> dict:
+        """Trigger a failover. Runs election and takes necessary actions."""
+        result = self.trigger_election()
+        return {
+            "reason": reason,
+            "timestamp": datetime.now().isoformat(),
+            "new_master": result["winner"]["hostname"],
+            "i_am_new_master": result["i_am_new_master"],
+            "candidates": result["candidates"],
+        }
+
+    # ------------------------------------------------------------------
+    # HA Status
+    # ------------------------------------------------------------------
+
+    def get_status(self) -> dict:
+        """Return comprehensive HA status."""
+        from api.cluster import is_master_node, is_child_node  # lazy
+
+        hb_status = self.get_heartbeat_status()
+        alive_count = sum(1 for h in hb_status if h["alive"])
+
+        return {
+            "enabled": self.config.get("enabled", False),
+            "vip": self.config.get("vip", ""),
+            "vip_interface": self.config.get("vip_interface", ""),
+            "vip_owner": self.is_vip_owner(),
+            "active_master": self.config.get("active_master"),
+            "last_election": self.config.get("last_election"),
+            "heartbeat_interval": self.config.get("heartbeat_interval", 5),
+            "failure_threshold": self.config.get("failure_threshold", 3),
+            "priority": self.config.get("priority", 100),
+            "my_hostname": self._get_local_hostname(),
+            "my_ip": self._get_local_ip(),
+            "is_master": is_master_node(),
+            "is_child": is_child_node(),
+            "total_nodes_tracked": len(hb_status),
+            "alive_nodes": alive_count,
+            "heartbeats": hb_status,
+        }
+
+    # ------------------------------------------------------------------
+    # Background heartbeat loop
+    # ------------------------------------------------------------------
+
+    def _heartbeat_loop(self):
+        """Background thread: send heartbeats and check master health."""
+        from api.cluster import (
+            is_master_node, is_child_node, read_child_config,
+            list_all_nodes, read_master_config
+        )
+
+        consecutive_master_failures = 0
+
+        while self._running:
+            try:
+                interval = self.config.get("heartbeat_interval", 5)
+                threshold = self.config.get("failure_threshold", 3)
+
+                if is_child_node():
+                    # Child: send heartbeat to master
+                    child_cfg = read_child_config()
+                    if child_cfg:
+                        master_ip = child_cfg.get("master_ip")
+                        master_port = child_cfg.get("master_port", 9500)
+                        cluster_key = child_cfg.get("cluster_key") or child_cfg.get("key")
+
+                        try:
+                            resp = httpx.post(
+                                f"http://{master_ip}:{master_port}/cluster/ha/heartbeat",
+                                json={
+                                    "hostname": self._get_local_hostname(),
+                                    "ip_address": self._get_local_ip(),
+                                    "port": 9500,
+                                    "role": "child",
+                                    "priority": self.config.get("priority", 100),
+                                },
+                                headers={"Authorization": f"Bearer {cluster_key}"},
+                                timeout=3.0,
+                            )
+                            if resp.status_code == 200:
+                                consecutive_master_failures = 0
+
+                                # Also record own heartbeat locally
+                                self.record_heartbeat(
+                                    self._get_local_hostname(),
+                                    self._get_local_ip(),
+                                    9500, "child",
+                                    self.config.get("priority", 100)
+                                )
+                            else:
+                                consecutive_master_failures += 1
+                        except Exception:
+                            consecutive_master_failures += 1
+
+                        # Master not responding → trigger election
+                        if consecutive_master_failures >= threshold:
+                            consecutive_master_failures = 0
+                            self.perform_failover(reason="master_unreachable")
+
+                elif is_master_node():
+                    # Master: record own heartbeat
+                    self.record_heartbeat(
+                        self._get_local_hostname(),
+                        self._get_local_ip(),
+                        9500, "master",
+                        self.config.get("priority", 100)
+                    )
+
+                    # Ensure VIP is assigned if configured
+                    vip = self.config.get("vip", "")
+                    iface = self.config.get("vip_interface", "")
+                    if vip and iface and not self.is_vip_owner():
+                        self.assign_vip(vip, iface)
+
+            except Exception:
+                pass
+
+            time.sleep(self.config.get("heartbeat_interval", 5))

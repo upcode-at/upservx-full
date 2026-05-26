@@ -169,6 +169,10 @@ async def pam_auth_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
+    # Skip middleware auth for HA inter-node endpoints (heartbeat, vote, master-update)
+    if request.url.path in ("/cluster/ha/heartbeat", "/cluster/ha/vote", "/cluster/ha/master-update"):
+        return await call_next(request)
+
     auth_header = request.headers.get("Authorization")
     # If Authorization header is missing, allow cookie named 'auth' to carry Bearer token.
     if not auth_header:
@@ -248,6 +252,7 @@ from api.settings import router as settings_router
 from api.backup import router as backup_router
 from api.proxy import router as proxy_router
 from api.security import router as security_router
+from api.ha import router as ha_router
 
 app.include_router(auth_router)
 app.include_router(system_router)
@@ -268,6 +273,7 @@ app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(proxy_router)
 app.include_router(security_router)
+app.include_router(ha_router)
 
 # ---------------------------------------------------------------------------
 # Entry point
