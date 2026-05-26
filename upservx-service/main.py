@@ -156,8 +156,11 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.url.path == "/auth/2fa/complete" and request.method == "POST":
         return await call_next(request)
 
-    # Skip authentication for /cluster/register (validates cluster key internally)
+    # Skip authentication for internal cluster membership endpoints (validate cluster key internally)
     if request.url.path == "/cluster/register" and request.method == "POST":
+        return await call_next(request)
+
+    if request.url.path == "/cluster/force-leave" and request.method == "POST":
         return await call_next(request)
 
     # Skip middleware auth for cluster replication endpoints - they handle auth internally

@@ -132,6 +132,23 @@ def read_node_config(hostname: str):
             return json.load(f)
     return None
 
+def resolve_node_for_removal(node_id: str):
+    """Resolve a node reference to the stored hostname and config."""
+    node_config = read_node_config(node_id)
+    if node_config:
+        return node_id, node_config
+
+    for node in list_all_nodes():
+        hostname = node.get("hostname")
+        original_hostname = node.get("original_hostname")
+        assigned_hostname = node.get("assigned_hostname")
+        ip_address = node.get("ip_address")
+
+        if node_id in {hostname, original_hostname, assigned_hostname, ip_address}:
+            return hostname, node
+
+    return None, None
+
 def find_unique_hostname(base_hostname: str) -> str:
     """Find a unique hostname by appending -2, -3, etc. if hostname already exists"""
     hostname = base_hostname
@@ -1017,19 +1034,31 @@ async def remove_node(node_id: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can remove nodes")
 
-    node_config = read_node_config(node_id)
+    resolved_hostname, node_config = resolve_node_for_removal(node_id)
     if not node_config:
         raise HTTPException(status_code=404, detail="Node not found")
 
+    resolved_hostname = resolved_hostname or node_id
     node_ip = node_config.get("ip_address")
     node_port = node_config.get("port", 9500)
     master_config = read_master_config()
     cluster_key = master_config.get("key") if master_config else None
     
-    delete_node_config(node_id)
+    delete_node_config(resolved_hostname)
+
+    # Clean stale HA heartbeat state for removed node if HA is active.
+    try:
+        from lib.ha_manager import get_ha_manager
+        ha_manager = get_ha_manager()
+        with ha_manager._lock:
+            if resolved_hostname in ha_manager.heartbeats:
+                del ha_manager.heartbeats[resolved_hostname]
+                ha_manager._save_heartbeats()
+    except Exception as e:
+        _clog(f"[CLUSTER] Could not clean HA heartbeat for removed node {resolved_hostname}: {e}", error=True)
 
     if node_ip and cluster_key:
-        _clog(f"[CLUSTER] Notifying removed node {node_id} at {node_ip}:{node_port}")
+        _clog(f"[CLUSTER] Notifying removed node {resolved_hostname} at {node_ip}:{node_port}")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
@@ -1038,18 +1067,18 @@ async def remove_node(node_id: str):
                 )
 
                 if response.status_code == 200:
-                    _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
+                    _clog(f"[CLUSTER] Removed node notified successfully: {resolved_hostname}")
                 else:
                     _clog(
-                        f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
+                        f"[CLUSTER] Failed to notify removed node {resolved_hostname}: HTTP {response.status_code}",
                         error=True,
                     )
         except Exception as e:
-            _clog(f"[CLUSTER] Error notifying removed node {node_id}: {e}", error=True)
+            _clog(f"[CLUSTER] Error notifying removed node {resolved_hostname}: {e}", error=True)
     else:
-        _clog(f"[CLUSTER] Removed node {node_id} has no reachable address or cluster key", error=True)
+        _clog(f"[CLUSTER] Removed node {resolved_hostname} has no reachable address or cluster key", error=True)
     
-    return {"message": f"Node {node_id} removed successfully"}
+    return {"message": f"Node {resolved_hostname} removed successfully", "node_id": resolved_hostname}
 
 @router.get("/cluster/nodes")
 async def get_cluster_nodes():
