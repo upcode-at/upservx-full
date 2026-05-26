@@ -110,7 +110,10 @@ export default function ClusterManagement() {
     enabled: boolean
     vip: string
     vip_interface: string
+    vip_ha_interface?: string
     vip_owner: boolean
+    vip_owner_hostname?: string | null
+    vip_owner_ip?: string | null
     active_master: string | null
     last_election: string | null
     heartbeat_interval: number
@@ -1158,6 +1161,16 @@ export default function ClusterManagement() {
                   <p className="text-xs text-muted-foreground">
                     {haStatus?.vip_owner ? "Owned by this node" : haStatus?.vip ? "Not owned" : "Not configured"}
                   </p>
+                  {haStatus?.vip_owner_hostname && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cluster owner: {haStatus.vip_owner_hostname} ({haStatus.vip_owner_ip || "unknown IP"})
+                    </p>
+                  )}
+                  {haStatus?.vip_ha_interface && haStatus?.vip_interface && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Assigned via dedicated HA interface: {haStatus.vip_ha_interface}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 

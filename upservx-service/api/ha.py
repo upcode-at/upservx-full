@@ -10,6 +10,7 @@ Endpoints:
   POST /cluster/ha/heartbeat    - Receive heartbeat from a node
   GET  /cluster/ha/vote         - Return this node's election vote info
   POST /cluster/ha/master-update - Notify this node of a new master
+    POST /cluster/ha/vip-owner-update - Notify this node who currently owns the VIP
   POST /cluster/ha/failover     - Trigger manual failover / election
   POST /cluster/ha/config-sync  - Receive synced HA config from master
   GET  /cluster/ha/config       - Return this node's HA config (for initial sync on join)
@@ -53,6 +54,12 @@ class MasterUpdatePayload(BaseModel):
 
 class FailoverRequest(BaseModel):
     reason: str = "manual"
+
+
+class VIPOwnerUpdatePayload(BaseModel):
+    owner_hostname: Optional[str] = None
+    owner_ip: Optional[str] = None
+    timestamp: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -136,20 +143,29 @@ async def get_vote():
 async def master_update(payload: MasterUpdatePayload):
     """
     Notify this node that a new master has been elected.
-    Only updates local HA config. VIP is managed only during explicit failover triggers.
+    Applies local election state and enforces VIP ownership on the dedicated HA interface.
     """
     ha = get_ha_manager()
 
-    # Record election result locally (no re-broadcast)
-    ha.record_election_result(payload.new_master, payload.new_master_ip)
-    if payload.last_election:
-        with ha._lock:
-            ha.config["last_election"] = payload.last_election
-            ha._save_config()
+    # Apply election result locally (winner assigns VIP on HA virtual interface,
+    # previous owner releases it if needed).
+    ha.handle_master_update(payload.new_master, payload.new_master_ip, payload.last_election)
 
     log_system(f"[HA] New master elected: {payload.new_master} ({payload.new_master_ip})")
 
     return {"status": "master_update_recorded"}
+
+
+@router.post("/cluster/ha/vip-owner-update")
+async def vip_owner_update(payload: VIPOwnerUpdatePayload):
+    """Receive and persist cluster-wide VIP ownership state."""
+    ha = get_ha_manager()
+    ha.update_vip_owner(payload.owner_hostname, payload.owner_ip)
+    return {
+        "acknowledged": True,
+        "owner_hostname": payload.owner_hostname,
+        "owner_ip": payload.owner_ip,
+    }
 
 
 @router.post("/cluster/ha/failover")

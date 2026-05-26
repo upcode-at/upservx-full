@@ -33,6 +33,8 @@ DEFAULT_CONFIG = {
     "last_election": None,
     "active_master": None,
     "active_master_ip": None,
+    "vip_owner_hostname": None,
+    "vip_owner_ip": None,
 }
 
 _ha_manager_instance: Optional["HAManager"] = None
@@ -69,6 +71,99 @@ class HAManager:
         if "/" in vip:
             return vip.split("/")[1]
         return "24"  # Default prefix if not specified
+
+    def _parse_vip(self, vip: str) -> tuple[str, str]:
+        """Return plain VIP IP and prefix length."""
+        vip_ip = vip.split("/")[0] if "/" in vip else vip
+        if "/" in vip:
+            prefix = vip.split("/")[1]
+            self._vip_prefix = prefix
+        else:
+            prefix = self._vip_prefix
+        return vip_ip, prefix
+
+    def _ha_virtual_interface(self, base_interface: str) -> str:
+        """Build deterministic dedicated HA interface name (Linux max length is 15)."""
+        clean = "".join(ch for ch in (base_interface or "") if ch.isalnum())
+        if not clean:
+            clean = "net"
+        return f"ha{clean}"[:15]
+
+    def _ensure_ha_virtual_interface(self, vip_interface: str) -> tuple[bool, str]:
+        """Ensure dedicated HA dummy interface exists and is up."""
+        ha_iface = self._ha_virtual_interface(vip_interface)
+        try:
+            check = subprocess.run(
+                ["ip", "link", "show", "dev", ha_iface],
+                capture_output=True, text=True, timeout=5
+            )
+            if check.returncode != 0:
+                create = subprocess.run(
+                    ["ip", "link", "add", ha_iface, "type", "dummy"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if create.returncode != 0 and "File exists" not in create.stderr:
+                    return False, ha_iface
+
+            up = subprocess.run(
+                ["ip", "link", "set", ha_iface, "up"],
+                capture_output=True, text=True, timeout=5
+            )
+            if up.returncode != 0:
+                return False, ha_iface
+            return True, ha_iface
+        except Exception:
+            return False, ha_iface
+
+    def _broadcast_vip_owner(self, owner_hostname: Optional[str], owner_ip: Optional[str]) -> None:
+        """Broadcast current VIP owner to all known nodes."""
+        try:
+            from api.cluster import list_all_nodes, read_master_config, read_child_config
+
+            master_cfg = read_master_config()
+            child_cfg = read_child_config()
+            cluster_key = None
+            if master_cfg:
+                cluster_key = master_cfg.get("key")
+            elif child_cfg:
+                cluster_key = child_cfg.get("cluster_key") or child_cfg.get("key")
+
+            if not cluster_key:
+                return
+
+            my_hostname = self._get_local_hostname()
+            payload = {
+                "owner_hostname": owner_hostname,
+                "owner_ip": owner_ip,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            for node in list_all_nodes():
+                if node.get("hostname") == my_hostname:
+                    continue
+                ip = node.get("ip_address")
+                port = node.get("port", 9500)
+                try:
+                    httpx.post(
+                        f"http://{ip}:{port}/cluster/ha/vip-owner-update",
+                        json=payload,
+                        headers={"Authorization": f"Bearer {cluster_key}"},
+                        timeout=3.0,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _set_vip_owner(self, owner_hostname: Optional[str], owner_ip: Optional[str], broadcast: bool = False) -> None:
+        """Persist VIP owner and optionally broadcast to peers."""
+        with self._lock:
+            self.config["vip_owner_hostname"] = owner_hostname
+            self.config["vip_owner_ip"] = owner_ip
+            self._save_config()
+
+        if broadcast:
+            self._broadcast_vip_owner(owner_hostname, owner_ip)
 
     def _load_config(self) -> dict:
         if os.path.exists(HA_CONFIG_FILE):
@@ -148,7 +243,14 @@ class HAManager:
             # Strip transient per-node fields and election state (pushed separately via master-update)
             # and keep enabled local per node to avoid unintended remote disable/enable flips.
             payload = {k: v for k, v in config.items()
-                       if k not in ("enabled", "active_master", "active_master_ip", "last_election")}
+                       if k not in (
+                           "enabled",
+                           "active_master",
+                           "active_master_ip",
+                           "last_election",
+                           "vip_owner_hostname",
+                           "vip_owner_ip",
+                       )}
 
             for node in list_all_nodes():
                 if node.get("hostname") == my_hostname:
@@ -203,6 +305,25 @@ class HAManager:
             self.config["active_master_ip"] = winner_ip
             self.config["last_election"] = now
             self._save_config()
+
+    def handle_master_update(self, winner_hostname: str, winner_ip: str, last_election: Optional[str] = None) -> None:
+        """Apply election update locally and enforce VIP ownership state."""
+        with self._lock:
+            self.config["active_master"] = winner_hostname
+            self.config["active_master_ip"] = winner_ip
+            self.config["last_election"] = last_election or datetime.now().isoformat()
+            self._save_config()
+
+        vip = self.config.get("vip", "")
+        iface = self.config.get("vip_interface", "")
+        if not vip or not iface:
+            return
+
+        if winner_hostname == self._get_local_hostname():
+            self.assign_vip(vip, iface)
+        elif self.is_vip_owner():
+            # Winner will publish owner state after assignment.
+            self.release_vip(vip, iface, broadcast=False)
 
     def start(self):
         """Start the background heartbeat loop."""
@@ -266,64 +387,58 @@ class HAManager:
     # ------------------------------------------------------------------
 
     def assign_vip(self, vip: str, interface: str) -> bool:
-        """Create a virtual interface and assign the VIP to it."""
+        """Assign VIP on a dedicated HA virtual interface."""
         try:
-            # Extract plain IP (without prefix)
-            vip_ip = vip.split("/")[0] if "/" in vip else vip
-            
-            # Use stored prefix or extract from config
-            if "/" in vip:
-                vip_prefix = vip.split("/")[1]
-                self._vip_prefix = vip_prefix  # Update cached prefix
-            else:
-                vip_prefix = self._vip_prefix
-            
+            vip_ip, vip_prefix = self._parse_vip(vip)
             vip_cidr = f"{vip_ip}/{vip_prefix}"
-            vip_interface = f"{interface}:vip"  # Create virtual interface name
+            ok, ha_iface = self._ensure_ha_virtual_interface(interface)
+            if not ok:
+                return False
 
-            # Check if already assigned on the virtual interface
             check = subprocess.run(
-                ["ip", "addr", "show", "dev", vip_interface],
+                ["ip", "addr", "show", "dev", ha_iface],
                 capture_output=True, text=True, timeout=5
             )
             if check.returncode == 0 and vip_ip in check.stdout:
-                return True  # already owner on virtual interface
+                self._set_vip_owner(self._get_local_hostname(), self._get_local_ip(), broadcast=True)
+                return True
 
-            # Create the virtual interface with IP
             result = subprocess.run(
-                ["ip", "addr", "add", vip_cidr, "dev", vip_interface],
+                ["ip", "addr", "add", vip_cidr, "dev", ha_iface],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode != 0 and "RTNETLINK answers: File exists" not in result.stderr:
                 return False
 
-            # Bring up the virtual interface
-            subprocess.run(
-                ["ip", "link", "set", vip_interface, "up"],
-                capture_output=True, text=True, timeout=5
-            )
-
             # Send gratuitous ARP so network switches update their tables
             subprocess.run(
-                ["arping", "-c", "3", "-A", "-I", vip_interface, vip_ip],
+                ["arping", "-c", "3", "-A", "-I", interface, vip_ip],
                 capture_output=True, timeout=5
             )
+            self._set_vip_owner(self._get_local_hostname(), self._get_local_ip(), broadcast=True)
             return True
         except Exception:
             return False
 
-    def release_vip(self, vip: str, interface: str) -> bool:
-        """Remove the virtual interface that holds the VIP."""
+    def release_vip(self, vip: str, interface: str, broadcast: bool = True) -> bool:
+        """Release VIP from dedicated HA virtual interface."""
         try:
-            vip_interface = f"{interface}:vip"  # Name of virtual interface
-
-            # Simply delete the virtual interface (cleaner than manually removing the IP)
+            vip_ip, vip_prefix = self._parse_vip(vip)
+            vip_cidr = f"{vip_ip}/{vip_prefix}"
+            ha_iface = self._ha_virtual_interface(interface)
             result = subprocess.run(
-                ["ip", "link", "del", vip_interface],
+                ["ip", "addr", "del", vip_cidr, "dev", ha_iface],
                 capture_output=True, text=True, timeout=5
             )
-            # Success if deleted or already gone
-            return result.returncode == 0 or "does not exist" in result.stderr.lower() or "not found" in result.stderr.lower()
+            success = (
+                result.returncode == 0
+                or "Cannot assign requested address" in result.stderr
+                or "Cannot find device" in result.stderr
+                or "not found" in result.stderr.lower()
+            )
+            if success and broadcast:
+                self._set_vip_owner(None, None, broadcast=True)
+            return success
         except Exception:
             return False
 
@@ -340,7 +455,7 @@ class HAManager:
         if not vip_ip or not iface:
             return False
         try:
-            vip_interface = f"{iface}:vip"  # Name of virtual interface
+            vip_interface = self._ha_virtual_interface(iface)
             result = subprocess.run(
                 ["ip", "addr", "show", "dev", vip_interface],
                 capture_output=True, text=True, timeout=5
@@ -371,7 +486,7 @@ class HAManager:
         Bully election: collect votes from reachable nodes,
         node with lowest priority (or IP as tiebreaker) wins.
         Returns info about who is the new master.
-        Does NOT assign VIP – only records election result and notifies other nodes.
+        Winner/loser VIP state is enforced via master update handling.
         """
         from api.cluster import (  # lazy import to avoid circular
             list_all_nodes, read_master_config, NODES_DIR
@@ -438,8 +553,9 @@ class HAManager:
 
         i_win = winner["hostname"] == my_hostname
 
-        # Record election result locally (no VIP assignment yet)
-        self.record_election_result(winner["hostname"], winner["ip_address"])
+        # Apply election result locally so winner/loser state is enforced immediately.
+        election_time = datetime.now().isoformat()
+        self.handle_master_update(winner["hostname"], winner["ip_address"], election_time)
 
         # Notify all nodes of the new master (includes active_master + last_election)
         for node in known_nodes:
@@ -451,7 +567,7 @@ class HAManager:
                     json={
                         "new_master": winner["hostname"],
                         "new_master_ip": winner["ip_address"],
-                        "last_election": self.config.get("last_election"),
+                        "last_election": election_time,
                     },
                     headers={"Authorization": f"Bearer {cluster_key}"},
                     timeout=3.0,
@@ -465,36 +581,13 @@ class HAManager:
             "i_am_new_master": i_win,
         }
 
-    def apply_election_result_with_vip(self) -> None:
-        """
-        After election is decided, apply VIP assignment based on result.
-        Call this only when you want VIP to be assigned (e.g., after manual failover).
-        """
-        my_hostname = self._get_local_hostname()
-        active_master = self.config.get("active_master")
-
-        if active_master == my_hostname:
-            # I am the new master – take VIP
-            vip = self.config.get("vip", "")
-            iface = self.config.get("vip_interface", "")
-            if vip and iface:
-                self.assign_vip(vip, iface)
-        else:
-            # I am not the new master – release VIP if I hold it
-            vip = self.config.get("vip", "")
-            iface = self.config.get("vip_interface", "")
-            if vip and iface and self.is_vip_owner():
-                self.release_vip(vip, iface)
-
     # ------------------------------------------------------------------
     # Failover
     # ------------------------------------------------------------------
 
     def perform_failover(self, reason: str = "manual") -> dict:
-        """Trigger a failover. Runs election and applies VIP assignment."""
+        """Trigger a failover. Runs election and applies VIP ownership update."""
         result = self.trigger_election()
-        # Only assign VIP when failover is explicitly triggered (manual)
-        self.apply_election_result_with_vip()
         return {
             "reason": reason,
             "timestamp": datetime.now().isoformat(),
@@ -502,6 +595,10 @@ class HAManager:
             "i_am_new_master": result["i_am_new_master"],
             "candidates": result["candidates"],
         }
+
+    def update_vip_owner(self, owner_hostname: Optional[str], owner_ip: Optional[str]) -> None:
+        """Update VIP owner from inter-node broadcast."""
+        self._set_vip_owner(owner_hostname, owner_ip, broadcast=False)
 
     # ------------------------------------------------------------------
     # HA Status
@@ -521,7 +618,10 @@ class HAManager:
             "enabled": current_config.get("enabled", False),
             "vip": current_config.get("vip", ""),
             "vip_interface": current_config.get("vip_interface", ""),
+            "vip_ha_interface": self._ha_virtual_interface(current_config.get("vip_interface", "")),
             "vip_owner": self.is_vip_owner(),
+            "vip_owner_hostname": current_config.get("vip_owner_hostname"),
+            "vip_owner_ip": current_config.get("vip_owner_ip"),
             "active_master": current_config.get("active_master"),
             "last_election": current_config.get("last_election"),
             "heartbeat_interval": current_config.get("heartbeat_interval", 5),
