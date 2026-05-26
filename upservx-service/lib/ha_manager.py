@@ -344,6 +344,7 @@ class HAManager:
         Bully election: collect votes from reachable nodes,
         node with lowest priority (or IP as tiebreaker) wins.
         Returns info about who is the new master.
+        Does NOT assign VIP – only records election result and notifies other nodes.
         """
         from api.cluster import (  # lazy import to avoid circular
             list_all_nodes, read_master_config, NODES_DIR
@@ -410,22 +411,8 @@ class HAManager:
 
         i_win = winner["hostname"] == my_hostname
 
-        # Record election result locally
+        # Record election result locally (no VIP assignment yet)
         self.record_election_result(winner["hostname"], winner["ip_address"])
-
-        # If I win, take VIP – otherwise release it in case we held it
-        if i_win:
-            vip = self.config.get("vip", "")
-            iface = self.config.get("vip_interface", "")
-            if vip and iface:
-                self.assign_vip(vip, iface)
-        else:
-            # If this node is not the new master but holds the VIP, release it
-            # (happens when old master loses election or failover is triggered)
-            vip = self.config.get("vip", "")
-            iface = self.config.get("vip_interface", "")
-            if vip and iface and self.is_vip_owner():
-                self.release_vip(vip, iface)
 
         # Notify all nodes of the new master (includes active_master + last_election)
         for node in known_nodes:
@@ -451,13 +438,36 @@ class HAManager:
             "i_am_new_master": i_win,
         }
 
+    def apply_election_result_with_vip(self) -> None:
+        """
+        After election is decided, apply VIP assignment based on result.
+        Call this only when you want VIP to be assigned (e.g., after manual failover).
+        """
+        my_hostname = self._get_local_hostname()
+        active_master = self.config.get("active_master")
+
+        if active_master == my_hostname:
+            # I am the new master – take VIP
+            vip = self.config.get("vip", "")
+            iface = self.config.get("vip_interface", "")
+            if vip and iface:
+                self.assign_vip(vip, iface)
+        else:
+            # I am not the new master – release VIP if I hold it
+            vip = self.config.get("vip", "")
+            iface = self.config.get("vip_interface", "")
+            if vip and iface and self.is_vip_owner():
+                self.release_vip(vip, iface)
+
     # ------------------------------------------------------------------
     # Failover
     # ------------------------------------------------------------------
 
     def perform_failover(self, reason: str = "manual") -> dict:
-        """Trigger a failover. Runs election and takes necessary actions."""
+        """Trigger a failover. Runs election and applies VIP assignment."""
         result = self.trigger_election()
+        # Only assign VIP when failover is explicitly triggered (manual)
+        self.apply_election_result_with_vip()
         return {
             "reason": reason,
             "timestamp": datetime.now().isoformat(),
@@ -566,12 +576,7 @@ class HAManager:
                         9500, "master",
                         self.config.get("priority", 100)
                     )
-
-                    # Ensure VIP is assigned if configured
-                    vip = self.config.get("vip", "")
-                    iface = self.config.get("vip_interface", "")
-                    if vip and iface and not self.is_vip_owner():
-                        self.assign_vip(vip, iface)
+                    # VIP is only assigned during failover or explicit triggers, not here
 
             except Exception:
                 pass
