@@ -413,12 +413,19 @@ class HAManager:
         # Record election result locally
         self.record_election_result(winner["hostname"], winner["ip_address"])
 
-        # If I win, take VIP
+        # If I win, take VIP – otherwise release it in case we held it
         if i_win:
             vip = self.config.get("vip", "")
             iface = self.config.get("vip_interface", "")
             if vip and iface:
                 self.assign_vip(vip, iface)
+        else:
+            # If this node is not the new master but holds the VIP, release it
+            # (happens when old master loses election or failover is triggered)
+            vip = self.config.get("vip", "")
+            iface = self.config.get("vip_interface", "")
+            if vip and iface and self.is_vip_owner():
+                self.release_vip(vip, iface)
 
         # Notify all nodes of the new master (includes active_master + last_election)
         for node in known_nodes:
