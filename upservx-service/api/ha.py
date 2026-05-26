@@ -48,6 +48,7 @@ class HeartbeatPayload(BaseModel):
 class MasterUpdatePayload(BaseModel):
     new_master: str
     new_master_ip: str
+    last_election: Optional[str] = None
 
 
 class FailoverRequest(BaseModel):
@@ -135,10 +136,17 @@ async def get_vote():
 async def master_update(payload: MasterUpdatePayload):
     """
     Notify this node that a new master has been elected.
-    Updates local HA config with the new active master.
+    Updates local HA config with the new active master and last election time.
     """
     ha = get_ha_manager()
-    ha.update_config(active_master=payload.new_master)
+
+    # Record election result locally (no re-broadcast)
+    ha.record_election_result(payload.new_master, payload.new_master_ip)
+    if payload.last_election:
+        with ha._lock:
+            ha.config["last_election"] = payload.last_election
+            ha._save_config()
+
     log_system(f"[HA] New master elected: {payload.new_master} ({payload.new_master_ip})")
 
     # If this node is not the new master and holds the VIP, release it
@@ -209,11 +217,8 @@ async def receive_config_sync(payload: dict):
 @router.get("/cluster/ha/config")
 async def get_ha_config_for_sync():
     """
-    Returns the current HA config for a node that just joined the cluster
-    and needs to pull the config from the master.
+    Returns the full HA config for a node that just joined the cluster,
+    including the current active master and last election time.
     """
     ha = get_ha_manager()
-    config = ha.get_config()
-    # Strip node-specific transient fields
-    return {k: v for k, v in config.items()
-            if k not in ("active_master", "last_election")}
+    return ha.get_config()

@@ -32,6 +32,7 @@ DEFAULT_CONFIG = {
     "priority": 100,  # lower = higher priority to become master
     "last_election": None,
     "active_master": None,
+    "active_master_ip": None,
 }
 
 _ha_manager_instance: Optional["HAManager"] = None
@@ -111,6 +112,7 @@ class HAManager:
             config_snapshot = {**self.config}
 
         # Push updated config to all peer nodes (fire-and-forget, in background)
+        # Only push non-transient shared config – election results are pushed via master-update
         threading.Thread(
             target=self._push_config_to_peers,
             args=(config_snapshot,),
@@ -131,9 +133,9 @@ class HAManager:
             cluster_key = master_cfg.get("key")
             my_hostname = _socket.gethostname()
 
-            # Strip transient fields that are per-node
+            # Strip transient per-node fields and election state (pushed separately via master-update)
             payload = {k: v for k, v in config.items()
-                       if k not in ("active_master", "last_election")}
+                       if k not in ("active_master", "active_master_ip", "last_election")}
 
             for node in list_all_nodes():
                 if node.get("hostname") == my_hostname:
@@ -169,7 +171,7 @@ class HAManager:
         """Apply a HA config received from the master node (no re-broadcast)."""
         with self._lock:
             for key, value in incoming.items():
-                if key in DEFAULT_CONFIG or key == "enabled":
+                if key in DEFAULT_CONFIG:
                     self.config[key] = value
             self._save_config()
 
@@ -178,6 +180,15 @@ class HAManager:
             self.start()
         elif not self.config.get("enabled") and self._running:
             self.stop()
+
+    def record_election_result(self, winner_hostname: str, winner_ip: str) -> None:
+        """Record election result locally (no re-broadcast)."""
+        now = datetime.now().isoformat()
+        with self._lock:
+            self.config["active_master"] = winner_hostname
+            self.config["active_master_ip"] = winner_ip
+            self.config["last_election"] = now
+            self._save_config()
 
     def start(self):
         """Start the background heartbeat loop."""
@@ -399,10 +410,8 @@ class HAManager:
 
         i_win = winner["hostname"] == my_hostname
 
-        with self._lock:
-            self.config["active_master"] = winner["hostname"]
-            self.config["last_election"] = datetime.now().isoformat()
-            self._save_config()
+        # Record election result locally
+        self.record_election_result(winner["hostname"], winner["ip_address"])
 
         # If I win, take VIP
         if i_win:
@@ -411,14 +420,18 @@ class HAManager:
             if vip and iface:
                 self.assign_vip(vip, iface)
 
-        # Notify all nodes of the new master
+        # Notify all nodes of the new master (includes active_master + last_election)
         for node in known_nodes:
             if node.get("hostname") == my_hostname:
                 continue
             try:
                 httpx.post(
                     f"http://{node.get('ip_address')}:{node.get('port', 9500)}/cluster/ha/master-update",
-                    json={"new_master": winner["hostname"], "new_master_ip": winner["ip_address"]},
+                    json={
+                        "new_master": winner["hostname"],
+                        "new_master_ip": winner["ip_address"],
+                        "last_election": self.config.get("last_election"),
+                    },
                     headers={"Authorization": f"Bearer {cluster_key}"},
                     timeout=3.0,
                 )
