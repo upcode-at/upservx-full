@@ -108,7 +108,49 @@ class HAManager:
                 if key in DEFAULT_CONFIG or key == "enabled":
                     self.config[key] = value
             self._save_config()
-            return {**self.config}
+            config_snapshot = {**self.config}
+
+        # Push updated config to all peer nodes (fire-and-forget, in background)
+        threading.Thread(
+            target=self._push_config_to_peers,
+            args=(config_snapshot,),
+            daemon=True,
+        ).start()
+
+        return config_snapshot
+
+    def _push_config_to_peers(self, config: dict) -> None:
+        """Push HA config to all known cluster nodes."""
+        try:
+            from api.cluster import list_all_nodes, read_master_config, get_local_ip
+            import socket as _socket
+
+            master_cfg = read_master_config()
+            if not master_cfg:
+                return  # only master pushes config
+            cluster_key = master_cfg.get("key")
+            my_hostname = _socket.gethostname()
+
+            # Strip transient fields that are per-node
+            payload = {k: v for k, v in config.items()
+                       if k not in ("active_master", "last_election")}
+
+            for node in list_all_nodes():
+                if node.get("hostname") == my_hostname:
+                    continue
+                ip = node.get("ip_address")
+                port = node.get("port", 9500)
+                try:
+                    httpx.post(
+                        f"http://{ip}:{port}/cluster/ha/config-sync",
+                        json=payload,
+                        headers={"Authorization": f"Bearer {cluster_key}"},
+                        timeout=5.0,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def enable(self) -> dict:
         self.update_config(enabled=True)
@@ -122,6 +164,20 @@ class HAManager:
         if self.config.get("vip") and self.config.get("vip_interface"):
             self._release_vip_safe()
         return self.config
+
+    def apply_synced_config(self, incoming: dict) -> None:
+        """Apply a HA config received from the master node (no re-broadcast)."""
+        with self._lock:
+            for key, value in incoming.items():
+                if key in DEFAULT_CONFIG or key == "enabled":
+                    self.config[key] = value
+            self._save_config()
+
+        # Restart heartbeat loop if enabled state changed
+        if self.config.get("enabled") and not self._running:
+            self.start()
+        elif not self.config.get("enabled") and self._running:
+            self.stop()
 
     def start(self):
         """Start the background heartbeat loop."""

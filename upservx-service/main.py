@@ -169,8 +169,8 @@ async def pam_auth_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    # Skip middleware auth for HA inter-node endpoints (heartbeat, vote, master-update)
-    if request.url.path in ("/cluster/ha/heartbeat", "/cluster/ha/vote", "/cluster/ha/master-update"):
+    # Skip middleware auth for HA inter-node endpoints (heartbeat, vote, master-update, config-sync)
+    if request.url.path in ("/cluster/ha/heartbeat", "/cluster/ha/vote", "/cluster/ha/master-update", "/cluster/ha/config-sync", "/cluster/ha/config"):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization")

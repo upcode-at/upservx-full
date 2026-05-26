@@ -782,9 +782,24 @@ async def join_cluster(request: ClusterJoinRequest):
     _clog(f"[CLUSTER] Writing child configuration...")
     write_child_config(child_config)
     _clog(f"[CLUSTER] Child configuration written to {CHILD_CONFIG_FILE}")
+
+    # Pull HA config from master so this node is in sync
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            ha_resp = await client.get(
+                f"http://{request.master_ip}:{request.port}/cluster/ha/config",
+                headers={"Authorization": f"Bearer {request.token}"}
+            )
+            if ha_resp.status_code == 200:
+                from lib.ha_manager import get_ha_manager
+                get_ha_manager().apply_synced_config(ha_resp.json())
+                _clog(f"[CLUSTER] HA config pulled from master and applied")
+    except Exception as e:
+        _clog(f"[CLUSTER] Could not pull HA config from master (non-fatal): {e}")
+
     _clog(f"[CLUSTER] JOIN COMPLETED SUCCESSFULLY")
     _clog(f"[CLUSTER] ========================================")
-    
+
     return {
         "message": "Successfully joined cluster",
         "master_ip": request.master_ip,

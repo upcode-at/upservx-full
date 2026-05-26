@@ -3,7 +3,7 @@ High Availability API endpoints for UpservX Cluster.
 
 Endpoints:
   GET  /cluster/ha              - Get HA config + status
-  PUT  /cluster/ha              - Update HA config
+  PUT  /cluster/ha              - Update HA config (+ push to all nodes)
   POST /cluster/ha/enable       - Enable HA
   POST /cluster/ha/disable      - Disable HA
   GET  /cluster/ha/status       - Get live HA status (heartbeats, VIP, etc.)
@@ -11,6 +11,8 @@ Endpoints:
   GET  /cluster/ha/vote         - Return this node's election vote info
   POST /cluster/ha/master-update - Notify this node of a new master
   POST /cluster/ha/failover     - Trigger manual failover / election
+  POST /cluster/ha/config-sync  - Receive synced HA config from master
+  GET  /cluster/ha/config       - Return this node's HA config (for initial sync on join)
 """
 
 from fastapi import APIRouter, HTTPException
@@ -190,3 +192,28 @@ async def release_vip():
         raise HTTPException(status_code=500, detail="Failed to release VIP")
     log_system(f"[HA] VIP {vip} manually released from {iface}")
     return {"message": f"VIP {vip} released from interface {iface}"}
+
+
+@router.post("/cluster/ha/config-sync")
+async def receive_config_sync(payload: dict):
+    """
+    Called by the master node to push its HA config to this node.
+    Applies the config locally without re-broadcasting.
+    """
+    ha = get_ha_manager()
+    ha.apply_synced_config(payload)
+    log_system(f"[HA] Config synced from master: {payload}")
+    return {"acknowledged": True}
+
+
+@router.get("/cluster/ha/config")
+async def get_ha_config_for_sync():
+    """
+    Returns the current HA config for a node that just joined the cluster
+    and needs to pull the config from the master.
+    """
+    ha = get_ha_manager()
+    config = ha.get_config()
+    # Strip node-specific transient fields
+    return {k: v for k, v in config.items()
+            if k not in ("active_master", "last_election")}
