@@ -225,8 +225,15 @@ async def receive_config_sync(payload: dict):
 @router.get("/cluster/ha/config")
 async def get_ha_config_for_sync():
     """
-    Returns the full HA config for a node that just joined the cluster,
-    including the current active master and last election time.
+    Returns the shareable HA config for cluster sync.
+    Node-local fields (vip, vip_interface, enabled, runtime state) are excluded
+    because every node may have different interfaces and local settings.
     """
     ha = get_ha_manager()
-    return ha.get_config()
+    full = ha.get_config()
+    local_only = {
+        "enabled", "vip", "vip_interface",
+        "active_master", "active_master_ip", "last_election",
+        "vip_owner_hostname", "vip_owner_ip",
+    }
+    return {k: v for k, v in full.items() if k not in local_only}

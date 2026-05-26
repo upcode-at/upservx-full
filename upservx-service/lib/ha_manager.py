@@ -253,12 +253,24 @@ class HAManager:
             self._release_vip_safe()
         return self.config
 
+    # Keys that are node-local and must never be overwritten by config sync.
+    # Interfaces, VIP address, and runtime state all differ per node.
+    _LOCAL_ONLY_KEYS = {
+        "enabled",
+        "vip",
+        "vip_interface",
+        "active_master",
+        "active_master_ip",
+        "last_election",
+        "vip_owner_hostname",
+        "vip_owner_ip",
+    }
+
     def apply_synced_config(self, incoming: dict) -> None:
         """Apply a HA config received from the master node (no re-broadcast)."""
         with self._lock:
             for key, value in incoming.items():
-                # Do not overwrite local enabled state via config sync.
-                if key in DEFAULT_CONFIG and key != "enabled":
+                if key in DEFAULT_CONFIG and key not in self._LOCAL_ONLY_KEYS:
                     self.config[key] = value
             self._save_config()
 
