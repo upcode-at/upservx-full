@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **High Availability cluster coordination**: New HA control flow for multi-node clusters with heartbeat, election result propagation and shared VIP ownership tracking
+  - New inter-node endpoint `POST /cluster/ha/vip-owner-update` to distribute current VIP owner state across the cluster
+  - Cluster status now exposes `vip_owner_hostname`, `vip_owner_ip` and the active HA interface for clearer diagnostics in the UI
+
+### Changed
+- **HA VIP handling**: VIPs are now assigned directly on the configured physical interface instead of a dedicated dummy interface to avoid routing and LAN reachability issues on failover nodes
+- **HA config sync**: Node-local HA settings are no longer synchronized between nodes
+  - `enabled`, `vip`, `vip_interface`, `active_master`, `active_master_ip`, `last_election`, `vip_owner_hostname` and `vip_owner_ip` now remain local to each node
+  - `GET /cluster/ha/config` now only returns shareable HA settings for cluster sync
+- **Cluster info on child nodes**: Child nodes now load the full cluster view from the master instead of building a reduced local two-node view
+- **HA settings UI**: HA configuration inputs are now locked while HA is enabled to prevent live edits of active failover settings
+- **Cluster UI language**: Remaining HA/cluster-adjacent UI labels and status texts were standardized to English
+
+### Fixed
+- **HA enabled state reset**: Enabling HA no longer flips back off because of incoming config synchronization from another node
+- **Failover VIP cleanup**: Losing nodes now always release the VIP during election updates, even if local ownership detection is stale
+- **VIP release compatibility**: Legacy VIP placements on base and alias interfaces are cleaned up during failover to prevent stale addresses from surviving upgrades
+- **Node removal lookup**: Cluster node removal now resolves nodes reliably by stored hostname, original hostname, assigned hostname or IP address
+- **Force-leave delivery**: Removing a child node no longer fails when the node is offline; cleanup notification is now best-effort and non-blocking
+- **Removed node reappearing**: `GET /cluster/info` no longer rewrites node config files during polling, so deleted nodes stay removed
+- **Child node visibility**: Secondary nodes now show the same full cluster membership list as the master
+
 ## [0.5.2] - 2026-05-19
 
 > Full release notes: [releases/0.5.2.md](releases/0.5.2.md)
