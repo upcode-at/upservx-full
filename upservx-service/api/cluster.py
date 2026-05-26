@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Header
 from pydantic import BaseModel
 from typing import List, Optional
+import asyncio
 import secrets
 import socket
 import psutil
@@ -184,6 +185,26 @@ def delete_node_config(hostname: str):
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
     if os.path.exists(node_file):
         os.remove(node_file)
+
+async def notify_removed_node(node_id: str, node_ip: str, node_port: int, cluster_key: str) -> None:
+    """Best-effort notification to a removed child node so it can clear its local cluster state."""
+    _clog(f"[CLUSTER] Notifying removed node {node_id} at {node_ip}:{node_port}")
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.post(
+                f"http://{node_ip}:{node_port}/cluster/force-leave",
+                headers={"Authorization": f"Bearer {cluster_key}"},
+            )
+
+            if response.status_code == 200:
+                _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
+            else:
+                _clog(
+                    f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
+                    error=True,
+                )
+    except Exception as e:
+        _clog(f"[CLUSTER] Removed node {node_id} is offline or unreachable: {e}", error=True)
 
 def list_all_nodes():
     """List all node configurations"""
@@ -1058,23 +1079,9 @@ async def remove_node(node_id: str):
         _clog(f"[CLUSTER] Could not clean HA heartbeat for removed node {resolved_hostname}: {e}", error=True)
 
     if node_ip and cluster_key:
-        _clog(f"[CLUSTER] Notifying removed node {resolved_hostname} at {node_ip}:{node_port}")
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    f"http://{node_ip}:{node_port}/cluster/force-leave",
-                    headers={"Authorization": f"Bearer {cluster_key}"},
-                )
-
-                if response.status_code == 200:
-                    _clog(f"[CLUSTER] Removed node notified successfully: {resolved_hostname}")
-                else:
-                    _clog(
-                        f"[CLUSTER] Failed to notify removed node {resolved_hostname}: HTTP {response.status_code}",
-                        error=True,
-                    )
-        except Exception as e:
-            _clog(f"[CLUSTER] Error notifying removed node {resolved_hostname}: {e}", error=True)
+        asyncio.create_task(
+            notify_removed_node(resolved_hostname, node_ip, node_port, cluster_key)
+        )
     else:
         _clog(f"[CLUSTER] Removed node {resolved_hostname} has no reachable address or cluster key", error=True)
     
