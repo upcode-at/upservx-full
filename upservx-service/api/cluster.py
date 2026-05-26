@@ -595,7 +595,6 @@ async def get_cluster_info():
                 
                 node["resources"] = resources
                 node["last_seen"] = datetime.now().isoformat()
-                write_node_config(node.get("hostname"), node)
                 
                 is_online = resources.pop("success", False)
                 
