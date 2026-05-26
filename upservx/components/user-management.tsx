@@ -435,7 +435,7 @@ export function UserManagement() {
                     }
                   }}
                 >
-                  Speichern
+                  Save
                 </Button>
               </div>
             </div>
@@ -446,7 +446,7 @@ export function UserManagement() {
       <Dialog open={!!keyUser} onOpenChange={(o) => !o && setKeyUser(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>SSH Keys verwalten</DialogTitle>
+            <DialogTitle>Manage SSH Keys</DialogTitle>
           </DialogHeader>
           {keyUser && (
             <div className="space-y-4">

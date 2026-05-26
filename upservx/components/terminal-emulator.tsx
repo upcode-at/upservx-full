@@ -36,10 +36,10 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
           term.write(text)
         }
         ws.onclose = () => {
-          term.write("\r\n[Verbindung beendet]")
+          term.write("\r\n[Connection closed]")
         }
         ws.onerror = () => {
-          term.write("\r\n[Verbindung fehlgeschlagen]")
+          term.write("\r\n[Connection failed]")
         }
         term.onData((data) => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -48,7 +48,7 @@ export function TerminalEmulator({ containerName, onClose }: TerminalEmulatorPro
         })
       })
       .catch(() => {
-        term.write("[Authentifizierung fehlgeschlagen — bitte neu anmelden]")
+        term.write("[Authentication failed - please sign in again]")
       })
 
     return () => {

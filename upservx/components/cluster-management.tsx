@@ -1212,6 +1212,7 @@ export default function ClusterManagement() {
                         placeholder="192.168.1.200"
                         value={haVip}
                         onChange={(e) => setHaVip(e.target.value)}
+                        disabled={haStatus?.enabled}
                       />
                       <p className="text-xs text-muted-foreground">Floating IP that follows the active master. Include prefix length if needed (e.g. 192.168.1.200/24).</p>
                     </div>
@@ -1222,6 +1223,7 @@ export default function ClusterManagement() {
                         placeholder="eth0"
                         value={haVipInterface}
                         onChange={(e) => setHaVipInterface(e.target.value)}
+                        disabled={haStatus?.enabled}
                       />
                     </div>
                     <div className="grid grid-cols-3 gap-4">
@@ -1233,6 +1235,7 @@ export default function ClusterManagement() {
                           min={1}
                           value={haHeartbeatInterval}
                           onChange={(e) => setHaHeartbeatInterval(e.target.value)}
+                          disabled={haStatus?.enabled}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1243,6 +1246,7 @@ export default function ClusterManagement() {
                           min={1}
                           value={haFailureThreshold}
                           onChange={(e) => setHaFailureThreshold(e.target.value)}
+                          disabled={haStatus?.enabled}
                         />
                         <p className="text-xs text-muted-foreground">Missed heartbeats before failover</p>
                       </div>
@@ -1254,6 +1258,7 @@ export default function ClusterManagement() {
                           min={1}
                           value={haPriority}
                           onChange={(e) => setHaPriority(e.target.value)}
+                          disabled={haStatus?.enabled}
                         />
                         <p className="text-xs text-muted-foreground">Lower = preferred master</p>
                       </div>
@@ -1261,7 +1266,7 @@ export default function ClusterManagement() {
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setHaConfigOpen(false)}>Cancel</Button>
-                    <Button onClick={saveHaConfig} disabled={haLoading}>Save</Button>
+                    <Button onClick={saveHaConfig} disabled={haLoading || !!haStatus?.enabled}>Save</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>

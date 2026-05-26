@@ -43,7 +43,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Monitor className="h-5 w-5" />
-              RDP Verbindung - {vmName}
+              RDP Connection - {vmName}
             </CardTitle>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -65,7 +65,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Passwort</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -74,7 +74,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="domain">Domäne (optional)</Label>
+            <Label htmlFor="domain">Domain (optional)</Label>
             <Input
               id="domain"
               value={credentials.domain}
@@ -84,10 +84,10 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
           </div>
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={onClose}>
-              Abbrechen
+              Cancel
             </Button>
             <Button onClick={handleConnect} disabled={isConnecting || !credentials.username || !credentials.password}>
-              {isConnecting ? "Verbinde..." : "Verbinden"}
+              {isConnecting ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </CardContent>
@@ -104,7 +104,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
             RDP - {vmName} ({vmIP})
           </CardTitle>
           <Badge variant="default" className="bg-green-600">
-            Verbunden
+            Connected
           </Badge>
         </div>
         <div className="flex items-center space-x-2">
@@ -141,15 +141,15 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
             <div className="absolute top-4 left-4 space-y-4">
               <div className="flex flex-col items-center text-white text-xs">
                 <div className="w-8 h-8 bg-yellow-500 rounded mb-1"></div>
-                <span>Dieser PC</span>
+                <span>This PC</span>
               </div>
               <div className="flex flex-col items-center text-white text-xs">
                 <div className="w-8 h-8 bg-blue-500 rounded mb-1"></div>
-                <span>Dokumente</span>
+                <span>Documents</span>
               </div>
               <div className="flex flex-col items-center text-white text-xs">
                 <div className="w-8 h-8 bg-red-500 rounded mb-1"></div>
-                <span>Papierkorb</span>
+                <span>Recycle Bin</span>
               </div>
             </div>
 
@@ -166,7 +166,7 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
               </div>
               <div className="p-3 text-sm">
                 <p>UpServX</p>
-                <p>RDP Verbindung aktiv...</p>
+                <p>RDP connection active...</p>
               </div>
             </div>
           </div>
@@ -174,22 +174,22 @@ export function RDPClient({ vmName, vmIP, onClose }: RDPClientProps) {
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
             <div className="text-white text-center">
               <Monitor className="h-12 w-12 mx-auto mb-4 opacity-80" />
-              <p className="text-lg font-medium">RDP Verbindung aktiv</p>
-              <p className="text-sm opacity-80">Simulierte Windows Desktop Umgebung</p>
+              <p className="text-lg font-medium">RDP connection active</p>
+              <p className="text-sm opacity-80">Simulated Windows desktop environment</p>
               <p className="text-xs opacity-60 mt-2">
-                In einer echten Implementierung würde hier der Remote Desktop angezeigt
+                In a real implementation, the remote desktop would be displayed here
               </p>
             </div>
           </div>
         </div>
 
         <div className="p-2 bg-gray-800 text-white text-xs flex justify-between items-center">
-          <span>Auflösung: 1920x1080 | Farbtiefe: 32-bit</span>
+          <span>Resolution: 1920x1080 | Color depth: 32-bit</span>
           <div className="flex items-center space-x-4">
-            <span>Latenz: 15ms</span>
-            <span>Bandbreite: 2.1 Mbps</span>
+            <span>Latency: 15ms</span>
+            <span>Bandwidth: 2.1 Mbps</span>
             <Button variant="outline" size="sm" onClick={handleDisconnect} className="h-6 text-xs bg-transparent">
-              Trennen
+              Disconnect
             </Button>
           </div>
         </div>

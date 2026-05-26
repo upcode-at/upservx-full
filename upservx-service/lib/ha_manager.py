@@ -146,8 +146,9 @@ class HAManager:
             my_hostname = _socket.gethostname()
 
             # Strip transient per-node fields and election state (pushed separately via master-update)
+            # and keep enabled local per node to avoid unintended remote disable/enable flips.
             payload = {k: v for k, v in config.items()
-                       if k not in ("active_master", "active_master_ip", "last_election")}
+                       if k not in ("enabled", "active_master", "active_master_ip", "last_election")}
 
             for node in list_all_nodes():
                 if node.get("hostname") == my_hostname:
@@ -183,7 +184,8 @@ class HAManager:
         """Apply a HA config received from the master node (no re-broadcast)."""
         with self._lock:
             for key, value in incoming.items():
-                if key in DEFAULT_CONFIG:
+                # Do not overwrite local enabled state via config sync.
+                if key in DEFAULT_CONFIG and key != "enabled":
                     self.config[key] = value
             self._save_config()
 
