@@ -136,7 +136,7 @@ async def get_vote():
 async def master_update(payload: MasterUpdatePayload):
     """
     Notify this node that a new master has been elected.
-    Updates local HA config with the new active master and last election time.
+    Updates local HA config with the new active master and assigns VIP if this node is the new master.
     """
     ha = get_ha_manager()
 
@@ -149,13 +149,22 @@ async def master_update(payload: MasterUpdatePayload):
 
     log_system(f"[HA] New master elected: {payload.new_master} ({payload.new_master_ip})")
 
-    # If this node is not the new master and holds the VIP, release it
     my_hostname = ha._get_local_hostname()
-    if payload.new_master != my_hostname:
+
+    # If THIS node is the new master, take the VIP
+    if payload.new_master == my_hostname:
+        vip = ha.config.get("vip", "")
+        iface = ha.config.get("vip_interface", "")
+        if vip and iface:
+            success = ha.assign_vip(vip, iface)
+            log_system(f"[HA] VIP assigned to new master: {vip if success else 'FAILED'}")
+    # If this node is NOT the new master and holds the VIP, release it
+    else:
         vip = ha.config.get("vip", "")
         iface = ha.config.get("vip_interface", "")
         if vip and iface and ha.is_vip_owner():
             ha.release_vip(vip, iface)
+            log_system(f"[HA] VIP released from old master")
 
     return {"acknowledged": True, "new_master": payload.new_master}
 
