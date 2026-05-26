@@ -264,7 +264,7 @@ class HAManager:
     # ------------------------------------------------------------------
 
     def assign_vip(self, vip: str, interface: str) -> bool:
-        """Add the virtual IP to the given network interface."""
+        """Create a virtual interface and assign the VIP to it."""
         try:
             # Extract plain IP (without prefix)
             vip_ip = vip.split("/")[0] if "/" in vip else vip
@@ -277,25 +277,33 @@ class HAManager:
                 vip_prefix = self._vip_prefix
             
             vip_cidr = f"{vip_ip}/{vip_prefix}"
+            vip_interface = f"{interface}:vip"  # Create virtual interface name
 
-            # Check if already assigned
+            # Check if already assigned on the virtual interface
             check = subprocess.run(
-                ["ip", "addr", "show", "dev", interface],
+                ["ip", "addr", "show", "dev", vip_interface],
                 capture_output=True, text=True, timeout=5
             )
-            if vip_ip in check.stdout:
-                return True  # already owner
+            if check.returncode == 0 and vip_ip in check.stdout:
+                return True  # already owner on virtual interface
 
+            # Create the virtual interface with IP
             result = subprocess.run(
-                ["ip", "addr", "add", vip_cidr, "dev", interface],
+                ["ip", "addr", "add", vip_cidr, "dev", vip_interface],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode != 0 and "RTNETLINK answers: File exists" not in result.stderr:
                 return False
 
+            # Bring up the virtual interface
+            subprocess.run(
+                ["ip", "link", "set", vip_interface, "up"],
+                capture_output=True, text=True, timeout=5
+            )
+
             # Send gratuitous ARP so network switches update their tables
             subprocess.run(
-                ["arping", "-c", "3", "-A", "-I", interface, vip_ip],
+                ["arping", "-c", "3", "-A", "-I", vip_interface, vip_ip],
                 capture_output=True, timeout=5
             )
             return True
@@ -303,25 +311,17 @@ class HAManager:
             return False
 
     def release_vip(self, vip: str, interface: str) -> bool:
-        """Remove the virtual IP from the given network interface."""
+        """Remove the virtual interface that holds the VIP."""
         try:
-            # Extract plain IP (without prefix)
-            vip_ip = vip.split("/")[0] if "/" in vip else vip
-            
-            # Use stored prefix or extract from config
-            if "/" in vip:
-                vip_prefix = vip.split("/")[1]
-            else:
-                vip_prefix = self._vip_prefix
-            
-            vip_cidr = f"{vip_ip}/{vip_prefix}"
+            vip_interface = f"{interface}:vip"  # Name of virtual interface
 
+            # Simply delete the virtual interface (cleaner than manually removing the IP)
             result = subprocess.run(
-                ["ip", "addr", "del", vip_cidr, "dev", interface],
+                ["ip", "link", "del", vip_interface],
                 capture_output=True, text=True, timeout=5
             )
-            # Success if returncode is 0, or if already deleted (not found error)
-            return result.returncode == 0 or "Cannot assign" in result.stderr or "not found" in result.stderr.lower()
+            # Success if deleted or already gone
+            return result.returncode == 0 or "does not exist" in result.stderr.lower() or "not found" in result.stderr.lower()
         except Exception:
             return False
 
@@ -332,17 +332,18 @@ class HAManager:
             self.release_vip(vip, iface)
 
     def is_vip_owner(self) -> bool:
-        """Check if this node currently holds the VIP."""
-        vip = self.config.get("vip", "").split("/")[0]
+        """Check if this node currently holds the VIP (on its virtual interface)."""
+        vip_ip = self.config.get("vip", "").split("/")[0]
         iface = self.config.get("vip_interface", "")
-        if not vip or not iface:
+        if not vip_ip or not iface:
             return False
         try:
+            vip_interface = f"{iface}:vip"  # Name of virtual interface
             result = subprocess.run(
-                ["ip", "addr", "show", "dev", iface],
+                ["ip", "addr", "show", "dev", vip_interface],
                 capture_output=True, text=True, timeout=5
             )
-            return vip in result.stdout
+            return result.returncode == 0 and vip_ip in result.stdout
         except Exception:
             return False
 
