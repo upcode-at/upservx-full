@@ -613,46 +613,26 @@ async def get_cluster_info():
         child_config = read_child_config()
         master_ip = child_config.get("master_ip")
         master_port = child_config.get("master_port", 9500)
-        cluster_token = child_config.get("key")
+        cluster_token = child_config.get("cluster_key") or child_config.get("key")
         
-        _clog(f"[CLUSTER] Child node trying to fetch master info from {master_ip}:{master_port}")
+        _clog(f"[CLUSTER] Child node trying to fetch full cluster info from {master_ip}:{master_port}")
         
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
-                    f"http://{master_ip}:{master_port}/cluster/node/metrics",
+                    f"http://{master_ip}:{master_port}/cluster/info",
                     headers={"Authorization": f"Bearer {cluster_token}"}
                 )
                 if response.status_code == 200:
-                    master_metrics = response.json()
-                    _clog(f"[CLUSTER] Successfully fetched master metrics")
-                    nodes.append({
-                        "id": master_metrics.get("hostname", "master"),
-                        "hostname": master_metrics.get("hostname", "master"),
-                        "ip_address": master_ip,
-                        "port": master_port,
-                        "status": "online",
-                        "role": "master",
-                        "resources": {
-                            "cpu_usage": master_metrics.get("cpu", {}).get("usage", 0),
-                            "cpu_count": master_metrics.get("cpu", {}).get("count", 0),
-                            "memory_usage": master_metrics.get("memory", {}).get("usage", 0),
-                            "memory_total": master_metrics.get("memory", {}).get("total", 0),
-                            "memory_available": master_metrics.get("memory", {}).get("available", 0),
-                            "disk_usage": master_metrics.get("storage", {}).get("usage", 0),
-                            "running_containers": master_metrics.get("containers", {}).get("running", 0),
-                            "total_containers": master_metrics.get("containers", {}).get("total", 0),
-                            "running_vms": master_metrics.get("vms", {}).get("running", 0),
-                            "total_vms": master_metrics.get("vms", {}).get("total", 0)
-                        },
-                        "last_seen": datetime.now().isoformat()
-                    })
+                    master_view = response.json()
+                    _clog(f"[CLUSTER] Successfully fetched full cluster info from master")
+                    nodes = master_view.get("nodes", [])
                 else:
-                    _clog(f"[CLUSTER] Failed to fetch master metrics: HTTP {response.status_code}", error=True)
+                    _clog(f"[CLUSTER] Failed to fetch full cluster info: HTTP {response.status_code}", error=True)
 
                     raise Exception("Master unreachable")
         except Exception as e:
-            _clog(f"[CLUSTER] Master unreachable: {e}")
+            _clog(f"[CLUSTER] Master unreachable while fetching full cluster info: {e}")
             nodes.append({
                 "id": "master",
                 "hostname": "master",
@@ -674,18 +654,18 @@ async def get_cluster_info():
                 },
                 "last_seen": ""
             })
-        
-        child_node = {
-            "id": get_hostname(),
-            "hostname": get_hostname(),
-            "ip_address": get_local_ip(),
-            "port": 9500,
-            "status": "online",
-            "role": "child",
-            "resources": get_system_resources(),
-            "last_seen": datetime.now().isoformat()
-        }
-        nodes.append(child_node)
+
+            child_node = {
+                "id": get_hostname(),
+                "hostname": get_hostname(),
+                "ip_address": get_local_ip(),
+                "port": 9500,
+                "status": "online",
+                "role": "child",
+                "resources": get_system_resources(),
+                "last_seen": datetime.now().isoformat()
+            }
+            nodes.append(child_node)
     
     return ClusterInfo(
         is_master=is_master,
