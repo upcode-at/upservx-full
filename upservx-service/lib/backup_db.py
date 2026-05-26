@@ -12,7 +12,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DATABASE_PATH = "/etc/upservx/backup.db"
+BACKUP_DIR = "/etc/upservx/backup"
+DATABASE_PATH = os.path.join(BACKUP_DIR, "backup.db")
 
 class BackupDatabase:
     """SQLite database manager for backup system."""
@@ -23,6 +24,19 @@ class BackupDatabase:
     
     def init_database(self):
         """Initialize database with required tables."""
+        # Ensure backup directory exists
+        os.makedirs(BACKUP_DIR, mode=0o755, exist_ok=True)
+        
+        # Migrate old database if it exists in old location
+        old_db_path = "/etc/upservx/backup.db"
+        if old_db_path != self.db_path and os.path.exists(old_db_path) and not os.path.exists(self.db_path):
+            import shutil
+            try:
+                shutil.move(old_db_path, self.db_path)
+                logger.info(f"Migrated backup database from {old_db_path} to {self.db_path}")
+            except Exception as e:
+                logger.warning(f"Could not migrate backup database: {e}")
+        
         with self.get_connection() as conn:
             cursor = conn.cursor()
             

@@ -12,7 +12,8 @@ from datetime import datetime
 from lib.encryption import get_encryption_manager
 
 CONFIG_DIR = "/etc/upservx"
-BACKUP_SERVERS_FILE = os.path.join(CONFIG_DIR, "backup_servers.json")
+BACKUP_DIR = os.path.join(CONFIG_DIR, "backup")
+BACKUP_SERVERS_FILE = os.path.join(BACKUP_DIR, "backup_servers.json")
 SSH_KEYS_DIR = os.path.join(CONFIG_DIR, "ssh_keys")
 
 class ConfigManager:
@@ -21,14 +22,26 @@ class ConfigManager:
     def __init__(self):
         """Initialize config manager and ensure directories exist."""
         self._ensure_directories()
+        self._migrate_backup_files()
     
     def _ensure_directories(self):
         """Create necessary directories if they don't exist."""
         try:
             os.makedirs(CONFIG_DIR, mode=0o755, exist_ok=True)
             os.makedirs(SSH_KEYS_DIR, mode=0o700, exist_ok=True)
+            os.makedirs(BACKUP_DIR, mode=0o755, exist_ok=True)
         except Exception as e:
             print(f"Warning: Could not create config directories: {e}")
+    
+    def _migrate_backup_files(self):
+        """Migrate old backup_servers.json from root config dir to backup subdir."""
+        old_backup_servers = os.path.join(CONFIG_DIR, "backup_servers.json")
+        if old_backup_servers != BACKUP_SERVERS_FILE and os.path.exists(old_backup_servers) and not os.path.exists(BACKUP_SERVERS_FILE):
+            try:
+                shutil.move(old_backup_servers, BACKUP_SERVERS_FILE)
+                print(f"Migrated backup_servers.json to {BACKUP_SERVERS_FILE}")
+            except Exception as e:
+                print(f"Warning: Could not migrate backup_servers.json: {e}")
     
     def _read_json_file(self, filepath: str, default: Any = None) -> Any:
         """Read and parse JSON file."""

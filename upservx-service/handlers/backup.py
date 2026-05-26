@@ -368,9 +368,20 @@ class BackupManager:
         
     def _get_or_create_encryption_key(self) -> bytes:
         """Get or create encryption key for sensitive data."""
-        key_file = '/etc/upservx/backup_key'
+        backup_dir = '/etc/upservx/backup'
+        key_file = os.path.join(backup_dir, 'backup_key')
         try:
-            os.makedirs(os.path.dirname(key_file), exist_ok=True)
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Migrate old key file if it exists in old location
+            old_key_file = '/etc/upservx/backup_key'
+            if old_key_file != key_file and os.path.exists(old_key_file) and not os.path.exists(key_file):
+                import shutil
+                try:
+                    shutil.move(old_key_file, key_file)
+                except Exception:
+                    pass
+            
             if os.path.exists(key_file):
                 with open(key_file, 'rb') as f:
                     return f.read()
