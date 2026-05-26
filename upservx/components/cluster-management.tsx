@@ -488,17 +488,21 @@ export default function ClusterManagement() {
   }
 
   // ── HA helpers ──────────────────────────────────────────────────────────
-  const loadHaStatus = async () => {
+  const loadHaStatus = async (updateFormFields = false) => {
     try {
       const res = await fetch(getApiUrl("/cluster/ha/status"), { credentials: "include" })
       if (res.ok) {
         const data = await res.json()
         setHaStatus(data)
-        setHaVip(data.vip || "")
-        setHaVipInterface(data.vip_interface || "")
-        setHaHeartbeatInterval(String(data.heartbeat_interval ?? 5))
-        setHaFailureThreshold(String(data.failure_threshold ?? 3))
-        setHaPriority(String(data.priority ?? 100))
+        // Only overwrite form fields on explicit refresh (initial load / after save),
+        // never during background polling – otherwise the dialog gets cleared while typing.
+        if (updateFormFields) {
+          setHaVip(data.vip || "")
+          setHaVipInterface(data.vip_interface || "")
+          setHaHeartbeatInterval(String(data.heartbeat_interval ?? 5))
+          setHaFailureThreshold(String(data.failure_threshold ?? 3))
+          setHaPriority(String(data.priority ?? 100))
+        }
       }
     } catch { /* silent */ }
   }
@@ -510,7 +514,7 @@ export default function ClusterManagement() {
       const res = await fetch(getApiUrl(endpoint), { method: "POST", credentials: "include" })
       if (!res.ok) throw new Error("Failed to toggle HA")
       setSuccess(enabled ? "High Availability enabled" : "High Availability disabled")
-      await loadHaStatus()
+      await loadHaStatus(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to toggle HA")
     } finally {
@@ -536,7 +540,7 @@ export default function ClusterManagement() {
       if (!res.ok) throw new Error("Failed to save HA config")
       setSuccess("HA configuration saved")
       setHaConfigOpen(false)
-      await loadHaStatus()
+      await loadHaStatus(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save HA config")
     } finally {
@@ -595,8 +599,8 @@ export default function ClusterManagement() {
 
   useEffect(() => {
     if (clusterInfo?.is_member) {
-      loadHaStatus()
-      const interval = setInterval(loadHaStatus, 10000)
+      loadHaStatus(true)  // initial load: populate form fields
+      const interval = setInterval(loadHaStatus, 10000)  // polling: never touch form fields
       return () => clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
