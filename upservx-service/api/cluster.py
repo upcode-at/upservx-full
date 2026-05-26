@@ -15,6 +15,7 @@ from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
 from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
+from lib.crontab_manager import CrontabManager
 from handlers.notifications import notify
 
 def _clog(msg: str, error: bool = False) -> None:
@@ -283,6 +284,13 @@ def get_cluster_key():
             # Try cluster_key first (new format), fall back to key (old format)
             return child_config.get("cluster_key") or child_config.get("key")
     return None
+
+def clear_child_cluster_config() -> bool:
+    """Remove local child cluster configuration if present."""
+    if os.path.exists(CHILD_CONFIG_FILE):
+        os.remove(CHILD_CONFIG_FILE)
+        return True
+    return False
 
 async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
     """Fetch metrics from a child node"""
@@ -886,6 +894,46 @@ async def leave_cluster():
         raise HTTPException(status_code=400, detail="Not part of any cluster")
     
     if is_master_node():
+        master_config = read_master_config()
+        cluster_key = master_config.get("key") if master_config else None
+        child_nodes = [
+            node for node in list_all_nodes()
+            if node.get("hostname") != get_hostname()
+        ]
+
+        if cluster_key and child_nodes:
+            _clog(f"[CLUSTER] Notifying {len(child_nodes)} child node(s) about master leave")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    for node in child_nodes:
+                        node_ip = node.get("ip_address")
+                        node_port = node.get("port", 9500)
+                        if not node_ip:
+                            _clog(f"[CLUSTER] Skipping child node without IP: {node.get('hostname', 'unknown')}", error=True)
+                            continue
+
+                        leave_url = f"http://{node_ip}:{node_port}/cluster/leave"
+                        try:
+                            response = await client.post(
+                                leave_url,
+                                headers={"Authorization": f"Bearer {cluster_key}"}
+                            )
+
+                            if response.status_code == 200:
+                                _clog(f"[CLUSTER] Child node notified successfully: {node.get('hostname', node_ip)}")
+                            else:
+                                _clog(
+                                    f"[CLUSTER] Child node leave notification failed for {node.get('hostname', node_ip)}: HTTP {response.status_code}",
+                                    error=True,
+                                )
+                        except Exception as e:
+                            _clog(
+                                f"[CLUSTER] Error notifying child node {node.get('hostname', node_ip)}: {e}",
+                                error=True,
+                            )
+            except Exception as e:
+                _clog(f"[CLUSTER] Error while notifying child nodes: {e}", error=True)
+
         if os.path.exists(MASTER_CONFIG_FILE):
             os.remove(MASTER_CONFIG_FILE)
         
@@ -895,25 +943,96 @@ async def leave_cluster():
                 if os.path.isfile(node_file):
                     os.remove(node_file)
         
-        # TODO: Notify all child nodes
-        
     elif is_child_node():
-        if os.path.exists(CHILD_CONFIG_FILE):
-            os.remove(CHILD_CONFIG_FILE)
-        
-        # TODO: Notify master node
+        child_config = read_child_config()
+        master_ip = None
+        master_port = 9500
+        cluster_key = None
+        assigned_hostname = None
+
+        if child_config:
+            master_ip = child_config.get("master_ip")
+            master_port = child_config.get("master_port", 9500)
+            cluster_key = child_config.get("cluster_key") or child_config.get("key")
+            assigned_hostname = child_config.get("assigned_hostname")
+
+        node_id = assigned_hostname or get_hostname()
+
+        if master_ip and cluster_key:
+            _clog(f"[CLUSTER] Notifying master about child leave: {node_id} -> {master_ip}:{master_port}")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.delete(
+                        f"http://{master_ip}:{master_port}/cluster/nodes/{node_id}",
+                        headers={"Authorization": f"Bearer {cluster_key}"},
+                    )
+
+                    if response.status_code == 200:
+                        _clog(f"[CLUSTER] Master notified successfully for child node: {node_id}")
+                    else:
+                        _clog(
+                            f"[CLUSTER] Master notification failed for child node {node_id}: HTTP {response.status_code}",
+                            error=True,
+                        )
+            except Exception as e:
+                _clog(f"[CLUSTER] Error notifying master about child leave: {e}", error=True)
+
+        clear_child_cluster_config()
     
     return {"message": "Successfully left cluster"}
+
+@router.post("/cluster/force-leave")
+async def force_leave_cluster(_: bool = Depends(verify_cluster_auth)):
+    """Force a child node to leave the cluster without notifying the master again."""
+    if not is_child_node():
+        raise HTTPException(status_code=400, detail="This node is not a child node")
+
+    child_config = read_child_config() or {}
+    node_id = child_config.get("assigned_hostname") or get_hostname()
+
+    clear_child_cluster_config()
+    notify("system_alert", f"Node '{node_id}' was removed from the cluster by the master")
+    _clog(f"[CLUSTER] Force leave completed for child node: {node_id}")
+
+    return {"message": "Node removed from cluster successfully", "node_id": node_id}
 
 @router.delete("/cluster/nodes/{node_id}")
 async def remove_node(node_id: str):
     """Remove a node from the cluster (master only)"""
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can remove nodes")
+
+    node_config = read_node_config(node_id)
+    if not node_config:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    node_ip = node_config.get("ip_address")
+    node_port = node_config.get("port", 9500)
+    master_config = read_master_config()
+    cluster_key = master_config.get("key") if master_config else None
     
     delete_node_config(node_id)
-    
-    # TODO: Notify the removed node
+
+    if node_ip and cluster_key:
+        _clog(f"[CLUSTER] Notifying removed node {node_id} at {node_ip}:{node_port}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"http://{node_ip}:{node_port}/cluster/force-leave",
+                    headers={"Authorization": f"Bearer {cluster_key}"},
+                )
+
+                if response.status_code == 200:
+                    _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
+                else:
+                    _clog(
+                        f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
+                        error=True,
+                    )
+        except Exception as e:
+            _clog(f"[CLUSTER] Error notifying removed node {node_id}: {e}", error=True)
+    else:
+        _clog(f"[CLUSTER] Removed node {node_id} has no reachable address or cluster key", error=True)
     
     return {"message": f"Node {node_id} removed successfully"}
 
@@ -1463,7 +1582,27 @@ async def create_replication(replication: ReplicationCreate):
     replications.append(new_replication)
     write_replications(replications)
     
-    # TODO: Setup cron job for replication
+    try:
+        cron_manager = CrontabManager()
+        cron_success = cron_manager.add_replication_job(
+            new_replication["id"],
+            new_replication["sync_schedule"],
+            new_replication["name"],
+        )
+
+        if not cron_success:
+            replications = [r for r in replications if r["id"] != new_replication["id"]]
+            write_replications(replications)
+            raise HTTPException(status_code=500, detail="Failed to schedule replication job")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        replications = [r for r in replications if r["id"] != new_replication["id"]]
+        write_replications(replications)
+        _clog(f"[REPLICATION] Error scheduling cron job: {e}", error=True)
+        raise HTTPException(status_code=500, detail=f"Failed to schedule replication job: {e}")
+
     _clog(f"[REPLICATION] Created replication: {replication.name} from {replication.origin_node} to {replication.destination_node}")
     
     return new_replication
@@ -1476,14 +1615,29 @@ async def delete_replication(replication_id: str):
     
     replications = read_replications()
     
-    updated_replications = [r for r in replications if r["id"] != replication_id]
+    # Find the replication before deleting it
+    replication_to_delete = None
+    for r in replications:
+        if r["id"] == replication_id:
+            replication_to_delete = r
+            break
     
-    if len(updated_replications) == len(replications):
+    if not replication_to_delete:
         raise HTTPException(status_code=404, detail="Replication not found")
     
+    # Remove from replications list
+    updated_replications = [r for r in replications if r["id"] != replication_id]
     write_replications(updated_replications)
     
-    # TODO: Remove cron job for this replication
+    # Remove cron job for this replication
+    try:
+        cron_manager = CrontabManager()
+        cron_manager.remove_replication_job(replication_id)
+        _clog(f"[REPLICATION] Removed cron job for replication: {replication_id}")
+    except Exception as e:
+        _clog(f"[REPLICATION] Error removing cron job: {e}", error=True)
+        # Log error but don't fail the deletion
+    
     _clog(f"[REPLICATION] Deleted replication: {replication_id}")
     
     return {"message": "Replication deleted successfully"}
@@ -1572,13 +1726,13 @@ async def execute_replication(replication: dict):
         if not master_config:
             _clog(f"[REPLICATION] No master config found")
             _progress(100, "Master configuration missing", status="failed")
-            return
+            return False
         
         cluster_key = master_config.get("key")
         if not cluster_key:
             _clog(f"[REPLICATION] No cluster key found in config")
             _progress(100, "Cluster key missing", status="failed")
-            return
+            return False
         
         _clog(f"[REPLICATION] Cluster key loaded successfully")
         
@@ -1594,7 +1748,7 @@ async def execute_replication(replication: dict):
         else:
             _clog(f"[REPLICATION] Origin node config not found: {origin_node}")
             _progress(100, f"Origin node not found: {origin_node}", status="failed")
-            return
+            return False
         
         if destination_node == get_hostname():
             dest_ip = "localhost"
@@ -1605,7 +1759,7 @@ async def execute_replication(replication: dict):
         else:
             _clog(f"[REPLICATION] Destination node config not found: {destination_node}")
             _progress(100, f"Destination node not found: {destination_node}", status="failed")
-            return
+            return False
         
         _clog(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
         _progress(20, "Exporting from origin node")
@@ -1625,7 +1779,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}", error=True)
                 _progress(100, "Export failed", status="failed")
 
-                return
+                return False
             
             export_data = export_response.json()
             export_path = export_data.get("export_path")
@@ -1633,7 +1787,7 @@ async def execute_replication(replication: dict):
             if not export_path:
                 _clog(f"[REPLICATION] No export path returned")
                 _progress(100, "No export path returned", status="failed")
-                return
+                return False
             
             _clog(f"[REPLICATION] Exported to: {export_path}")
             
@@ -1650,7 +1804,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Download failed: {download_response.status_code}", error=True)
                 _progress(100, "Download failed", status="failed")
 
-                return
+                return False
             
             archive_data = download_response.content
             _clog(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
@@ -1673,7 +1827,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}", error=True)
                 _progress(100, "Upload failed", status="failed")
 
-                return
+                return False
             
             upload_data = upload_response.json()
             uploaded_path = upload_data.get("path")
@@ -1699,7 +1853,7 @@ async def execute_replication(replication: dict):
                 _clog(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}", error=True)
                 _progress(100, "Import failed", status="failed")
 
-                return
+                return False
             
             _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
             _progress(100, "Replication completed successfully", status="completed")
@@ -1707,6 +1861,7 @@ async def execute_replication(replication: dict):
                 "replication_success",
                 f"Replication '{resource_name}' completed | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
             )
+            return True
             
     except Exception as e:
         _clog(f"[REPLICATION] Error during replication: {e}", error=True)
@@ -1718,6 +1873,7 @@ async def execute_replication(replication: dict):
 
         import traceback
         traceback.print_exc()
+    return False
 
 @router.get("/cluster/nodes/{hostname}/resources")
 async def get_node_resources(hostname: str):
