@@ -83,37 +83,8 @@ class HAManager:
         return vip_ip, prefix
 
     def _ha_virtual_interface(self, base_interface: str) -> str:
-        """Build deterministic dedicated HA interface name (Linux max length is 15)."""
-        clean = "".join(ch for ch in (base_interface or "") if ch.isalnum())
-        if not clean:
-            clean = "net"
-        return f"ha{clean}"[:15]
-
-    def _ensure_ha_virtual_interface(self, vip_interface: str) -> tuple[bool, str]:
-        """Ensure dedicated HA dummy interface exists and is up."""
-        ha_iface = self._ha_virtual_interface(vip_interface)
-        try:
-            check = subprocess.run(
-                ["ip", "link", "show", "dev", ha_iface],
-                capture_output=True, text=True, timeout=5
-            )
-            if check.returncode != 0:
-                create = subprocess.run(
-                    ["ip", "link", "add", ha_iface, "type", "dummy"],
-                    capture_output=True, text=True, timeout=5
-                )
-                if create.returncode != 0 and "File exists" not in create.stderr:
-                    return False, ha_iface
-
-            up = subprocess.run(
-                ["ip", "link", "set", ha_iface, "up"],
-                capture_output=True, text=True, timeout=5
-            )
-            if up.returncode != 0:
-                return False, ha_iface
-            return True, ha_iface
-        except Exception:
-            return False, ha_iface
+        """Return the real interface name — VIP is assigned directly on it (VRRP-style)."""
+        return base_interface
 
     def _broadcast_vip_owner(self, owner_hostname: Optional[str], owner_ip: Optional[str]) -> None:
         """Broadcast current VIP owner to all known nodes."""
@@ -388,16 +359,13 @@ class HAManager:
     # ------------------------------------------------------------------
 
     def assign_vip(self, vip: str, interface: str) -> bool:
-        """Assign VIP on a dedicated HA virtual interface."""
+        """Assign VIP directly on the real interface (VRRP-style)."""
         try:
             vip_ip, vip_prefix = self._parse_vip(vip)
             vip_cidr = f"{vip_ip}/{vip_prefix}"
-            ok, ha_iface = self._ensure_ha_virtual_interface(interface)
-            if not ok:
-                return False
 
             check = subprocess.run(
-                ["ip", "addr", "show", "dev", ha_iface],
+                ["ip", "addr", "show", "dev", interface],
                 capture_output=True, text=True, timeout=5
             )
             if check.returncode == 0 and vip_ip in check.stdout:
@@ -405,13 +373,13 @@ class HAManager:
                 return True
 
             result = subprocess.run(
-                ["ip", "addr", "add", vip_cidr, "dev", ha_iface],
+                ["ip", "addr", "add", vip_cidr, "dev", interface],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode != 0 and "RTNETLINK answers: File exists" not in result.stderr:
                 return False
 
-            # Send gratuitous ARP so network switches update their tables
+            # Send gratuitous ARP so network switches update their MAC tables
             subprocess.run(
                 ["arping", "-c", "3", "-A", "-I", interface, vip_ip],
                 capture_output=True, timeout=5
@@ -440,22 +408,21 @@ class HAManager:
             return False
 
     def release_vip(self, vip: str, interface: str, broadcast: bool = True) -> bool:
-        """Release VIP from dedicated HA virtual interface and clean up legacy placements."""
+        """Release VIP from the real interface and clean up any legacy placements."""
         try:
             vip_ip, vip_prefix = self._parse_vip(vip)
             vip_cidr = f"{vip_ip}/{vip_prefix}"
-            ha_iface = self._ha_virtual_interface(interface)
 
-            dedicated_removed = self._delete_vip_from_interface(vip_cidr, ha_iface)
-            alias_removed = self._delete_vip_from_interface(vip_cidr, f"{interface}:vip")
             base_removed = self._delete_vip_from_interface(vip_cidr, interface)
-
+            alias_removed = self._delete_vip_from_interface(vip_cidr, f"{interface}:vip")
+            # Clean up any old dummy interface that may exist from a previous version
+            ha_iface = f"ha{''.join(ch for ch in interface if ch.isalnum())}"[:15]
             subprocess.run(
                 ["ip", "link", "del", ha_iface],
                 capture_output=True, text=True, timeout=5
             )
 
-            success = dedicated_removed or alias_removed or base_removed
+            success = base_removed or alias_removed
             if success and broadcast:
                 self._set_vip_owner(None, None, broadcast=True)
             return success
@@ -469,15 +436,14 @@ class HAManager:
             self.release_vip(vip, iface)
 
     def is_vip_owner(self) -> bool:
-        """Check if this node currently holds the VIP (on its virtual interface)."""
+        """Check if this node currently holds the VIP on the real interface."""
         vip_ip = self.config.get("vip", "").split("/")[0]
         iface = self.config.get("vip_interface", "")
         if not vip_ip or not iface:
             return False
         try:
-            vip_interface = self._ha_virtual_interface(iface)
             result = subprocess.run(
-                ["ip", "addr", "show", "dev", vip_interface],
+                ["ip", "addr", "show", "dev", iface],
                 capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0 and vip_ip in result.stdout
