@@ -19,6 +19,8 @@ import urllib.error
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
+from handlers.containers import get_docker_containers, get_lxc_containers
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -400,6 +402,343 @@ def _get_dpkg_packages() -> List[Dict[str, str]]:
             ver = re.sub(r"^\d+:", "", parts[1])
             packages.append({"name": parts[0], "version": ver})
     return packages
+
+
+def _parse_os_release(content: str) -> Dict[str, str]:
+    """Parse /etc/os-release style key/value data."""
+    data: Dict[str, str] = {}
+    for line in content.splitlines():
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        data[k.strip()] = v.strip().strip('"')
+    return data
+
+
+def _normalize_ecosystem(os_release: Dict[str, str]) -> Optional[str]:
+    """Map container os-release fields to an OSV ecosystem string."""
+    os_id = os_release.get("ID", "").lower()
+    os_id_like = os_release.get("ID_LIKE", "").lower()
+    os_name = os_release.get("NAME", "").lower()
+    os_pretty = os_release.get("PRETTY_NAME", "").lower()
+    version_id = os_release.get("VERSION_ID", "")
+
+    if os_id == "ubuntu" or "ubuntu" in os_name:
+        return f"Ubuntu:{version_id}" if version_id else "Ubuntu:24.04"
+
+    if os_id == "debian" or "debian" in os_name:
+        major = version_id.split(".")[0] if version_id else "12"
+        return f"Debian:{major}"
+
+    if os_id == "alpine" or "alpine" in os_name:
+        major_minor = ".".join(version_id.split(".")[:2]) if version_id else "3.20"
+        return f"Alpine:v{major_minor}"
+
+    if (
+        os_id in {"arch", "archlinux", "manjaro", "artix", "endeavouros", "garuda"}
+        or "arch" in os_id_like
+        or "arch" in os_name
+        or "arch" in os_pretty
+        or "manjaro" in os_name
+        or "manjaro" in os_pretty
+        or "artix" in os_name
+        or "artix" in os_pretty
+    ):
+        # Arch-Derivate werden auf das OSV-Ecosystem fuer Arch Linux gemappt.
+        return "Arch Linux"
+
+    if os_id == "fedora" or "fedora" in os_name or "fedora" in os_id_like:
+        return f"Fedora:{version_id}" if version_id else "Fedora:40"
+
+    if (
+        os_id in {"rhel", "redhat", "red hat enterprise linux"}
+        or "rhel" in os_id_like
+        or "red hat" in os_name
+        or "red hat" in os_pretty
+    ):
+        major = version_id.split(".")[0] if version_id else "9"
+        return f"Red Hat:{major}"
+
+    if os_id == "centos" or "centos" in os_name or "centos" in os_pretty:
+        major = version_id.split(".")[0] if version_id else "9"
+        # OSV nutzt kein eigenes CentOS-Ecosystem; CentOS wird auf Red Hat gemappt.
+        return f"Red Hat:{major}"
+
+    if (
+        os_id in {"opensuse", "opensuse-leap", "opensuse-tumbleweed", "sles", "suse"}
+        or "suse" in os_name
+        or "suse" in os_pretty
+        or "suse" in os_id_like
+    ):
+        return f"openSUSE:{version_id}" if version_id else "openSUSE:15.6"
+
+    return None
+
+
+def _run_in_container(container_type: str, name: str, inner_cmd: List[str], timeout: int = 20) -> tuple[str, str, int]:
+    """Execute a command in a Docker or LXC container and return (stdout, stderr, rc)."""
+    if container_type == "docker":
+        cmd = ["docker", "exec", name, *inner_cmd]
+    elif container_type == "lxc":
+        cmd = ["lxc", "exec", name, "--", *inner_cmd]
+    else:
+        return "", f"Unsupported container type: {container_type}", 2
+    return _run(cmd, timeout=timeout)
+
+
+def _get_container_os_release(container_type: str, name: str) -> Optional[Dict[str, str]]:
+    """Read os-release from a container to identify ecosystem for CVE lookups."""
+    stdout, _, rc = _run_in_container(container_type, name, ["cat", "/etc/os-release"], timeout=10)
+    if rc != 0 or not stdout.strip():
+        return None
+    return _parse_os_release(stdout)
+
+
+def _get_container_packages(container_type: str, name: str, package_limit: int = 200) -> tuple[List[Dict[str, str]], Optional[str]]:
+    """
+    Return installed package list from a container plus optional detected ecosystem.
+    Supports dpkg, apk and rpm based containers.
+    """
+    os_release = _get_container_os_release(container_type, name) or {}
+    ecosystem = _normalize_ecosystem(os_release)
+
+    stdout, _, rc = _run_in_container(
+        container_type,
+        name,
+        ["dpkg-query", "-W", "-f=${Package}\\t${Version}\\n"],
+        timeout=25,
+    )
+    if rc == 0 and stdout.strip():
+        packages: List[Dict[str, str]] = []
+        for line in stdout.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 2 and parts[0] and parts[1] and parts[1] not in ("<none>", "-"):
+                ver = re.sub(r"^\d+:", "", parts[1])
+                packages.append({"name": parts[0], "version": ver})
+        return packages[:package_limit], ecosystem
+
+    stdout, _, rc = _run_in_container(container_type, name, ["apk", "info", "-v"], timeout=25)
+    if rc == 0 and stdout.strip():
+        packages = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            idx = line.rfind("-")
+            if idx <= 0:
+                continue
+            name_part = line[:idx]
+            version = line[idx + 1 :]
+            if name_part and version:
+                packages.append({"name": name_part, "version": version})
+        return packages[:package_limit], ecosystem or "Alpine:v3.20"
+
+    stdout, _, rc = _run_in_container(container_type, name, ["pacman", "-Q"], timeout=25)
+    if rc == 0 and stdout.strip():
+        packages = []
+        for line in stdout.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                packages.append({"name": parts[0], "version": parts[1]})
+        return packages[:package_limit], ecosystem or "Arch Linux"
+
+    stdout, _, rc = _run_in_container(
+        container_type,
+        name,
+        ["rpm", "-qa", "--qf", "%{NAME}\\t%{VERSION}-%{RELEASE}\\n"],
+        timeout=25,
+    )
+    if rc == 0 and stdout.strip():
+        packages = []
+        for line in stdout.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                packages.append({"name": parts[0], "version": parts[1]})
+        return packages[:package_limit], ecosystem
+
+    return [], ecosystem
+
+
+def _scan_osv_packages(packages: List[Dict[str, str]], ecosystem: str) -> List[Dict[str, Any]]:
+    """Query OSV.dev for a package list and return normalized vulnerabilities."""
+    all_vulns: List[Dict[str, Any]] = []
+
+    for i in range(0, len(packages), 100):
+        batch = packages[i : i + 100]
+        queries = [
+            {
+                "version": pkg["version"],
+                "package": {"name": pkg["name"], "ecosystem": ecosystem},
+            }
+            for pkg in batch
+        ]
+        payload = json.dumps({"queries": queries}).encode()
+        req = urllib.request.Request(
+            _OSV_BATCH_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+        except Exception:
+            continue
+
+        for j, res in enumerate(result.get("results", [])):
+            for vuln in res.get("vulns", []):
+                pkg = batch[j]
+                severity = "unknown"
+                score: Optional[float] = None
+
+                for sev in vuln.get("severity", []):
+                    if sev.get("type") in ("CVSS_V3", "CVSS_V4"):
+                        try:
+                            score = float(sev["score"])
+                            if score >= 9.0:
+                                severity = "critical"
+                            elif score >= 7.0:
+                                severity = "high"
+                            elif score >= 4.0:
+                                severity = "medium"
+                            else:
+                                severity = "low"
+                        except (ValueError, KeyError):
+                            pass
+                        break
+                    elif sev.get("type") == "CVSS_V2" and score is None:
+                        try:
+                            score = float(sev["score"])
+                            severity = "high" if score >= 7.0 else ("medium" if score >= 4.0 else "low")
+                        except (ValueError, KeyError):
+                            pass
+
+                aliases = [a for a in vuln.get("aliases", []) if a.startswith("CVE-")]
+                cve_id = aliases[0] if aliases else vuln.get("id", "")
+
+                all_vulns.append(
+                    {
+                        "package": pkg["name"],
+                        "version": pkg["version"],
+                        "vuln_id": vuln.get("id", ""),
+                        "cve_id": cve_id,
+                        "summary": vuln.get("summary", ""),
+                        "severity": severity,
+                        "cvss_score": score,
+                        "published": (vuln.get("published", "") or "")[:10],
+                    }
+                )
+
+    all_vulns.sort(key=lambda v: (_SEV_ORDER.get(v["severity"], 4), -(v["cvss_score"] or 0)))
+    return all_vulns
+
+
+def scan_container_cves(container_limit: int = 30, package_limit: int = 200) -> Dict[str, Any]:
+    """Scan Docker and LXC containers for known CVEs using OSV.dev."""
+    docker = [c for c in get_docker_containers() if c.name]
+    lxc = [c for c in get_lxc_containers() if c.name]
+
+    targets = [
+        {"name": c.name, "type": "docker", "status": c.status}
+        for c in docker
+    ] + [
+        {"name": c.name, "type": "lxc", "status": c.status}
+        for c in lxc
+    ]
+
+    targets = targets[:container_limit]
+
+    severity_totals: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
+    scanned = 0
+    results: List[Dict[str, Any]] = []
+
+    for target in targets:
+        name = target["name"]
+        container_type = target["type"]
+        status = str(target.get("status", "")).lower()
+
+        # Non-running containers usually can't be inspected via exec.
+        if status not in ("running", "up"):
+            results.append(
+                {
+                    "name": name,
+                    "type": container_type,
+                    "status": target.get("status", "unknown"),
+                    "available": False,
+                    "reason": "Container is not running",
+                    "packages_scanned": 0,
+                    "total_vulns": 0,
+                    "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0},
+                    "vulnerabilities": [],
+                }
+            )
+            continue
+
+        packages, ecosystem = _get_container_packages(container_type, name, package_limit=package_limit)
+        if not packages:
+            results.append(
+                {
+                    "name": name,
+                    "type": container_type,
+                    "status": target.get("status", "unknown"),
+                    "available": False,
+                    "reason": "Could not read package inventory inside container",
+                    "packages_scanned": 0,
+                    "total_vulns": 0,
+                    "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0},
+                    "vulnerabilities": [],
+                }
+            )
+            continue
+
+        if not ecosystem:
+            results.append(
+                {
+                    "name": name,
+                    "type": container_type,
+                    "status": target.get("status", "unknown"),
+                    "available": False,
+                    "reason": "Unsupported container OS for OSV scan",
+                    "packages_scanned": len(packages),
+                    "total_vulns": 0,
+                    "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0},
+                    "vulnerabilities": [],
+                }
+            )
+            continue
+
+        vulns = _scan_osv_packages(packages, ecosystem)
+        counts: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
+        for vuln in vulns:
+            sev = vuln.get("severity", "unknown")
+            counts[sev] = counts.get(sev, 0) + 1
+            severity_totals[sev] = severity_totals.get(sev, 0) + 1
+
+        scanned += 1
+        results.append(
+            {
+                "name": name,
+                "type": container_type,
+                "status": target.get("status", "unknown"),
+                "available": True,
+                "ecosystem": ecosystem,
+                "packages_scanned": len(packages),
+                "total_vulns": len(vulns),
+                "severity_counts": counts,
+                "vulnerabilities": vulns,
+            }
+        )
+
+    return {
+        "available": True,
+        "containers_total": len(targets),
+        "containers_scanned": scanned,
+        "containers_with_issues": sum(1 for r in results if r.get("available") and r.get("total_vulns", 0) > 0),
+        "severity_counts": severity_totals,
+        "total_vulns": sum(r.get("total_vulns", 0) for r in results),
+        "containers": results,
+    }
 
 
 def scan_cves(limit: int = 300) -> Dict[str, Any]:
