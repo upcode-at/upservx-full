@@ -14,7 +14,7 @@ import secrets
 import time
 
 
-SESSION_SECRET_FILE = "/etc/upservx/session_secret"
+SESSION_SECRET_FILE = "/etc/upservx/.session_secret"
 _SECRET_CACHE: bytes | None = None
 
 
@@ -39,6 +39,16 @@ def _get_secret() -> bytes:
 
     try:
         os.makedirs("/etc/upservx", exist_ok=True)
+        
+        # Migrate old session_secret to .session_secret if needed
+        old_file = "/etc/upservx/session_secret"
+        if old_file != SESSION_SECRET_FILE and os.path.isfile(old_file) and not os.path.isfile(SESSION_SECRET_FILE):
+            try:
+                import shutil
+                shutil.move(old_file, SESSION_SECRET_FILE)
+            except Exception:
+                pass
+        
         if os.path.isfile(SESSION_SECRET_FILE):
             with open(SESSION_SECRET_FILE, "rb") as f:
                 secret = f.read().strip()
