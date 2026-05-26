@@ -561,7 +561,7 @@ export default function ClusterManagement() {
       if (!res.ok) throw new Error("Failover failed")
       const data = await res.json()
       setSuccess(`Failover complete. New master: ${data.new_master}`)
-      await loadHaStatus()
+      await loadHaStatus(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failover failed")
     } finally {
@@ -575,7 +575,7 @@ export default function ClusterManagement() {
       const res = await fetch(getApiUrl("/cluster/ha/vip/assign"), { method: "POST", credentials: "include" })
       if (!res.ok) throw new Error("Failed to assign VIP")
       setSuccess("VIP assigned to this node")
-      await loadHaStatus()
+      await loadHaStatus(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to assign VIP")
     } finally {
@@ -589,7 +589,7 @@ export default function ClusterManagement() {
       const res = await fetch(getApiUrl("/cluster/ha/vip/release"), { method: "POST", credentials: "include" })
       if (!res.ok) throw new Error("Failed to release VIP")
       setSuccess("VIP released from this node")
-      await loadHaStatus()
+      await loadHaStatus(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to release VIP")
     } finally {
