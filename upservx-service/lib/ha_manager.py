@@ -321,8 +321,9 @@ class HAManager:
 
         if winner_hostname == self._get_local_hostname():
             self.assign_vip(vip, iface)
-        elif self.is_vip_owner():
-            # Winner will publish owner state after assignment.
+        else:
+            # Always attempt cleanup on non-winner nodes so stale VIP assignments
+            # do not survive a manual failover because of a false negative owner check.
             self.release_vip(vip, iface, broadcast=False)
 
     def start(self):
@@ -420,22 +421,41 @@ class HAManager:
         except Exception:
             return False
 
+    def _delete_vip_from_interface(self, vip_cidr: str, device: str) -> bool:
+        """Try to remove the VIP from a specific interface and treat missing state as success."""
+        try:
+            result = subprocess.run(
+                ["ip", "addr", "del", vip_cidr, "dev", device],
+                capture_output=True, text=True, timeout=5
+            )
+            stderr = (result.stderr or "").lower()
+            return (
+                result.returncode == 0
+                or "cannot assign requested address" in stderr
+                or "cannot find device" in stderr
+                or "not found" in stderr
+                or "no such process" in stderr
+            )
+        except Exception:
+            return False
+
     def release_vip(self, vip: str, interface: str, broadcast: bool = True) -> bool:
-        """Release VIP from dedicated HA virtual interface."""
+        """Release VIP from dedicated HA virtual interface and clean up legacy placements."""
         try:
             vip_ip, vip_prefix = self._parse_vip(vip)
             vip_cidr = f"{vip_ip}/{vip_prefix}"
             ha_iface = self._ha_virtual_interface(interface)
-            result = subprocess.run(
-                ["ip", "addr", "del", vip_cidr, "dev", ha_iface],
+
+            dedicated_removed = self._delete_vip_from_interface(vip_cidr, ha_iface)
+            alias_removed = self._delete_vip_from_interface(vip_cidr, f"{interface}:vip")
+            base_removed = self._delete_vip_from_interface(vip_cidr, interface)
+
+            subprocess.run(
+                ["ip", "link", "del", ha_iface],
                 capture_output=True, text=True, timeout=5
             )
-            success = (
-                result.returncode == 0
-                or "Cannot assign requested address" in result.stderr
-                or "Cannot find device" in result.stderr
-                or "not found" in result.stderr.lower()
-            )
+
+            success = dedicated_removed or alias_removed or base_removed
             if success and broadcast:
                 self._set_vip_owner(None, None, broadcast=True)
             return success
