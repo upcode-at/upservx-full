@@ -54,6 +54,7 @@ class HAManager:
         self._running = False
         self.config = self._load_config()
         self.heartbeats: dict = self._load_heartbeats()
+        self._vip_prefix = self._extract_vip_prefix()  # Cache VIP prefix length
 
         if self.config.get("enabled"):
             self.start()
@@ -61,6 +62,13 @@ class HAManager:
     # ------------------------------------------------------------------
     # Config persistence
     # ------------------------------------------------------------------
+
+    def _extract_vip_prefix(self) -> str:
+        """Extract and cache the subnet prefix from VIP config."""
+        vip = self.config.get("vip", "")
+        if "/" in vip:
+            return vip.split("/")[1]
+        return "24"  # Default prefix if not specified
 
     def _load_config(self) -> dict:
         if os.path.exists(HA_CONFIG_FILE):
@@ -110,6 +118,10 @@ class HAManager:
                     self.config[key] = value
             self._save_config()
             config_snapshot = {**self.config}
+            
+            # Update cached VIP prefix if VIP was changed
+            if "vip" in kwargs:
+                self._vip_prefix = self._extract_vip_prefix()
 
         # Push updated config to all peer nodes (fire-and-forget, in background)
         # Only push non-transient shared config – election results are pushed via master-update
@@ -254,20 +266,25 @@ class HAManager:
     def assign_vip(self, vip: str, interface: str) -> bool:
         """Add the virtual IP to the given network interface."""
         try:
+            # Extract plain IP (without prefix)
+            vip_ip = vip.split("/")[0] if "/" in vip else vip
+            
+            # Use stored prefix or extract from config
+            if "/" in vip:
+                vip_prefix = vip.split("/")[1]
+                self._vip_prefix = vip_prefix  # Update cached prefix
+            else:
+                vip_prefix = self._vip_prefix
+            
+            vip_cidr = f"{vip_ip}/{vip_prefix}"
+
             # Check if already assigned
             check = subprocess.run(
                 ["ip", "addr", "show", "dev", interface],
                 capture_output=True, text=True, timeout=5
             )
-            if vip in check.stdout:
+            if vip_ip in check.stdout:
                 return True  # already owner
-
-            # Determine prefix length – default /24 if not supplied
-            if "/" not in vip:
-                vip_cidr = f"{vip}/24"
-            else:
-                vip_cidr = vip
-                vip = vip.split("/")[0]
 
             result = subprocess.run(
                 ["ip", "addr", "add", vip_cidr, "dev", interface],
@@ -278,7 +295,7 @@ class HAManager:
 
             # Send gratuitous ARP so network switches update their tables
             subprocess.run(
-                ["arping", "-c", "3", "-A", "-I", interface, vip],
+                ["arping", "-c", "3", "-A", "-I", interface, vip_ip],
                 capture_output=True, timeout=5
             )
             return True
@@ -288,16 +305,23 @@ class HAManager:
     def release_vip(self, vip: str, interface: str) -> bool:
         """Remove the virtual IP from the given network interface."""
         try:
-            if "/" not in vip:
-                vip_cidr = f"{vip}/24"
+            # Extract plain IP (without prefix)
+            vip_ip = vip.split("/")[0] if "/" in vip else vip
+            
+            # Use stored prefix or extract from config
+            if "/" in vip:
+                vip_prefix = vip.split("/")[1]
             else:
-                vip_cidr = vip
+                vip_prefix = self._vip_prefix
+            
+            vip_cidr = f"{vip_ip}/{vip_prefix}"
 
             result = subprocess.run(
                 ["ip", "addr", "del", vip_cidr, "dev", interface],
                 capture_output=True, text=True, timeout=5
             )
-            return result.returncode == 0 or "Cannot assign" in result.stderr
+            # Success if returncode is 0, or if already deleted (not found error)
+            return result.returncode == 0 or "Cannot assign" in result.stderr or "not found" in result.stderr.lower()
         except Exception:
             return False
 
