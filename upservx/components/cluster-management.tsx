@@ -762,8 +762,8 @@ export default function ClusterManagement() {
       />
 
       {clusterInfo?.is_member ? (
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
+        <Tabs defaultValue="overview" className="w-full space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">
               <Server className="h-4 w-4 mr-2" />
               Overview
