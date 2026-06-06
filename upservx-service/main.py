@@ -83,18 +83,23 @@ app = FastAPI(
 
 log_system("UpservX API starting up")
 
-# Configure CORS. For development, set FRONTEND_ORIGINS env to a comma-separated
-# list (e.g. "http://localhost:9200,http://127.0.0.1:9200"). If not set, automatically
-# detect all server IP addresses, hostnames, and common dev origins.
+# Configure CORS. For development/production, set FRONTEND_ORIGINS env to a
+# comma-separated list (e.g. "http://localhost:9200,http://127.0.0.1:9200").
+# If not set, auto-detect server addresses and additionally allow generic IP/
+# localhost origins with any port to support direct IP access reliably.
 frontend_origins = os.getenv("FRONTEND_ORIGINS")
 if frontend_origins:
     allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
+    allow_origin_regex = None
 else:
     allow_origins = get_server_addresses()
+    # Allow direct browser access via IPv4/localhost with arbitrary ports.
+    allow_origin_regex = r"^https?://((\d{1,3}\.){3}\d{1,3}|localhost|127\.0\.0\.1)(:\d+)?$"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
