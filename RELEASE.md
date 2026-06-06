@@ -1,56 +1,52 @@
-## Release v0.5.2 - Security Patch
+## Release v0.6.0 - Cluster HA & UX Improvements
 
-**Release Date:** 2026-05-19
+**Release Date:** 2026-06-06
 
-### What's New in UpservX v0.5.2
+### What's New in UpservX v0.6.0
 
-This is a security patch release addressing multiple vulnerabilities in third-party dependencies across the frontend (Next.js, PostCSS) and backend (python-multipart, python-dotenv, paramiko, pytest).
+This release focuses on cluster reliability and usability. High Availability coordination has been tightened across nodes, child nodes now see the full cluster state from the master, and the cluster management UI was aligned with the rest of the application for a more consistent full-width tab layout.
 
 ---
 
 ### Highlights
 
-#### Dependency Security Updates (Frontend)
+#### High Availability Improvements
 
-- **Next.js** updated from `16.1.6` to `16.2.6`
-  - Fixes SSRF vulnerability in applications using WebSocket upgrades (High)
-  - Fixes Middleware / Proxy bypass via dynamic route parameter injection (High)
-  - Fixes Denial of Service via connection exhaustion with Cache Components (High)
-  - Fixes Middleware / Proxy bypass in Pages Router applications using i18n (High)
-  - Fixes Middleware / Proxy bypass in App Router via segment-prefetch routes (High, including incomplete fix follow-up)
-  - Fixes Denial of Service with Server Components (High)
-  - Fixes cross-site scripting in `beforeInteractive` scripts with untrusted input (Moderate)
-  - Fixes Denial of Service in the Image Optimization API (Moderate)
-  - Fixes cache poisoning in React Server Component responses (Moderate)
-  - Fixes cross-site scripting in App Router applications using CSP nonces (Moderate)
-  - Fixes cache poisoning via collisions in React Server Component cache-busting (Low)
-  - Fixes Middleware / Proxy redirect cache poisoning (Low)
+- **Cross-node VIP ownership propagation**
+  - New inter-node endpoint `POST /cluster/ha/vip-owner-update` distributes the active VIP owner state across the cluster
+  - Cluster status now exposes `vip_owner_hostname`, `vip_owner_ip` and the active HA interface for better diagnostics
 
-- **PostCSS** forced to `8.5.15` via npm `overrides`
-  - Fixes XSS via unescaped `</style>` in CSS Stringify output (Moderate)
+- **Safer VIP placement**
+  - VIPs are now assigned directly on the configured physical interface instead of a dedicated dummy interface
+  - This avoids routing inconsistencies and LAN reachability issues during failover
 
-#### Dependency Security Updates (Backend)
+- **Local HA config boundaries**
+  - Node-local HA settings are no longer synchronized between nodes
+  - `GET /cluster/ha/config` now only returns shareable HA settings for cluster sync
 
-- **python-multipart** updated from `0.0.22` to `0.0.29`
-  - Fixes Denial of Service via unbounded multipart part headers (High)
-  - Fixes Denial of Service via large multipart preamble or epilogue data (Moderate)
+#### Cluster Visibility & Management
 
-- **python-dotenv** updated from `1.0.1` to `1.2.2`
-  - Fixes symlink following in `set_key` allowing arbitrary file overwrite via cross-device rename fallback (Moderate)
+- **Full cluster view on child nodes**
+  - Child nodes now load the complete cluster view from the master instead of building a reduced local view
+  - Secondary nodes now display the same membership list as the master
 
-- **paramiko** updated from `3.5.0` to `5.0.0`
-  - Fixes `rsakey.py` allowing the SHA-1 algorithm (Low)
+- **More robust node removal**
+  - Node removal now resolves targets reliably by stored hostname, original hostname, assigned hostname or IP address
+  - Force-leave cleanup is now best-effort and non-blocking when a child node is offline
 
-- **pytest** updated from `8.3.4` to `9.0.3`
-  - Fixes vulnerable tmpdir handling (Moderate)
+#### UI Consistency
 
-- **pytest-asyncio** updated from `0.25.2` to `1.3.0`
-  - Required to maintain compatibility with pytest 9.x
+- **HA settings safeguards**
+  - HA configuration inputs are locked while HA is enabled to prevent live edits of active failover settings
+
+- **Cluster UI polish**
+  - Remaining HA and cluster-adjacent labels were standardized to English
+  - Cluster module tabs now span the full page width like the other administration modules
 
 ---
 
 ### Upgrade Notes
 
 - No database migration required for this release.
-- No configuration changes required.
-- After pulling, run `npm install` in `upservx/` and `pip install -r requirements.txt` in `upservx-service/` to apply updated dependencies.
+- Review local HA interface and VIP settings after upgrading if you previously relied on dummy-interface based VIP placement.
+- No additional dependency installation steps are required beyond the usual application update process.

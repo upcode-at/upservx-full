@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-06
+
+> Full release notes: [releases/0.6.0.md](releases/0.6.0.md)
+
 ### Added
 - **High Availability cluster coordination**: New HA control flow for multi-node clusters with heartbeat, election result propagation and shared VIP ownership tracking
   - New inter-node endpoint `POST /cluster/ha/vip-owner-update` to distribute current VIP owner state across the cluster
@@ -20,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cluster info on child nodes**: Child nodes now load the full cluster view from the master instead of building a reduced local two-node view
 - **HA settings UI**: HA configuration inputs are now locked while HA is enabled to prevent live edits of active failover settings
 - **Cluster UI language**: Remaining HA/cluster-adjacent UI labels and status texts were standardized to English
+- **Cluster module tabs**: The Cluster management tab bar now spans the full page width like the other modules
 
 ### Fixed
 - **HA enabled state reset**: Enabling HA no longer flips back off because of incoming config synchronization from another node
