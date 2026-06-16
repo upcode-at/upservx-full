@@ -208,7 +208,7 @@ EOS
 
 step_generate_encryption_key() {
   cd "$APP_DIR/upservx-service"
-  venv/bin/python3 -c "from encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
+  venv/bin/python3 -c "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
 }
 
 step_setup_log_file() {
