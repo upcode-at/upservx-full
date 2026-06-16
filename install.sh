@@ -39,7 +39,7 @@ fi
 
 banner() {
   printf "\n${BOLD}${BLUE}==============================================================${NC}\n"
-  printf "${BOLD}${BLUE}                 UpservX Installer (v0.5.1)                  ${NC}\n"
+  printf "${BOLD}${BLUE}                 UpservX Installer (v0.6.0)                  ${NC}\n"
   printf "${BOLD}${BLUE}==============================================================${NC}\n"
   printf "${DIM}Log file: %s${NC}\n\n" "$LOG_FILE"
 }
