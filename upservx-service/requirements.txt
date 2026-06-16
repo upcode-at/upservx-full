@@ -18,3 +18,4 @@ python-pam==2.0.2
 six==1.17.0
 pyyaml>=6.0.2,<6.1
 pyotp==2.9.0
+encryption
