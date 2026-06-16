@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="UpservX API",
     description="Server Management API",
-    version="0.5.2",
+    version="0.6.0",
 )
 
 log_system("UpservX API starting up")
