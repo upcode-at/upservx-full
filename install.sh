@@ -148,15 +148,26 @@ step_init_lxd() {
 }
 
 step_init_k3s() {
-  local tmp_dir kubectl_version
+  local tmp_dir kubectl_version k3s_installer
 
   tmp_dir="$(mktemp -d)"
+
   kubectl_version="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
   curl -fsSL -o "$tmp_dir/kubectl" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
+  curl -fsSL -o "$tmp_dir/kubectl.sha256" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl.sha256"
+  (cd "$tmp_dir" && printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum -c -)
   install -o root -g root -m 0755 "$tmp_dir/kubectl" /usr/local/bin/kubectl
-  rm -rf "$tmp_dir"
 
-  curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --disable traefik --disable servicelb" sh -
+  k3s_installer="$tmp_dir/k3s-install.sh"
+  curl -fsSL -o "$k3s_installer" https://get.k3s.io
+  chmod 700 "$k3s_installer"
+  if [[ -n "${K3S_INSTALL_SHA256:-}" ]]; then
+    printf '%s  %s\n' "$K3S_INSTALL_SHA256" "$k3s_installer" | sha256sum -c -
+  else
+    printf "K3S_INSTALL_SHA256 not set; executing downloaded K3s installer without checksum pin.\n" >&2
+  fi
+  INSTALL_K3S_EXEC="server --disable traefik --disable servicelb" sh "$k3s_installer"
+  rm -rf "$tmp_dir"
 
   mkdir -p "$INSTALL_HOME/.kube"
   cp /etc/rancher/k3s/k3s.yaml "$INSTALL_HOME/.kube/config"
@@ -187,7 +198,40 @@ step_copy_project() {
 }
 
 step_install_node_repo() {
-  curl -fsSL "https://deb.nodesource.com/setup_${NODE_REQUIRED_MAJOR}.x" | bash -
+  local keyring key_tmp
+
+  # shellcheck source=/dev/null
+  . /etc/os-release
+  keyring="/etc/apt/keyrings/nodesource.gpg"
+
+  case "${ID:-}" in
+    debian|ubuntu) ;;
+    *)
+      printf "Unsupported OS for NodeSource apt repository: %s\n" "${ID:-unknown}" >&2
+      return 1
+      ;;
+  esac
+
+  key_tmp="$(mktemp)"
+  if [[ -z "$key_tmp" ]]; then
+    printf "Unable to create temporary file for NodeSource signing key.\n" >&2
+    return 1
+  fi
+
+  apt-get update
+  apt-get install -y ca-certificates curl gnupg
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL -o "$key_tmp" "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key"
+  if [[ -n "${NODESOURCE_KEY_SHA256:-}" ]]; then
+    printf '%s  %s\n' "$NODESOURCE_KEY_SHA256" "$key_tmp" | sha256sum -c -
+  else
+    printf "NODESOURCE_KEY_SHA256 not set; trusting downloaded NodeSource signing key via HTTPS.\n" >&2
+  fi
+  gpg --dearmor --yes -o "$keyring" "$key_tmp"
+  rm -f "$key_tmp"
+  chmod a+r "$keyring"
+  echo "deb [signed-by=${keyring}] https://deb.nodesource.com/node_${NODE_REQUIRED_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+  apt-get update
 }
 
 step_install_node() {
@@ -221,8 +265,8 @@ step_npm_build() {
 
 step_install_python_requirements() {
   cd "$APP_DIR/upservx-service"
-  python3 -m venv --without-pip venv
-  curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3
+  python3 -m venv venv
+  venv/bin/python3 -m pip install --upgrade pip
   venv/bin/pip install -r requirements.txt
 }
 
@@ -300,8 +344,8 @@ step_enable_service() {
 
 step_install_cli() {
   cd "$APP_DIR/upservx-cli"
-  python3 -m venv --without-pip venv
-  curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3
+  python3 -m venv venv
+  venv/bin/python3 -m pip install --upgrade pip
   venv/bin/pip install --quiet -r requirements.txt
 
   local cli_bin="/usr/local/bin/upservx"
