@@ -5,7 +5,9 @@ set -euo pipefail
 
 APP_DIR="/opt/upservx"
 SERVICE_NAME="upservx"
-PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev libpam0g-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc fail2ban"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REQUIRED_PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev libpam0g-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc fail2ban ca-certificates gnupg"
+OPTIONAL_PACKAGES="zfsutils-linux"
 NODE_REQUIRED_MAJOR=20
 
 LOG_DIR="/tmp"
@@ -97,26 +99,46 @@ require_root() {
 
 # === Step actions ============================================================
 step_update_codebase() {
+  cd "$SCRIPT_DIR"
   git pull origin
 }
 
 step_install_system_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  for pkg in $PACKAGES; do
-    apt-get install -y --ignore-missing "$pkg" || true
+  apt-get install -y $REQUIRED_PACKAGES
+  for pkg in $OPTIONAL_PACKAGES; do
+    apt-get install -y "$pkg" || true
   done
-  apt-get update
-  apt-get install -y --ignore-missing zfsutils-linux || true
 }
 
 step_install_docker() {
+  local os_id os_codename
+
+  # shellcheck source=/dev/null
+  . /etc/os-release
+  os_id="${ID:-}"
+  os_codename="${VERSION_CODENAME:-}"
+
+  case "$os_id" in
+    debian|ubuntu) ;;
+    *)
+      printf "Unsupported OS for Docker apt repository: %s\n" "$os_id" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "$os_codename" ]]; then
+    printf "Unable to determine OS codename for Docker apt repository.\n" >&2
+    return 1
+  fi
+
   apt-get update
   apt-get install -y ca-certificates curl
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  curl -fsSL "https://download.docker.com/linux/${os_id}/gpg" -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${os_id} ${os_codename} stable" > /etc/apt/sources.list.d/docker.list
   apt-get update
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 }
@@ -126,8 +148,14 @@ step_init_lxd() {
 }
 
 step_init_k3s() {
-  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-  install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  local tmp_dir kubectl_version
+
+  tmp_dir="$(mktemp -d)"
+  kubectl_version="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+  curl -fsSL -o "$tmp_dir/kubectl" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
+  install -o root -g root -m 0755 "$tmp_dir/kubectl" /usr/local/bin/kubectl
+  rm -rf "$tmp_dir"
+
   curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --disable traefik --disable servicelb" sh -
 
   mkdir -p "$INSTALL_HOME/.kube"
@@ -141,28 +169,31 @@ step_init_k3s() {
 }
 
 step_copy_project() {
+  cd "$SCRIPT_DIR"
   mkdir -p "$APP_DIR"
-  cp -R . "$APP_DIR"
+  tar \
+    --exclude='.git' \
+    --exclude='node_modules' \
+    --exclude='.next' \
+    --exclude='venv' \
+    --exclude='__pycache__' \
+    --exclude='*.pyc' \
+    --exclude='upservx/.env.local' \
+    --exclude='upservx/tsconfig.tsbuildinfo' \
+    --exclude='upservx-service/ssh_keys' \
+    --exclude='upservx-service/authorized_keys' \
+    -cf - . | tar -xf - -C "$APP_DIR"
   chown -R "$INSTALL_USER:$INSTALL_USER" "$APP_DIR" 2>/dev/null || true
 }
 
-step_install_nvm() {
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+step_install_node_repo() {
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_REQUIRED_MAJOR}.x" | bash -
 }
 
 step_install_node() {
-  export NVM_DIR="$HOME/.nvm"
-  # shellcheck source=/dev/null
-  [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-  nvm install "${NODE_REQUIRED_MAJOR}"
-  nvm use "${NODE_REQUIRED_MAJOR}"
-  nvm alias default "${NODE_REQUIRED_MAJOR}"
-
-  local node_bin_dir
-  node_bin_dir="$(dirname "$(nvm which current)")"
-  ln -sf "$node_bin_dir/node" /usr/local/bin/node
-  ln -sf "$node_bin_dir/npm" /usr/local/bin/npm
-  ln -sf "$node_bin_dir/npx" /usr/local/bin/npx
+  apt-get install -y nodejs
+  node --version
+  npm --version
 }
 
 step_npm_install() {
@@ -272,7 +303,6 @@ step_install_cli() {
   python3 -m venv --without-pip venv
   curl -fsSL https://bootstrap.pypa.io/get-pip.py | venv/bin/python3
   venv/bin/pip install --quiet -r requirements.txt
-  pip3 install -r requirements.txt --break-system-packages
 
   local cli_bin="/usr/local/bin/upservx"
   rm -f "$cli_bin"
@@ -297,7 +327,7 @@ banner
 mkdir -p "$LOG_DIR"
 : > "$LOG_FILE"
 
-if [[ -f "./upservx-service/requirements.txt" ]]; then
+if [[ -f "$SCRIPT_DIR/upservx-service/requirements.txt" ]]; then
   TOTAL_STEPS=22
 fi
 
@@ -307,8 +337,8 @@ run_step "Install Docker" step_install_docker
 run_step "Initialize LXD" step_init_lxd
 run_step "Initialize K3s" step_init_k3s
 run_step "Copy project to $APP_DIR" step_copy_project
-run_step "Install nvm" step_install_nvm
-run_step "Install Node.js ${NODE_REQUIRED_MAJOR} via nvm" step_install_node
+run_step "Configure NodeSource Node.js ${NODE_REQUIRED_MAJOR} repository" step_install_node_repo
+run_step "Install Node.js ${NODE_REQUIRED_MAJOR}" step_install_node
 run_step "Install frontend dependencies" step_npm_install
 run_step "Configure Next.js environment" step_configure_next_env
 run_step "Build frontend" step_npm_build
