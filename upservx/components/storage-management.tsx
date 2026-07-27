@@ -140,12 +140,17 @@ export function StorageManagement() {
 
   const handleMount = async () => {
     if (!activeDrive) return
+
+    setSuccess(null)
+    setError(null)
+
     try {
-      await fetch(apiUrl("/drives/mount"), {
+      const res = await fetch(apiUrl("/drives/mount"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ device: activeDrive.device, mountpoint: mountPath }),
       })
+      if (!res.ok) throw new Error(await res.text())
       await loadDrives()
       setSuccess("Drive mounted successfully and added to /etc/fstab")
     } catch (e) {

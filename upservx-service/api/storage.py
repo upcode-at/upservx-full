@@ -31,8 +31,8 @@ def list_zfs():
 def api_mount_drive(payload: DriveMountRequest):
     """Mount a drive."""
     try:
-        mount_drive(payload.device, payload.mount_point, payload.fs_type)
-        log_storage(f"Mounted [{payload.device}] → [{payload.mount_point}]")
+        mount_drive(payload.device, payload.mountpoint)
+        log_storage(f"Mounted [{payload.device}] → [{payload.mountpoint}]")
         return {"detail": "mounted"}
     except Exception as e:
         log_storage(f"Failed to mount [{payload.device}]: {e}", error=True)
@@ -42,12 +42,13 @@ def api_mount_drive(payload: DriveMountRequest):
 @router.post("/drives/unmount")
 def api_unmount_drive(payload: DriveUnmountRequest):
     """Unmount a drive."""
+    target = payload.mountpoint or payload.device
     try:
-        unmount_drive(payload.mount_point)
-        log_storage(f"Unmounted [{payload.mount_point}]")
+        unmount_drive(device=payload.device, mountpoint=payload.mountpoint)
+        log_storage(f"Unmounted [{target}]")
         return {"detail": "unmounted"}
     except Exception as e:
-        log_storage(f"Failed to unmount [{payload.mount_point}]: {e}", error=True)
+        log_storage(f"Failed to unmount [{target}]: {e}", error=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -55,8 +56,8 @@ def api_unmount_drive(payload: DriveUnmountRequest):
 def api_format_drive(payload: DriveFormatRequest):
     """Format a drive. The device must be unmounted."""
     try:
-        format_drive(payload.device, payload.fs_type, payload.label)
-        log_storage(f"Formatted [{payload.device}] as {payload.fs_type}")
+        format_drive(payload.device, payload.filesystem, payload.label)
+        log_storage(f"Formatted [{payload.device}] as {payload.filesystem}")
         return {"detail": "formatted"}
     except Exception as e:
         log_storage(f"Failed to format [{payload.device}]: {e}", error=True)
