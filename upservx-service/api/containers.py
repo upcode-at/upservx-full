@@ -12,6 +12,8 @@ import pty
 import os
 import fcntl
 import json
+import struct
+import termios
 from datetime import datetime
 
 from lib.models import ContainerCreate, Container, ImagePullRequest, DockerVolumeCreate, LXCStorageCreate
@@ -368,6 +370,17 @@ async def container_terminal(websocket: WebSocket, name: str):
                 try:
                     data = await websocket.receive_text()
                     if data:
+                        if data.startswith("{"):
+                            try:
+                                message = json.loads(data)
+                                if message.get("type") == "resize":
+                                    rows = max(1, int(message.get("rows", 24)))
+                                    cols = max(1, int(message.get("cols", 80)))
+                                    winsize = struct.pack("HHHH", rows, cols, 0, 0)
+                                    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+                                    continue
+                            except (AttributeError, TypeError, ValueError):
+                                pass
                         os.write(master_fd, data.encode('utf-8'))
                 except WebSocketDisconnect:
                     break
