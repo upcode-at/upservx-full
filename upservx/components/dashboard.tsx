@@ -73,7 +73,7 @@ export function Dashboard() {
       <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
         <main
           className={
-            activeSection === "shell"
+            activeSection === "shell" || activeSection === "logs"
               ? "min-h-0 flex-1 overflow-hidden p-0"
               : "flex-1 overflow-auto p-4 md:p-6 lg:p-8"
           }
