@@ -336,6 +336,11 @@ async def system_shell_websocket(websocket: WebSocket):
             os.dup2(slave_fd, 2)
             if slave_fd > 2:
                 os.close(slave_fd)
+            try:
+                os.chdir(os.path.expanduser("~"))
+            except OSError:
+                os.chdir("/")
+            os.environ["PWD"] = os.getcwd()
             os.environ['TERM'] = 'xterm-256color'
             os.execvp("bash", ["bash", "-l"])
             os._exit(1)
