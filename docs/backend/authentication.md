@@ -86,5 +86,6 @@ tokens could leak into URLs and logs.
 ## Rate limiting
 
 Login is limited to 10 attempts per IP per minute and WebSocket-ticket creation
-to 20 requests per IP per minute. This limiter is currently process-local; the
-multi-worker limitation remains tracked in the project TODO.
+to 20 requests per IP per minute. The browser-facing API is deliberately run as
+one Uvicorn process, so these buckets and one-time WebSocket tickets are
+consistent. The separate TLS process accepts signed cluster requests only.

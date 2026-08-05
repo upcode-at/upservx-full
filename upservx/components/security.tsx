@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { apiUrl } from "@/lib/api"
+import { apiUrl, waitForJob } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Clock,
   Bug,
   Search,
   ArrowUpCircle,
@@ -266,8 +265,10 @@ export default function SecurityManagement() {
     setLoadingPackages(true)
     try {
       const res = await fetch(apiUrl("/security/packages"), { credentials: "include" })
-      const data = await res.json()
-      setPackagesData(data)
+      if (!res.ok) throw new Error("Failed to queue package scan")
+      const queued = await res.json()
+      const completed = await waitForJob<PackagesData>(queued.persistent_job.id)
+      setPackagesData(completed.result || { available: false, error: "Package scan returned no result", total: 0, security_updates: 0, packages: [] })
     } catch {
       setPackagesData({ available: false, error: "Failed to fetch package data", total: 0, security_updates: 0, packages: [] })
     } finally {
@@ -305,8 +306,10 @@ export default function SecurityManagement() {
     setLoadingCve(true)
     try {
       const res = await fetch(apiUrl("/security/cve"), { credentials: "include" })
-      const data = await res.json()
-      setCveData(data)
+      if (!res.ok) throw new Error("Failed to queue CVE scan")
+      const queued = await res.json()
+      const completed = await waitForJob<CveData>(queued.persistent_job.id)
+      setCveData(completed.result || { available: false, error: "CVE scan returned no result" })
     } catch {
       setCveData({ available: false, error: "Failed to reach the CVE scanner" })
     } finally {
@@ -318,8 +321,19 @@ export default function SecurityManagement() {
     setLoadingContainerCve(true)
     try {
       const res = await fetch(apiUrl("/security/container-cve"), { credentials: "include" })
-      const data = await res.json()
-      setContainerCveData(data)
+      if (!res.ok) throw new Error("Failed to queue container CVE scan")
+      const queued = await res.json()
+      const completed = await waitForJob<ContainerCveData>(queued.persistent_job.id)
+      setContainerCveData(completed.result || {
+        available: false,
+        error: "Container CVE scan returned no result",
+        containers_total: 0,
+        containers_scanned: 0,
+        containers_with_issues: 0,
+        total_vulns: 0,
+        severity_counts: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
+        containers: [],
+      })
       setExpandedContainerKey(null)
     } catch {
       setContainerCveData({
@@ -362,6 +376,8 @@ export default function SecurityManagement() {
         setError(err.detail || "Upgrade failed")
         return
       }
+      const queued = await res.json()
+      await waitForJob(queued.persistent_job.id)
       setSuccess(pkg ? `${pkg} successfully upgraded` : "All packages upgraded")
       fetchPackages()
     } catch {

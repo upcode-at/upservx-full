@@ -452,7 +452,7 @@ class BackupDatabase:
             set_clauses = []
             values = []
             
-            for field in ['backup_size', 'status', 'error_message', 'completed']:
+            for field in ['backup_path', 'backup_size', 'status', 'error_message', 'completed']:
                 if field in update_data:
                     set_clauses.append(f"{field} = ?")
                     values.append(update_data[field])

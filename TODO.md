@@ -60,21 +60,26 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 
 ### Process model and persistent state
 
-- [ ] Correct the backend process model used with `uvicorn --workers 4`.
-  - Rate limits, WebSocket tickets, the HA manager, metric state, and several
-    global managers currently live only in one worker's memory.
-  - A ticket can therefore be created in worker A and rejected in worker B;
-    rate limits can be bypassed on a per-worker basis.
-  - Either enforce a single worker for now or move all shared state into a
-    transactional, concurrency-safe store.
-  - Replace process-local locks around shared JSON files with real
-    cross-process synchronization and atomic updates.
+- [x] Correct the backend process model used with `uvicorn --workers 4`.
+  - The browser-facing Uvicorn server is explicitly single-process. This keeps
+    rate limits, WebSocket tickets, metric state, and singleton managers
+    consistent until those components are moved to external stores.
+  - The separate TLS listener is signed-cluster-only and passive: it cannot
+    accept browser sessions or API tokens and does not start a second HA loop.
+  - TOTP, HA, replication configuration, backup configuration, and legacy
+    progress JSON updates use cross-process file locks and atomic replacement.
+    Corrupt security-sensitive state fails closed.
 
-- [ ] Move long-running work out of HTTP and worker processes.
-  - Run backups, replications, exports, scans, and updates as persistent jobs
-    with status, retry, cancellation, timeout, and resume support.
-  - A restart must not silently lose active work or leave it permanently marked
-    as `running`.
+- [x] Move long-running work out of HTTP and worker processes.
+  - A dedicated systemd worker claims jobs transactionally from an owner-only
+    SQLite WAL database. Backups, replications, VM and cluster exports, package
+    and CVE scans, package upgrades, and system updates all use this queue.
+  - Jobs expose durable status, progress, results, checkpoints, attempts,
+    exponential retry, cancellation, manual retry, and per-kind hard timeouts.
+    Task subprocess groups are terminated on cancellation or timeout.
+  - A singleton worker lock prevents competing supervisors. On restart, its
+    recovery transaction requeues interrupted work with its checkpoint (or
+    finalizes cancellation/failure), so no job remains permanently `running`.
 
 ### Installation, service privileges, and updates
 
@@ -262,8 +267,9 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
   consistently.
 - [ ] Implement loading, empty, partial-failure, and retry states consistently
   across all modules; do not discard errors only to the browser console.
-- [ ] Expose long-running operations through job progress instead of blocking
-  requests.
+- [x] Expose backups, replications, exports, scans, and updates through
+  persistent job progress instead of blocking requests. The affected frontend
+  flows poll durable status and surface completion or failure.
 - [ ] Require confirmation for security-critical actions that explains the
   exact impact, target, and recoverability.
 - [ ] Remove the hard-coded development IP from `next.config.ts` and make

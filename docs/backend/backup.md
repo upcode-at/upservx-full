@@ -80,7 +80,7 @@ tar czf <dest>/<name>-<timestamp>.tar.gz -C <source> .
 
 ## Scheduling
 
-The backup system uses the **crontab manager** (`crontab_manager.py`) to register jobs. Each backup job gets its own cron entry:
+The backup system uses the **crontab manager** (`crontab_manager.py`) to register schedules. Cron only enqueues work; the persistent `upservx-worker` performs the backup. Each backup schedule gets its own entry:
 
 ```
 */30 * * * * /usr/local/bin/upservx-backup execute <job_id>
@@ -112,6 +112,8 @@ def cleanup_old_backups(job: BackupJob, dest_path: str):
 | `GET` | `/backup/jobs/{id}` | Job details |
 | `PUT` | `/backup/jobs/{id}` | Edit job |
 | `DELETE` | `/backup/jobs/{id}` | Delete job |
-| `POST` | `/backup/jobs/{id}/run` | Run job immediately |
+| `POST` | `/backup/jobs/{id}/execute` | Queue job immediately |
+| `POST` | `/backup/jobs/{id}/trigger` | Queue job immediately (compatibility alias) |
+| `GET` | `/backup/jobs/{id}/progress` | Latest persistent job progress |
 | `GET` | `/backup/jobs/{id}/results` | Execution history |
 | `GET` | `/backup/results` | All results |

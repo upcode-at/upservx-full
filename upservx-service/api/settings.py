@@ -1,7 +1,6 @@
 """System settings, VPN and notification management routes."""
 
 import os
-import subprocess
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -15,6 +14,7 @@ from handlers.settings import (
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status,
 )
 from lib.api_tokens import create_api_token, list_api_tokens, revoke_api_token
+from lib.jobs import enqueue_job
 from handlers.notifications import (
     load_notifications, save_notifications, test_email, test_webhook,
 )
@@ -194,30 +194,17 @@ def test_notification_webhook():
 # System update
 # ---------------------------------------------------------------------------
 
-@router.post("/settings/update")
+@router.post("/settings/update", status_code=202)
 async def run_update():
-    """Run the update.sh script to update the system."""
-    try:
-        update_script = "/opt/upservx/update.sh"
-        if not os.path.exists(update_script):
-            raise HTTPException(status_code=404, detail="update.sh not found")
-
-        result = subprocess.run(
-            ["sudo", "bash", update_script],
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-
-        return {
-            "detail": "update completed",
-            "exit_code": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=500, detail="update timed out")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue the system updater in the persistent job worker."""
+    update_script = "/opt/upservx/update.sh"
+    if not os.path.exists(update_script):
+        raise HTTPException(status_code=404, detail="update.sh not found")
+    job = enqueue_job(
+        "system_update",
+        {"script": update_script},
+        idempotency_key="system-update",
+        resource_type="system_update",
+        resource_id="system",
+    )
+    return {"detail": "update queued", "persistent_job": job}

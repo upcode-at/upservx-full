@@ -8,25 +8,27 @@ EncryptionManager. Each entry maps a Linux username to its encrypted TOTP secret
 import hashlib
 import os
 import secrets
-import threading
 import time
 from typing import Optional
 
 import pyotp
 
 from lib.encryption import get_encryption_manager
+from lib.file_lock import InterProcessFileLock
 from lib.secure_store import secure_read_json, secure_write_json
 
 _2FA_FILE = "/etc/upservx/2fa.json"
-_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Persistent store for pending setup sessions:
 #   /etc/upservx/2fa_setup.json  ->  {token: {username, secret, expires}}
 # ---------------------------------------------------------------------------
 _SETUP_FILE = "/etc/upservx/2fa_setup.json"
-_pending_lock = threading.Lock()
 _PENDING_TTL = 300  # 5 minutes
+
+
+def _store_lock(path: str) -> InterProcessFileLock:
+    return InterProcessFileLock(f"{path}.lock")
 
 
 def _load_pending() -> dict:
@@ -67,7 +69,7 @@ def create_pending_setup(username: str) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     expires = time.time() + _PENDING_TTL
 
-    with _pending_lock:
+    with _store_lock(_SETUP_FILE):
         store = _load_pending()
         store = _cleanup_pending_store(store)
         store[hashlib.sha256(token.encode("utf-8")).hexdigest()] = {
@@ -90,7 +92,7 @@ def verify_and_activate(token: str, code: str) -> bool:
 
     Returns True on success, False on invalid/expired token or wrong code.
     """
-    with _pending_lock:
+    with _store_lock(_SETUP_FILE):
         store = _load_pending()
         store = _cleanup_pending_store(store)
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -117,7 +119,7 @@ def verify_and_activate(token: str, code: str) -> bool:
 
 def cancel_pending(token: str) -> None:
     """Discard a pending setup session."""
-    with _pending_lock:
+    with _store_lock(_SETUP_FILE):
         store = _load_pending()
         store = _cleanup_pending_store(store)
         store.pop(hashlib.sha256(token.encode("utf-8")).hexdigest(), None)
@@ -144,7 +146,7 @@ def _save_store(store: dict) -> None:
 def _save_secret(username: str, secret: str) -> None:
     """Encrypt and store a TOTP secret for the given user."""
     enc = get_encryption_manager()
-    with _lock:
+    with _store_lock(_2FA_FILE):
         store = _load_store()
         store[username] = enc.encrypt(secret)
         _save_store(store)
@@ -152,7 +154,7 @@ def _save_secret(username: str, secret: str) -> None:
 
 def get_secret(username: str) -> Optional[str]:
     """Return the plaintext TOTP secret for *username*, or None if not set."""
-    with _lock:
+    with _store_lock(_2FA_FILE):
         store = _load_store()
     encrypted = store.get(username)
     if not encrypted:
@@ -162,7 +164,7 @@ def get_secret(username: str) -> Optional[str]:
 
 def disable_2fa(username: str) -> None:
     """Remove the stored TOTP secret for *username*."""
-    with _lock:
+    with _store_lock(_2FA_FILE):
         store = _load_store()
         store.pop(username, None)
         _save_store(store)
@@ -195,7 +197,6 @@ def verify_code(username: str, code: str) -> bool:
 #   /etc/upservx/login_tokens.json  ->  {token_hash: {username, expires, attempts}}
 # ---------------------------------------------------------------------------
 _LOGIN_TOKENS_FILE = "/etc/upservx/login_tokens.json"
-_login_tokens_lock = threading.Lock()
 _LOGIN_TOKEN_TTL = 120  # 2 minutes
 
 
@@ -248,7 +249,7 @@ def migrate_login_token_store() -> None:
 
     if not os.path.exists(_LOGIN_TOKENS_FILE):
         return
-    with _login_tokens_lock:
+    with _store_lock(_LOGIN_TOKENS_FILE):
         _save_login_tokens(_sanitize_login_tokens(_load_login_tokens()))
 
 
@@ -260,7 +261,7 @@ def create_login_token(username: str) -> str:
     """
     token = secrets.token_urlsafe(48)
     expires = time.time() + _LOGIN_TOKEN_TTL
-    with _login_tokens_lock:
+    with _store_lock(_LOGIN_TOKENS_FILE):
         store = _sanitize_login_tokens(_load_login_tokens())
         store[_login_token_hash(token)] = {
             "username": username,
@@ -279,7 +280,7 @@ def consume_login_token(token: str, code: str) -> Optional[str]:
     Returns the username on success, or None if the token is invalid, expired,
     over its attempt limit, or accompanied by the wrong code.
     """
-    with _login_tokens_lock:
+    with _store_lock(_LOGIN_TOKENS_FILE):
         store = _sanitize_login_tokens(_load_login_tokens())
         token_hash = _login_token_hash(token)
         entry = store.get(token_hash)

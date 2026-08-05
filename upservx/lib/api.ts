@@ -72,6 +72,55 @@ export function apiUrl(path: string): string {
   return ""
 }
 
+export interface PersistentJob<T = unknown> {
+  id: string
+  kind: string
+  status: "queued" | "running" | "retry_wait" | "cancel_requested" | "completed" | "failed" | "cancelled"
+  progress: number
+  message?: string | null
+  result?: T | null
+  error?: string | null
+}
+
+export async function waitForJob<T = unknown>(
+  jobId: string,
+  onProgress?: (job: PersistentJob<T>) => void,
+  timeoutMs = 4 * 60 * 60 * 1000,
+  statusPath = `/jobs/${encodeURIComponent(jobId)}`,
+): Promise<PersistentJob<T>> {
+  const deadline = Date.now() + timeoutMs
+  let lastError: Error | null = null
+
+  while (Date.now() < deadline) {
+    let job: PersistentJob<T> | null = null
+    let fatalError: Error | null = null
+    try {
+      const response = await fetch(apiUrl(statusPath), {
+        credentials: "include",
+        headers: getAuthHeaders(),
+      })
+      if (response.ok) {
+        job = await response.json() as PersistentJob<T>
+        onProgress?.(job)
+        lastError = null
+      } else if (response.status === 401 || response.status === 403 || response.status === 404) {
+        fatalError = new Error(`Unable to read job status (HTTP ${response.status})`)
+      } else {
+        lastError = new Error(`Job status returned HTTP ${response.status}`)
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Unable to read job status")
+    }
+    if (job?.status === "completed") return job
+    if (fatalError) throw fatalError
+    if (job?.status === "failed" || job?.status === "cancelled") {
+      throw new Error(job.error || job.message || `Job ${job.status}`)
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 1500))
+  }
+  throw lastError || new Error("Timed out waiting for the job")
+}
+
 export function wsUrl(path: string): string {
   // ALWAYS check runtime location first (browser-side)
   if (typeof window !== "undefined") {

@@ -90,6 +90,9 @@ def app(tmp_path_factory):
         # The shared integration app must never mutate the host's /etc/upservx.
         _main_module.enforce_config_permissions = lambda _root: {}
         _main_module.migrate_legacy_api_key = lambda _path: False
+        _main_module.initialize_job_store = lambda: None
+        _main_module.acquire_web_process_lock = lambda: None
+        _main_module.release_web_process_lock = lambda: None
         import lib.totp as _totp_module  # noqa: PLC0415
         _totp_module.migrate_login_token_store = lambda: None
         yield _app

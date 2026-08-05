@@ -11,10 +11,7 @@ import socket
 import ssl
 import subprocess
 import sys
-import threading
 import time
-from collections import defaultdict
-from datetime import datetime, timedelta
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -38,6 +35,8 @@ from lib.cluster_security import (
 )
 from lib.session_tokens import verify_session_token
 from lib.api_tokens import migrate_legacy_api_key, verify_api_token
+from lib.jobs import initialize_job_store
+from lib.process_model import acquire_web_process_lock, release_web_process_lock
 from lib.secure_store import (
     CONFIG_ROOT,
     apply_secure_umask,
@@ -47,6 +46,7 @@ from handlers.settings import load_settings
 from lib.logger import log_system
 
 apply_secure_umask()
+PASSIVE_PROCESS = os.getenv("UPSERVX_PASSIVE_PROCESS") == "1"
 
 # ---------------------------------------------------------------------------
 # Logging – tee stdout/stderr to log file
@@ -139,12 +139,27 @@ app = FastAPI(
 def initialize_security_stores() -> None:
     """Migrate legacy secrets and enforce the centralized file-mode policy."""
 
-    enforce_config_permissions(CONFIG_ROOT)
-    migrate_legacy_api_key(CONFIG_ROOT / "settings.json")
-    from lib.totp import migrate_login_token_store
+    if PASSIVE_PROCESS:
+        return
+    acquire_web_process_lock()
+    try:
+        ensure_proxy_running()
+        enforce_config_permissions(CONFIG_ROOT)
+        migrate_legacy_api_key(CONFIG_ROOT / "settings.json")
+        from lib.totp import migrate_login_token_store
 
-    migrate_login_token_store()
-    enforce_config_permissions(CONFIG_ROOT)
+        migrate_login_token_store()
+        initialize_job_store()
+        enforce_config_permissions(CONFIG_ROOT)
+    except Exception:
+        release_web_process_lock()
+        raise
+
+
+@app.on_event("shutdown")
+def release_process_lock() -> None:
+    if not PASSIVE_PROCESS:
+        release_web_process_lock()
 
 log_system("UpservX API starting up")
 
@@ -170,28 +185,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ensure_proxy_running()
-
-# ---------------------------------------------------------------------------
-# Generic in-memory rate limiter
-# ---------------------------------------------------------------------------
-_rl_buckets: dict = defaultdict(list)   # key -> [datetime, ...]
-_rl_lock = threading.Lock()
-
-
-def _check_rate_limit(key: str, max_attempts: int, window_seconds: int) -> bool:
-    """Return True if the key is within its allowed rate, False if exceeded."""
-    now = datetime.utcnow()
-    cutoff = now - timedelta(seconds=window_seconds)
-    with _rl_lock:
-        attempts = [t for t in _rl_buckets[key] if t > cutoff]
-        _rl_buckets[key] = attempts
-        if len(attempts) >= max_attempts:
-            return False
-        _rl_buckets[key].append(now)
-        return True
-
-
 # ---------------------------------------------------------------------------
 # PAM authentication middleware
 # ---------------------------------------------------------------------------
@@ -199,6 +192,13 @@ def _check_rate_limit(key: str, max_attempts: int, window_seconds: int) -> bool:
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
     """Authenticate signed sessions, scoped API tokens, or cluster peers."""
+    server = request.scope.get("server") or (None, None)
+    if server[1] == CLUSTER_TLS_PORT and not has_cluster_signature(request.headers):
+        # The second app process exists only as an authenticated transport
+        # listener. Browser sessions and public/API-token traffic stay on the
+        # single web process so they cannot observe a second set of globals.
+        return Response(status_code=401)
+
     if request.method == "OPTIONS":
         return await call_next(request)
 
@@ -212,7 +212,6 @@ async def pam_auth_middleware(request: Request, call_next):
         return await call_next(request)
 
     if has_cluster_signature(request.headers):
-        server = request.scope.get("server") or (None, None)
         if (
             request.scope.get("scheme") != "https"
             or server[1] != CLUSTER_TLS_PORT
@@ -323,6 +322,7 @@ from api.backup import router as backup_router
 from api.proxy import router as proxy_router
 from api.security import router as security_router
 from api.ha import router as ha_router
+from api.jobs import router as jobs_router
 
 app.include_router(auth_router)
 app.include_router(system_router)
@@ -344,6 +344,7 @@ app.include_router(backup_router)
 app.include_router(proxy_router)
 app.include_router(security_router)
 app.include_router(ha_router)
+app.include_router(jobs_router)
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -357,7 +358,9 @@ if __name__ == "__main__":
     cluster_server = subprocess.Popen([sys.executable, cluster_server_path])
     try:
         _wait_for_cluster_listener(cluster_server)
-        uvicorn.run("main:app", host="0.0.0.0", port=9500, workers=4)
+        # Shared runtime state is deliberately confined to one API process.
+        # Long-running work runs in the separate persistent job worker.
+        uvicorn.run(app, host="0.0.0.0", port=9500, workers=1)
     finally:
         cluster_server.terminate()
         try:

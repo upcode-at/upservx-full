@@ -8,10 +8,11 @@ from fastapi.responses import FileResponse
 
 from lib.models import VirtualMachineCreate, VirtualMachineUpdate
 from lib.logger import log_vm
+from lib.jobs import enqueue_job, get_job
 from handlers.vms import (
     list_vms_with_status, create_vm, update_vm, start_vm, shutdown_vm,
     delete_vm, get_vnc_info, clone_vm, list_snapshots, create_snapshot,
-    delete_snapshot, restore_snapshot, export_vm_ova, import_vm_ova,
+    delete_snapshot, restore_snapshot, import_vm_ova,
     EXPORT_DIR, IMPORT_DIR,
 )
 from handlers.isos import get_iso_dir
@@ -177,20 +178,29 @@ def restore_vm_snapshot(name: str, snapshot_name: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/vms/{name}/export")
+@router.post("/vms/{name}/export", status_code=202)
 def export_vm_endpoint(name: str, payload: dict = {}):
-    """Export a VM as OVA or OVF. VM must be stopped."""
+    """Queue a VM export. The persistent worker performs the heavy work."""
     fmt = (payload or {}).get("format", "ova").lower()
     if fmt not in ("ova", "ovf"):
         raise HTTPException(status_code=400, detail="format must be 'ova' or 'ovf'")
-    try:
-        path = export_vm_ova(name, export_format=fmt)
-        filename = os.path.basename(path)
-        log_vm(f"Exported VM [{name}] as {fmt.upper()} → [{path}]")
-        return {"detail": "exported", "filename": filename, "path": path}
-    except Exception as e:
-        log_vm(f"Failed to export VM [{name}]: {e}", error=True)
-        raise HTTPException(status_code=400, detail=str(e))
+    job = enqueue_job(
+        "vm_export",
+        {"name": name, "format": fmt},
+        idempotency_key=f"vm-export:{name}:{fmt}",
+        resource_type="vm_export",
+        resource_id=name,
+    )
+    return {"detail": "queued", "persistent_job": job}
+
+
+@router.get("/vms/exports/jobs/{job_id}")
+def get_vm_export_job(job_id: str):
+    """Return one VM export status to principals with VM read access."""
+    job = get_job(job_id)
+    if job is None or job.get("kind") != "vm_export":
+        raise HTTPException(status_code=404, detail="VM export job not found")
+    return job
 
 
 @router.get("/vms/exports/{filename}")

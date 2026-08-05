@@ -192,6 +192,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "GET",
         "/vms/{name}/vnc",
         "/vms/{name}/snapshots",
+        "/vms/exports/jobs/{job_id}",
         "/vms/exports/{filename}",
         "/isos",
     )
@@ -284,6 +285,8 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/security/ports",
         "/security/cve",
         "/security/container-cve",
+        "/jobs",
+        "/jobs/{job_id}",
     )
 
     # Admin-only mutation routes outside the cluster subsystem.
@@ -328,6 +331,8 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/security/fail2ban/unban",
         "/security/packages/upgrade",
         "/security/packages/upgrade/{name}",
+        "/jobs/{job_id}/cancel",
+        "/jobs/{job_id}/retry",
         "/debug/echo",
     )
     add(
@@ -419,6 +424,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/cluster/download/{filename}",
         "/cluster/ha/vote",
         "/cluster/ha/config",
+        "/cluster/jobs/{job_id}",
     )
     add(
         PermissionAction.CLUSTER_INTERNAL_WRITE,

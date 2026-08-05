@@ -9,7 +9,6 @@ Handles:
 - Failover coordination
 """
 
-import json
 import os
 import subprocess
 import threading
@@ -25,10 +24,13 @@ from lib.cluster_security import (
     normalize_cluster_port,
     signed_cluster_request_sync,
 )
-from lib.secure_store import secure_write_json
+from lib.file_lock import InterProcessFileLock
+from lib.secure_store import secure_read_json, secure_write_json
 
-HA_CONFIG_FILE = "/etc/upservx/ha.json"
-HA_HEARTBEATS_FILE = "/etc/upservx/ha_heartbeats.json"
+HA_CONFIG_ROOT = os.getenv("UPSERVX_CONFIG_DIR", "/etc/upservx")
+HA_CONFIG_FILE = os.path.join(HA_CONFIG_ROOT, "ha.json")
+HA_HEARTBEATS_FILE = os.path.join(HA_CONFIG_ROOT, "ha_heartbeats.json")
+HA_LOCK_FILE = os.path.join(HA_CONFIG_ROOT, "ha.lock")
 
 DEFAULT_CONFIG = {
     "enabled": False,
@@ -113,14 +115,15 @@ def get_ha_manager() -> "HAManager":
 
 class HAManager:
     def __init__(self):
-        self._lock = threading.Lock()
+        self._lock = InterProcessFileLock(HA_LOCK_FILE)
+        self._passive = os.getenv("UPSERVX_PASSIVE_PROCESS") == "1"
         self._heartbeat_thread: Optional[threading.Thread] = None
         self._running = False
         self.config = self._load_config()
         self.heartbeats: dict = self._load_heartbeats()
         self._vip_prefix = self._extract_vip_prefix()  # Cache VIP prefix length
 
-        if self.config.get("enabled"):
+        if self.config.get("enabled") and not self._passive:
             self.start()
 
     # ------------------------------------------------------------------
@@ -191,6 +194,7 @@ class HAManager:
     def _set_vip_owner(self, owner_hostname: Optional[str], owner_ip: Optional[str], broadcast: bool = False) -> None:
         """Persist VIP owner and optionally broadcast to peers."""
         with self._lock:
+            self.config = self._load_config()
             self.config["vip_owner_hostname"] = owner_hostname
             self.config["vip_owner_ip"] = owner_ip
             self._save_config()
@@ -199,28 +203,23 @@ class HAManager:
             self._broadcast_vip_owner(owner_hostname, owner_ip)
 
     def _load_config(self) -> dict:
-        if os.path.exists(HA_CONFIG_FILE):
-            try:
-                with open(HA_CONFIG_FILE, "r") as f:
-                    data = json.load(f)
-                # Merge with defaults so new keys are available
-                merged = {**DEFAULT_CONFIG, **data}
-                return merged
-            except Exception:
-                pass
-        return {**DEFAULT_CONFIG}
+        data = secure_read_json(HA_CONFIG_FILE, missing=None)
+        if data is None:
+            return {**DEFAULT_CONFIG}
+        if not isinstance(data, dict):
+            raise RuntimeError("HA configuration must be a JSON object")
+        return {**DEFAULT_CONFIG, **data}
 
     def _save_config(self):
         secure_write_json(HA_CONFIG_FILE, self.config)
 
     def _load_heartbeats(self) -> dict:
-        if os.path.exists(HA_HEARTBEATS_FILE):
-            try:
-                with open(HA_HEARTBEATS_FILE, "r") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return {}
+        data = secure_read_json(HA_HEARTBEATS_FILE, missing=None)
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            raise RuntimeError("HA heartbeat state must be a JSON object")
+        return data
 
     def _save_heartbeats(self):
         secure_write_json(HA_HEARTBEATS_FILE, self.heartbeats)
@@ -237,6 +236,7 @@ class HAManager:
 
     def update_config(self, **kwargs) -> dict:
         with self._lock:
+            self.config = self._load_config()
             for key, value in kwargs.items():
                 if key in DEFAULT_CONFIG or key == "enabled":
                     self.config[key] = value
@@ -300,7 +300,8 @@ class HAManager:
 
     def enable(self) -> dict:
         self.update_config(enabled=True)
-        self.start()
+        if not self._passive:
+            self.start()
         return self.config
 
     def disable(self) -> dict:
@@ -327,13 +328,14 @@ class HAManager:
     def apply_synced_config(self, incoming: dict) -> None:
         """Apply a HA config received from the master node (no re-broadcast)."""
         with self._lock:
+            self.config = self._load_config()
             for key, value in incoming.items():
                 if key in DEFAULT_CONFIG and key not in self._LOCAL_ONLY_KEYS:
                     self.config[key] = value
             self._save_config()
 
         # Restart heartbeat loop if enabled state changed
-        if self.config.get("enabled") and not self._running:
+        if self.config.get("enabled") and not self._running and not self._passive:
             self.start()
         elif not self.config.get("enabled") and self._running:
             self.stop()
@@ -342,6 +344,7 @@ class HAManager:
         """Record election result locally (no re-broadcast)."""
         now = datetime.now().isoformat()
         with self._lock:
+            self.config = self._load_config()
             self.config["active_master"] = winner_hostname
             self.config["active_master_ip"] = winner_ip
             self.config["last_election"] = now
@@ -350,6 +353,7 @@ class HAManager:
     def handle_master_update(self, winner_hostname: str, winner_ip: str, last_election: Optional[str] = None) -> None:
         """Apply election update locally and enforce VIP ownership state."""
         with self._lock:
+            self.config = self._load_config()
             self.config["active_master"] = winner_hostname
             self.config["active_master_ip"] = winner_ip
             self.config["last_election"] = last_election or datetime.now().isoformat()
@@ -369,6 +373,8 @@ class HAManager:
 
     def start(self):
         """Start the background heartbeat loop."""
+        if self._passive:
+            return
         if self._running:
             return
         self._running = True
@@ -389,6 +395,7 @@ class HAManager:
                          role: str, priority: int = 100) -> None:
         """Called when a heartbeat is received from a node."""
         with self._lock:
+            self.heartbeats = self._load_heartbeats()
             self.heartbeats[hostname] = {
                 "hostname": hostname,
                 "ip_address": ip_address,
@@ -403,6 +410,8 @@ class HAManager:
     def get_heartbeat_status(self) -> list:
         """Return heartbeat status for all known nodes with alive/stale flag."""
         with self._lock:
+            self.config = self._load_config()
+            self.heartbeats = self._load_heartbeats()
             interval = self.config.get("heartbeat_interval", 5)
             threshold = self.config.get("failure_threshold", 3)
             max_age = interval * threshold * 2  # seconds

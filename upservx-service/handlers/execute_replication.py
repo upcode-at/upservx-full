@@ -4,20 +4,18 @@ Replication Job Execution Script
 This script is called by cron to execute individual replication jobs.
 """
 
-import asyncio
 import logging
 import os
 import sys
-import traceback
 
 # Add the service directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 service_dir = os.path.dirname(current_dir)
 sys.path.append(service_dir)
 
-from api.cluster import read_replications, execute_replication
+from api.cluster import read_replications
 from lib.logger import log_system
-from handlers.notifications import notify
+from lib.jobs import enqueue_job
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,18 +54,20 @@ def execute_replication_job(replication_id: str) -> bool:
             replication.get("destination_node", "unknown"),
         )
 
-        notify(
-            "replication_started",
-            f"Replication '{replication.get('name', replication_id)}' started | Type: {replication.get('type', 'unknown')} | From: {replication.get('origin_node', 'unknown')} | To: {replication.get('destination_node', 'unknown')}",
+        persistent_job = enqueue_job(
+            "replication",
+            {"replication_id": replication_id},
+            idempotency_key=f"replication:{replication_id}",
+            resource_type="replication",
+            resource_id=replication_id,
         )
-
-        result = asyncio.run(execute_replication(replication))
-        return bool(result)
+        logger.info("Queued replication %s as %s", replication_id, persistent_job["id"])
+        return True
 
     except Exception as e:
         logger.error(f"Error executing replication job {replication_id}: {e}")
-        logger.error(traceback.format_exc())
-        log_system(f"Scheduled replication job [ID:{replication_id}] encountered an error: {e}", error=True)
+        logger.exception("Could not queue replication job %s", replication_id)
+        log_system(f"Scheduled replication job [ID:{replication_id}] could not be queued: {e}", error=True)
         return False
 
 

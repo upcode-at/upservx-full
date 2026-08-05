@@ -282,8 +282,10 @@ EOS
 }
 
 step_generate_encryption_key() {
+  install -d -o "$INSTALL_USER" -g "$INSTALL_USER" -m 0700 /etc/upservx
+  chown -R "$INSTALL_USER:$INSTALL_USER" /etc/upservx
   cd "$APP_DIR/upservx-service"
-  venv/bin/python3 -c "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
+  runuser -u "$INSTALL_USER" -- venv/bin/python3 -c "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
 }
 
 step_setup_log_file() {
@@ -328,18 +330,41 @@ ExecStart=$APP_DIR/start.sh
 Restart=always
 User=${INSTALL_USER}
 Environment=NODE_ENV=production
+Environment=UPSERVX_SERVICE_USER=${INSTALL_USER}
 StandardOutput=journal
 StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF_SERVICE
+
+  cat > "/etc/systemd/system/${SERVICE_NAME}-worker.service" <<EOF_WORKER
+[Unit]
+Description=UpservX persistent job worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=$APP_DIR/upservx-service
+ExecStart=$APP_DIR/upservx-service/venv/bin/python3 $APP_DIR/upservx-service/job_worker.py
+Restart=always
+RestartSec=2
+User=${INSTALL_USER}
+Environment=PYTHONUNBUFFERED=1
+Environment=UPSERVX_SERVICE_USER=${INSTALL_USER}
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF_WORKER
 }
 
 step_enable_service() {
   systemctl daemon-reload
-  systemctl enable "$SERVICE_NAME"
+  systemctl enable "$SERVICE_NAME" "${SERVICE_NAME}-worker"
   systemctl start "$SERVICE_NAME"
+  systemctl start "${SERVICE_NAME}-worker"
 }
 
 step_install_cli() {
@@ -360,6 +385,7 @@ EOF_CLI
 print_summary() {
   printf "${BOLD}${GREEN}Installation complete.${NC}\n"
   printf "Service status: ${BLUE}systemctl status %s${NC}\n" "$SERVICE_NAME"
+  printf "Worker status:  ${BLUE}systemctl status %s-worker${NC}\n" "$SERVICE_NAME"
   printf "CLI command:    ${BLUE}upservx --help${NC}\n"
   printf "Installer log:  ${BLUE}%s${NC}\n" "$LOG_FILE"
 }
@@ -403,4 +429,5 @@ run_step "Enable and start service" step_enable_service
 run_step "Install upservx CLI" step_install_cli
 
 systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
+systemctl restart "${SERVICE_NAME}-worker" >> "$LOG_FILE" 2>&1 || true
 print_summary

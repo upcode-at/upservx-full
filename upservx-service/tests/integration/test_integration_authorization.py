@@ -204,6 +204,21 @@ async def test_invalid_signature_fails_closed_even_with_valid_api_key(
 
 
 @pytest.mark.asyncio
+async def test_cluster_listener_rejects_browser_and_api_token_traffic(
+    app,
+    api_key_headers,
+):
+    response = await _request(
+        app,
+        "GET",
+        "/jobs",
+        base_url="https://testserver:9501",
+        headers=api_key_headers,
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_signed_cluster_transport_is_rejected_on_plain_http(app):
     verified = VerifiedClusterRequest(
         node_id="node-a",

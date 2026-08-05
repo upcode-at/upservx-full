@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { apiUrl, getAuthHeaders } from "@/lib/api"
+import { apiUrl, getAuthHeaders, waitForJob } from "@/lib/api"
 
 export function VirtualMachines() {
   interface VMData {
@@ -365,7 +365,7 @@ export function VirtualMachines() {
         const err = await res.json().catch(() => null)
         setError(err?.detail || "Failed to create snapshot")
       }
-    } catch (e) {
+    } catch {
       setError("Network error")
     } finally {
       setSnapshotLoading(false)
@@ -386,7 +386,7 @@ export function VirtualMachines() {
         const err = await res.json().catch(() => null)
         setError(err?.detail || "Failed to delete snapshot")
       }
-    } catch (e) {
+    } catch {
       setError("Network error")
     }
   }
@@ -405,7 +405,7 @@ export function VirtualMachines() {
         const err = await res.json().catch(() => null)
         setError(err?.detail || "Failed to restore snapshot")
       }
-    } catch (e) {
+    } catch {
       setError("Network error")
     }
   }
@@ -446,11 +446,19 @@ export function VirtualMachines() {
         body: JSON.stringify({ format: exportFormat }),
       })
       const data = await res.json().catch(() => null)
-      if (res.ok && data?.filename) {
+      if (res.ok && data?.persistent_job?.id) {
+        const completed = await waitForJob<{ filename: string }>(
+          data.persistent_job.id,
+          undefined,
+          4 * 60 * 60 * 1000,
+          `/vms/exports/jobs/${encodeURIComponent(data.persistent_job.id)}`,
+        )
+        const filename = completed.result?.filename
+        if (!filename) throw new Error("VM export completed without a download file")
         // Trigger browser download
         const link = document.createElement("a")
-        link.href = apiUrl(`/vms/exports/${encodeURIComponent(data.filename)}`)
-        link.download = data.filename
+        link.href = apiUrl(`/vms/exports/${encodeURIComponent(filename)}`)
+        link.download = filename
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)

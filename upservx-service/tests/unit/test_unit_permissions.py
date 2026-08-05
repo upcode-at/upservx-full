@@ -115,6 +115,15 @@ class TestRoutePolicy:
             get_route_action("POST", "/cluster/keys/update")
             == PermissionAction.CLUSTER_INTERNAL_WRITE
         )
+        assert get_route_action("GET", "/jobs/job-id") == PermissionAction.ADMIN_READ
+        assert (
+            get_route_action("POST", "/jobs/job-id/cancel")
+            == PermissionAction.ADMIN_WRITE
+        )
+        assert (
+            get_route_action("GET", "/cluster/jobs/job-id")
+            == PermissionAction.CLUSTER_INTERNAL_READ
+        )
 
     def test_dynamic_route_templates_match_actual_paths(self):
         assert (

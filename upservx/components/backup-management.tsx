@@ -80,7 +80,7 @@ interface BackupJob {
 
 interface BackupJobProgress {
   job_id: number
-  status: 'idle' | 'running' | 'completed' | 'failed'
+  status: 'idle' | 'queued' | 'running' | 'retry_wait' | 'cancel_requested' | 'completed' | 'failed' | 'cancelled'
   progress: number
   message: string
   updated_at?: string | null

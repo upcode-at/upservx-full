@@ -7,18 +7,15 @@ This script is called by cron to execute individual backup jobs.
 import sys
 import os
 import logging
-import json
-from datetime import datetime
-import traceback
 
 # Add the service directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(current_dir)
+service_dir = os.path.dirname(current_dir)
+sys.path.append(service_dir)
 
 from lib.backup_db import backup_db
-from handlers.backup import BackupManager
 from lib.logger import log_backup
-from handlers.notifications import notify
+from lib.jobs import enqueue_job
 
 # Setup logging
 logging.basicConfig(
@@ -33,93 +30,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def execute_backup_job(job_id: int) -> bool:
-    """Execute a specific backup job by ID."""
+    """Queue a scheduled backup for the persistent worker."""
     try:
-        logger.info(f"Starting backup job execution: {job_id}")
-        log_backup(f"Starting scheduled backup job [ID:{job_id}]")
-        
-        # Get job details from database
         job = backup_db.get_backup_job(job_id)
         if not job:
-            logger.error(f"Backup job {job_id} not found in database")
-            log_backup(f"Scheduled backup job [ID:{job_id}] not found in database", error=True)
+            logger.error("Backup job %s not found in database", job_id)
             return False
-        
-        logger.info(f"Executing backup job: {job['name']}")
-        notify(
-            "backup_started",
-            f"Backup job '{job['name']}' started | Type: {job.get('backup_type', 'unknown')} | Server ID: {job.get('server_id', 'unknown')}",
+        persistent_job = enqueue_job(
+            "backup",
+            {"backup_job_id": job_id},
+            idempotency_key=f"backup:{job_id}",
+            resource_type="backup_job",
+            resource_id=job_id,
         )
-        
-        # Get server details
-        server = backup_db.get_backup_server(job['server_id'], include_secrets=True)
-        if not server:
-            logger.error(f"Backup server {job['server_id']} not found for job {job_id}")
-            return False
-        
-        # Create backup manager and execute
-        backup_manager = BackupManager()
-        
-        # Create backup instance record
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        instance_data = {
-            'job_id': job_id,
-            'server_id': server['id'],
-            'backup_name': f"{job['name']}_{timestamp}",
-            'backup_path': '',  # Will be updated after backup creation
-            'backup_size': 0,
-            'status': 'in_progress',
-            'backup_type': job['backup_type'],
-            'targets': json.dumps(job['targets']),
-            'error_message': None,
-            'started': datetime.now().isoformat(),
-            'completed': None
-        }
-        
-        instance_id = backup_db.create_backup_instance(instance_data)
-        
-        try:
-            # Execute the actual backup
-            result = backup_manager.execute_backup(job, server)
-            
-            # Update instance with results
-            if result.get('success', False):
-                backup_db.update_backup_instance(instance_id, {
-                    'status': 'completed',
-                    'completed': datetime.now().isoformat(),
-                    'backup_size': result.get('size', 0),
-                    'backup_path': result.get('backup_path', ''),
-                    'error_message': None
-                })
-                logger.info(f"Backup job {job_id} completed successfully")
-                log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) completed successfully")
-                size_mb = round(result.get('size', 0) / 1024 / 1024, 2)
-                notify("backup_success", f"Backup job '{job['name']}' completed | Size: {size_mb} MB | Path: {result.get('backup_path', 'n/a')}")
-                return True
-            else:
-                backup_db.update_backup_instance(instance_id, {
-                    'status': 'failed',
-                    'completed': datetime.now().isoformat(),
-                    'error_message': result.get('error', 'Unknown error')
-                })
-                logger.error(f"Backup job {job_id} failed: {result.get('error')}")
-                log_backup(f"Scheduled backup job [{job['name']}] (ID:{job_id}) failed: {result.get('error')}", error=True)
-                notify("backup_failure", f"Backup job '{job['name']}' FAILED | Error: {result.get('error', 'Unknown error')}")
-                return False
-                
-        except Exception as e:
-            # Update instance with error
-            backup_db.update_backup_instance(instance_id, {
-                'status': 'failed',
-                'completed': datetime.now().isoformat(),
-                'error_message': str(e)
-            })
-            raise
-        
+        logger.info("Queued backup job %s as %s", job_id, persistent_job["id"])
+        log_backup(f"Queued scheduled backup job [ID:{job_id}]")
+        return True
     except Exception as e:
-        logger.error(f"Error executing backup job {job_id}: {e}")
-        logger.error(traceback.format_exc())
-        log_backup(f"Scheduled backup job [ID:{job_id}] encountered an error: {e}", error=True)
+        logger.exception("Error queueing backup job %s: %s", job_id, e)
+        log_backup(f"Scheduled backup job [ID:{job_id}] could not be queued: {e}", error=True)
         return False
 
 def main():

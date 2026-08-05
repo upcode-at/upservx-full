@@ -21,7 +21,9 @@ from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
 from lib.crontab_manager import CrontabManager
-from lib.secure_store import ensure_config_directory
+from lib.file_lock import InterProcessFileLock
+from lib.jobs import enqueue_job, find_latest_job, get_job
+from lib.secure_store import ensure_config_directory, secure_read_json
 from lib.cluster_security import (
     CLUSTER_TLS_PORT,
     DEFAULT_KEY_OVERLAP_SECONDS,
@@ -1859,6 +1861,7 @@ async def get_cluster_health():
 
 # Replication configuration directory
 REPLICATIONS_FILE = os.path.join(UPSERVX_CONFIG_DIR, "replications.json")
+REPLICATIONS_LOCK = InterProcessFileLock(f"{REPLICATIONS_FILE}.lock")
 
 class ReplicationCreate(BaseModel):
     origin_node: str
@@ -1869,20 +1872,18 @@ class ReplicationCreate(BaseModel):
 
 def read_replications():
     """Read replication rules from config file"""
-    if os.path.exists(REPLICATIONS_FILE):
-        try:
-            with open(REPLICATIONS_FILE, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            _clog(f"[REPLICATION] Error reading replications: {e}", error=True)
-
-    return []
+    with REPLICATIONS_LOCK:
+        data = secure_read_json(REPLICATIONS_FILE, missing=[])
+        if not isinstance(data, list):
+            raise RuntimeError("Replication configuration must be a JSON list")
+        return data
 
 def write_replications(replications: list):
     """Write replication rules to config file"""
     ensure_config_dir()
     try:
-        write_cluster_json(REPLICATIONS_FILE, replications)
+        with REPLICATIONS_LOCK:
+            write_cluster_json(REPLICATIONS_FILE, replications)
         _clog(f"[REPLICATION] Saved {len(replications)} replication rules")
     except Exception as e:
         _clog(f"[REPLICATION] Error writing replications: {e}", error=True)
@@ -1904,21 +1905,20 @@ async def create_replication(replication: ReplicationCreate):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can manage replications")
     
-    replications = read_replications()
-    
-    import uuid
-    new_replication = {
-        "id": str(uuid.uuid4()),
-        "origin_node": replication.origin_node,
-        "destination_node": replication.destination_node,
-        "name": replication.name,
-        "type": replication.type,
-        "sync_schedule": replication.sync_schedule,
-        "created_at": datetime.now().isoformat()
-    }
-    
-    replications.append(new_replication)
-    write_replications(replications)
+    with REPLICATIONS_LOCK:
+        replications = read_replications()
+        import uuid
+        new_replication = {
+            "id": str(uuid.uuid4()),
+            "origin_node": replication.origin_node,
+            "destination_node": replication.destination_node,
+            "name": replication.name,
+            "type": replication.type,
+            "sync_schedule": replication.sync_schedule,
+            "created_at": datetime.now().isoformat()
+        }
+        replications.append(new_replication)
+        write_replications(replications)
     
     try:
         cron_manager = CrontabManager()
@@ -1929,15 +1929,25 @@ async def create_replication(replication: ReplicationCreate):
         )
 
         if not cron_success:
-            replications = [r for r in replications if r["id"] != new_replication["id"]]
-            write_replications(replications)
+            with REPLICATIONS_LOCK:
+                remaining = [
+                    item
+                    for item in read_replications()
+                    if item["id"] != new_replication["id"]
+                ]
+                write_replications(remaining)
             raise HTTPException(status_code=500, detail="Failed to schedule replication job")
 
     except HTTPException:
         raise
     except Exception as e:
-        replications = [r for r in replications if r["id"] != new_replication["id"]]
-        write_replications(replications)
+        with REPLICATIONS_LOCK:
+            remaining = [
+                item
+                for item in read_replications()
+                if item["id"] != new_replication["id"]
+            ]
+            write_replications(remaining)
         _clog(f"[REPLICATION] Error scheduling cron job: {e}", error=True)
         raise HTTPException(status_code=500, detail=f"Failed to schedule replication job: {e}")
 
@@ -1951,21 +1961,16 @@ async def delete_replication(replication_id: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can manage replications")
     
-    replications = read_replications()
-    
-    # Find the replication before deleting it
-    replication_to_delete = None
-    for r in replications:
-        if r["id"] == replication_id:
-            replication_to_delete = r
-            break
-    
-    if not replication_to_delete:
-        raise HTTPException(status_code=404, detail="Replication not found")
-    
-    # Remove from replications list
-    updated_replications = [r for r in replications if r["id"] != replication_id]
-    write_replications(updated_replications)
+    with REPLICATIONS_LOCK:
+        replications = read_replications()
+        replication_to_delete = next(
+            (item for item in replications if item["id"] == replication_id),
+            None,
+        )
+        if not replication_to_delete:
+            raise HTTPException(status_code=404, detail="Replication not found")
+        updated_replications = [r for r in replications if r["id"] != replication_id]
+        write_replications(updated_replications)
     
     # Remove cron job for this replication
     try:
@@ -1980,7 +1985,7 @@ async def delete_replication(replication_id: str):
     
     return {"message": "Replication deleted successfully"}
 
-@router.post("/cluster/replications/{replication_id}/trigger")
+@router.post("/cluster/replications/{replication_id}/trigger", status_code=202)
 async def trigger_replication(replication_id: str):
     """Manually trigger a replication"""
     if not is_master_node():
@@ -1997,22 +2002,18 @@ async def trigger_replication(replication_id: str):
     if not replication:
         raise HTTPException(status_code=404, detail="Replication not found")
     
-    _clog(f"[REPLICATION] Manually triggering replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
-    set_progress(
-        "replications",
-        replication_id,
-        status="running",
-        progress=1,
-        message="Replication started",
-        extra={"replication_id": replication_id, "name": replication["name"]},
+    _clog(f"[REPLICATION] Queueing replication: {replication['name']} from {replication['origin_node']} to {replication['destination_node']}")
+    persistent_job = enqueue_job(
+        "replication",
+        {"replication_id": replication_id},
+        idempotency_key=f"replication:{replication_id}",
+        resource_type="replication",
+        resource_id=replication_id,
     )
-    
-    import asyncio
-    asyncio.create_task(execute_replication(replication))
-    
     return {
-        "message": "Replication triggered successfully",
-        "replication": replication
+        "message": "Replication queued",
+        "replication": replication,
+        "persistent_job": persistent_job,
     }
 
 
@@ -2022,8 +2023,8 @@ async def get_replication_progress(replication_id: str):
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view replication progress")
 
-    data = get_progress("replications", replication_id)
-    if not data:
+    job = find_latest_job("replication", replication_id)
+    if not job:
         return {
             "replication_id": replication_id,
             "status": "idle",
@@ -2031,13 +2032,24 @@ async def get_replication_progress(replication_id: str):
             "message": "No active replication",
             "updated_at": None,
         }
-    return {"replication_id": replication_id, **data}
+    return {
+        "replication_id": replication_id,
+        "persistent_job_id": job["id"],
+        "status": job["status"],
+        "progress": job["progress"],
+        "message": job["message"],
+        "error": job["error"],
+        "result": job["result"],
+        "updated_at": job["updated_at"],
+    }
 
-async def execute_replication(replication: dict):
+async def execute_replication(replication: dict, progress_callback=None):
     """Execute the actual replication process"""
     replication_id = replication.get("id", "unknown")
 
     def _progress(value: int, message: str, status: str = "running"):
+        if progress_callback is not None:
+            progress_callback(value, message, status)
         set_progress(
             "replications",
             replication_id,
@@ -2134,11 +2146,48 @@ async def execute_replication(replication: dict):
             ca_certificate=origin_ca,
             timeout=300.0,
         )
-        if export_response.status_code != 200:
+        if export_response.status_code not in (200, 202):
             _progress(100, "Export failed", status="failed")
             return False
 
-        export_path = export_response.json().get("export_path")
+        export_data = export_response.json()
+        remote_job = export_data.get("persistent_job")
+        if remote_job:
+            remote_job_id = remote_job.get("id")
+            if not remote_job_id:
+                _progress(100, "Export job response was invalid", status="failed")
+                return False
+            status_url = cluster_url(
+                origin_ip,
+                origin_port,
+                f"/cluster/jobs/{remote_job_id}",
+            )
+            export_deadline = time.monotonic() + (4 * 60 * 60)
+            while time.monotonic() < export_deadline:
+                _progress(30, "Waiting for origin export job")
+                status_response = await signed_cluster_request(
+                    "GET",
+                    status_url,
+                    key=cluster_key,
+                    ca_certificate=origin_ca,
+                    timeout=30.0,
+                )
+                if status_response.status_code != 200:
+                    _progress(100, "Could not read export job", status="failed")
+                    return False
+                remote_job = status_response.json()
+                if remote_job.get("status") == "completed":
+                    export_data = remote_job.get("result") or {}
+                    break
+                if remote_job.get("status") in {"failed", "cancelled"}:
+                    _progress(100, "Origin export job failed", status="failed")
+                    return False
+                await asyncio.sleep(2)
+            else:
+                _progress(100, "Origin export job timed out", status="failed")
+                return False
+
+        export_path = export_data.get("export_path")
         if not export_path:
             _progress(100, "No export path returned", status="failed")
             return False
@@ -2352,8 +2401,7 @@ def _safe_tar_extractall(tar, dest_dir: str):
             raise Exception(f"Path traversal detected in archive member: {member.name}")
     tar.extractall(dest_dir)
 
-@router.post("/cluster/export/{resource_type}/{resource_name}")
-async def export_resource(resource_type: str, resource_name: str):
+async def _export_resource_now(resource_type: str, resource_name: str):
     """Export a container or VM with all volumes/storage"""
     _clog(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
     
@@ -2531,6 +2579,36 @@ async def export_resource(resource_type: str, resource_name: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.post("/cluster/export/{resource_type}/{resource_name}", status_code=202)
+async def export_resource(resource_type: str, resource_name: str):
+    """Queue a cluster transport export outside the API process."""
+    if resource_type not in {"container", "vm"}:
+        raise HTTPException(status_code=400, detail="Unknown resource type")
+    if (
+        not resource_name
+        or resource_name in {".", ".."}
+        or os.path.basename(resource_name) != resource_name
+    ):
+        raise HTTPException(status_code=400, detail="Invalid resource name")
+    job = enqueue_job(
+        "cluster_export",
+        {"resource_type": resource_type, "resource_name": resource_name},
+        idempotency_key=f"cluster-export:{resource_type}:{resource_name}",
+        resource_type="cluster_export",
+        resource_id=f"{resource_type}:{resource_name}",
+    )
+    return {"message": "Export queued", "persistent_job": job}
+
+
+@router.get("/cluster/jobs/{job_id}")
+async def get_cluster_transport_job(job_id: str):
+    """Return status for a signed inter-node transport job."""
+    job = get_job(job_id)
+    if job is None or job.get("kind") != "cluster_export":
+        raise HTTPException(status_code=404, detail="Cluster transport job not found")
+    return job
+
 
 @router.get("/cluster/download/{filename}")
 async def download_export(filename: str):

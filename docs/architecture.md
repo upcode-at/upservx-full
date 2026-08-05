@@ -125,6 +125,28 @@ No Authorization header?
   → Secure HttpOnly cookie named "auth" containing the signed session
 ```
 
+## Process and Job Model
+
+The public API on port 9500 runs as one Uvicorn process. Process-local rate
+limits, WebSocket tickets, metrics, and managers therefore have one owner. The
+port 9501 process is a passive, signed-cluster-only TLS transport and cannot
+serve browser or API-token traffic.
+
+Long-running operations never execute in either HTTP process. The
+`upservx-worker` systemd unit transactionally claims records from
+`/etc/upservx/jobs.db` and starts each task in an isolated process group:
+
+```
+HTTP/cron -> SQLite queue -> job_worker.py -> job_runner.py -> task handler
+                 |                 |
+                 |                 +-- heartbeat, timeout, process-group kill
+                 +-- status, retry, cancellation, checkpoint, result
+```
+
+The queue uses SQLite WAL mode and `BEGIN IMMEDIATE` claims. A worker restart
+recovers interrupted records instead of leaving them in `running`. Shared JSON
+read/modify/write sections use cross-process locks plus atomic file replacement.
+
 ---
 
 ## Technology Stack

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play, ShieldCheck, Zap, Radio } from "lucide-react"
+import { Server, Plus, Trash2, Network, Database, Settings as SettingsIcon, Activity, GitBranch, Play, ShieldCheck, Zap, Radio, Bug } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -62,7 +62,7 @@ interface Replication {
 
 interface ReplicationProgress {
   replication_id: string
-  status: "idle" | "running" | "completed" | "failed"
+  status: "idle" | "queued" | "running" | "retry_wait" | "cancel_requested" | "completed" | "failed" | "cancelled"
   progress: number
   message: string
   updated_at?: string | null
@@ -80,7 +80,7 @@ export default function ClusterManagement() {
   const [joinClusterOpen, setJoinClusterOpen] = useState(false)
   const [addReplicationOpen, setAddReplicationOpen] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [debugInfo, setDebugInfo] = useState<unknown>(null)
 
   const [clusterName, setClusterName] = useState("")
   const [masterIp, setMasterIp] = useState("")
@@ -346,7 +346,7 @@ export default function ClusterManagement() {
         setDebugInfo(data)
         setDebugOpen(true)
       }
-    } catch (err) {
+    } catch {
       setError("Failed to load debug information")
     }
   }
@@ -746,9 +746,15 @@ export default function ClusterManagement() {
             </>
           )}
           {clusterInfo?.is_member && (
-            <Button variant="destructive" onClick={leaveCluster}>
-              Leave Cluster
-            </Button>
+            <>
+              <Button variant="outline" onClick={loadDebugInfo}>
+                <Bug className="h-4 w-4 mr-2" />
+                Debug
+              </Button>
+              <Button variant="destructive" onClick={leaveCluster}>
+                Leave Cluster
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -1412,7 +1418,7 @@ export default function ClusterManagement() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {debugInfo && (
+            {debugInfo !== null && (
               <pre className="bg-muted p-4 rounded-lg text-xs overflow-auto">
                 {JSON.stringify(debugInfo, null, 2)}
               </pre>

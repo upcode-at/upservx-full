@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from lib.encryption import get_encryption_manager
+from lib.file_lock import InterProcessFileLock
 from lib.secure_store import (
     SecureStoreError,
     ensure_config_directory,
@@ -42,13 +43,19 @@ class ConfigManager:
     def _migrate_backup_files(self):
         """Migrate old backup_servers.json from root config dir to backup subdir."""
         old_backup_servers = os.path.join(CONFIG_DIR, "backup_servers.json")
-        if old_backup_servers != BACKUP_SERVERS_FILE and os.path.exists(old_backup_servers) and not os.path.exists(BACKUP_SERVERS_FILE):
-            try:
+        try:
+            with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
+                if (
+                    old_backup_servers == BACKUP_SERVERS_FILE
+                    or not os.path.exists(old_backup_servers)
+                    or os.path.exists(BACKUP_SERVERS_FILE)
+                ):
+                    return
                 shutil.move(old_backup_servers, BACKUP_SERVERS_FILE)
                 os.chmod(BACKUP_SERVERS_FILE, 0o600)
                 print(f"Migrated backup_servers.json to {BACKUP_SERVERS_FILE}")
-            except Exception as e:
-                print(f"Warning: Could not migrate backup_servers.json: {e}")
+        except Exception as e:
+            print(f"Warning: Could not migrate backup_servers.json: {e}")
     
     def _read_json_file(self, filepath: str, default: Any = None) -> Any:
         """Read and parse JSON file."""
@@ -115,27 +122,23 @@ class ConfigManager:
     def add_backup_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
         """Add new backup server configuration."""
         server_data = server_data.copy()
-        servers = self._get_backup_servers_raw()
-        
-        max_id = max([s.get("id", 0) for s in servers], default=0)
-        server_data["id"] = max_id + 1
-        server_data["created"] = datetime.now().isoformat()
-        server_data["status"] = "active"
-        if "password" in server_data and server_data["password"]:
-            encrypted_password = get_encryption_manager().encrypt(server_data["password"])
-            server_data["password"] = encrypted_password
-            server_data["password_encrypted"] = True
-        
-        servers.append(server_data)
-        
-        if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-            return self._without_password(server_data)
-        else:
+        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
+            servers = self._get_backup_servers_raw()
+            max_id = max([s.get("id", 0) for s in servers], default=0)
+            server_data["id"] = max_id + 1
+            server_data["created"] = datetime.now().isoformat()
+            server_data["status"] = "active"
+            if "password" in server_data and server_data["password"]:
+                encrypted_password = get_encryption_manager().encrypt(server_data["password"])
+                server_data["password"] = encrypted_password
+                server_data["password_encrypted"] = True
+            servers.append(server_data)
+            if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
+                return self._without_password(server_data)
             raise Exception("Failed to save backup server configuration")
     
     def update_backup_server(self, server_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update existing backup server."""
-        servers = self._get_backup_servers_raw()
         updates = updates.copy()
         
         if "password" in updates and updates["password"]:
@@ -143,30 +146,28 @@ class ConfigManager:
             updates["password"] = encryption.encrypt(updates["password"])
             updates["password_encrypted"] = True
         
-        for i, server in enumerate(servers):
-            if server.get("id") == server_id:
-                server.update(updates)
-                server["updated"] = datetime.now().isoformat()
-                servers[i] = server
-                
-                if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-                    return self._without_password(server)
-                else:
+        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
+            servers = self._get_backup_servers_raw()
+            for i, server in enumerate(servers):
+                if server.get("id") == server_id:
+                    server.update(updates)
+                    server["updated"] = datetime.now().isoformat()
+                    servers[i] = server
+                    if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
+                        return self._without_password(server)
                     raise Exception("Failed to update backup server configuration")
         
         return None
     
     def delete_backup_server(self, server_id: int) -> bool:
         """Delete backup server configuration."""
-        servers = self._get_backup_servers_raw()
-        original_count = len(servers)
-        
-        servers = [s for s in servers if s.get("id") != server_id]
-        
-        if len(servers) < original_count:
-            return self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers})
-        
-        return False
+        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
+            servers = self._get_backup_servers_raw()
+            original_count = len(servers)
+            servers = [s for s in servers if s.get("id") != server_id]
+            if len(servers) < original_count:
+                return self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers})
+            return False
     
     # SSH Key Management
     
@@ -220,9 +221,10 @@ class ConfigManager:
     def set_setting(self, key: str, value: Any) -> bool:
         """Set a general setting value."""
         settings_file = os.path.join(CONFIG_DIR, "settings.json")
-        data = self._read_json_file(settings_file, {})
-        data[key] = value
-        return self._write_json_file(settings_file, data)
+        with InterProcessFileLock(f"{settings_file}.lock"):
+            data = self._read_json_file(settings_file, {})
+            data[key] = value
+            return self._write_json_file(settings_file, data)
     
     def get_all_settings(self) -> Dict[str, Any]:
         """Get all general settings."""

@@ -11,16 +11,13 @@ Covers:
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Dict, Any
+from lib.jobs import enqueue_job
 
 from handlers.security import (
     get_all_fail2ban_jails,
     unban_ip,
-    get_upgradeable_packages,
-    upgrade_package,
     get_certificates,
     get_open_ports,
-    scan_cves,
-    scan_container_cves,
 )
 
 router = APIRouter(prefix="/security", tags=["security"])
@@ -62,41 +59,43 @@ async def unban_fail2ban_ip(body: UnbanRequest) -> Dict[str, Any]:
 # Package / CVE updates
 # ---------------------------------------------------------------------------
 
-@router.get("/packages")
+@router.get("/packages", status_code=202)
 async def list_upgradeable_packages() -> Dict[str, Any]:
-    """Return upgradeable packages – security updates are flagged separately."""
-    try:
-        return get_upgradeable_packages()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue the package metadata refresh and upgrade scan."""
+    job = enqueue_job(
+        "package_scan",
+        {},
+        idempotency_key="package-scan",
+        resource_type="security_scan",
+        resource_id="packages",
+    )
+    return {"message": "Package scan queued", "persistent_job": job}
 
 
-@router.post("/packages/upgrade")
+@router.post("/packages/upgrade", status_code=202)
 async def upgrade_all_packages() -> Dict[str, Any]:
-    """Run apt-get upgrade -y to upgrade all packages."""
-    try:
-        result = upgrade_package()
-        if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error"))
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue a full package upgrade."""
+    job = enqueue_job(
+        "package_upgrade",
+        {},
+        idempotency_key="package-upgrade:all",
+        resource_type="package_upgrade",
+        resource_id="all",
+    )
+    return {"message": "Package upgrade queued", "persistent_job": job}
 
 
-@router.post("/packages/upgrade/{name}")
+@router.post("/packages/upgrade/{name}", status_code=202)
 async def upgrade_single_package(name: str) -> Dict[str, Any]:
-    """Upgrade a single package by name."""
-    try:
-        result = upgrade_package(name)
-        if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error"))
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue one package upgrade."""
+    job = enqueue_job(
+        "package_upgrade",
+        {"package_name": name},
+        idempotency_key=f"package-upgrade:{name}",
+        resource_type="package_upgrade",
+        resource_id=name,
+    )
+    return {"message": "Package upgrade queued", "persistent_job": job}
 
 
 # ---------------------------------------------------------------------------
@@ -129,24 +128,32 @@ async def list_open_ports() -> Dict[str, Any]:
 # CVE Scanner
 # ---------------------------------------------------------------------------
 
-@router.get("/cve")
+@router.get("/cve", status_code=202)
 async def scan_cve_vulnerabilities(
     limit: int = Query(default=300, ge=50, le=1000, description="Max packages to scan")
 ) -> Dict[str, Any]:
-    """Scan installed packages for CVEs via OSV.dev (Debian/Ubuntu only)."""
-    try:
-        return scan_cves(limit=limit)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue an installed-package CVE scan."""
+    job = enqueue_job(
+        "cve_scan",
+        {"limit": limit},
+        idempotency_key=f"cve-scan:{limit}",
+        resource_type="security_scan",
+        resource_id="host",
+    )
+    return {"message": "CVE scan queued", "persistent_job": job}
 
 
-@router.get("/container-cve")
+@router.get("/container-cve", status_code=202)
 async def scan_container_cve_vulnerabilities(
     container_limit: int = Query(default=30, ge=1, le=100, description="Max Docker/LXC containers to scan"),
     package_limit: int = Query(default=200, ge=20, le=1000, description="Max packages per container"),
 ) -> Dict[str, Any]:
-    """Scan running Docker and LXC containers for CVEs via OSV.dev."""
-    try:
-        return scan_container_cves(container_limit=container_limit, package_limit=package_limit)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Queue a Docker/LXC CVE scan."""
+    job = enqueue_job(
+        "container_cve_scan",
+        {"container_limit": container_limit, "package_limit": package_limit},
+        idempotency_key=f"container-cve:{container_limit}:{package_limit}",
+        resource_type="security_scan",
+        resource_id="containers",
+    )
+    return {"message": "Container CVE scan queued", "persistent_job": job}

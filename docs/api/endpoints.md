@@ -193,8 +193,19 @@
 | `POST` | `/backup/jobs` | Admin | Create job |
 | `PUT` | `/backup/jobs/{id}` | Admin | Edit job |
 | `DELETE` | `/backup/jobs/{id}` | Admin | Delete job |
-| `POST` | `/backup/jobs/{id}/run` | Admin | Run now |
+| `POST` | `/backup/jobs/{id}/execute` | Admin | Queue a durable run |
+| `POST` | `/backup/jobs/{id}/trigger` | Admin | Queue a durable run (compatibility alias) |
+| `GET` | `/backup/jobs/{id}/progress` | Admin | Latest durable run status |
 | `GET` | `/backup/results` | Admin | All results |
+
+## Persistent Jobs
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/jobs` | Admin | List persistent jobs |
+| `GET` | `/jobs/{id}` | Admin | Status, progress, checkpoint, and result |
+| `POST` | `/jobs/{id}/cancel` | Admin | Cancel queued or active work |
+| `POST` | `/jobs/{id}/retry` | Admin | Requeue a terminal job |
 
 ---
 

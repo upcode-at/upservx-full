@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
 import { Save, Key, Play, Square, Download, RefreshCw, Bell, Mail, Webhook, Send, Plus, X, Paintbrush, Upload, Trash2 } from "lucide-react"
-import { apiUrl } from "@/lib/api"
+import { apiUrl, waitForJob } from "@/lib/api"
 import { useAuth } from "@/components/auth-provider"
 import ReverseProxyManagement from "./reverse-proxy-management"
 
@@ -511,7 +511,15 @@ export function Settings() {
       
       const res = await fetch(apiUrl("/settings/update"), { method: "POST" })
       if (res.ok) {
-        const data = await res.json()
+        const queued = await res.json()
+        const completed = await waitForJob<{
+          exit_code: number
+          stdout: string
+          stderr: string
+        }>(queued.persistent_job.id, (job) => {
+          setUpdateOutput(`${job.message || "Update in progress"} (${job.progress}%)`)
+        })
+        const data = completed.result || { exit_code: 1, stdout: "", stderr: "No update result" }
         setUpdateOutput(data.stdout || data.stderr || "Update completed")
         
         if (data.exit_code === 0) {

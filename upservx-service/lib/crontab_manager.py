@@ -4,8 +4,10 @@ Manages automatic scheduling of backup jobs in system crontab
 """
 
 import os
+import pwd
 import re
 import subprocess
+import sys
 import tempfile
 from typing import List, Optional
 import logging
@@ -64,10 +66,15 @@ class CrontabManager:
     
     def __init__(self):
         self.crontab_path = "/etc/crontab"
-        self.python_executable = "/usr/bin/python3"
+        self.python_executable = sys.executable
+        self.service_user = os.getenv("UPSERVX_SERVICE_USER") or pwd.getpwuid(
+            os.geteuid()
+        ).pw_name
         # Use dynamic path based on current script location
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.backup_script_path = os.path.join(current_dir, "execute_backup.py")
+        self.backup_script_path = os.path.abspath(
+            os.path.join(current_dir, "..", "handlers", "execute_backup.py")
+        )
         self.replication_script_path = os.path.abspath(
             os.path.join(current_dir, "..", "handlers", "execute_replication.py")
         )
@@ -158,7 +165,7 @@ class CrontabManager:
         safe_name = self._sanitize_job_name(job_name)
 
         # Build cron entry with user specification for /etc/crontab
-        user = "root"  # Run backups as root for system access
+        user = self.service_user
         command = f"{self.python_executable} {self.backup_script_path} {job_id}"
 
         cron_entry = f"{minute} {hour} {day} {month} {weekday} {user} {command} {self.BACKUP_JOB_MARKER}_ID_{job_id} # {safe_name}\n"
@@ -170,7 +177,7 @@ class CrontabManager:
         minute, hour, day, month, weekday = self._validate_schedule(schedule)
         safe_name = self._sanitize_job_name(replication_name)
 
-        user = "root"
+        user = self.service_user
         command = f"{self.python_executable} {self.replication_script_path} {replication_id}"
 
         cron_entry = (
