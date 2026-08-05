@@ -10,6 +10,7 @@ import grp
 from typing import List
 from lib.models import SystemUserModel, SystemGroupModel
 from lib.logger import log_user
+from lib.privileged import require_privileged
 
 # Only allow safe POSIX usernames/groupnames
 _NAME_RE = re.compile(r'^[a-zA-Z0-9_][a-zA-Z0-9_\-\.]{0,31}$')
@@ -167,32 +168,20 @@ def _authorized_keys_path(username: str) -> str:
 
 def read_authorized_keys(username: str) -> List[str]:
     """Read SSH authorized keys for a user."""
-    path = _authorized_keys_path(username)
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
-                return [line.strip() for line in f if line.strip() and not line.startswith("#")]
-        except Exception:
-            return []
-    return []
+    _validate_name(username, "username")
+    result = require_privileged("authorized-keys-read", username)
+    return [
+        line.strip() for line in result.stdout.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
 
 
 def write_authorized_keys(username: str, keys: List[str]) -> None:
     """Write SSH authorized keys for a user."""
-    info = pwd.getpwnam(username)
-    ssh_dir = os.path.join(info.pw_dir, ".ssh")
-    os.makedirs(ssh_dir, exist_ok=True)
-    
-    path = os.path.join(ssh_dir, "authorized_keys")
-    with open(path, "w") as f:
-        for key in keys:
-            if key.strip():
-                f.write(key.strip() + "\n")
-    
-    try:
-        os.chown(ssh_dir, info.pw_uid, info.pw_gid)
-        os.chmod(ssh_dir, 0o700)
-        os.chown(path, info.pw_uid, info.pw_gid)
-        os.chmod(path, 0o600)
-    except Exception:
-        pass
+    _validate_name(username, "username")
+    content = "\n".join(key.strip() for key in keys if key.strip())
+    require_privileged(
+        "authorized-keys-write",
+        username,
+        input_text=content + ("\n" if content else ""),
+    )

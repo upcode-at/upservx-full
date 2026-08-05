@@ -28,8 +28,7 @@ The UpservX CLI (`upservx`) lets you manage your server directly from any termin
 The CLI is installed automatically by `install.sh` as part of the standard UpservX setup.
 
 ```bash
-chmod +x install.sh
-./install.sh
+sudo ./install.sh --disable-updates
 ```
 
 After installation, the `upservx` command is available system-wide:
@@ -39,7 +38,9 @@ upservx --help
 upservx --version
 ```
 
-The CLI lives in `/opt/upservx/upservx-cli/` and uses its own Python virtualenv at `/opt/upservx/upservx-cli/venv/`. The system-wide wrapper at `/usr/local/bin/upservx` calls this venv automatically — no manual activation needed.
+The CLI lives in the active immutable release under
+`/opt/upservx/current/upservx-cli/`. The system-wide wrapper at
+`/usr/local/bin/upservx` calls its locked virtual environment automatically.
 
 ### Manual / Development Setup
 
@@ -56,7 +57,7 @@ python3 upservx --help
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `requests` | 2.32.x | HTTP client for the UpservX API |
+| `requests` | 2.33.x | HTTP client for the UpservX API |
 | `rich` | 13.9.x | Colored terminal output and tables |
 
 ---

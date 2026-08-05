@@ -1,0 +1,7 @@
+[Unit]
+Description=UpservX application services
+Wants=upservx-api.service upservx-worker.service upservx-web.service
+After=upservx-api.service upservx-web.service
+
+[Install]
+WantedBy=multi-user.target

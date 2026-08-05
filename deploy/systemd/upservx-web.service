@@ -1,0 +1,35 @@
+[Unit]
+Description=UpservX frontend
+After=network-online.target
+Wants=network-online.target
+PartOf=upservx.target
+
+[Service]
+Type=simple
+User=upservx-web
+Group=upservx-web
+WorkingDirectory=/opt/upservx/current/upservx
+Environment=HOME=/var/lib/upservx-web
+Environment=NODE_ENV=production
+Environment=PORT=9200
+EnvironmentFile=-/var/lib/upservx-web/web.env
+ExecStart=/usr/bin/npm start -- --hostname 127.0.0.1
+ExecStartPost=/usr/local/libexec/upservx-health-check wait-web
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/upservx-web
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=upservx.target

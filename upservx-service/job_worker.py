@@ -45,6 +45,7 @@ class JobWorker:
         self.stopping = False
         self.process: subprocess.Popen | None = None
         self.active_job_id: str | None = None
+        self.release_runner = Path(__file__).resolve()
 
     def stop(self, *_args: object) -> None:
         self.stopping = True
@@ -134,6 +135,12 @@ class JobWorker:
                 time.sleep(POLL_SECONDS)
                 continue
             self._run_claimed(job)
+            installed_runner = Path(
+                "/opt/upservx/current/upservx-service/job_worker.py"
+            )
+            if installed_runner.exists() and installed_runner.resolve() != self.release_runner:
+                logger.info("A new release is active; restarting the job worker")
+                return
 
 
 def _acquire_singleton_lock() -> int:

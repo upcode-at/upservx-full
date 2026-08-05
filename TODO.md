@@ -83,43 +83,48 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 
 ### Installation, service privileges, and updates
 
-- [ ] Define and install one unambiguous privilege model.
-  - Depending on how it was installed, the systemd service runs either as a
-    regular user or as root, while backend functions need to modify `/etc`,
-    networking, the firewall, users, disks, libvirt, Docker, and systemd.
-  - Create a dedicated service user and narrowly scoped privileged helpers,
-    groups, or sudoers rules.
-  - Configure Docker, LXD, libvirt/KVM, and file permissions reproducibly
-    during installation and verify them with a post-install smoke test.
+- [x] Define and install one unambiguous privilege model.
+  - The API and worker run as the dedicated `upservx` system account; the
+    separately sandboxed frontend runs as `upservx-web`. Immutable releases
+    are root-owned and mutable state, configuration, logs, and runtime files
+    have explicit owners and modes.
+  - A root-owned helper is the only sudoers entry. It validates named host
+    operations and arguments; backend-only command shims route networking,
+    firewall, account, storage, package, certificate, and systemd operations
+    through it. Settings, fstab, cron, SSH-key, VPN, and nginx writes use
+    dedicated helper actions.
+  - Docker, LXD, and libvirt/KVM groups are added only for selected profiles.
+    The installed smoke test audits identities, groups, sudo policy, the full
+    `/etc/upservx` ownership/mode policy, units, HTTPS, noVNC, and readiness.
 
-- [ ] Rebuild the update path.
-  - `install.sh` copies the application to `/opt/upservx` without `.git`,
-    but `update.sh` tries to run `git pull` there.
-  - The update is started by the running service and stops that same service;
-    with the usual systemd KillMode, this can terminate the update process
-    itself.
-  - Execute updates outside the web service, use signed and versioned artifacts,
-    back up configuration, switch atomically, and add health checks and
-    rollback.
-  - Report non-zero exit codes as failures; the API currently responds with
-    “update completed” even when the script fails.
+- [x] Rebuild the update path.
+  - Releases are versioned, signed artifacts rather than Git checkouts. The
+    root-owned `upservx-update@VERSION.service` runs independently of the API,
+    verifies SHA-256 plus the detached signature, and rejects unsafe archive
+    paths, links, permissions, ownership, or missing release content.
+  - The updater backs up `/etc/upservx`, builds an immutable release, switches
+    `/opt/upservx/current` atomically, restarts and probes the public services,
+    and restores the previous release when readiness fails. Deployment assets
+    are validated before installation.
+  - Persistent jobs monitor root-owned updater state. Cancellation stops the
+    external unit, worker processes restart onto the new release after their
+    active job ends, and every non-zero exit is returned as a failed job.
 
-- [ ] Make the installer safe and minimal.
-  - Stop removing `pam_lastlog.so` globally from PAM files.
-  - Require verification of downloaded K3s/repository scripts and keys; do not
-    execute unverified remote scripts.
-  - Install K3s, LXD, PostgreSQL, FTP/vsftpd, OpenVPN, ZFS, and other large
-    components as optional profiles instead of mandatory packages.
-  - Use `npm ci` and reproducibly locked Python dependencies instead of
-    mutable installations.
-  - Run the frontend and backend as separate systemd units with readiness and
-    liveness checks.
+- [x] Make the installer safe and minimal.
+  - PAM is never edited. Core installation is separate from container,
+    virtualization, cluster, database, FTP, VPN, and ZFS profiles.
+  - NodeSource and Docker repository keys and the K3s/kubectl downloads require
+    caller-supplied SHA-256 pins; missing pins fail closed.
+  - Frontend dependencies use `npm ci`; backend and CLI environments install
+    exact, complete lock files. The frontend, API, and worker have separate
+    units, loopback application listeners, an HTTPS nginx entry point, startup
+    readiness probes, and recurring liveness recovery.
 
-- [ ] Repair the noVNC source in the repository.
-  - `upservx/public/novnc` is a Gitlink, but no matching `.gitmodules`
-    mapping exists.
-  - Either add a correct submodule or obtain noVNC exclusively as an installed,
-    verified dependency and remove the Gitlink.
+- [x] Repair the noVNC source in the repository.
+  - The existing pinned Gitlink now has an explicit `.gitmodules` mapping to
+    the official `https://github.com/novnc/noVNC.git` repository. Installation
+    verifies that the populated submodule matches the pinned Gitlink, and
+    signed release artifacts carry that exact source.
 
 ### Make the backup system functional
 

@@ -1,0 +1,33 @@
+[Unit]
+Description=UpservX API
+After=network-online.target
+Wants=network-online.target
+PartOf=upservx.target
+
+[Service]
+Type=simple
+User=upservx
+Group=upservx
+WorkingDirectory=/var/lib/upservx
+Environment=HOME=/var/lib/upservx
+Environment=PYTHONUNBUFFERED=1
+Environment=UPSERVX_SERVICE_USER=upservx
+Environment=UPSERVX_LOG_FILE=/var/log/upservx/api.log
+Environment=UPSERVX_API_HOST=127.0.0.1
+Environment=PATH=/usr/local/libexec/upservx-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/etc/upservx/service.env
+ExecStart=/opt/upservx/current/upservx-service/venv/bin/python3 /opt/upservx/current/upservx-service/main.py
+ExecStartPost=/usr/local/libexec/upservx-health-check wait-api
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillMode=mixed
+UMask=0077
+PrivateTmp=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=false
+
+[Install]
+WantedBy=upservx.target

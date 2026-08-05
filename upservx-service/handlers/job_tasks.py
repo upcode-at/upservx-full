@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
-import subprocess
+import re
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable
 
-from lib.jobs import JobContext
+from lib.jobs import JobCancelledError, JobContext
+from lib.privileged import run_privileged
 
 
 TaskHandler = Callable[[dict[str, Any], JobContext], Any]
@@ -313,39 +317,103 @@ def _system_update(payload: dict[str, Any], context: JobContext) -> dict[str, An
         dict,
     ):
         return checkpoint["result"]
-    update_script = str(payload.get("script", "/opt/upservx/update.sh"))
-    if update_script != "/opt/upservx/update.sh" or not os.path.isfile(update_script):
-        raise RuntimeError("update.sh not found")
-    context.progress(
-        5,
-        "Running system update",
-        checkpoint={"stage": "updating"},
-        save_checkpoint=True,
+    version = str(payload.get("version", ""))
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", version):
+        raise RuntimeError("invalid update version")
+    state_root = Path(
+        os.getenv("UPSERVX_UPDATE_STATE_ROOT", "/var/lib/upservx/update-state")
     )
-    result = subprocess.run(
-        ["sudo", "bash", update_script],
-        capture_output=True,
-        text=True,
-        timeout=None,
-        check=False,
-    )
-    context.check_cancelled()
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "Update failed")[-8000:]
-        raise RuntimeError(detail)
-    completed_result = {
-        "message": "System update completed",
-        "exit_code": result.returncode,
-        "stdout": result.stdout[-20_000:],
-        "stderr": result.stderr[-20_000:],
+    state_path = state_root / f"{version}.json"
+
+    def read_state() -> dict[str, Any] | None:
+        try:
+            if state_path.is_symlink() or not state_path.is_file():
+                return None
+            value = json.loads(state_path.read_text(encoding="utf-8"))
+            return value if isinstance(value, dict) else None
+        except (OSError, ValueError):
+            return None
+
+    existing = read_state()
+    if existing and existing.get("status") == "completed":
+        completed_result = {
+            "message": "Signed system update completed",
+            "version": version,
+            "release": existing.get("release"),
+            "backup": existing.get("backup"),
+            "exit_code": 0,
+            "resumed": True,
+        }
+        return completed_result
+
+    if checkpoint.get("stage") != "external-update-started":
+        context.progress(
+            5,
+            f"Starting signed update {version}",
+            checkpoint={"stage": "starting", "version": version},
+            save_checkpoint=True,
+        )
+        request = run_privileged("request-update", version, timeout=30)
+        if request.returncode != 0:
+            detail = request.stderr or request.stdout or "Unable to start update unit"
+            raise RuntimeError(detail.strip())
+        context.progress(
+            10,
+            "Update delegated to the independent system unit",
+            checkpoint={"stage": "external-update-started", "version": version},
+            save_checkpoint=True,
+        )
+
+    progress_by_status = {
+        "verifying": (15, "Verifying release signature"),
+        "installing": (40, "Building immutable release"),
+        "checking": (80, "Checking the new release"),
     }
-    context.progress(
-        95,
-        "System update completed",
-        checkpoint={"stage": "completed", "result": completed_result},
-        save_checkpoint=True,
-    )
-    return completed_result
+    last_status = None
+    while True:
+        try:
+            context.check_cancelled()
+        except JobCancelledError:
+            run_privileged("cancel-update", version, timeout=30)
+            raise
+        state = read_state()
+        if state:
+            status = state.get("status")
+            if status == "completed":
+                completed_result = {
+                    "message": "Signed system update completed",
+                    "version": version,
+                    "release": state.get("release"),
+                    "backup": state.get("backup"),
+                    "exit_code": int(state.get("exit_code", 0)),
+                }
+                if completed_result["exit_code"] != 0:
+                    raise RuntimeError("Updater reported completion with a non-zero exit code")
+                context.progress(
+                    95,
+                    "Signed system update completed",
+                    checkpoint={"stage": "completed", "result": completed_result},
+                    save_checkpoint=True,
+                )
+                return completed_result
+            if status == "failed":
+                exit_code = int(state.get("exit_code", 1) or 1)
+                detail = str(state.get("error") or "Signed system update failed")
+                raise RuntimeError(f"Updater exited with code {exit_code}: {detail}")
+            if status != last_status and status in progress_by_status:
+                progress, message = progress_by_status[status]
+                context.progress(
+                    progress,
+                    message,
+                    checkpoint={
+                        "stage": "external-update-started",
+                        "version": version,
+                        "updater_status": status,
+                    },
+                    save_checkpoint=True,
+                )
+                last_status = status
+        time.sleep(2)
 
 
 TASK_HANDLERS: dict[str, TaskHandler] = {

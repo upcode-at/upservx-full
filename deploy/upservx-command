@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Installed under command-specific symlink names in the backend-only PATH.
+set -euo pipefail
+
+command_name="$(basename -- "$0")"
+exec sudo -n /usr/local/libexec/upservx-privileged exec "$command_name" "$@"

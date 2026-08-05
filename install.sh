@@ -1,433 +1,469 @@
 #!/usr/bin/env bash
-# install.sh - Install dependencies, build frontend/backend and configure service
-
+# Reproducible, profile-based UpservX installer.
 set -euo pipefail
 
-APP_DIR="/opt/upservx"
-SERVICE_NAME="upservx"
+APP_ROOT=/opt/upservx
+SERVICE_USER=upservx
+WEB_USER=upservx-web
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REQUIRED_PACKAGES="build-essential gcc g++ make python3 python3-pip python3-venv python3-dev libpq-dev libpam0g-dev python3-certbot python3-certbot-nginx nginx certbot git lshw openssl gawk coreutils curl grep jq lxd qemu-kvm libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients sshfs vsftpd postgresql openvpn ftp linux-headers-$(uname -r) dkms websockify novnc fail2ban ca-certificates gnupg"
-OPTIONAL_PACKAGES="zfsutils-linux"
 NODE_REQUIRED_MAJOR=20
+LOG_FILE=/tmp/upservx-install.log
+LAST_STEP_LOG=/tmp/upservx-install-last.log
 
-LOG_DIR="/tmp"
-LOG_FILE="${LOG_DIR}/upservx-install.log"
-LAST_STEP_LOG="${LOG_DIR}/upservx-install-last.log"
+WITH_DOCKER=0
+WITH_LXD=0
+WITH_LIBVIRT=0
+WITH_K3S=0
+WITH_POSTGRESQL=0
+WITH_FTP=0
+WITH_OPENVPN=0
+WITH_ZFS=0
+UPDATES_ENABLED=1
+UPDATE_PUBLIC_KEY=
+RELEASE_VERSION=
 
-INSTALL_USER="${SUDO_USER:-$USER}"
-INSTALL_HOME="$(eval echo "~${INSTALL_USER}")"
+CORE_PACKAGES=(
+  build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
+  libpq-dev libpam0g-dev nginx certbot python3-certbot python3-certbot-nginx
+  git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo
+  nftables fail2ban cron openssh-client iproute2 isc-dhcp-client util-linux
+  e2fsprogs xfsprogs btrfs-progs dosfstools exfatprogs ntfs-3g parted
+)
 
-TOTAL_STEPS=21
-CURRENT_STEP=0
+usage() {
+  cat <<'EOF'
+Usage: sudo ./install.sh [OPTIONS]
 
-# === UI =====================================================================
-if [[ -t 1 ]]; then
-  BOLD="\033[1m"
-  DIM="\033[2m"
-  BLUE="\033[34m"
-  GREEN="\033[32m"
-  RED="\033[31m"
-  YELLOW="\033[33m"
-  NC="\033[0m"
-else
-  BOLD=""
-  DIM=""
-  BLUE=""
-  GREEN=""
-  RED=""
-  YELLOW=""
-  NC=""
+The default core profile installs only the API, frontend, worker, nginx,
+fail2ban, and their build/runtime dependencies.
+
+Profiles:
+  --profile core             No optional platform components (default)
+  --profile containers       Docker and LXD
+  --profile virtualization   libvirt/KVM and websockify
+  --profile cluster          Docker and checksum-pinned K3s/kubectl
+  --profile full             All optional profiles
+
+Individual options:
+  --with-docker --with-lxd --with-libvirt --with-k3s
+  --with-postgresql --with-ftp --with-openvpn --with-zfs
+  --update-public-key PATH   Required public key for signed updates
+  --disable-updates          Explicitly install without the update facility
+  --release-version VERSION  Override the local initial release version
+  -h, --help
+
+Remote repository/install material is fail-closed. Set NODESOURCE_KEY_SHA256
+when Node.js 20 is not already installed. Docker requires
+DOCKER_GPG_SHA256. K3s requires K3S_INSTALL_SHA256, KUBECTL_VERSION, and
+KUBECTL_SHA256.
+EOF
+}
+
+enable_profile() {
+  case "$1" in
+    core) ;;
+    containers) WITH_DOCKER=1; WITH_LXD=1 ;;
+    virtualization) WITH_LIBVIRT=1 ;;
+    cluster) WITH_DOCKER=1; WITH_K3S=1 ;;
+    full)
+      WITH_DOCKER=1; WITH_LXD=1; WITH_LIBVIRT=1; WITH_K3S=1
+      WITH_POSTGRESQL=1; WITH_FTP=1; WITH_OPENVPN=1; WITH_ZFS=1
+      ;;
+    *) printf 'Unknown profile: %s\n' "$1" >&2; exit 2 ;;
+  esac
+}
+
+while (($#)); do
+  case "$1" in
+    --profile) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; enable_profile "$2"; shift 2 ;;
+    --with-docker) WITH_DOCKER=1; shift ;;
+    --with-lxd) WITH_LXD=1; shift ;;
+    --with-libvirt) WITH_LIBVIRT=1; shift ;;
+    --with-k3s) WITH_K3S=1; shift ;;
+    --with-postgresql) WITH_POSTGRESQL=1; shift ;;
+    --with-ftp) WITH_FTP=1; shift ;;
+    --with-openvpn) WITH_OPENVPN=1; shift ;;
+    --with-zfs) WITH_ZFS=1; shift ;;
+    --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; shift 2 ;;
+    --disable-updates) UPDATES_ENABLED=0; shift ;;
+    --release-version) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; RELEASE_VERSION=$2; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Unknown installer option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  printf 'This installer must run as root. Use sudo ./install.sh.\n' >&2
+  exit 1
+fi
+if [[ $UPDATES_ENABLED == 1 ]]; then
+  [[ -n $UPDATE_PUBLIC_KEY && -f $UPDATE_PUBLIC_KEY ]] || {
+    printf 'Signed updates require --update-public-key PATH (or explicitly use --disable-updates).\n' >&2
+    exit 2
+  }
 fi
 
-banner() {
-  printf "\n${BOLD}${BLUE}==============================================================${NC}\n"
-  printf "${BOLD}${BLUE}                 UpservX Installer (v0.6.0)                  ${NC}\n"
-  printf "${BOLD}${BLUE}==============================================================${NC}\n"
-  printf "${DIM}Log file: %s${NC}\n\n" "$LOG_FILE"
+if [[ -z $RELEASE_VERSION ]]; then
+  base_version=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/upservx/package.json" | head -n 1)
+  [[ -n $base_version ]] || base_version=0.0.0
+  RELEASE_VERSION="${base_version}-local-$(date -u +%Y%m%d%H%M%S)"
+fi
+[[ $RELEASE_VERSION =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
+  printf 'Invalid release version: %s\n' "$RELEASE_VERSION" >&2
+  exit 2
 }
 
-spinner() {
-  local pid="$1"
-  local spin='|/-\\'
-  local i=0
-  while kill -0 "$pid" 2>/dev/null; do
-    i=$(( (i + 1) % 4 ))
-    printf "\r    ${DIM}[%c] working...${NC}" "${spin:$i:1}"
-    sleep 0.1
-  done
-  printf "\r%-40s\r" ""
+RELEASE_DIR="$APP_ROOT/releases/$RELEASE_VERSION"
+RELEASE_STAGING="$APP_ROOT/releases/.${RELEASE_VERSION}.$$"
+if [[ -e $APP_ROOT/current || -L $APP_ROOT/current ]]; then
+  printf 'An UpservX installation already exists. Use the signed updater instead of reinstalling.\n' >&2
+  exit 1
+fi
+if [[ -e $RELEASE_DIR || -e $RELEASE_STAGING ]]; then
+  printf 'Release already exists: %s\n' "$RELEASE_DIR" >&2
+  exit 1
+fi
+
+CURRENT_STEP=0
+TOTAL_STEPS=14
+cleanup() {
+  if [[ -n ${RELEASE_STAGING:-} && $RELEASE_STAGING == /opt/upservx/releases/.* && -d $RELEASE_STAGING ]]; then
+    rm -rf -- "$RELEASE_STAGING"
+  fi
 }
+trap cleanup EXIT
 
 run_step() {
-  local title="$1"
-  local fn="$2"
-
+  local title=$1
+  local function_name=$2
   CURRENT_STEP=$((CURRENT_STEP + 1))
-  printf "${BOLD}${BLUE}[%02d/%02d]${NC} %s\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$title"
-
-  : > "$LAST_STEP_LOG"
-  {
-    printf "\n=== [%02d/%02d] %s ===\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$title"
-    "$fn"
-  } >>"$LOG_FILE" 2>>"$LOG_FILE" &
-
-  local pid=$!
-  spinner "$pid"
-  wait "$pid"
-  local rc=$?
-
-  if [[ $rc -eq 0 ]]; then
-    printf "    ${GREEN}OK${NC}\n\n"
+  printf '[%02d/%02d] %s\n' "$CURRENT_STEP" "$TOTAL_STEPS" "$title"
+  if "$function_name" >>"$LOG_FILE" 2>&1; then
+    printf '    OK\n'
   else
-    # Extract the last lines of this failed section for quick visibility.
-    tail -n 60 "$LOG_FILE" > "$LAST_STEP_LOG" || true
-    printf "    ${RED}FAILED${NC}\n"
-    printf "    ${YELLOW}Last log lines:${NC}\n"
-    sed 's/^/      /' "$LAST_STEP_LOG" | tail -n 20
-    printf "\n${RED}Installation aborted.${NC} Full log: ${BOLD}%s${NC}\n" "$LOG_FILE"
+    tail -n 60 "$LOG_FILE" >"$LAST_STEP_LOG" || true
+    printf '    FAILED\n' >&2
+    sed 's/^/      /' "$LAST_STEP_LOG" | tail -n 20 >&2
     exit 1
   fi
 }
 
-require_root() {
-  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-    printf "${RED}This installer must run as root.${NC}\n"
-    printf "Use: ${BOLD}sudo ./install.sh${NC}\n"
-    exit 1
+verify_sha256() {
+  local expected=$1
+  local file=$2
+  [[ $expected =~ ^[0-9a-fA-F]{64}$ ]] || {
+    printf 'A pinned SHA-256 value is required for %s.\n' "$file" >&2
+    return 1
+  }
+  printf '%s  %s\n' "$expected" "$file" | sha256sum -c -
+}
+
+step_validate_source() {
+  [[ -f $SCRIPT_DIR/.gitmodules ]]
+  grep -Fq 'path = upservx/public/novnc' "$SCRIPT_DIR/.gitmodules"
+  grep -Fq 'url = https://github.com/novnc/noVNC.git' "$SCRIPT_DIR/.gitmodules"
+  [[ -f $SCRIPT_DIR/upservx/public/novnc/vnc.html ]]
+  if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    expected=$(git -C "$SCRIPT_DIR" ls-files -s upservx/public/novnc | awk '{print $2}')
+    actual=$(git -C "$SCRIPT_DIR/upservx/public/novnc" rev-parse HEAD)
+    [[ -n $expected && $expected == "$actual" ]] || {
+      printf 'The noVNC submodule is missing or checked out at the wrong commit.\n' >&2
+      return 1
+    }
+    git -C "$SCRIPT_DIR/upservx/public/novnc" diff --quiet
+    git -C "$SCRIPT_DIR/upservx/public/novnc" diff --cached --quiet
   fi
+  [[ -f $SCRIPT_DIR/upservx/package-lock.json ]]
+  [[ -f $SCRIPT_DIR/upservx-service/requirements.lock ]]
 }
 
-# === Step actions ============================================================
-step_update_codebase() {
-  cd "$SCRIPT_DIR"
-  git pull origin
-}
-
-step_install_system_packages() {
+step_install_core_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y $REQUIRED_PACKAGES
-  for pkg in $OPTIONAL_PACKAGES; do
-    apt-get install -y "$pkg" || true
-  done
-}
-
-step_install_docker() {
-  local os_id os_codename
-
-  # shellcheck source=/dev/null
-  . /etc/os-release
-  os_id="${ID:-}"
-  os_codename="${VERSION_CODENAME:-}"
-
-  case "$os_id" in
-    debian|ubuntu) ;;
-    *)
-      printf "Unsupported OS for Docker apt repository: %s\n" "$os_id" >&2
-      return 1
-      ;;
-  esac
-
-  if [[ -z "$os_codename" ]]; then
-    printf "Unable to determine OS codename for Docker apt repository.\n" >&2
-    return 1
-  fi
-
-  apt-get update
-  apt-get install -y ca-certificates curl
-  install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL "https://download.docker.com/linux/${os_id}/gpg" -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${os_id} ${os_codename} stable" > /etc/apt/sources.list.d/docker.list
-  apt-get update
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-}
-
-step_init_lxd() {
-  lxd init --auto
-}
-
-step_init_k3s() {
-  local tmp_dir kubectl_version k3s_installer
-
-  tmp_dir="$(mktemp -d)"
-
-  kubectl_version="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
-  curl -fsSL -o "$tmp_dir/kubectl" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
-  curl -fsSL -o "$tmp_dir/kubectl.sha256" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl.sha256"
-  (cd "$tmp_dir" && printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum -c -)
-  install -o root -g root -m 0755 "$tmp_dir/kubectl" /usr/local/bin/kubectl
-
-  k3s_installer="$tmp_dir/k3s-install.sh"
-  curl -fsSL -o "$k3s_installer" https://get.k3s.io
-  chmod 700 "$k3s_installer"
-  if [[ -n "${K3S_INSTALL_SHA256:-}" ]]; then
-    printf '%s  %s\n' "$K3S_INSTALL_SHA256" "$k3s_installer" | sha256sum -c -
-  else
-    printf "K3S_INSTALL_SHA256 not set; executing downloaded K3s installer without checksum pin.\n" >&2
-  fi
-  INSTALL_K3S_EXEC="server --disable traefik --disable servicelb" sh "$k3s_installer"
-  rm -rf "$tmp_dir"
-
-  mkdir -p "$INSTALL_HOME/.kube"
-  cp /etc/rancher/k3s/k3s.yaml "$INSTALL_HOME/.kube/config"
-  chown "$INSTALL_USER:$INSTALL_USER" "$INSTALL_HOME/.kube/config" 2>/dev/null || true
-  chmod 600 "$INSTALL_HOME/.kube/config"
-
-  if ! grep -q "KUBECONFIG=~/.kube/config" "$INSTALL_HOME/.bashrc" 2>/dev/null; then
-    echo "export KUBECONFIG=~/.kube/config" >> "$INSTALL_HOME/.bashrc"
-  fi
-}
-
-step_copy_project() {
-  cd "$SCRIPT_DIR"
-  mkdir -p "$APP_DIR"
-  tar \
-    --exclude='.git' \
-    --exclude='node_modules' \
-    --exclude='.next' \
-    --exclude='venv' \
-    --exclude='__pycache__' \
-    --exclude='*.pyc' \
-    --exclude='upservx/.env.local' \
-    --exclude='upservx/tsconfig.tsbuildinfo' \
-    --exclude='upservx-service/ssh_keys' \
-    --exclude='upservx-service/authorized_keys' \
-    -cf - . | tar -xf - -C "$APP_DIR"
-  chown -R "$INSTALL_USER:$INSTALL_USER" "$APP_DIR" 2>/dev/null || true
-}
-
-step_install_node_repo() {
-  local keyring key_tmp
-
-  # shellcheck source=/dev/null
-  . /etc/os-release
-  keyring="/etc/apt/keyrings/nodesource.gpg"
-
-  case "${ID:-}" in
-    debian|ubuntu) ;;
-    *)
-      printf "Unsupported OS for NodeSource apt repository: %s\n" "${ID:-unknown}" >&2
-      return 1
-      ;;
-  esac
-
-  key_tmp="$(mktemp)"
-  if [[ -z "$key_tmp" ]]; then
-    printf "Unable to create temporary file for NodeSource signing key.\n" >&2
-    return 1
-  fi
-
-  apt-get update
-  apt-get install -y ca-certificates curl gnupg
-  install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL -o "$key_tmp" "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key"
-  if [[ -n "${NODESOURCE_KEY_SHA256:-}" ]]; then
-    printf '%s  %s\n' "$NODESOURCE_KEY_SHA256" "$key_tmp" | sha256sum -c -
-  else
-    printf "NODESOURCE_KEY_SHA256 not set; trusting downloaded NodeSource signing key via HTTPS.\n" >&2
-  fi
-  gpg --dearmor --yes -o "$keyring" "$key_tmp"
-  rm -f "$key_tmp"
-  chmod a+r "$keyring"
-  echo "deb [signed-by=${keyring}] https://deb.nodesource.com/node_${NODE_REQUIRED_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
-  apt-get update
+  apt-get install -y "${CORE_PACKAGES[@]}"
+  local packages=()
+  [[ $WITH_LXD == 0 ]] || packages+=(lxd)
+  [[ $WITH_LIBVIRT == 0 ]] || packages+=(qemu-kvm qemu-utils libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients websockify sshfs cloud-image-utils genisoimage)
+  [[ $WITH_POSTGRESQL == 0 ]] || packages+=(postgresql)
+  [[ $WITH_FTP == 0 ]] || packages+=(vsftpd ftp)
+  [[ $WITH_OPENVPN == 0 ]] || packages+=(openvpn)
+  [[ $WITH_ZFS == 0 ]] || packages+=(zfsutils-linux linux-headers-"$(uname -r)" dkms)
+  ((${#packages[@]} == 0)) || apt-get install -y "${packages[@]}"
 }
 
 step_install_node() {
-  apt-get install -y nodejs
-  node --version
-  npm --version
+  local major=0
+  if [[ -x /usr/bin/node ]]; then
+    major=$(/usr/bin/node --version | sed 's/^v//' | cut -d. -f1)
+  fi
+  if ((major < NODE_REQUIRED_MAJOR)); then
+    [[ -n ${NODESOURCE_KEY_SHA256:-} ]] || {
+      printf 'Node.js %d is required; set NODESOURCE_KEY_SHA256 to enable the verified NodeSource repository.\n' "$NODE_REQUIRED_MAJOR" >&2
+      return 1
+    }
+    local key_tmp
+    key_tmp=$(mktemp)
+    curl -fsSL -o "$key_tmp" https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    verify_sha256 "$NODESOURCE_KEY_SHA256" "$key_tmp"
+    install -d -m 0755 /etc/apt/keyrings
+    gpg --batch --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg "$key_tmp"
+    rm -f -- "$key_tmp"
+    chmod 0644 /etc/apt/keyrings/nodesource.gpg
+    printf 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_%s.x nodistro main\n' "$NODE_REQUIRED_MAJOR" > /etc/apt/sources.list.d/nodesource.list
+    apt-get update
+    apt-get install -y nodejs
+  fi
+  major=$(/usr/bin/node --version | sed 's/^v//' | cut -d. -f1)
+  ((major >= NODE_REQUIRED_MAJOR))
+  /usr/bin/npm --version
 }
 
-step_npm_install() {
-  cd "$APP_DIR/upservx"
-  npm install
+step_install_optional_platforms() {
+  if [[ $WITH_DOCKER == 1 ]]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    [[ ${ID:-} == debian || ${ID:-} == ubuntu ]]
+    [[ -n ${VERSION_CODENAME:-} && -n ${DOCKER_GPG_SHA256:-} ]]
+    local docker_key
+    docker_key=$(mktemp)
+    curl -fsSL -o "$docker_key" "https://download.docker.com/linux/${ID}/gpg"
+    verify_sha256 "$DOCKER_GPG_SHA256" "$docker_key"
+    install -d -m 0755 /etc/apt/keyrings
+    install -o root -g root -m 0644 "$docker_key" /etc/apt/keyrings/docker.asc
+    rm -f -- "$docker_key"
+    printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$ID" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
+  fi
+  if [[ $WITH_LXD == 1 ]]; then
+    lxd init --auto
+  fi
+  if [[ $WITH_K3S == 1 ]]; then
+    [[ -n ${K3S_INSTALL_SHA256:-} && -n ${KUBECTL_VERSION:-} && -n ${KUBECTL_SHA256:-} ]]
+    local download_dir
+    download_dir=$(mktemp -d)
+    curl -fsSL -o "$download_dir/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+    verify_sha256 "$KUBECTL_SHA256" "$download_dir/kubectl"
+    install -o root -g root -m 0755 "$download_dir/kubectl" /usr/local/bin/kubectl
+    curl -fsSL -o "$download_dir/k3s-install.sh" https://get.k3s.io
+    verify_sha256 "$K3S_INSTALL_SHA256" "$download_dir/k3s-install.sh"
+    chmod 0700 "$download_dir/k3s-install.sh"
+    INSTALL_K3S_EXEC='server --disable traefik --disable servicelb' sh "$download_dir/k3s-install.sh"
+    rm -rf -- "$download_dir"
+  fi
 }
 
-step_configure_next_env() {
-  local server_ip
-  server_ip="$(hostname -I | awk '{print $1}')"
-
-  cat > "$APP_DIR/upservx/.env.local" <<EOF
-# API Configuration - Auto-generated by install.sh
-NEXT_PUBLIC_API_BASE_URL=http://${server_ip}:9500
-NEXT_PUBLIC_WS_BASE_URL=ws://${server_ip}:9500
-EOF
-
-  chmod 644 "$APP_DIR/upservx/.env.local"
-}
-
-step_npm_build() {
-  cd "$APP_DIR/upservx"
-  npm run build
-}
-
-step_install_python_requirements() {
-  cd "$APP_DIR/upservx-service"
-  python3 -m venv venv
-  venv/bin/python3 -m pip install --upgrade pip
-  venv/bin/pip install -r requirements.txt
-}
-
-step_generate_start_script() {
-  cat <<'EOS' > "$APP_DIR/start.sh"
-#!/usr/bin/env bash
-cd "$(dirname "$0")"
-( cd upservx && npm start ) &
-( cd upservx-service && venv/bin/python3 main.py ) &
-wait -n
-EOS
-  chmod +x "$APP_DIR/start.sh"
-}
-
-step_generate_encryption_key() {
-  install -d -o "$INSTALL_USER" -g "$INSTALL_USER" -m 0700 /etc/upservx
-  chown -R "$INSTALL_USER:$INSTALL_USER" /etc/upservx
-  cd "$APP_DIR/upservx-service"
-  runuser -u "$INSTALL_USER" -- venv/bin/python3 -c "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists(); print('Encryption key generated')"
-}
-
-step_setup_log_file() {
-  touch /etc/upservx.log
-  chown "$INSTALL_USER:$INSTALL_USER" /etc/upservx.log 2>/dev/null || true
-  chmod 640 /etc/upservx.log
-}
-
-step_fix_pam_config() {
-  for f in /etc/pam.d/login /etc/pam.d/sshd /etc/pam.d/common-session; do
-    [ -f "$f" ] && sed -i '/pam_lastlog\.so/d' "$f" || true
+step_create_service_accounts() {
+  getent group "$SERVICE_USER" >/dev/null || groupadd --system "$SERVICE_USER"
+  id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --gid "$SERVICE_USER" --home-dir /var/lib/upservx --shell /usr/sbin/nologin "$SERVICE_USER"
+  getent group "$WEB_USER" >/dev/null || groupadd --system "$WEB_USER"
+  id "$WEB_USER" >/dev/null 2>&1 || useradd --system --gid "$WEB_USER" --home-dir /var/lib/upservx-web --shell /usr/sbin/nologin "$WEB_USER"
+  for group in adm; do getent group "$group" >/dev/null && usermod -aG "$group" "$SERVICE_USER"; done
+  [[ $WITH_DOCKER == 0 ]] || usermod -aG docker "$SERVICE_USER"
+  [[ $WITH_LXD == 0 ]] || usermod -aG lxd "$SERVICE_USER"
+  if [[ $WITH_LIBVIRT == 1 ]]; then
+    usermod -aG libvirt,kvm "$SERVICE_USER"
+  fi
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /etc/upservx
+  if find /etc/upservx -xdev -type l -print -quit | grep -q .; then
+    printf 'Refusing to install over symlinks below /etc/upservx.\n' >&2
+    return 1
+  fi
+  chown -R "$SERVICE_USER:$SERVICE_USER" /etc/upservx
+  find /etc/upservx -xdev -type d -exec chmod 0700 {} +
+  find /etc/upservx -xdev -type f -exec chmod 0600 {} +
+  install -d -o root -g root -m 0755 "$APP_ROOT" "$APP_ROOT/releases"
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /var/lib/upservx
+  install -d -o "$WEB_USER" -g "$WEB_USER" -m 0700 /var/lib/upservx-web
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/log/upservx
+  install -d -o root -g "$SERVICE_USER" -m 0750 /var/lib/upservx/updates /var/lib/upservx/update-state
+  install -d -o root -g root -m 0700 /var/backups/upservx
+  for directory in app-store compose customization; do
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "/var/lib/upservx/$directory"
+  done
+  for directory in ssh_keys authorized_keys; do
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "/var/lib/upservx/$directory"
   done
 }
 
-step_create_iso_dir() {
-  mkdir -p /var/lib/libvirt/isos
-  chown libvirt-qemu:libvirt-qemu /var/lib/libvirt/isos
-  chmod 755 /var/lib/libvirt/isos
+step_copy_release() {
+  install -d -o root -g root -m 0755 "$RELEASE_STAGING"
+  tar \
+    --exclude='.git' --exclude='.venv' --exclude='venv' \
+    --exclude='node_modules' --exclude='.next' --exclude='__pycache__' \
+    --exclude='*.pyc' --exclude='upservx/.env.local' \
+    --exclude='upservx/tsconfig.tsbuildinfo' \
+    --exclude='upservx-service/ssh_keys' \
+    --exclude='upservx-service/authorized_keys' \
+    --exclude='upservx/public/novnc/package-lock.json' \
+    -C "$SCRIPT_DIR" -cf - . | tar -C "$RELEASE_STAGING" -xf -
 }
 
-step_copy_appstore_templates() {
-  mkdir -p /opt/upservx/app-store
-  cp -r "$APP_DIR/app-store-templates/"* /opt/upservx/app-store/
-  chown -R "$INSTALL_USER:$INSTALL_USER" /opt/upservx/app-store 2>/dev/null || true
+step_build_release() {
+  printf 'NEXT_PUBLIC_API_BASE_URL=\nNEXT_PUBLIC_WS_BASE_URL=\n' >"$RELEASE_STAGING/upservx/.env.local"
+  (cd "$RELEASE_STAGING/upservx" && /usr/bin/npm ci && /usr/bin/npm run build)
+  (cd "$RELEASE_STAGING/upservx-service" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
+  (cd "$RELEASE_STAGING/upservx-cli" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
+  chown -R root:root "$RELEASE_STAGING"
+  find "$RELEASE_STAGING" -type d -exec chmod u=rwx,go=rx {} +
+  find "$RELEASE_STAGING" -type f -perm /022 -exec chmod go-w {} +
+  mv -- "$RELEASE_STAGING" "$RELEASE_DIR"
+  ln -s "$RELEASE_DIR" "$APP_ROOT/.current.$$"
+  mv -Tf -- "$APP_ROOT/.current.$$" "$APP_ROOT/current"
 }
 
-step_install_novnc() {
-  mkdir -p "$APP_DIR/upservx/public/novnc"
-  cp -r /usr/share/novnc/* "$APP_DIR/upservx/public/novnc/"
-  chown -R "$INSTALL_USER:$INSTALL_USER" "$APP_DIR/upservx/public/novnc" 2>/dev/null || true
+step_configure_mutable_state() {
+  ln -sfn /var/lib/upservx/app-store "$APP_ROOT/app-store"
+  ln -sfn /var/lib/upservx/compose "$APP_ROOT/compose"
+  ln -sfn /var/lib/upservx/customization "$APP_ROOT/customization"
+  cp -a "$RELEASE_DIR/app-store-templates/." /var/lib/upservx/app-store/
+  chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/upservx/app-store
+  if [[ $WITH_LIBVIRT == 1 ]]; then
+    install -d -o libvirt-qemu -g libvirt-qemu -m 0755 /var/lib/libvirt/isos
+  fi
+  if [[ $WITH_K3S == 1 ]]; then
+    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0600 /etc/rancher/k3s/k3s.yaml /etc/upservx/kubeconfig
+  fi
+  cat > /etc/upservx/service.env <<EOF
+UPSERVX_COOKIE_SECURE=true
+UPSERVX_COOKIE_SAMESITE=strict
+UPSERVX_SESSION_TTL_SECONDS=3600
+KUBECONFIG=/etc/upservx/kubeconfig
+EOF
+  chown "$SERVICE_USER:$SERVICE_USER" /etc/upservx/service.env
+  chmod 0600 /etc/upservx/service.env
+  install -o "$WEB_USER" -g "$WEB_USER" -m 0600 /dev/null /var/lib/upservx-web/web.env
+  if [[ $UPDATES_ENABLED == 1 ]]; then
+    install -d -o root -g root -m 0755 /usr/share/upservx
+    install -o root -g root -m 0644 "$UPDATE_PUBLIC_KEY" /usr/share/upservx/update-public.pem
+  fi
+  cat > /var/lib/upservx/install-profile <<EOF
+WITH_DOCKER=$WITH_DOCKER
+WITH_LXD=$WITH_LXD
+WITH_LIBVIRT=$WITH_LIBVIRT
+WITH_K3S=$WITH_K3S
+WITH_POSTGRESQL=$WITH_POSTGRESQL
+WITH_FTP=$WITH_FTP
+WITH_OPENVPN=$WITH_OPENVPN
+WITH_ZFS=$WITH_ZFS
+UPDATES_ENABLED=$UPDATES_ENABLED
+EOF
+  chown root:"$SERVICE_USER" /var/lib/upservx/install-profile
+  chmod 0640 /var/lib/upservx/install-profile
 }
 
-step_create_systemd_service() {
-  cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF_SERVICE
-[Unit]
-Description=upservx Next.js + Python Service
-After=network.target
-
-[Service]
-WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/start.sh
-Restart=always
-User=${INSTALL_USER}
-Environment=NODE_ENV=production
-Environment=UPSERVX_SERVICE_USER=${INSTALL_USER}
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-
-  cat > "/etc/systemd/system/${SERVICE_NAME}-worker.service" <<EOF_WORKER
-[Unit]
-Description=UpservX persistent job worker
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-WorkingDirectory=$APP_DIR/upservx-service
-ExecStart=$APP_DIR/upservx-service/venv/bin/python3 $APP_DIR/upservx-service/job_worker.py
-Restart=always
-RestartSec=2
-User=${INSTALL_USER}
-Environment=PYTHONUNBUFFERED=1
-Environment=UPSERVX_SERVICE_USER=${INSTALL_USER}
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF_WORKER
+step_install_privilege_boundary() {
+  install -d -o root -g root -m 0755 /usr/local/libexec /usr/local/libexec/upservx-bin
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-privileged" /usr/local/libexec/upservx-privileged
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-command" /usr/local/libexec/upservx-command
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-updater" /usr/local/libexec/upservx-updater
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-health-check" /usr/local/libexec/upservx-health-check
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-post-install-smoke" /usr/local/libexec/upservx-post-install-smoke
+  local commands=(apt-get certbot chpasswd dhclient fail2ban-client groupadd groupdel gpasswd hostnamectl ip mkfs.btrfs mkfs.exfat mkfs.ext4 mkfs.ntfs mkfs.vfat mount nft nginx openvpn systemctl timedatectl umount useradd userdel usermod zfs zpool)
+  local command
+  for command in "${commands[@]}"; do
+    ln -sfn /usr/local/libexec/upservx-command "/usr/local/libexec/upservx-bin/$command"
+  done
+  install -o root -g root -m 0440 "$RELEASE_DIR/deploy/sudoers/upservx" /etc/sudoers.d/upservx
+  visudo -cf /etc/sudoers.d/upservx
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/tmpfiles/upservx.conf" /etc/tmpfiles.d/upservx.conf
+  systemd-tmpfiles --create /etc/tmpfiles.d/upservx.conf
 }
 
-step_enable_service() {
+step_install_systemd_units() {
+  install -o root -g root -m 0644 "$RELEASE_DIR"/deploy/systemd/* /etc/systemd/system/
+  if [[ -f /etc/systemd/system/upservx.service ]]; then
+    systemctl disable --now upservx.service || true
+    rm -f -- /etc/systemd/system/upservx.service
+  fi
   systemctl daemon-reload
-  systemctl enable "$SERVICE_NAME" "${SERVICE_NAME}-worker"
-  systemctl start "$SERVICE_NAME"
-  systemctl start "${SERVICE_NAME}-worker"
+}
+
+step_configure_https() {
+  local tls_dir=/etc/upservx/tls
+  local certificate=$tls_dir/server.crt
+  local private_key=$tls_dir/server.key
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$tls_dir"
+  if [[ -e $certificate || -e $private_key ]]; then
+    [[ -f $certificate && -f $private_key && ! -L $certificate && ! -L $private_key ]] || {
+      printf 'Both TLS certificate and key must be regular files.\n' >&2
+      return 1
+    }
+  else
+    local common_name server_ip san
+    common_name=$(hostname -f 2>/dev/null || hostname)
+    [[ $common_name =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$ ]] || common_name=localhost
+    server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    san="DNS:${common_name},DNS:localhost,IP:127.0.0.1"
+    [[ $server_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && san="$san,IP:$server_ip"
+    openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 397 \
+      -subj "/CN=$common_name" -addext "subjectAltName=$san" \
+      -keyout "$private_key" -out "$certificate"
+  fi
+  openssl x509 -in "$certificate" -noout
+  openssl pkey -in "$private_key" -check -noout
+  chown "$SERVICE_USER:$SERVICE_USER" "$certificate" "$private_key"
+  chmod 0600 "$certificate" "$private_key"
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/nginx/upservx.conf" /etc/nginx/sites-available/upservx
+  if [[ -L /etc/nginx/sites-enabled/default ]]; then
+    [[ $(readlink -f /etc/nginx/sites-enabled/default) == /etc/nginx/sites-available/default ]] || {
+      printf 'Refusing to replace a custom nginx default-site link.\n' >&2
+      return 1
+    }
+    rm -f -- /etc/nginx/sites-enabled/default
+  elif [[ -e /etc/nginx/sites-enabled/default ]]; then
+    printf 'Refusing to replace a custom nginx default-site file.\n' >&2
+    return 1
+  fi
+  ln -sfn /etc/nginx/sites-available/upservx /etc/nginx/sites-enabled/upservx
+  nginx -t
+  systemctl enable nginx
+  systemctl reload nginx
+}
+
+step_initialize_secrets() {
+  cd /var/lib/upservx
+  runuser -u "$SERVICE_USER" -- env HOME=/var/lib/upservx UPSERVX_LOG_FILE=/var/log/upservx/api.log \
+    "$RELEASE_DIR/upservx-service/venv/bin/python3" -c \
+    "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists()"
 }
 
 step_install_cli() {
-  cd "$APP_DIR/upservx-cli"
-  python3 -m venv venv
-  venv/bin/python3 -m pip install --upgrade pip
-  venv/bin/pip install --quiet -r requirements.txt
-
-  local cli_bin="/usr/local/bin/upservx"
-  rm -f "$cli_bin"
-  cat > "$cli_bin" <<EOF_CLI
+  cat > /usr/local/bin/upservx <<'EOF'
 #!/usr/bin/env bash
-exec "$APP_DIR/upservx-cli/venv/bin/python" "$APP_DIR/upservx-cli/upservx" "\$@"
-EOF_CLI
-  chmod +x "$cli_bin"
+exec /opt/upservx/current/upservx-cli/venv/bin/python /opt/upservx/current/upservx-cli/upservx "$@"
+EOF
+  chown root:root /usr/local/bin/upservx
+  chmod 0755 /usr/local/bin/upservx
 }
 
-print_summary() {
-  printf "${BOLD}${GREEN}Installation complete.${NC}\n"
-  printf "Service status: ${BLUE}systemctl status %s${NC}\n" "$SERVICE_NAME"
-  printf "Worker status:  ${BLUE}systemctl status %s-worker${NC}\n" "$SERVICE_NAME"
-  printf "CLI command:    ${BLUE}upservx --help${NC}\n"
-  printf "Installer log:  ${BLUE}%s${NC}\n" "$LOG_FILE"
+step_start_and_verify() {
+  systemctl enable --now upservx.target upservx-health.timer
+  systemctl restart upservx-api.service upservx-web.service upservx-worker.service
+  /usr/local/libexec/upservx-health-check wait-api
+  /usr/local/libexec/upservx-health-check wait-web
+  /usr/local/libexec/upservx-post-install-smoke
 }
 
-# === Main ===================================================================
-require_root
-banner
+: >"$LOG_FILE"
+printf 'UpservX installer log: %s\n' "$LOG_FILE"
+run_step 'Validate locked source and noVNC submodule' step_validate_source
+run_step 'Install minimal and selected profile packages' step_install_core_packages
+run_step "Install or verify Node.js ${NODE_REQUIRED_MAJOR}" step_install_node
+run_step 'Install selected optional platforms' step_install_optional_platforms
+run_step 'Create dedicated service accounts and data roots' step_create_service_accounts
+run_step "Copy immutable release ${RELEASE_VERSION}" step_copy_release
+run_step 'Install locked dependencies and build the release' step_build_release
+run_step 'Configure mutable state and update trust' step_configure_mutable_state
+run_step 'Install the privileged helper boundary' step_install_privilege_boundary
+run_step 'Install separate systemd units and probes' step_install_systemd_units
+run_step 'Configure the local HTTPS reverse proxy' step_configure_https
+run_step 'Initialize application secrets as the service account' step_initialize_secrets
+run_step 'Install the CLI launcher' step_install_cli
+run_step 'Start services and run the post-install smoke test' step_start_and_verify
 
-mkdir -p "$LOG_DIR"
-: > "$LOG_FILE"
-
-if [[ -f "$SCRIPT_DIR/upservx-service/requirements.txt" ]]; then
-  TOTAL_STEPS=22
-fi
-
-run_step "Update codebase" step_update_codebase
-run_step "Install system packages" step_install_system_packages
-run_step "Install Docker" step_install_docker
-run_step "Initialize LXD" step_init_lxd
-run_step "Initialize K3s" step_init_k3s
-run_step "Copy project to $APP_DIR" step_copy_project
-run_step "Configure NodeSource Node.js ${NODE_REQUIRED_MAJOR} repository" step_install_node_repo
-run_step "Install Node.js ${NODE_REQUIRED_MAJOR}" step_install_node
-run_step "Install frontend dependencies" step_npm_install
-run_step "Configure Next.js environment" step_configure_next_env
-run_step "Build frontend" step_npm_build
-
-if [[ -f "$APP_DIR/upservx-service/requirements.txt" ]]; then
-  run_step "Install Python requirements" step_install_python_requirements
-fi
-
-run_step "Generate start script" step_generate_start_script
-run_step "Generate encryption key" step_generate_encryption_key
-run_step "Setup log file" step_setup_log_file
-run_step "Fix PAM config" step_fix_pam_config
-run_step "Create ISO directory" step_create_iso_dir
-run_step "Copy app store templates" step_copy_appstore_templates
-run_step "Install noVNC assets" step_install_novnc
-run_step "Create systemd service" step_create_systemd_service
-run_step "Enable and start service" step_enable_service
-run_step "Install upservx CLI" step_install_cli
-
-systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
-systemctl restart "${SERVICE_NAME}-worker" >> "$LOG_FILE" 2>&1 || true
-print_summary
+trap - EXIT
+printf 'Installation complete. Release: %s\n' "$RELEASE_VERSION"
+printf 'Status: systemctl status upservx.target\n'
+printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'

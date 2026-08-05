@@ -35,8 +35,12 @@ from lib.cluster_security import (
 )
 from lib.session_tokens import verify_session_token
 from lib.api_tokens import migrate_legacy_api_key, verify_api_token
-from lib.jobs import initialize_job_store
-from lib.process_model import acquire_web_process_lock, release_web_process_lock
+from lib.jobs import JOB_DB_PATH, initialize_job_store
+from lib.process_model import (
+    acquire_web_process_lock,
+    release_web_process_lock,
+    web_process_lock_held,
+)
 from lib.secure_store import (
     CONFIG_ROOT,
     apply_secure_umask,
@@ -133,6 +137,22 @@ app = FastAPI(
     description="Server Management API",
     version="0.6.0",
 )
+
+
+@app.get("/health/live", include_in_schema=False)
+def health_live() -> dict[str, str]:
+    """Process liveness endpoint for local service supervision."""
+
+    return {"status": "alive"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+def health_ready() -> dict[str, str]:
+    """Readiness requires initialized persistent state and the singleton lock."""
+
+    if PASSIVE_PROCESS or not web_process_lock_held() or not JOB_DB_PATH.is_file():
+        return Response(status_code=503)  # type: ignore[return-value]
+    return {"status": "ready"}
 
 
 @app.on_event("startup")
@@ -360,7 +380,12 @@ if __name__ == "__main__":
         _wait_for_cluster_listener(cluster_server)
         # Shared runtime state is deliberately confined to one API process.
         # Long-running work runs in the separate persistent job worker.
-        uvicorn.run(app, host="0.0.0.0", port=9500, workers=1)
+        uvicorn.run(
+            app,
+            host=os.getenv("UPSERVX_API_HOST", "0.0.0.0"),
+            port=9500,
+            workers=1,
+        )
     finally:
         cluster_server.terminate()
         try:

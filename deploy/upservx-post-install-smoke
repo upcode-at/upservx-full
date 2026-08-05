@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+profile_file=/var/lib/upservx/install-profile
+failures=0
+
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
+check() {
+  local message=$1
+  shift
+  if "$@" >/dev/null 2>&1; then pass "$message"; else fail "$message"; fi
+}
+has_group() { id -nG upservx | tr ' ' '\n' | grep -Fxq "$1"; }
+
+check 'backend service account exists' id upservx
+check 'frontend service account exists' id upservx-web
+check 'current release is an atomic symlink' test -L /opt/upservx/current
+check 'current release is root-owned' test "$(stat -c '%U:%G' "$(readlink -f /opt/upservx/current)")" = root:root
+check 'configuration root is private' test "$(stat -c '%U:%G %a' /etc/upservx)" = 'upservx:upservx 700'
+if find /etc/upservx -xdev -type l -print -quit | grep -q .; then
+  fail 'configuration tree contains no symlinks'
+else
+  pass 'configuration tree contains no symlinks'
+fi
+while IFS= read -r -d '' path; do
+  metadata=$(stat -c '%U:%G %a' "$path")
+  if [[ -d $path ]]; then expected='upservx:upservx 700'; else expected='upservx:upservx 600'; fi
+  [[ $metadata == "$expected" ]] || fail "secure ownership/mode for $path (got $metadata)"
+done < <(find /etc/upservx -xdev -mindepth 1 \( -type d -o -type f \) -print0)
+check 'privileged helper is root-owned and immutable to the service' test "$(stat -c '%U:%G %a' /usr/local/libexec/upservx-privileged)" = 'root:root 755'
+check 'sudo policy is syntactically valid' visudo -cf /etc/sudoers.d/upservx
+check 'service can invoke only its helper' runuser -u upservx -- sudo -n /usr/local/libexec/upservx-privileged self-test
+check 'API unit is active' systemctl is-active --quiet upservx-api.service
+check 'worker unit is active' systemctl is-active --quiet upservx-worker.service
+check 'frontend unit is active' systemctl is-active --quiet upservx-web.service
+check 'health timer is active' systemctl is-active --quiet upservx-health.timer
+check 'API and frontend are ready' /usr/local/libexec/upservx-health-check all
+check 'HTTPS reverse proxy is ready' curl -kfsS https://127.0.0.1/
+check 'noVNC assets are present' test -f /opt/upservx/current/upservx/public/novnc/vnc.html
+
+if [[ -r $profile_file ]]; then
+  # shellcheck source=/dev/null
+  . "$profile_file"
+  [[ ${WITH_DOCKER:-0} == 0 ]] || check 'Docker group is configured' has_group docker
+  [[ ${WITH_LXD:-0} == 0 ]] || check 'LXD group is configured' has_group lxd
+  if [[ ${WITH_LIBVIRT:-0} == 1 ]]; then
+    check 'libvirt group is configured' has_group libvirt
+    check 'KVM group is configured' has_group kvm
+  fi
+  [[ ${UPDATES_ENABLED:-0} == 0 ]] || check 'update verification key is installed' test -f /usr/share/upservx/update-public.pem
+fi
+
+if (( failures > 0 )); then
+  printf '%d post-install smoke check(s) failed.\n' "$failures" >&2
+  exit 1
+fi
+printf 'All UpservX post-install smoke checks passed.\n'

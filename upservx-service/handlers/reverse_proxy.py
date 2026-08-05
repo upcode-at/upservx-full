@@ -9,12 +9,14 @@ import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
 from lib.logger import log_proxy
+from lib.privileged import require_privileged
+from lib.secure_store import secure_write_json
 
 
 NGINX_SITES_AVAILABLE = "/etc/nginx/sites-available"
 NGINX_SITES_ENABLED = "/etc/nginx/sites-enabled"
 NGINX_CONFIG_DIR = "/etc/nginx"
-PROXY_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "proxy_config.json")
+PROXY_CONFIG_FILE = "/etc/upservx/proxy_config.json"
 CERTBOT_DIR = "/etc/letsencrypt"
 
 
@@ -71,8 +73,7 @@ class ReverseProxyManager:
     
     def _save_config(self, config: Dict):
         """Save proxy configuration to file."""
-        with open(self.config_file, 'w') as f:
-            json.dump(config, f, indent=2)
+        secure_write_json(self.config_file, config)
     
     def check_nginx_installed(self) -> bool:
         """Check if Nginx is installed."""
@@ -142,81 +143,19 @@ class ReverseProxyManager:
         """Create Nginx reverse proxy configuration."""
         self._validate_domain(domain)
         self._validate_host(backend_host)
-        config_name = domain.replace(".", "_")
+        config_name = f"upservx_{domain.replace('.', '_')}"
         config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
-        enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
-        
         try:
-            if os.path.exists(enabled_path):
-                os.remove(enabled_path)
-            if os.path.exists(config_path):
-                os.remove(config_path)
-        except Exception:
-            pass
-        
-        config_lines = []
-        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
-        key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
-        certs_exist = os.path.exists(cert_path) and os.path.exists(key_path)
-        
-        config_lines.append(f"server {{")
-        config_lines.append(f"    listen 80;")
-        config_lines.append(f"    listen [::]:80;")
-        config_lines.append(f"    server_name {domain};")
-        config_lines.append(f"")
-        
-        config_lines.append(f"    # Let's Encrypt ACME challenge")
-        config_lines.append(f"    location ^~ /.well-known/acme-challenge/ {{")
-        config_lines.append(f"        root /var/www/html;")
-        config_lines.append(f"        allow all;")
-        config_lines.append(f"        default_type text/plain;")
-        config_lines.append(f"    }}")
-        config_lines.append(f"")
-        
-        if ssl_enabled and force_ssl and certs_exist:
-            config_lines.append(f"    location / {{")
-            config_lines.append(f"        return 301 https://$server_name$request_uri;")
-            config_lines.append(f"    }}")
-        else:
-            self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
-        
-        config_lines.append(f"}}")
-        config_lines.append(f"")
-        
-        if ssl_enabled and certs_exist:
-            config_lines.append(f"server {{")
-            config_lines.append(f"    listen 443 ssl http2;")
-            config_lines.append(f"    listen [::]:443 ssl http2;")
-            config_lines.append(f"    server_name {domain};")
-            config_lines.append(f"")
-            config_lines.append(f"    ssl_certificate {cert_path};")
-            config_lines.append(f"    ssl_certificate_key {key_path};")
-            config_lines.append(f"    ssl_protocols TLSv1.2 TLSv1.3;")
-            config_lines.append(f"    ssl_ciphers HIGH:!aNULL:!MD5;")
-            config_lines.append(f"    ssl_prefer_server_ciphers on;")
-            config_lines.append(f"")
-            
-            self._add_proxy_locations(config_lines, backend_host, backend_port, frontend_port)
-            
-            config_lines.append(f"}}")
-        
-        try:
-            with open(config_path, 'w') as f:
-                f.write('\n'.join(config_lines))
-            if os.path.exists(enabled_path):
-                os.remove(enabled_path)
-            os.symlink(config_path, enabled_path)
-            test_result = subprocess.run(
-                ["nginx", "-t"],
-                capture_output=True,
-                text=True
+            require_privileged(
+                "configure-nginx",
+                domain,
+                backend_host,
+                str(backend_port),
+                str(frontend_port),
+                "1" if ssl_enabled else "0",
+                "1" if force_ssl else "0",
+                timeout=60,
             )
-            if test_result.returncode != 0:
-                return {
-                    "success": False,
-                    "message": f"Nginx config test failed: {test_result.stderr}"
-                }
-            subprocess.run(["systemctl", "reload", "nginx"], check=True)
             config = self._load_config()
             config[domain] = {
                 "backend_host": backend_host,
@@ -284,20 +223,12 @@ class ReverseProxyManager:
     def delete_proxy_config(self, domain: str) -> Dict:
         """Delete proxy configuration for a domain."""
         self._validate_domain(domain)
-        config_name = domain.replace(".", "_")
-        config_path = os.path.join(NGINX_SITES_AVAILABLE, config_name)
-        enabled_path = os.path.join(NGINX_SITES_ENABLED, config_name)
-        
         try:
-            if os.path.exists(enabled_path):
-                os.remove(enabled_path)
-            if os.path.exists(config_path):
-                os.remove(config_path)
+            require_privileged("delete-nginx", domain, timeout=60)
             config = self._load_config()
             if domain in config:
                 del config[domain]
                 self._save_config(config)
-            subprocess.run(["systemctl", "reload", "nginx"], check=True)
             log_proxy(f"Deleted proxy config for [{domain}]")
             return {"success": True, "message": "Proxy configuration deleted"}
         except Exception as e:

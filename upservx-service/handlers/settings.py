@@ -8,12 +8,13 @@ import subprocess
 import platform
 from lib.models import SettingsModel
 from lib.secure_store import ensure_config_directory, secure_write_json, secure_write_bytes
+from lib.privileged import require_privileged, require_privileged_json
 
 SETTINGS_FILE = "/etc/upservx/settings.json"
 LOG_DIR = "/var/log"
 MAX_LOG_SCAN_DEPTH = 1
 VPN_DIR = "/etc/upservx/vpn"
-VPN_PIDFILE = "/var/run/upservx_vpn.pid"
+VPN_PIDFILE = "/run/upservx/openvpn.pid"
 VPN_OVPN_NAME = "client.ovpn"
 
 def _ensure_vpn_dir() -> None:
@@ -59,7 +60,7 @@ def load_settings() -> SettingsModel:
     
     return SettingsModel(
         hostname=_system_hostname(),
-        timezone=data.get("timezone", "utc"),
+        timezone=data.get("timezone", "UTC"),
         auto_updates=data.get("auto_updates", False),
         monitoring=data.get("monitoring", True),
         ssh_port=data.get("ssh_port", _system_ssh_port()),
@@ -72,51 +73,15 @@ def save_settings(settings: SettingsModel) -> None:
 
 def apply_system_settings(settings: SettingsModel) -> None:
     """Apply settings to the actual system configuration."""
-    try:
-        with open("/etc/hosts", "r+") as f:
-            lines = f.readlines()
-            f.seek(0)
-            for line in lines:
-                if line.startswith("127.0.1.1"):
-                    f.write(f"127.0.1.1\t{settings.hostname.strip()}\n")
-                else:
-                    f.write(line)
-            f.truncate()
-    except Exception:
-        pass
-    
-    try:
-        with open("/etc/hostname", "w") as f:
-            f.write(settings.hostname.strip() + "\n")
-        subprocess.run(["hostnamectl", "set-hostname", settings.hostname.strip()], capture_output=True)
-    except Exception:
-        pass
-    
-    try:
-        config_path = "/etc/ssh/sshd_config"
-        lines = []
-        
-        if os.path.exists(config_path):
-            with open(config_path) as f:
-                lines = f.readlines()
-        
-        found = False
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#") and stripped.lower().startswith("port"):
-                lines[i] = f"Port {settings.ssh_port}\n"
-                found = True
-                break
-        
-        if not found:
-            lines.append(f"Port {settings.ssh_port}\n")
-        
-        with open(config_path, "w") as f:
-            f.writelines(lines)
-        
-        subprocess.run(["systemctl", "restart", "sshd"], capture_output=True)
-    except Exception:
-        pass
+    require_privileged_json(
+        "apply-system-settings",
+        {
+            "hostname": settings.hostname.strip(),
+            "timezone": settings.timezone,
+            "ssh_port": settings.ssh_port,
+            "deny_root_login": settings.deny_root_login,
+        },
+    )
 
 def _resolve_log_path(name: str) -> str:
     """Resolve a log path inside LOG_DIR and block traversal outside of it."""
@@ -271,7 +236,10 @@ def start_vpn() -> dict:
         return status
 
     # Try to start openvpn as daemon and write pidfile
-    cmd = ["openvpn", "--config", ovpn, "--writepid", VPN_PIDFILE, "--daemon"]
+    cmd = [
+        "openvpn", "--config", ovpn, "--writepid", VPN_PIDFILE,
+        "--daemon", "upservx-openvpn",
+    ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
@@ -289,17 +257,6 @@ def stop_vpn() -> dict:
     if not pid:
         return get_vpn_status()
 
-    try:
-        os.kill(pid, 15)
-    except ProcessLookupError:
-        pass
-    except Exception:
-        pass
-
-    try:
-        if os.path.exists(VPN_PIDFILE):
-            os.remove(VPN_PIDFILE)
-    except Exception:
-        pass
+    require_privileged("stop-openvpn")
 
     return get_vpn_status()

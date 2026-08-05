@@ -28,17 +28,21 @@ async def test_package_scan_and_upgrade_routes_enqueue_jobs():
 
 
 @pytest.mark.asyncio
-async def test_system_update_route_only_enqueues():
+async def test_system_update_route_only_enqueues(tmp_path, monkeypatch):
     from api import settings
 
-    with (
-        patch.object(settings.os.path, "exists", return_value=True),
-        patch.object(settings, "enqueue_job", return_value=PERSISTENT_JOB) as enqueue,
-    ):
-        response = await settings.run_update()
+    version = "1.2.3"
+    update_dir = tmp_path / version
+    update_dir.mkdir()
+    for suffix in ("tar.gz", "sha256", "sig"):
+        (update_dir / f"upservx-{version}.{suffix}").write_text("staged")
+    monkeypatch.setattr(settings, "UPDATE_ROOT", tmp_path)
+    with patch.object(settings, "enqueue_job", return_value=PERSISTENT_JOB) as enqueue:
+        response = await settings.run_update(settings.UpdateRequest(version=version))
 
     assert response["persistent_job"] == PERSISTENT_JOB
     assert enqueue.call_args.args[0] == "system_update"
+    assert enqueue.call_args.args[1] == {"version": version}
 
 
 def test_vm_export_route_only_enqueues():

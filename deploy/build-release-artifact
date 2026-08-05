@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Produce the versioned artifact consumed by upservx-updater.
+set -euo pipefail
+
+if [[ $# -ne 3 ]]; then
+  printf 'Usage: %s VERSION PRIVATE_KEY OUTPUT_DIRECTORY\n' "$0" >&2
+  exit 2
+fi
+
+version=$1
+private_key=$2
+output_directory=$3
+source_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+[[ $version =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
+  printf 'Invalid release version: %s\n' "$version" >&2
+  exit 2
+}
+[[ -f $private_key ]] || { printf 'Private signing key not found.\n' >&2; exit 2; }
+[[ -f $source_directory/upservx/package-lock.json ]]
+[[ -f $source_directory/upservx-service/requirements.lock ]]
+[[ -f $source_directory/upservx/public/novnc/vnc.html ]]
+if git -C "$source_directory" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  expected_novnc=$(git -C "$source_directory" ls-files -s upservx/public/novnc | awk '{print $2}')
+  actual_novnc=$(git -C "$source_directory/upservx/public/novnc" rev-parse HEAD)
+  [[ -n $expected_novnc && $expected_novnc == "$actual_novnc" ]]
+  git -C "$source_directory/upservx/public/novnc" diff --quiet
+  git -C "$source_directory/upservx/public/novnc" diff --cached --quiet
+fi
+
+private_key_real=$(realpath "$private_key")
+output_real=$(realpath -m "$output_directory")
+case "$private_key_real" in
+  "$source_directory"/*) printf 'The private key must not be stored inside the source tree.\n' >&2; exit 2 ;;
+esac
+
+manifest_directory=$(mktemp -d /tmp/upservx-release-manifest.XXXXXX)
+cleanup_manifest() {
+  if [[ $manifest_directory == /tmp/upservx-release-manifest.* && -d $manifest_directory ]]; then
+    rm -rf -- "$manifest_directory"
+  fi
+}
+trap cleanup_manifest EXIT
+printf '{"format":1,"version":"%s"}\n' "$version" >"$manifest_directory/.upservx-release.json"
+chmod 0644 "$manifest_directory/.upservx-release.json"
+case "$output_real" in
+  "$source_directory"/*) printf 'The artifact output must be outside the source tree.\n' >&2; exit 2 ;;
+esac
+
+install -d -m 0700 "$output_directory"
+artifact="$output_directory/upservx-$version.tar.gz"
+checksum="$output_directory/upservx-$version.sha256"
+signature="$output_directory/upservx-$version.sig"
+epoch=${SOURCE_DATE_EPOCH:-0}
+
+tar \
+  --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
+  --exclude='.git' --exclude='.venv' --exclude='venv' \
+  --exclude='node_modules' --exclude='.next' --exclude='__pycache__' \
+  --exclude='*.pyc' --exclude='upservx/.env.local' \
+  --exclude='upservx/tsconfig.tsbuildinfo' \
+  --exclude='upservx-service/ssh_keys' \
+  --exclude='upservx-service/authorized_keys' \
+  --exclude='upservx/public/novnc/package-lock.json' \
+  -C "$source_directory" -czf "$artifact" . \
+  -C "$manifest_directory" .upservx-release.json
+sha256sum "$artifact" >"$checksum"
+openssl dgst -sha256 -sign "$private_key" -out "$signature" "$artifact"
+chmod 0600 "$artifact" "$checksum" "$signature"
+trap - EXIT
+cleanup_manifest
+printf 'Created signed release artifact: %s\n' "$artifact"

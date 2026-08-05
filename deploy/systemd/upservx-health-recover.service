@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart unhealthy UpservX public services
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl try-restart upservx-api.service upservx-web.service

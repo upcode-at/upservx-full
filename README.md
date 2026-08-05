@@ -50,10 +50,10 @@ All templates are located in the `app-store-templates/` folder and can be easily
 ## 📋 Prerequisites
 
 - **Operating System**: Linux Debian
-- **Python**: 3.8 or higher
-- **Node.js**: 18.0 or higher
-- **Docker**: Latest version (for container management)
-- **Root Access**: Required for system management features
+- **Python**: 3.11 or higher
+- **Node.js**: 20 or higher
+- **Docker/LXD/libvirt/K3s**: Optional installer profiles
+- **Root Access**: Required only to run the installer and signed updater
 
 ## ⚡ Installation
 
@@ -61,15 +61,23 @@ All templates are located in the `app-store-templates/` folder and can be easily
 
 ```bash
 # Clone repository
-git clone https://github.com/upcode-at/upservx.git
+git clone --recurse-submodules https://github.com/upcode-at/upservx.git
 cd upservx
 
-# Run installation script
-chmod +x install.sh
-./install.sh
+# Minimal install without the update facility
+sudo ./install.sh --disable-updates
+
+# Example production install with containers and signed updates
+sudo ./install.sh --profile containers \
+  --update-public-key /secure/release-public.pem
 ```
 
-The installation script automatically installs all dependencies and creates the services.
+The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
+versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
+entry point, and a post-install privilege/health smoke test. Optional platform
+components are installed only when their profile is selected. See
+[`docs/installation.md`](docs/installation.md) for checksum requirements and
+the signed update workflow.
 
 
 ## 💝 Support

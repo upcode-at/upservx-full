@@ -11,6 +11,7 @@ from typing import List
 from datetime import datetime
 from lib.models import DriveInfo, ZFSPoolInfo, ZFSDeviceInfo
 from lib.logger import log_storage
+from lib.privileged import require_privileged
 
 def _drive_type(dev: str) -> str:
     """Return the type for a device or partition."""
@@ -225,31 +226,6 @@ def _get_filesystem_type(device: str) -> str:
 
 def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype: str = "auto") -> None:
     """Add an entry to /etc/fstab for persistent mounting."""
-    fstab_path = "/etc/fstab"
-    
-    try:
-        if os.path.exists(fstab_path):
-            backup_path = f"{fstab_path}.backup"
-            subprocess.run(["cp", fstab_path, backup_path], check=True)
-    except Exception:
-        pass  # Continue even if backup fails
-    
-    existing_entries = []
-    if os.path.exists(fstab_path):
-        with open(fstab_path, 'r') as f:
-            existing_entries = f.readlines()
-    
-    for line in existing_entries:
-        if line.strip() and not line.strip().startswith('#'):
-            parts = line.split()
-            if len(parts) >= 2:
-                if parts[1] == mountpoint:
-                    return
-                if uuid and parts[0] == f"UUID={uuid}":
-                    return
-                if parts[0] == device:
-                    return
-    
     if fstype in {"ext4", "ext3", "ext2"}:
         options = "defaults,noatime"
     elif fstype in {"ntfs", "ntfs-3g"}:
@@ -261,26 +237,13 @@ def _add_to_fstab(device: str, mountpoint: str, uuid: str | None = None, fstype:
     else:
         options = "defaults,nofail"
     
-    # Use UUID if available, otherwise use device path
     device_identifier = f"UUID={uuid}" if uuid else device
-    
-    device_col_width = 41
-    mount_col_width = 14
-    fstype_col_width = 7
-    
-    fstab_entry = f"{device_identifier:<{device_col_width}} {mountpoint:<{mount_col_width}} {fstype:<{fstype_col_width}} {options:<30} 0 2\n"
-    
-    with open(fstab_path, 'a') as f:
-        if existing_entries and not existing_entries[-1].endswith('\n'):
-            f.write('\n')
-        f.write(f"# Added by UpservX on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(fstab_entry)
+    require_privileged(
+        "fstab-add", device_identifier, mountpoint, fstype, options
+    )
 
 def mount_drive(device: str, mountpoint: str) -> None:
     """Mount a drive to the specified mountpoint and add to /etc/fstab for persistence."""
-    if not os.path.exists(mountpoint):
-        os.makedirs(mountpoint, exist_ok=True)
-    
     uuid = _get_device_uuid(device)
     fstype = _get_filesystem_type(device)
     
@@ -298,51 +261,8 @@ def mount_drive(device: str, mountpoint: str) -> None:
 
 def _remove_from_fstab(device: str, mountpoint: str | None = None) -> None:
     """Remove an entry from /etc/fstab."""
-    fstab_path = "/etc/fstab"
-    
-    if not os.path.exists(fstab_path):
-        return
-    
-    try:
-        backup_path = f"{fstab_path}.backup"
-        subprocess.run(["cp", fstab_path, backup_path], check=True)
-    except Exception:
-        pass
-    
-    uuid = _get_device_uuid(device) if device else None
-    
-    with open(fstab_path, 'r') as f:
-        lines = f.readlines()
-    
-    new_lines = []
-    skip_next_comment = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        
-        if stripped and not stripped.startswith('#'):
-            parts = stripped.split()
-            if len(parts) >= 2:
-                entry_device = parts[0]
-                entry_mount = parts[1]
-                
-                should_remove = False
-                if entry_device == device:
-                    should_remove = True
-                elif uuid and entry_device == f"UUID={uuid}":
-                    should_remove = True
-                elif mountpoint and entry_mount == mountpoint:
-                    should_remove = True
-                
-                if should_remove:
-                    # Also skip the "Added by UpservX" comment before this line
-                    if new_lines and new_lines[-1].strip().startswith("# Added by UpservX"):
-                        new_lines.pop()
-                    continue
-        
-        new_lines.append(line)
-    
-    with open(fstab_path, 'w') as f:
-        f.writelines(new_lines)
+    target = mountpoint or (f"UUID={_get_device_uuid(device)}" if device and _get_device_uuid(device) else device)
+    require_privileged("fstab-remove", target)
 
 def unmount_drive(device: str | None = None, mountpoint: str | None = None) -> None:
     """Unmount a drive and remove from /etc/fstab.

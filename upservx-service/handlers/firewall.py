@@ -375,7 +375,7 @@ class FirewallManager:
         except Exception as e:
             return {"error": str(e)}
     
-    def save_rules(self, filepath: str = "/etc/nftables.conf") -> Dict[str, Any]:
+    def save_rules(self, filepath: str = "/etc/upservx/nftables.conf") -> Dict[str, Any]:
         """Save current ruleset to file"""
         stdout, stderr, code = self._run_command(["nft", "list", "ruleset"])
         
@@ -392,7 +392,7 @@ class FirewallManager:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def load_rules(self, filepath: str = "/etc/nftables.conf") -> Dict[str, Any]:
+    def load_rules(self, filepath: str = "/etc/upservx/nftables.conf") -> Dict[str, Any]:
         """Load ruleset from file"""
         cmd = ["nft", "-f", filepath]
         stdout, stderr, code = self._run_command(cmd)

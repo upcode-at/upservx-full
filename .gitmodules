@@ -1,0 +1,3 @@
+[submodule "upservx/public/novnc"]
+	path = upservx/public/novnc
+	url = https://github.com/novnc/noVNC.git

@@ -93,6 +93,8 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
     add(
         PermissionAction.PUBLIC,
         "GET",
+        "/health/live",
+        "/health/ready",
         "/containers/app-store/apps/{app_id}/icon",
         "/isos/{name}/file",
         "/settings/customization",

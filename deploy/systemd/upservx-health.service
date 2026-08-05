@@ -1,0 +1,8 @@
+[Unit]
+Description=UpservX liveness probe
+After=upservx.target
+OnFailure=upservx-health-recover.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/upservx-health-check all

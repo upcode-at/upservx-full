@@ -59,3 +59,9 @@ def release_web_process_lock() -> None:
         os.close(_web_lock_descriptor)
         _web_lock_descriptor = None
         _web_lock_pid = None
+
+
+def web_process_lock_held() -> bool:
+    """Return whether this process owns the browser-facing singleton lock."""
+
+    return _web_lock_descriptor is not None and _web_lock_pid == os.getpid()

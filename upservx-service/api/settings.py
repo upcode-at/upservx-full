@@ -1,6 +1,9 @@
 """System settings, VPN and notification management routes."""
 
 import os
+import re
+import stat
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -27,6 +30,45 @@ class ApiTokenCreate(BaseModel):
     role: Literal["admin", "operator", "read-only"] = "admin"
     scopes: list[str] = Field(default_factory=lambda: ["*"])
     expires_in: int | None = Field(default=None, ge=300, le=31_536_000)
+
+
+class UpdateRequest(BaseModel):
+    version: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+UPDATE_ROOT = Path(
+    os.getenv("UPSERVX_UPDATE_ROOT", "/var/lib/upservx/updates")
+)
+UPDATE_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _selected_update_version(requested: str | None) -> str:
+    """Resolve an explicit or root-staged version without following links."""
+
+    if requested:
+        version = requested
+    else:
+        latest = UPDATE_ROOT / "latest"
+        try:
+            metadata = latest.lstat()
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0:
+                raise ValueError("latest update marker must be a root-owned regular file")
+            version = latest.read_text(encoding="ascii").strip()
+        except OSError as error:
+            raise ValueError("no staged update is selected") from error
+    if not UPDATE_VERSION_RE.fullmatch(version):
+        raise ValueError("invalid update version")
+    directory = UPDATE_ROOT / version
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError("the selected update directory is unsafe")
+    expected = (
+        directory / f"upservx-{version}.tar.gz",
+        directory / f"upservx-{version}.sha256",
+        directory / f"upservx-{version}.sig",
+    )
+    if not all(path.is_file() and not path.is_symlink() for path in expected):
+        raise ValueError("the selected signed update is not completely staged")
+    return version
 
 
 # ---------------------------------------------------------------------------
@@ -195,16 +237,21 @@ def test_notification_webhook():
 # ---------------------------------------------------------------------------
 
 @router.post("/settings/update", status_code=202)
-async def run_update():
-    """Queue the system updater in the persistent job worker."""
-    update_script = "/opt/upservx/update.sh"
-    if not os.path.exists(update_script):
-        raise HTTPException(status_code=404, detail="update.sh not found")
+async def run_update(payload: UpdateRequest | None = None):
+    """Queue a selected signed release for the independent update unit."""
+    try:
+        version = _selected_update_version(payload.version if payload else None)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     job = enqueue_job(
         "system_update",
-        {"script": update_script},
-        idempotency_key="system-update",
+        {"version": version},
+        idempotency_key=f"system-update:{version}",
         resource_type="system_update",
-        resource_id="system",
+        resource_id=version,
     )
-    return {"detail": "update queued", "persistent_job": job}
+    return {
+        "detail": "signed update queued",
+        "version": version,
+        "persistent_job": job,
+    }

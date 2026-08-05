@@ -11,6 +11,7 @@ import sys
 import tempfile
 from typing import List, Optional
 import logging
+from lib.privileged import require_privileged
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class CrontabManager:
         return sanitized[:128]  # hard cap to prevent oversized lines
     
     def __init__(self):
-        self.crontab_path = "/etc/crontab"
+        self.crontab_path = "/etc/cron.d/upservx"
         self.python_executable = sys.executable
         self.service_user = os.getenv("UPSERVX_SERVICE_USER") or pwd.getpwuid(
             os.geteuid()
@@ -98,21 +99,8 @@ class CrontabManager:
                 temp_file.writelines(lines)
                 temp_path = temp_file.name
             
-            # Copy to actual crontab location with sudo
-            result = subprocess.run([
-                'sudo', 'cp', temp_path, self.crontab_path
-            ], capture_output=True, text=True)
-            
-            # Clean up temp file
+            result = require_privileged("install-cron", temp_path)
             os.unlink(temp_path)
-            
-            if result.returncode != 0:
-                logger.error(f"Error writing crontab: {result.stderr}")
-                return False
-            
-            # Restart cron service to reload
-            subprocess.run(['sudo', 'systemctl', 'reload', 'cron'], capture_output=True)
-            
             return True
         except Exception as e:
             logger.error(f"Error writing crontab: {e}")
@@ -270,7 +258,7 @@ class CrontabManager:
                     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
                         temp_file.writelines(filtered_lines)
                         temp_path = temp_file.name
-                    subprocess.run(['sudo', 'cp', temp_path, self.crontab_path], capture_output=True)
+                    require_privileged("install-cron", temp_path)
                     os.unlink(temp_path)
             
             return True
@@ -340,7 +328,7 @@ class CrontabManager:
                     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
                         temp_file.writelines(filtered_lines)
                         temp_path = temp_file.name
-                    subprocess.run(['sudo', 'cp', temp_path, self.crontab_path], capture_output=True)
+                    require_privileged("install-cron", temp_path)
                     os.unlink(temp_path)
                     return True
             
