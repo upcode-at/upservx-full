@@ -74,19 +74,19 @@ def app(tmp_path_factory):
         else:
             import main as _main_mod  # noqa: PLC0415
             _app = _main_mod.app
-        _main_module = sys.modules["main"]
-        _main_module.verify_api_token = lambda token: (
-            ApiTokenPrincipal(
-                token_id="test",
-                name="Test administrator token",
-                role="admin",
-                scopes=frozenset({"*"}),
-                expires_at=None,
-            )
-            if token == "test-api-key"
-            else None
+    _main_module = sys.modules["main"]
+    _main_module.verify_api_token = lambda token: (
+        ApiTokenPrincipal(
+            token_id="test",
+            name="Test administrator token",
+            role="admin",
+            scopes=frozenset({"*"}),
+            expires_at=None,
         )
-        yield _app
+        if token == "test-api-key"
+        else None
+    )
+    yield _app
 
 
 @pytest.fixture()
