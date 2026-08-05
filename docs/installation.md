@@ -44,8 +44,8 @@ alembic upgrade head
 # Generate encryption key
 python generate_encryption_key.py
 
-# Start server
-uvicorn main:app --host 0.0.0.0 --port 9500
+# Start the public API and mandatory cluster HTTPS listener
+python main.py
 ```
 
 ### Frontend (`upservx`)
@@ -67,7 +67,7 @@ Two systemd services are typically configured:
 
 | Service | Description |
 |---|---|
-| `upservx-backend.service` | FastAPI backend on port 9500 |
+| `upservx-backend.service` | FastAPI API on port 9500 and cluster HTTPS transport on port 9501 |
 | `upservx-frontend.service` | Next.js frontend on port 9200 |
 
 ---
@@ -83,6 +83,7 @@ Two systemd services are typically configured:
 | `/etc/upservx/nodes/` | Cluster node configurations |
 | `/etc/upservx/master` | Cluster master configuration |
 | `/etc/upservx/child` | Cluster child configuration |
+| `/etc/upservx/cluster-security/` | Node-local CA, certificate, and private keys (private files chmod 600) |
 | `/etc/upservx.log` | Main log file (stdout/stderr) |
 | `/var/log/upservx/activity.log` | Structured activity log |
 | `/opt/upservx/app-store/` | App store templates |

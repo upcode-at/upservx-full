@@ -7,10 +7,15 @@ Handles container state synchronization across cluster nodes.
 from typing import List, Dict, Optional, Set
 from datetime import datetime
 import asyncio
-import httpx
 import json
 import os
 from handlers.compose_manager import ComposeManager
+from lib.cluster_security import (
+    bootstrap_peer_ca,
+    cluster_url,
+    normalize_cluster_port,
+    signed_cluster_request,
+)
 from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
 
 UPSERVX_CONFIG_DIR = "/etc/upservx"
@@ -173,31 +178,53 @@ class ContainerSyncManager:
             if not service_config:
                 return False
             
-            url = f"http://{target_node['ip_address']}:{target_node['port']}/containers/deploy"
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    url,
-                    json={
-                        "service_name": service_name,
-                        "config": service_config
-                    },
-                    headers={"Authorization": f"Bearer {cluster_key}"}
+            port = normalize_cluster_port(target_node.get("port"))
+            ca_certificate = target_node.get("tls_ca_certificate")
+            if not ca_certificate:
+                ca_certificate, authenticated_node_id, port = await bootstrap_peer_ca(
+                    target_node["ip_address"],
+                    port,
+                    cluster_key,
+                    expected_node_id=target_node.get("hostname"),
                 )
-                
-                if response.status_code == 200:
-                    state_key = f"{service_name}_{target_node['id']}"
-                    self.container_states[state_key] = ContainerState(
-                        service_id=state_key,
-                        service_name=service_name,
-                        status="running",
-                        node_id=target_node['id'],
-                        config=service_config
-                    )
-                    self.save_sync_state()
-                    return True
-                
-        except (httpx.RequestError, httpx.TimeoutException, Exception) as e:
+                target_node["tls_ca_certificate"] = ca_certificate
+                target_node["port"] = port
+                from api.cluster import write_node_config
+
+                write_node_config(
+                    str(target_node.get("hostname") or authenticated_node_id),
+                    target_node,
+                )
+
+            response = await signed_cluster_request(
+                "POST",
+                cluster_url(
+                    target_node["ip_address"],
+                    port,
+                    "/containers/deploy",
+                ),
+                key=cluster_key,
+                ca_certificate=ca_certificate,
+                json_data={
+                    "service_name": service_name,
+                    "config": service_config,
+                },
+                timeout=30.0,
+            )
+
+            if response.status_code == 200:
+                state_key = f"{service_name}_{target_node['id']}"
+                self.container_states[state_key] = ContainerState(
+                    service_id=state_key,
+                    service_name=service_name,
+                    status="running",
+                    node_id=target_node['id'],
+                    config=service_config
+                )
+                self.save_sync_state()
+                return True
+
+        except Exception as e:
             print(f"Error syncing container to node: {e}")
         
         return False

@@ -106,6 +106,14 @@ class TestRoutePolicy:
             get_route_action("POST", "/vm-networks")
             == PermissionAction.VM_NETWORK_WRITE
         )
+        assert (
+            get_route_action("POST", "/cluster/keys/rotate")
+            == PermissionAction.CLUSTER_WRITE
+        )
+        assert (
+            get_route_action("POST", "/cluster/keys/update")
+            == PermissionAction.CLUSTER_INTERNAL_WRITE
+        )
 
     def test_dynamic_route_templates_match_actual_paths(self):
         assert (
@@ -246,6 +254,7 @@ class TestSystemPrincipals:
             ("GET", "/cluster/node/metrics"),
             ("GET", "/cluster/info"),
             ("POST", "/cluster/ha/heartbeat"),
+            ("POST", "/cluster/keys/update"),
             ("POST", "/cluster/export/container/demo"),
             ("GET", "/containers"),
             ("GET", "/vms"),
@@ -270,6 +279,7 @@ class TestSystemPrincipals:
             ("GET", "/cluster/nodes"),
             ("POST", "/cluster/create"),
             ("POST", "/cluster/ha/failover"),
+            ("POST", "/cluster/keys/rotate"),
             ("GET", "/containers/demo/logs"),
         ],
     )

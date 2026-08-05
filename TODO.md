@@ -27,15 +27,17 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
     cross-subsystem access, wrong methods, and unknown routes. Unknown routes
     are denied even for administrators and API keys.
 
-- [ ] Harden authentication for internal cluster and HA endpoints.
-  - The middleware now requires the shared cluster Bearer key for heartbeat,
-    vote, master-update, VIP-owner-update, config-sync, and replication
-    transport requests, but the static shared-secret model still needs stronger
-    peer authentication.
-  - Sign messages or use mTLS, add replay protection and time windows, and
-    support key rotation.
-  - Remove the cluster token from `/cluster/info` responses entirely.
-  - Do not send inter-node traffic unencrypted over `http://`.
+- [x] Harden authentication for internal cluster and HA endpoints.
+  - Inter-node requests are HMAC-SHA256 signed over their exact method, target,
+    body digest, node identity, key ID, timestamp, and nonce. Unknown peers,
+    expired timestamps, malformed signatures, and replayed nonces fail closed.
+  - Cluster traffic uses the dedicated HTTPS listener on port 9501. Peer CAs
+    are authenticated during nonce-bound bootstrap and pinned; signed requests
+    are rejected on the unencrypted public listener.
+  - Key rotation distributes a pending key to every peer before commit and
+    retains the previous key only for a bounded overlap period.
+  - `/cluster/info` no longer contains the cluster token. The create and rotate
+    operations return their new enrollment token only in the mutation response.
 
 - [ ] Harden secrets and sessions.
   - Backup configuration must not log passwords through debug output; remove

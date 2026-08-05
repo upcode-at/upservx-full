@@ -7,8 +7,12 @@ container management, system monitoring, and server administration.
 
 import logging
 import os
+import socket
+import ssl
+import subprocess
 import sys
 import threading
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -20,6 +24,13 @@ from lib.system_utils import get_server_addresses
 from lib.vnc_proxy import ensure_proxy_running
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket  # noqa: F401 – re-exported for routers
 from lib.permissions import check_path_permission, get_user_groups, is_public_request
+from lib.cluster_security import (
+    CLUSTER_TLS_PORT,
+    ClusterSecurityError,
+    ensure_node_tls,
+    has_cluster_signature,
+    verify_cluster_signature,
+)
 from lib.session_tokens import verify_session_token
 from handlers.settings import load_settings
 from lib.logger import log_system
@@ -70,6 +81,35 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+
+
+def _wait_for_cluster_listener(process: subprocess.Popen, timeout: float = 10.0) -> None:
+    """Fail startup if the mandatory HTTPS cluster listener cannot bind."""
+
+    deadline = time.monotonic() + timeout
+    ready_since = None
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    tls_context.check_hostname = False
+    tls_context.verify_mode = ssl.CERT_NONE
+    while time.monotonic() < deadline:
+        return_code = process.poll()
+        if return_code is not None:
+            raise RuntimeError(
+                f"Cluster HTTPS listener exited during startup ({return_code})"
+            )
+        try:
+            with socket.create_connection(
+                ("127.0.0.1", CLUSTER_TLS_PORT),
+                timeout=0.2,
+            ) as connection:
+                with tls_context.wrap_socket(connection, server_hostname="localhost"):
+                    ready_since = ready_since or time.monotonic()
+                    if time.monotonic() - ready_since >= 1.0:
+                        return
+        except (OSError, ssl.SSLError):
+            ready_since = None
+        time.sleep(0.1)
+    raise RuntimeError("Timed out waiting for the cluster HTTPS listener")
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -146,9 +186,36 @@ async def pam_auth_middleware(request: Request, call_next):
     if is_public_request(request.method, request.url.path):
         return await call_next(request)
 
-    auth_header = request.headers.get("Authorization")
+    if has_cluster_signature(request.headers):
+        server = request.scope.get("server") or (None, None)
+        if (
+            request.scope.get("scheme") != "https"
+            or server[1] != CLUSTER_TLS_PORT
+        ):
+            return Response(status_code=400)
+        raw_path = request.scope.get("raw_path", request.url.path.encode("ascii"))
+        raw_target = raw_path.decode("ascii")
+        query_string = request.scope.get("query_string", b"")
+        if query_string:
+            raw_target = f"{raw_target}?{query_string.decode('ascii')}"
+        try:
+            verified_cluster_request = verify_cluster_signature(
+                request.method,
+                raw_target,
+                await request.body(),
+                request.headers,
+            )
+        except ClusterSecurityError as error:
+            return Response(status_code=error.status_code)
+        request.state.user = "cluster-node"
+        request.state.cluster_node = verified_cluster_request.node_id
+        request.state.cluster_key_id = verified_cluster_request.key_id
+        auth_header = None
+    else:
+        auth_header = request.headers.get("Authorization")
+
     # If Authorization header is missing, allow cookie named 'auth' to carry Bearer token.
-    if not auth_header:
+    if not auth_header and not hasattr(request.state, "user"):
         cookie_auth = request.cookies.get("auth")
         if cookie_auth:
             if cookie_auth.lower().startswith("bearer "):
@@ -156,40 +223,31 @@ async def pam_auth_middleware(request: Request, call_next):
             else:
                 auth_header = f"Bearer {cookie_auth}"
 
-    if not auth_header:
+    if not auth_header and not hasattr(request.state, "user"):
         return Response(status_code=401)
 
-    try:
-        scheme, credentials = auth_header.split(" ", 1)
-        scheme = scheme.lower()
+    if not hasattr(request.state, "user"):
+        try:
+            scheme, credentials = auth_header.split(" ", 1)
+            scheme = scheme.lower()
 
-        if scheme == "bearer":
-            settings = load_settings()
-            token = credentials.strip()
+            if scheme == "bearer":
+                settings = load_settings()
+                token = credentials.strip()
 
-            if settings.api_key and token == settings.api_key:
-                request.state.user = "api-key"
-            else:
-                from api.cluster import get_cluster_key, read_master_config
-
-                cluster_key = get_cluster_key()
-                if cluster_key and token == cluster_key:
-                    request.state.user = "cluster-node"
+                if settings.api_key and token == settings.api_key:
+                    request.state.user = "api-key"
                 else:
-                    master_config = read_master_config()
-                    if master_config and master_config.get("key") == token:
-                        request.state.user = "cluster-master"
-                    else:
-                        username = verify_session_token(token)
-                        if not username:
-                            return Response(status_code=401)
-                        if settings.deny_root_login and username == "root":
-                            return Response(status_code=403)
-                        request.state.user = username
-        else:
-            raise ValueError
-    except Exception:
-        return Response(status_code=401)
+                    username = verify_session_token(token)
+                    if not username:
+                        return Response(status_code=401)
+                    if settings.deny_root_login and username == "root":
+                        return Response(status_code=403)
+                    request.state.user = username
+            else:
+                raise ValueError
+        except Exception:
+            return Response(status_code=401)
 
     # Group-based permission check
     _username = request.state.user
@@ -258,4 +316,18 @@ app.include_router(ha_router)
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=9500, workers=4)
+    # The browser/API listener remains on 9500. Inter-node requests use a
+    # separate TLS listener so cluster transport can never silently downgrade.
+    ensure_node_tls()
+    cluster_server_path = os.path.join(os.path.dirname(__file__), "cluster_server.py")
+    cluster_server = subprocess.Popen([sys.executable, cluster_server_path])
+    try:
+        _wait_for_cluster_listener(cluster_server)
+        uvicorn.run("main:app", host="0.0.0.0", port=9500, workers=4)
+    finally:
+        cluster_server.terminate()
+        try:
+            cluster_server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            cluster_server.kill()
+            cluster_server.wait(timeout=5)

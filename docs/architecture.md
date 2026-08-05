@@ -10,7 +10,7 @@ UpservX is a two-part web application:
 │  Next.js 16 Frontend        │ ◄─────► │  FastAPI Backend (Python 3.8+)  │
 │  React 19 · TypeScript      │  HTTP   │  Uvicorn · SQLAlchemy · Alembic  │
 │  Tailwind CSS v4 · Radix UI │  REST   │  PAM Auth · PostgreSQL          │
-│  Port 9200                  │  WS     │  Port 9500                      │
+│  Port 9200                  │  WS     │  API 9500 · Cluster TLS 9501   │
 └─────────────────────────────┘         └─────────────────────────────────┘
             │                                          │
             │                                          │

@@ -48,7 +48,6 @@ interface ClusterInfo {
   is_master: boolean
   is_member: boolean
   master_ip?: string
-  cluster_token?: string
   nodes: ClusterNode[]
 }
 
@@ -85,7 +84,7 @@ export default function ClusterManagement() {
 
   const [clusterName, setClusterName] = useState("")
   const [masterIp, setMasterIp] = useState("")
-  const [masterPort, setMasterPort] = useState("9500")
+  const [masterPort, setMasterPort] = useState("9501")
   const [joinToken, setJoinToken] = useState("")
 
   const [replicationOriginNode, setReplicationOriginNode] = useState("")
@@ -282,7 +281,7 @@ export default function ClusterManagement() {
       setSuccess("Successfully joined cluster")
       setJoinClusterOpen(false)
       setMasterIp("")
-      setMasterPort("9500")
+      setMasterPort("9501")
       setJoinToken("")
       loadClusterInfo()
     } catch (err) {
@@ -784,7 +783,7 @@ export default function ClusterManagement() {
 
           <TabsContent value="overview" className="space-y-4">
             {/* Cluster Status Overview */}
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Cluster Status</CardTitle>
@@ -839,24 +838,6 @@ export default function ClusterManagement() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Cluster Token</CardTitle>
-                  <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  {clusterInfo?.is_master && clusterInfo?.cluster_token ? (
-                    <>
-                      <div className="text-sm font-mono break-all">{clusterInfo.cluster_token}</div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        For new nodes
-                      </p>
-                    </>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">N/A</div>
-                  )}
-                </CardContent>
-              </Card>
             </div>
 
             {/* Cluster Nodes Table */}

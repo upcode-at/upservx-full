@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from lib.cluster_security import CLUSTER_TLS_PORT
 from lib.ha_manager import get_ha_manager
 from lib.logger import log_system
 
@@ -41,7 +42,7 @@ class HAConfigUpdate(BaseModel):
 class HeartbeatPayload(BaseModel):
     hostname: str
     ip_address: str
-    port: int = 9500
+    port: int = CLUSTER_TLS_PORT
     role: str = "child"
     priority: int = 100
 

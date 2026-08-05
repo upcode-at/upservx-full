@@ -18,7 +18,13 @@ import socket
 from datetime import datetime
 from typing import Optional
 
-import httpx
+from lib.cluster_security import (
+    CLUSTER_TLS_PORT,
+    bootstrap_peer_ca_sync,
+    cluster_url,
+    normalize_cluster_port,
+    signed_cluster_request_sync,
+)
 
 HA_CONFIG_FILE = "/etc/upservx/ha.json"
 HA_HEARTBEATS_FILE = "/etc/upservx/ha_heartbeats.json"
@@ -39,6 +45,61 @@ DEFAULT_CONFIG = {
 
 _ha_manager_instance: Optional["HAManager"] = None
 _ha_lock = threading.Lock()
+
+
+def _signed_peer_request(
+    method: str,
+    peer: dict,
+    path: str,
+    cluster_key: str,
+    *,
+    json_data: dict | None = None,
+    timeout: float = 5.0,
+):
+    """Send one HMAC-signed request over a peer-pinned TLS connection."""
+
+    from api.cluster import write_child_config, write_node_config
+
+    is_master_peer = bool(peer.get("master_ip"))
+    host = peer.get("master_ip") if is_master_peer else peer.get("ip_address")
+    if not host:
+        raise ValueError("Cluster peer has no address")
+    port = normalize_cluster_port(
+        peer.get("master_port") if is_master_peer else peer.get("port")
+    )
+    ca_certificate = (
+        peer.get("master_tls_ca") if is_master_peer else peer.get("tls_ca_certificate")
+    )
+    expected_node_id = (
+        peer.get("hostname")
+        or peer.get("assigned_hostname")
+        or peer.get("master_hostname")
+    )
+    if not ca_certificate:
+        ca_certificate, authenticated_node_id, port = bootstrap_peer_ca_sync(
+            host,
+            port,
+            cluster_key,
+            expected_node_id=expected_node_id,
+        )
+        if peer.get("master_ip"):
+            peer["master_tls_ca"] = ca_certificate
+            peer["master_hostname"] = authenticated_node_id
+            peer["master_port"] = port
+            write_child_config(peer)
+        else:
+            peer["tls_ca_certificate"] = ca_certificate
+            peer["port"] = port
+            write_node_config(str(peer.get("hostname") or authenticated_node_id), peer)
+
+    return signed_cluster_request_sync(
+        method,
+        cluster_url(host, port, path),
+        key=cluster_key,
+        ca_certificate=ca_certificate,
+        json_data=json_data,
+        timeout=timeout,
+    )
 
 
 def get_ha_manager() -> "HAManager":
@@ -112,13 +173,13 @@ class HAManager:
             for node in list_all_nodes():
                 if node.get("hostname") == my_hostname:
                     continue
-                ip = node.get("ip_address")
-                port = node.get("port", 9500)
                 try:
-                    httpx.post(
-                        f"http://{ip}:{port}/cluster/ha/vip-owner-update",
-                        json=payload,
-                        headers={"Authorization": f"Bearer {cluster_key}"},
+                    _signed_peer_request(
+                        "POST",
+                        node,
+                        "/cluster/ha/vip-owner-update",
+                        cluster_key,
+                        json_data=payload,
                         timeout=3.0,
                     )
                 except Exception:
@@ -226,13 +287,13 @@ class HAManager:
             for node in list_all_nodes():
                 if node.get("hostname") == my_hostname:
                     continue
-                ip = node.get("ip_address")
-                port = node.get("port", 9500)
                 try:
-                    httpx.post(
-                        f"http://{ip}:{port}/cluster/ha/config-sync",
-                        json=payload,
-                        headers={"Authorization": f"Bearer {cluster_key}"},
+                    _signed_peer_request(
+                        "POST",
+                        node,
+                        "/cluster/ha/config-sync",
+                        cluster_key,
+                        json_data=payload,
                         timeout=5.0,
                     )
                 except Exception:
@@ -487,7 +548,7 @@ class HAManager:
         Winner/loser VIP state is enforced via master update handling.
         """
         from api.cluster import (  # lazy import to avoid circular
-            list_all_nodes, read_master_config, NODES_DIR
+            get_cluster_key, list_all_nodes, read_master_config, NODES_DIR
         )
 
         candidates = []
@@ -509,20 +570,23 @@ class HAManager:
         master_cfg = read_master_config()
         if master_cfg:
             cluster_key = master_cfg.get("key")
+        else:
+            cluster_key = get_cluster_key()
 
         for node in known_nodes:
             if node.get("hostname") == my_hostname:
                 continue
             node_ip = node.get("ip_address")
-            node_port = node.get("port", 9500)
             reachable = False
             node_priority = 100
 
             if cluster_key:
                 try:
-                    resp = httpx.get(
-                        f"http://{node_ip}:{node_port}/cluster/ha/vote",
-                        headers={"Authorization": f"Bearer {cluster_key}"},
+                    resp = _signed_peer_request(
+                        "GET",
+                        node,
+                        "/cluster/ha/vote",
+                        cluster_key,
                         timeout=3.0,
                     )
                     if resp.status_code == 200:
@@ -560,14 +624,16 @@ class HAManager:
             if node.get("hostname") == my_hostname:
                 continue
             try:
-                httpx.post(
-                    f"http://{node.get('ip_address')}:{node.get('port', 9500)}/cluster/ha/master-update",
-                    json={
+                _signed_peer_request(
+                    "POST",
+                    node,
+                    "/cluster/ha/master-update",
+                    cluster_key,
+                    json_data={
                         "new_master": winner["hostname"],
                         "new_master_ip": winner["ip_address"],
                         "last_election": election_time,
                     },
-                    headers={"Authorization": f"Bearer {cluster_key}"},
                     timeout=3.0,
                 )
             except Exception:
@@ -656,21 +722,21 @@ class HAManager:
                     # Child: send heartbeat to master
                     child_cfg = read_child_config()
                     if child_cfg:
-                        master_ip = child_cfg.get("master_ip")
-                        master_port = child_cfg.get("master_port", 9500)
                         cluster_key = child_cfg.get("cluster_key") or child_cfg.get("key")
 
                         try:
-                            resp = httpx.post(
-                                f"http://{master_ip}:{master_port}/cluster/ha/heartbeat",
-                                json={
+                            resp = _signed_peer_request(
+                                "POST",
+                                child_cfg,
+                                "/cluster/ha/heartbeat",
+                                cluster_key,
+                                json_data={
                                     "hostname": self._get_local_hostname(),
                                     "ip_address": self._get_local_ip(),
-                                    "port": 9500,
+                                    "port": CLUSTER_TLS_PORT,
                                     "role": "child",
                                     "priority": self.config.get("priority", 100),
                                 },
-                                headers={"Authorization": f"Bearer {cluster_key}"},
                                 timeout=3.0,
                             )
                             if resp.status_code == 200:
@@ -680,7 +746,7 @@ class HAManager:
                                 self.record_heartbeat(
                                     self._get_local_hostname(),
                                     self._get_local_ip(),
-                                    9500, "child",
+                                    CLUSTER_TLS_PORT, "child",
                                     self.config.get("priority", 100)
                                 )
                             else:
@@ -698,7 +764,7 @@ class HAManager:
                     self.record_heartbeat(
                         self._get_local_hostname(),
                         self._get_local_ip(),
-                        9500, "master",
+                        CLUSTER_TLS_PORT, "master",
                         self.config.get("priority", 100)
                     )
                     # VIP is only assigned during failover or explicit triggers, not here

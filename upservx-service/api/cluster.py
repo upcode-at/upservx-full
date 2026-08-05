@@ -1,15 +1,19 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Header
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 from typing import List, Optional
 import asyncio
+import ipaddress
+import re
 import secrets
 import socket
+import ssl
 import psutil
 from datetime import datetime
 import json
 import os
 import shutil
 import subprocess
+import time
 import httpx
 from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
 from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
@@ -17,6 +21,22 @@ from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
 from lib.crontab_manager import CrontabManager
+from lib.cluster_security import (
+    CLUSTER_TLS_PORT,
+    DEFAULT_KEY_OVERLAP_SECONDS,
+    HEADER_NONCE,
+    ClusterSecurityError,
+    bootstrap_peer_ca,
+    cluster_url,
+    create_bootstrap_response,
+    derive_key_id,
+    ensure_node_tls,
+    install_rotated_child_key,
+    load_cluster_keyring,
+    normalize_cluster_port,
+    signed_cluster_request,
+    write_cluster_json,
+)
 from handlers.notifications import notify
 
 def _clog(msg: str, error: bool = False) -> None:
@@ -27,47 +47,46 @@ def _clog(msg: str, error: bool = False) -> None:
 router = APIRouter()
 
 # Paths for cluster configuration
-UPSERVX_CONFIG_DIR = "/etc/upservx"
+UPSERVX_CONFIG_DIR = os.getenv("UPSERVX_CONFIG_DIR", "/etc/upservx")
 MASTER_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "master")
 CHILD_CONFIG_FILE = os.path.join(UPSERVX_CONFIG_DIR, "child")
 NODES_DIR = os.path.join(UPSERVX_CONFIG_DIR, "nodes")
-
-def verify_cluster_auth(authorization: str = Header(None)):
-    """Verify cluster authentication from Authorization header"""
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization format")
-    
-    provided_key = authorization[7:]  # Remove "Bearer " prefix
-    
-    master_config = read_master_config()
-    if master_config and master_config.get("key") == provided_key:
-        return True
-    
-    child_config = read_child_config()
-    if child_config:
-        stored_key = child_config.get("cluster_key") or child_config.get("key")
-        if stored_key == provided_key:
-            return True
-    
-    raise HTTPException(status_code=401, detail="Invalid cluster key")
+NODE_HOSTNAME_PATTERN = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$"
+)
 
 class ClusterCreateRequest(BaseModel):
     cluster_name: str
 
 class ClusterJoinRequest(BaseModel):
     master_ip: str
-    token: str
-    port: int = 9500
+    token: str = Field(min_length=32)
+    port: int = Field(default=CLUSTER_TLS_PORT, ge=1, le=65535)
 
 class NodeRegistrationRequest(BaseModel):
-    hostname: str
+    hostname: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=NODE_HOSTNAME_PATTERN.pattern,
+    )
     ip_address: str
-    port: int
-    cluster_key: str
-    resources: dict = {}
+    port: int = Field(ge=1, le=65535)
+    tls_ca_certificate: str = Field(min_length=1, max_length=65536)
+    resources: dict = Field(default_factory=dict)
+
+
+class ClusterKeyRotationRequest(BaseModel):
+    overlap_seconds: int = Field(
+        default=DEFAULT_KEY_OVERLAP_SECONDS,
+        ge=300,
+        le=604800,
+    )
+
+
+class ClusterKeyUpdateRequest(BaseModel):
+    key: str = Field(min_length=32)
+    key_id: str = Field(min_length=8, max_length=64)
+    previous_valid_until: int
 
 class ClusterNode(BaseModel):
     id: str
@@ -83,7 +102,6 @@ class ClusterInfo(BaseModel):
     is_master: bool
     is_member: bool
     master_ip: Optional[str] = None
-    cluster_token: Optional[str] = None
     nodes: List[ClusterNode]
 
 def ensure_config_dir():
@@ -109,8 +127,7 @@ def read_master_config():
 def write_master_config(config: dict):
     """Write master configuration file"""
     ensure_config_dir()
-    with open(MASTER_CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=2)
+    write_cluster_json(MASTER_CONFIG_FILE, config)
 
 def read_child_config():
     """Read child configuration file"""
@@ -122,11 +139,26 @@ def read_child_config():
 def write_child_config(config: dict):
     """Write child configuration file"""
     ensure_config_dir()
-    with open(CHILD_CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=2)
+    write_cluster_json(CHILD_CONFIG_FILE, config)
+
+
+def _redact_cluster_secrets(value):
+    """Return debug-safe cluster configuration without enrollment secrets."""
+
+    if isinstance(value, dict):
+        return {
+            key: "[redacted]" if key in {"key", "cluster_key", "token"}
+            else _redact_cluster_secrets(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_cluster_secrets(item) for item in value]
+    return value
 
 def read_node_config(hostname: str):
     """Read a specific node configuration"""
+    if not NODE_HOSTNAME_PATTERN.fullmatch(hostname):
+        return None
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
     if os.path.exists(node_file):
         with open(node_file, 'r') as f:
@@ -156,7 +188,8 @@ def find_unique_hostname(base_hostname: str) -> str:
     counter = 2
     
     while read_node_config(hostname) is not None:
-        hostname = f"{base_hostname}-{counter}"
+        suffix = f"-{counter}"
+        hostname = f"{base_hostname[:253 - len(suffix)]}{suffix}"
         counter += 1
         _clog(f"[CLUSTER] Hostname {base_hostname} exists, trying {hostname}")
     
@@ -164,12 +197,13 @@ def find_unique_hostname(base_hostname: str) -> str:
 
 def write_node_config(hostname: str, config: dict):
     """Write node configuration file"""
+    if not NODE_HOSTNAME_PATTERN.fullmatch(hostname):
+        raise ValueError("Invalid cluster node hostname")
     ensure_config_dir()
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
     _clog(f"[CLUSTER] Writing node config to {node_file}")
     try:
-        with open(node_file, 'w') as f:
-            json.dump(config, f, indent=2)
+        write_cluster_json(node_file, config)
         _clog(f"[CLUSTER] Successfully wrote node config for {hostname}")
         if os.path.exists(node_file):
             _clog(f"[CLUSTER] File {node_file} exists and has {os.path.getsize(node_file)} bytes")
@@ -182,27 +216,38 @@ def write_node_config(hostname: str, config: dict):
 
 def delete_node_config(hostname: str):
     """Delete node configuration file"""
+    if not NODE_HOSTNAME_PATTERN.fullmatch(hostname):
+        return
     node_file = os.path.join(NODES_DIR, f"{hostname}.json")
     if os.path.exists(node_file):
         os.remove(node_file)
 
-async def notify_removed_node(node_id: str, node_ip: str, node_port: int, cluster_key: str) -> None:
+async def notify_removed_node(node_id: str, node: dict, cluster_key: str) -> None:
     """Best-effort notification to a removed child node so it can clear its local cluster state."""
+    node_ip = node.get("ip_address")
+    node_port = normalize_cluster_port(node.get("port"))
     _clog(f"[CLUSTER] Notifying removed node {node_id} at {node_ip}:{node_port}")
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            response = await client.post(
-                f"http://{node_ip}:{node_port}/cluster/force-leave",
-                headers={"Authorization": f"Bearer {cluster_key}"},
-            )
+        ca_certificate, node_port, _ = await _resolve_peer_tls(
+            node,
+            cluster_key,
+            expected_node_id=node_id,
+        )
+        response = await signed_cluster_request(
+            "POST",
+            cluster_url(node_ip, node_port, "/cluster/force-leave"),
+            key=cluster_key,
+            ca_certificate=ca_certificate,
+            timeout=3.0,
+        )
 
-            if response.status_code == 200:
-                _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
-            else:
-                _clog(
-                    f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
-                    error=True,
-                )
+        if response.status_code == 200:
+            _clog(f"[CLUSTER] Removed node notified successfully: {node_id}")
+        else:
+            _clog(
+                f"[CLUSTER] Failed to notify removed node {node_id}: HTTP {response.status_code}",
+                error=True,
+            )
     except Exception as e:
         _clog(f"[CLUSTER] Removed node {node_id} is offline or unreachable: {e}", error=True)
 
@@ -323,6 +368,58 @@ def get_cluster_key():
             return child_config.get("cluster_key") or child_config.get("key")
     return None
 
+
+async def _resolve_peer_tls(
+    peer: dict,
+    cluster_key: str,
+    *,
+    expected_node_id: str | None = None,
+) -> tuple[str, int, str]:
+    """Return a pinned peer CA, secure port, and authenticated node identity."""
+
+    is_master_peer = bool(peer.get("master_ip"))
+    host = peer.get("master_ip") if is_master_peer else peer.get("ip_address")
+    if not host:
+        raise ClusterSecurityError("Cluster peer has no address", 503)
+    port = normalize_cluster_port(
+        peer.get("master_port") if is_master_peer else peer.get("port")
+    )
+    ca_certificate = (
+        peer.get("master_tls_ca") if is_master_peer else peer.get("tls_ca_certificate")
+    )
+    peer_node_id = expected_node_id or peer.get("hostname") or peer.get("master_hostname")
+    if not ca_certificate:
+        ca_certificate, authenticated_node_id, port = await bootstrap_peer_ca(
+            host,
+            port,
+            cluster_key,
+            expected_node_id=peer_node_id,
+        )
+        peer_node_id = authenticated_node_id
+        if peer.get("master_ip"):
+            peer["master_tls_ca"] = ca_certificate
+            peer["master_hostname"] = peer_node_id
+            peer["master_port"] = port
+            write_child_config(peer)
+        else:
+            peer["tls_ca_certificate"] = ca_certificate
+            peer["port"] = port
+            write_node_config(str(peer.get("hostname") or peer_node_id), peer)
+    return ca_certificate, port, str(peer_node_id or "")
+
+
+@router.post("/cluster/bootstrap")
+async def bootstrap_cluster_transport(request: Request):
+    """Return this node's CA with proof bound to the signed request nonce."""
+
+    keyring = load_cluster_keyring()
+    key_id = request.state.cluster_key_id
+    key = keyring.get(key_id)
+    if not key:
+        raise HTTPException(status_code=401, detail="Unknown cluster key")
+    request_nonce = request.headers.get(HEADER_NONCE, "")
+    return create_bootstrap_response(key, request_nonce)
+
 def clear_child_cluster_config() -> bool:
     """Remove local child cluster configuration if present."""
     if os.path.exists(CHILD_CONFIG_FILE):
@@ -330,68 +427,79 @@ def clear_child_cluster_config() -> bool:
         return True
     return False
 
-async def fetch_node_metrics(ip_address: str, port: int, cluster_key: str):
+async def fetch_node_metrics(node: dict, cluster_key: str):
     """Fetch metrics from a child node"""
+    ip_address = node.get("ip_address")
     try:
-        url = f"http://{ip_address}:{port}/cluster/node/metrics"
+        ca_certificate, port, _ = await _resolve_peer_tls(
+            node,
+            cluster_key,
+            expected_node_id=node.get("hostname"),
+        )
+        url = cluster_url(ip_address, port, "/cluster/node/metrics")
         _clog(f"[CLUSTER] Fetching metrics from {url}")
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                url,
-                headers={"Authorization": f"Bearer {cluster_key}"}
-            )
+        response = await signed_cluster_request(
+            "GET",
+            url,
+            key=cluster_key,
+            ca_certificate=ca_certificate,
+            timeout=5.0,
+        )
             
-            if response.status_code == 200:
-                metrics = response.json()
-                _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
-                _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
+        if response.status_code == 200:
+            metrics = response.json()
+            _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
+            _clog(f"[CLUSTER] Successfully fetched metrics from {ip_address}")
                 
-                # Support both formats: new format with cpu.count OR old format with cpu.cores
-                cpu_count = metrics.get("cpu", {}).get("count", 0)
-                if cpu_count == 0:
-                    cpu_count = metrics.get("cpu", {}).get("cores", 0)
-                
-                # Support both formats: memory.total in bytes OR memory.total in GB
-                memory_total = metrics.get("memory", {}).get("total", 0)
-                if isinstance(memory_total, float) and memory_total < 1000:
-                    # Looks like GB value, convert to bytes
-                    memory_total = int(memory_total * (1024**3))
-                
-                memory_available = metrics.get("memory", {}).get("available", 0)
-                if memory_available == 0:
-                    # Calculate from used if available not provided
-                    memory_used = metrics.get("memory", {}).get("used", 0)
-                    if isinstance(memory_used, float) and memory_used < 1000:
-                        memory_used = int(memory_used * (1024**3))
-                    memory_available = memory_total - memory_used
-                
-                # Extract container information
-                containers = metrics.get("containers", {})
-                running_containers = containers.get("running", 0)
-                total_containers = containers.get("total", 0)
-                
-                # Extract VM information
-                vms = metrics.get("vms", {})
-                running_vms = vms.get("running", 0)
-                total_vms = vms.get("total", 0)
-                
-                extracted = {
-                    "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
-                    "cpu_count": cpu_count,
-                    "memory_usage": metrics.get("memory", {}).get("usage", 0),
-                    "memory_total": memory_total,
-                    "memory_available": memory_available,
-                    "disk_usage": metrics.get("storage", {}).get("usage", 0),
-                    "running_containers": running_containers,
-                    "total_containers": total_containers,
-                    "running_vms": running_vms,
-                    "total_vms": total_vms,
-                    "success": True
-                }
-                _clog(f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, memory_total={extracted['memory_total']}")
-                return extracted
-            else:
-                _clog(f"[CLUSTER] Failed to fetch metrics from {ip_address}: HTTP {response.status_code}", error=True)
+            # Support both formats: new format with cpu.count OR old format with cpu.cores
+            cpu_count = metrics.get("cpu", {}).get("count", 0)
+            if cpu_count == 0:
+                cpu_count = metrics.get("cpu", {}).get("cores", 0)
+
+            # Support both formats: memory.total in bytes OR memory.total in GB
+            memory_total = metrics.get("memory", {}).get("total", 0)
+            if isinstance(memory_total, float) and memory_total < 1000:
+                memory_total = int(memory_total * (1024**3))
+
+            memory_available = metrics.get("memory", {}).get("available", 0)
+            if memory_available == 0:
+                memory_used = metrics.get("memory", {}).get("used", 0)
+                if isinstance(memory_used, float) and memory_used < 1000:
+                    memory_used = int(memory_used * (1024**3))
+                memory_available = memory_total - memory_used
+
+            containers = metrics.get("containers", {})
+            running_containers = containers.get("running", 0)
+            total_containers = containers.get("total", 0)
+
+            vms = metrics.get("vms", {})
+            running_vms = vms.get("running", 0)
+            total_vms = vms.get("total", 0)
+
+            extracted = {
+                "cpu_usage": metrics.get("cpu", {}).get("usage", 0),
+                "cpu_count": cpu_count,
+                "memory_usage": metrics.get("memory", {}).get("usage", 0),
+                "memory_total": memory_total,
+                "memory_available": memory_available,
+                "disk_usage": metrics.get("storage", {}).get("usage", 0),
+                "running_containers": running_containers,
+                "total_containers": total_containers,
+                "running_vms": running_vms,
+                "total_vms": total_vms,
+                "success": True,
+            }
+            _clog(
+                f"[CLUSTER] Extracted values: cpu_count={extracted['cpu_count']}, "
+                f"memory_total={extracted['memory_total']}"
+            )
+            return extracted
+        else:
+            _clog(
+                f"[CLUSTER] Failed to fetch metrics from {ip_address}: "
+                f"HTTP {response.status_code}",
+                error=True,
+            )
 
     except (httpx.RequestError, httpx.TimeoutException, Exception) as e:
         _clog(f"[CLUSTER] Error fetching metrics from {ip_address}: {e}", error=True)
@@ -510,11 +618,11 @@ async def get_cluster_debug():
                     debug_info["node_configs"][hostname] = node_config
     
     if is_master_node():
-        debug_info["master_config"] = read_master_config()
+        debug_info["master_config"] = _redact_cluster_secrets(read_master_config())
         debug_info["stored_nodes"] = list_all_nodes()
     
     if is_child_node():
-        debug_info["child_config"] = read_child_config()
+        debug_info["child_config"] = _redact_cluster_secrets(read_child_config())
     
     return debug_info
 
@@ -559,11 +667,10 @@ async def get_cluster_info():
     
     nodes = []
     master_ip = None
-    cluster_token = None
     
     if is_master:
         master_config = read_master_config()
-        cluster_token = master_config.get("key")
+        cluster_key = master_config.get("key")
         master_ip = get_local_ip()
         
         master_resources = get_system_resources()
@@ -572,7 +679,7 @@ async def get_cluster_info():
             "id": get_hostname(),
             "hostname": get_hostname(),
             "ip_address": get_local_ip(),
-            "port": 9500,
+            "port": CLUSTER_TLS_PORT,
             "status": "online",
             "role": "master",
             "resources": master_resources,
@@ -587,11 +694,7 @@ async def get_cluster_info():
         for node in child_nodes:
             _clog(f"[CLUSTER] Processing node: {node.get('hostname')}")
             if node.get("hostname") != get_hostname():
-                resources = await fetch_node_metrics(
-                    node.get("ip_address"),
-                    node.get("port", 9500),
-                    cluster_token
-                )
+                resources = await fetch_node_metrics(node, cluster_key)
                 
                 node["resources"] = resources
                 node["last_seen"] = datetime.now().isoformat()
@@ -602,7 +705,7 @@ async def get_cluster_info():
                     "id": node.get("hostname"),
                     "hostname": node.get("hostname"),
                     "ip_address": node.get("ip_address"),
-                    "port": node.get("port", 9500),
+                    "port": normalize_cluster_port(node.get("port")),
                     "status": "online" if is_online else "offline",
                     "role": "child",
                     "resources": resources,
@@ -612,25 +715,32 @@ async def get_cluster_info():
     elif is_child:
         child_config = read_child_config()
         master_ip = child_config.get("master_ip")
-        master_port = child_config.get("master_port", 9500)
-        cluster_token = child_config.get("cluster_key") or child_config.get("key")
+        master_port = normalize_cluster_port(child_config.get("master_port"))
+        cluster_key = child_config.get("cluster_key") or child_config.get("key")
         
         _clog(f"[CLUSTER] Child node trying to fetch full cluster info from {master_ip}:{master_port}")
         
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(
-                    f"http://{master_ip}:{master_port}/cluster/info",
-                    headers={"Authorization": f"Bearer {cluster_token}"}
-                )
-                if response.status_code == 200:
-                    master_view = response.json()
-                    _clog(f"[CLUSTER] Successfully fetched full cluster info from master")
-                    nodes = master_view.get("nodes", [])
-                else:
-                    _clog(f"[CLUSTER] Failed to fetch full cluster info: HTTP {response.status_code}", error=True)
-
-                    raise Exception("Master unreachable")
+            master_ca, master_port, _ = await _resolve_peer_tls(
+                child_config,
+                cluster_key,
+                expected_node_id=child_config.get("master_hostname"),
+            )
+            write_child_config(child_config)
+            response = await signed_cluster_request(
+                "GET",
+                cluster_url(master_ip, master_port, "/cluster/info"),
+                key=cluster_key,
+                ca_certificate=master_ca,
+                timeout=5.0,
+            )
+            if response.status_code == 200:
+                master_view = response.json()
+                _clog(f"[CLUSTER] Successfully fetched full cluster info from master")
+                nodes = master_view.get("nodes", [])
+            else:
+                _clog(f"[CLUSTER] Failed to fetch full cluster info: HTTP {response.status_code}", error=True)
+                raise Exception("Master unreachable")
         except Exception as e:
             _clog(f"[CLUSTER] Master unreachable while fetching full cluster info: {e}")
             nodes.append({
@@ -659,7 +769,7 @@ async def get_cluster_info():
                 "id": get_hostname(),
                 "hostname": get_hostname(),
                 "ip_address": get_local_ip(),
-                "port": 9500,
+                "port": CLUSTER_TLS_PORT,
                 "status": "online",
                 "role": "child",
                 "resources": get_system_resources(),
@@ -671,7 +781,6 @@ async def get_cluster_info():
         is_master=is_master,
         is_member=is_member,
         master_ip=master_ip,
-        cluster_token=cluster_token,
         nodes=nodes
     )
 
@@ -684,10 +793,14 @@ async def create_cluster(request: ClusterCreateRequest):
     if is_child_node():
         raise HTTPException(status_code=400, detail="This node is already a child. Leave the cluster first")
     
-    cluster_key = secrets.token_urlsafe(32)
+    ensure_node_tls()
+    cluster_key = secrets.token_urlsafe(48)
+    cluster_key_id = derive_key_id(cluster_key)
     
     master_config = {
         "key": cluster_key,
+        "key_id": cluster_key_id,
+        "previous_keys": [],
         "cluster_name": request.cluster_name,
         "created_at": datetime.now().isoformat()
     }
@@ -697,7 +810,8 @@ async def create_cluster(request: ClusterCreateRequest):
     master_node_config = {
         "hostname": get_hostname(),
         "ip_address": get_local_ip(),
-        "port": 9500,
+        "port": CLUSTER_TLS_PORT,
+        "tls_ca_certificate": ensure_node_tls().ca_certificate,
         "resources": get_system_resources(),
         "last_seen": datetime.now().isoformat()
     }
@@ -707,7 +821,9 @@ async def create_cluster(request: ClusterCreateRequest):
     return {
         "message": "Cluster created successfully",
         "token": cluster_key,
-        "master_ip": get_local_ip()
+        "key_id": cluster_key_id,
+        "master_ip": get_local_ip(),
+        "cluster_port": CLUSTER_TLS_PORT,
     }
 
 @router.post("/cluster/join")
@@ -729,6 +845,8 @@ async def join_cluster(request: ClusterJoinRequest):
     
     my_hostname = get_hostname()
     my_ip = get_local_ip()
+    local_tls = ensure_node_tls()
+    secure_master_port = normalize_cluster_port(request.port)
     
     _clog(f"[CLUSTER] My hostname: {my_hostname}")
     _clog(f"[CLUSTER] My IP: {my_ip}")
@@ -737,40 +855,59 @@ async def join_cluster(request: ClusterJoinRequest):
     node_data = {
         "hostname": my_hostname,
         "ip_address": my_ip,
-        "port": 9500,
-        "cluster_key": request.token,
-        "resources": my_resources
+        "port": CLUSTER_TLS_PORT,
+        "tls_ca_certificate": local_tls.ca_certificate,
+        "resources": my_resources,
     }
     
     _clog(f"[CLUSTER] Attempting registration with master...")
     
     try:
-        master_url = f"http://{request.master_ip}:{request.port}/cluster/register"
+        master_ca, master_hostname, secure_master_port = await bootstrap_peer_ca(
+            request.master_ip,
+            secure_master_port,
+            request.token,
+            node_id=my_hostname,
+        )
+        master_url = cluster_url(
+            request.master_ip,
+            secure_master_port,
+            "/cluster/register",
+        )
         _clog(f"[CLUSTER] POST {master_url}")
-        
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                master_url,
-                json=node_data,
-                headers={"Authorization": f"Bearer {request.token}"},
-            )
-            
-            _clog(f"[CLUSTER] Response status: {response.status_code}")
-            
-            if response.status_code != 200:
-                try:
-                    error_detail = response.json().get("detail", "Failed to register with master")
-                except:
-                    error_detail = response.text
-                _clog(f"[CLUSTER] Registration FAILED: {error_detail}", error=True)
 
-                raise HTTPException(status_code=400, detail=f"Master rejected registration: {error_detail}")
-            
-            response_data = response.json()
-            assigned_hostname = response_data.get("hostname", my_hostname)
-            
-            _clog(f"[CLUSTER] Registration SUCCESSFUL")
-            _clog(f"[CLUSTER] Assigned hostname: {assigned_hostname}")
+        response = await signed_cluster_request(
+            "POST",
+            master_url,
+            key=request.token,
+            node_id=my_hostname,
+            ca_certificate=master_ca,
+            json_data=node_data,
+            timeout=10.0,
+        )
+
+        _clog(f"[CLUSTER] Response status: {response.status_code}")
+
+        if response.status_code != 200:
+            try:
+                error_detail = response.json().get(
+                    "detail",
+                    "Failed to register with master",
+                )
+            except ValueError:
+                error_detail = response.text
+            _clog(f"[CLUSTER] Registration FAILED: {error_detail}", error=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Master rejected registration: {error_detail}",
+            )
+
+        response_data = response.json()
+        assigned_hostname = response_data.get("hostname", my_hostname)
+        master_hostname = response_data.get("master_hostname", master_hostname)
+
+        _clog(f"[CLUSTER] Registration SUCCESSFUL")
+        _clog(f"[CLUSTER] Assigned hostname: {assigned_hostname}")
             
     except HTTPException:
         raise
@@ -781,6 +918,9 @@ async def join_cluster(request: ClusterJoinRequest):
     except httpx.TimeoutException:
         _clog(f"[CLUSTER] Connection timeout to {request.master_ip}:{request.port}")
         raise HTTPException(status_code=400, detail="Connection to master timed out")
+    except ClusterSecurityError as e:
+        _clog(f"[CLUSTER] Secure transport error: {e}", error=True)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         _clog(f"[CLUSTER] Unexpected error: {type(e).__name__}: {str(e)}", error=True)
 
@@ -791,10 +931,15 @@ async def join_cluster(request: ClusterJoinRequest):
     child_config = {
         "cluster_key": request.token,  # Store as cluster_key for consistency
         "key": request.token,  # Keep backwards compatibility
+        "cluster_key_id": derive_key_id(request.token),
+        "previous_keys": [],
         "master_ip": request.master_ip,
-        "master_port": request.port,
+        "master_port": secure_master_port,
+        "master_hostname": master_hostname,
+        "master_tls_ca": master_ca,
+        "tls_ca_certificate": local_tls.ca_certificate,
         "joined_at": datetime.now().isoformat(),
-        "assigned_hostname": assigned_hostname
+        "assigned_hostname": assigned_hostname,
     }
     
     _clog(f"[CLUSTER] Writing child configuration...")
@@ -803,15 +948,22 @@ async def join_cluster(request: ClusterJoinRequest):
 
     # Pull HA config from master so this node is in sync
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            ha_resp = await client.get(
-                f"http://{request.master_ip}:{request.port}/cluster/ha/config",
-                headers={"Authorization": f"Bearer {request.token}"}
-            )
-            if ha_resp.status_code == 200:
-                from lib.ha_manager import get_ha_manager
-                get_ha_manager().apply_synced_config(ha_resp.json())
-                _clog(f"[CLUSTER] HA config pulled from master and applied")
+        ha_resp = await signed_cluster_request(
+            "GET",
+            cluster_url(
+                request.master_ip,
+                secure_master_port,
+                "/cluster/ha/config",
+            ),
+            key=request.token,
+            node_id=assigned_hostname,
+            ca_certificate=master_ca,
+            timeout=5.0,
+        )
+        if ha_resp.status_code == 200:
+            from lib.ha_manager import get_ha_manager
+            get_ha_manager().apply_synced_config(ha_resp.json())
+            _clog(f"[CLUSTER] HA config pulled from master and applied")
     except Exception as e:
         _clog(f"[CLUSTER] Could not pull HA config from master (non-fatal): {e}")
 
@@ -821,15 +973,18 @@ async def join_cluster(request: ClusterJoinRequest):
     return {
         "message": "Successfully joined cluster",
         "master_ip": request.master_ip,
-        "assigned_hostname": assigned_hostname
+        "master_port": secure_master_port,
+        "assigned_hostname": assigned_hostname,
     }
 
 @router.post("/cluster/register")
-async def register_node(request: NodeRegistrationRequest):
+async def register_node(payload: NodeRegistrationRequest, request: Request):
     """Register a child node with the master (master only)"""
     _clog(f"[CLUSTER] ========================================")
-    _clog(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
-    _clog(f"[CLUSTER] Registration request from {request.hostname} ({request.ip_address}:{request.port})")
+    _clog(
+        f"[CLUSTER] Registration request from {payload.hostname} "
+        f"({payload.ip_address}:{payload.port})"
+    )
     
     if not is_master_node():
         _clog(f"[CLUSTER] ERROR: This node is not a master", error=True)
@@ -844,36 +999,49 @@ async def register_node(request: NodeRegistrationRequest):
 
         raise HTTPException(status_code=500, detail="Master configuration not found")
     
-    expected_key = master_config.get("key")
-    
-    if expected_key != request.cluster_key:
-        _clog(f"[CLUSTER] ERROR: Invalid cluster key from {request.hostname}", error=True)
+    signed_node = request.state.cluster_node
+    if signed_node != payload.hostname:
+        raise HTTPException(
+            status_code=401,
+            detail="Signed node identity does not match registration payload",
+        )
+    try:
+        payload.ip_address = str(ipaddress.ip_address(payload.ip_address))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="Invalid node IP address") from error
+    try:
+        ssl.create_default_context(cadata=payload.tls_ca_certificate)
+    except ssl.SSLError as error:
+        raise HTTPException(status_code=400, detail="Invalid node CA certificate") from error
 
-        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    _clog(f"[CLUSTER] Signed registration verified for {signed_node}")
     
-    _clog(f"[CLUSTER] Cluster key verified successfully")
-    
-    original_hostname = request.hostname
+    original_hostname = payload.hostname
     all_nodes = list_all_nodes()
     
     same_ip_node = None
     for node in all_nodes:
-        if node.get("ip_address") == request.ip_address:
+        if node.get("ip_address") == payload.ip_address:
             same_ip_node = node
             break
     
     if same_ip_node:
         existing_hostname = same_ip_node.get("hostname")
-        _clog(f"[CLUSTER] Node with IP {request.ip_address} already exists as {existing_hostname}, updating...")
+        _clog(f"[CLUSTER] Node with IP {payload.ip_address} already exists as {existing_hostname}, updating...")
         same_ip_node["hostname"] = existing_hostname  # Keep the original hostname
-        same_ip_node["ip_address"] = request.ip_address
-        same_ip_node["port"] = request.port
-        same_ip_node["resources"] = request.resources
+        same_ip_node["ip_address"] = payload.ip_address
+        same_ip_node["port"] = normalize_cluster_port(payload.port)
+        same_ip_node["tls_ca_certificate"] = payload.tls_ca_certificate
+        same_ip_node["resources"] = payload.resources
         same_ip_node["last_seen"] = datetime.now().isoformat()
         try:
             write_node_config(existing_hostname, same_ip_node)
             _clog(f"[CLUSTER] Node {existing_hostname} updated successfully")
-            return {"message": "Node updated successfully", "hostname": existing_hostname}
+            return {
+                "message": "Node updated successfully",
+                "hostname": existing_hostname,
+                "master_hostname": get_hostname(),
+            }
         except Exception as e:
             _clog(f"[CLUSTER] ERROR updating node: {e}", error=True)
 
@@ -888,9 +1056,10 @@ async def register_node(request: NodeRegistrationRequest):
     node_config = {
         "hostname": unique_hostname,
         "original_hostname": original_hostname,
-        "ip_address": request.ip_address,
-        "port": request.port,
-        "resources": request.resources,
+        "ip_address": payload.ip_address,
+        "port": normalize_cluster_port(payload.port),
+        "tls_ca_certificate": payload.tls_ca_certificate,
+        "resources": payload.resources,
         "last_seen": datetime.now().isoformat(),
         "registered_at": datetime.now().isoformat()
     }
@@ -911,7 +1080,8 @@ async def register_node(request: NodeRegistrationRequest):
         return {
             "message": "Node registered successfully",
             "hostname": unique_hostname,
-            "original_hostname": original_hostname if unique_hostname != original_hostname else None
+            "original_hostname": original_hostname if unique_hostname != original_hostname else None,
+            "master_hostname": get_hostname(),
         }
     except Exception as e:
         _clog(f"[CLUSTER] ERROR registering node: {e}", error=True)
@@ -919,6 +1089,133 @@ async def register_node(request: NodeRegistrationRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to register node: {str(e)}")
+
+
+@router.post("/cluster/keys/update")
+async def update_cluster_key(payload: ClusterKeyUpdateRequest):
+    """Install a key distributed by the master over a signed, pinned channel."""
+
+    if not is_child_node():
+        raise HTTPException(status_code=403, detail="Only child nodes accept key updates")
+    if derive_key_id(payload.key) != payload.key_id:
+        raise HTTPException(status_code=400, detail="Cluster key identifier mismatch")
+    if payload.previous_valid_until <= int(time.time()):
+        raise HTTPException(status_code=400, detail="Key overlap window has expired")
+    try:
+        install_rotated_child_key(
+            payload.key,
+            payload.key_id,
+            payload.previous_valid_until,
+        )
+    except ClusterSecurityError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return {"updated": True, "key_id": payload.key_id}
+
+
+@router.post("/cluster/keys/rotate")
+async def rotate_cluster_key(payload: ClusterKeyRotationRequest):
+    """Rotate the cluster key with an overlap window and peer acknowledgement."""
+
+    if not is_master_node():
+        raise HTTPException(status_code=403, detail="Only the master can rotate keys")
+    config = read_master_config()
+    if not config or not config.get("key"):
+        raise HTTPException(status_code=503, detail="Master cluster key is unavailable")
+
+    now = int(time.time())
+    old_key = config["key"]
+    old_key_id = config.get("key_id") or derive_key_id(old_key)
+    pending = config.get("pending_key")
+    if not isinstance(pending, dict) or not pending.get("key"):
+        new_key = secrets.token_urlsafe(48)
+        pending = {
+            "key": new_key,
+            "key_id": derive_key_id(new_key),
+            "created_at": now,
+        }
+        config["pending_key"] = pending
+        write_master_config(config)
+
+    new_key = pending["key"]
+    new_key_id = pending.get("key_id") or derive_key_id(new_key)
+    previous_valid_until = now + payload.overlap_seconds
+    update_payload = {
+        "key": new_key,
+        "key_id": new_key_id,
+        "previous_valid_until": previous_valid_until,
+    }
+
+    updated_nodes = []
+    failures = []
+    for node in list_all_nodes():
+        node_name = node.get("hostname")
+        if node_name == get_hostname():
+            continue
+        try:
+            ca_certificate, port, _ = await _resolve_peer_tls(
+                node,
+                old_key,
+                expected_node_id=node_name,
+            )
+            response = await signed_cluster_request(
+                "POST",
+                cluster_url(node.get("ip_address"), port, "/cluster/keys/update"),
+                key=old_key,
+                key_id=old_key_id,
+                ca_certificate=ca_certificate,
+                json_data=update_payload,
+                timeout=10.0,
+            )
+            if response.status_code != 200:
+                raise ClusterSecurityError(
+                    f"HTTP {response.status_code} from key update",
+                    503,
+                )
+            updated_nodes.append(node_name)
+        except Exception as error:
+            failures.append({"node": node_name, "error": str(error)})
+
+    if failures:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Key rotation is pending; retry after peers recover",
+                "key_id": new_key_id,
+                "updated_nodes": updated_nodes,
+                "failures": failures,
+            },
+        )
+
+    previous_keys = []
+    for entry in config.get("previous_keys", []):
+        if not isinstance(entry, dict) or entry.get("key_id") == old_key_id:
+            continue
+        try:
+            if int(entry.get("valid_until", 0)) > now:
+                previous_keys.append(entry)
+        except (TypeError, ValueError):
+            continue
+    previous_keys.append(
+        {
+            "key": old_key,
+            "key_id": old_key_id,
+            "valid_until": previous_valid_until,
+        }
+    )
+    config["key"] = new_key
+    config["key_id"] = new_key_id
+    config["previous_keys"] = previous_keys
+    config.pop("pending_key", None)
+    config["rotated_at"] = datetime.now().isoformat()
+    write_master_config(config)
+
+    return {
+        "message": "Cluster key rotated successfully",
+        "key_id": new_key_id,
+        "token": new_key,
+        "previous_valid_until": previous_valid_until,
+        "updated_nodes": updated_nodes,
+    }
 
 @router.post("/cluster/leave")
 async def leave_cluster():
@@ -937,33 +1234,38 @@ async def leave_cluster():
         if cluster_key and child_nodes:
             _clog(f"[CLUSTER] Notifying {len(child_nodes)} child node(s) about master leave")
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    for node in child_nodes:
-                        node_ip = node.get("ip_address")
-                        node_port = node.get("port", 9500)
-                        if not node_ip:
-                            _clog(f"[CLUSTER] Skipping child node without IP: {node.get('hostname', 'unknown')}", error=True)
-                            continue
+                for node in child_nodes:
+                    node_ip = node.get("ip_address")
+                    if not node_ip:
+                        _clog(f"[CLUSTER] Skipping child node without IP: {node.get('hostname', 'unknown')}", error=True)
+                        continue
 
-                        leave_url = f"http://{node_ip}:{node_port}/cluster/leave"
-                        try:
-                            response = await client.post(
-                                leave_url,
-                                headers={"Authorization": f"Bearer {cluster_key}"}
-                            )
+                    try:
+                        ca_certificate, node_port, _ = await _resolve_peer_tls(
+                            node,
+                            cluster_key,
+                            expected_node_id=node.get("hostname"),
+                        )
+                        response = await signed_cluster_request(
+                            "POST",
+                            cluster_url(node_ip, node_port, "/cluster/leave"),
+                            key=cluster_key,
+                            ca_certificate=ca_certificate,
+                            timeout=10.0,
+                        )
 
-                            if response.status_code == 200:
-                                _clog(f"[CLUSTER] Child node notified successfully: {node.get('hostname', node_ip)}")
-                            else:
-                                _clog(
-                                    f"[CLUSTER] Child node leave notification failed for {node.get('hostname', node_ip)}: HTTP {response.status_code}",
-                                    error=True,
-                                )
-                        except Exception as e:
+                        if response.status_code == 200:
+                            _clog(f"[CLUSTER] Child node notified successfully: {node.get('hostname', node_ip)}")
+                        else:
                             _clog(
-                                f"[CLUSTER] Error notifying child node {node.get('hostname', node_ip)}: {e}",
+                                f"[CLUSTER] Child node leave notification failed for {node.get('hostname', node_ip)}: HTTP {response.status_code}",
                                 error=True,
                             )
+                    except Exception as e:
+                        _clog(
+                            f"[CLUSTER] Error notifying child node {node.get('hostname', node_ip)}: {e}",
+                            error=True,
+                        )
             except Exception as e:
                 _clog(f"[CLUSTER] Error while notifying child nodes: {e}", error=True)
 
@@ -979,13 +1281,13 @@ async def leave_cluster():
     elif is_child_node():
         child_config = read_child_config()
         master_ip = None
-        master_port = 9500
+        master_port = CLUSTER_TLS_PORT
         cluster_key = None
         assigned_hostname = None
 
         if child_config:
             master_ip = child_config.get("master_ip")
-            master_port = child_config.get("master_port", 9500)
+            master_port = normalize_cluster_port(child_config.get("master_port"))
             cluster_key = child_config.get("cluster_key") or child_config.get("key")
             assigned_hostname = child_config.get("assigned_hostname")
 
@@ -994,19 +1296,26 @@ async def leave_cluster():
         if master_ip and cluster_key:
             _clog(f"[CLUSTER] Notifying master about child leave: {node_id} -> {master_ip}:{master_port}")
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.delete(
-                        f"http://{master_ip}:{master_port}/cluster/nodes/{node_id}",
-                        headers={"Authorization": f"Bearer {cluster_key}"},
-                    )
+                master_ca, master_port, _ = await _resolve_peer_tls(
+                    child_config,
+                    cluster_key,
+                    expected_node_id=child_config.get("master_hostname"),
+                )
+                response = await signed_cluster_request(
+                    "DELETE",
+                    cluster_url(master_ip, master_port, f"/cluster/nodes/{node_id}"),
+                    key=cluster_key,
+                    ca_certificate=master_ca,
+                    timeout=10.0,
+                )
 
-                    if response.status_code == 200:
-                        _clog(f"[CLUSTER] Master notified successfully for child node: {node_id}")
-                    else:
-                        _clog(
-                            f"[CLUSTER] Master notification failed for child node {node_id}: HTTP {response.status_code}",
-                            error=True,
-                        )
+                if response.status_code == 200:
+                    _clog(f"[CLUSTER] Master notified successfully for child node: {node_id}")
+                else:
+                    _clog(
+                        f"[CLUSTER] Master notification failed for child node {node_id}: HTTP {response.status_code}",
+                        error=True,
+                    )
             except Exception as e:
                 _clog(f"[CLUSTER] Error notifying master about child leave: {e}", error=True)
 
@@ -1015,7 +1324,7 @@ async def leave_cluster():
     return {"message": "Successfully left cluster"}
 
 @router.post("/cluster/force-leave")
-async def force_leave_cluster(_: bool = Depends(verify_cluster_auth)):
+async def force_leave_cluster():
     """Force a child node to leave the cluster without notifying the master again."""
     if not is_child_node():
         raise HTTPException(status_code=400, detail="This node is not a child node")
@@ -1041,7 +1350,6 @@ async def remove_node(node_id: str):
 
     resolved_hostname = resolved_hostname or node_id
     node_ip = node_config.get("ip_address")
-    node_port = node_config.get("port", 9500)
     master_config = read_master_config()
     cluster_key = master_config.get("key") if master_config else None
     
@@ -1060,7 +1368,7 @@ async def remove_node(node_id: str):
 
     if node_ip and cluster_key:
         asyncio.create_task(
-            notify_removed_node(resolved_hostname, node_ip, node_port, cluster_key)
+            notify_removed_node(resolved_hostname, node_config, cluster_key)
         )
     else:
         _clog(f"[CLUSTER] Removed node {resolved_hostname} has no reachable address or cluster key", error=True)
@@ -1767,132 +2075,137 @@ async def execute_replication(replication: dict):
         
         _clog(f"[REPLICATION] Cluster key loaded successfully")
         
-        origin_config = read_node_config(origin_node) if origin_node != get_hostname() else None
-        dest_config = read_node_config(destination_node) if destination_node != get_hostname() else None
-        
-        if origin_node == get_hostname():
-            origin_ip = "localhost"
-            origin_port = 9500
-        elif origin_config:
-            origin_ip = origin_config['ip_address']
-            origin_port = origin_config.get('port', 9500)
-        else:
+        local_tls = ensure_node_tls()
+        origin_config = (
+            {
+                "hostname": get_hostname(),
+                "ip_address": "127.0.0.1",
+                "port": CLUSTER_TLS_PORT,
+                "tls_ca_certificate": local_tls.ca_certificate,
+            }
+            if origin_node == get_hostname()
+            else read_node_config(origin_node)
+        )
+        dest_config = (
+            {
+                "hostname": get_hostname(),
+                "ip_address": "127.0.0.1",
+                "port": CLUSTER_TLS_PORT,
+                "tls_ca_certificate": local_tls.ca_certificate,
+            }
+            if destination_node == get_hostname()
+            else read_node_config(destination_node)
+        )
+
+        if not origin_config:
             _clog(f"[REPLICATION] Origin node config not found: {origin_node}")
             _progress(100, f"Origin node not found: {origin_node}", status="failed")
             return False
-        
-        if destination_node == get_hostname():
-            dest_ip = "localhost"
-            dest_port = 9500
-        elif dest_config:
-            dest_ip = dest_config['ip_address']
-            dest_port = dest_config.get('port', 9500)
-        else:
+        if not dest_config:
             _clog(f"[REPLICATION] Destination node config not found: {destination_node}")
             _progress(100, f"Destination node not found: {destination_node}", status="failed")
             return False
-        
+
+        origin_ip = origin_config["ip_address"]
+        dest_ip = dest_config["ip_address"]
+        origin_ca, origin_port, _ = await _resolve_peer_tls(
+            origin_config,
+            cluster_key,
+            expected_node_id=origin_node,
+        )
+        dest_ca, dest_port, _ = await _resolve_peer_tls(
+            dest_config,
+            cluster_key,
+            expected_node_id=destination_node,
+        )
+
         _clog(f"[REPLICATION] Exporting {resource_type} '{resource_name}' from {origin_ip}:{origin_port}")
         _progress(20, "Exporting from origin node")
-        
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            export_url = f"http://{origin_ip}:{origin_port}/cluster/export/{resource_type}/{resource_name}"
-            _clog(f"[REPLICATION] Export URL: {export_url}")
 
-            export_response = await client.post(
-                export_url,
-                headers={"Authorization": f"Bearer {cluster_key}"}
-            )
-            
-            _clog(f"[REPLICATION] Export response status: {export_response.status_code}")
-            
-            if export_response.status_code != 200:
-                _clog(f"[REPLICATION] Export failed: {export_response.status_code} - {export_response.text}", error=True)
-                _progress(100, "Export failed", status="failed")
+        export_url = cluster_url(
+            origin_ip,
+            origin_port,
+            f"/cluster/export/{resource_type}/{resource_name}",
+        )
+        _clog(f"[REPLICATION] Export URL: {export_url}")
+        export_response = await signed_cluster_request(
+            "POST",
+            export_url,
+            key=cluster_key,
+            ca_certificate=origin_ca,
+            timeout=300.0,
+        )
+        if export_response.status_code != 200:
+            _progress(100, "Export failed", status="failed")
+            return False
 
-                return False
-            
-            export_data = export_response.json()
-            export_path = export_data.get("export_path")
-            
-            if not export_path:
-                _clog(f"[REPLICATION] No export path returned")
-                _progress(100, "No export path returned", status="failed")
-                return False
-            
-            _clog(f"[REPLICATION] Exported to: {export_path}")
-            
-            download_url = f"http://{origin_ip}:{origin_port}/cluster/download/{export_path.split('/')[-1]}"
-            _clog(f"[REPLICATION] Downloading from: {download_url}")
-            _progress(45, "Downloading export archive")
-            
-            download_response = await client.get(
-                download_url,
-                headers={"Authorization": f"Bearer {cluster_key}"}
-            )
-            
-            if download_response.status_code != 200:
-                _clog(f"[REPLICATION] Download failed: {download_response.status_code}", error=True)
-                _progress(100, "Download failed", status="failed")
+        export_path = export_response.json().get("export_path")
+        if not export_path:
+            _progress(100, "No export path returned", status="failed")
+            return False
 
-                return False
-            
-            archive_data = download_response.content
-            _clog(f"[REPLICATION] Downloaded {len(archive_data)} bytes")
-            
-            upload_url = f"http://{dest_ip}:{dest_port}/cluster/upload"
-            _clog(f"[REPLICATION] Uploading to: {upload_url}")
-            _progress(65, "Uploading archive to destination node")
-            
-            files = {
-                "file": (f"{resource_name}.tar.gz", archive_data, "application/gzip")
-            }
-            
-            upload_response = await client.post(
-                upload_url,
-                headers={"Authorization": f"Bearer {cluster_key}"},
-                files=files
-            )
-            
-            if upload_response.status_code != 200:
-                _clog(f"[REPLICATION] Upload failed: {upload_response.status_code} - {upload_response.text}", error=True)
-                _progress(100, "Upload failed", status="failed")
+        download_url = cluster_url(
+            origin_ip,
+            origin_port,
+            f"/cluster/download/{export_path.split('/')[-1]}",
+        )
+        _progress(45, "Downloading export archive")
+        download_response = await signed_cluster_request(
+            "GET",
+            download_url,
+            key=cluster_key,
+            ca_certificate=origin_ca,
+            timeout=300.0,
+        )
+        if download_response.status_code != 200:
+            _progress(100, "Download failed", status="failed")
+            return False
 
-                return False
-            
-            upload_data = upload_response.json()
-            uploaded_path = upload_data.get("path")
-            
-            _clog(f"[REPLICATION] Uploaded to: {uploaded_path}")
-            
-            import_url = f"http://{dest_ip}:{dest_port}/cluster/import/{resource_type}"
-            _clog(f"[REPLICATION] Importing at: {import_url}")
-            _progress(85, "Importing on destination node")
-            
-            import_params = {
-                "archive_path": uploaded_path,
-                "name": resource_name
-            }
-            
-            import_response = await client.post(
-                import_url,
-                headers={"Authorization": f"Bearer {cluster_key}"},
-                params=import_params
-            )
-            
-            if import_response.status_code != 200:
-                _clog(f"[REPLICATION] Import failed: {import_response.status_code} - {import_response.text}", error=True)
-                _progress(100, "Import failed", status="failed")
+        archive_data = download_response.content
+        upload_url = cluster_url(dest_ip, dest_port, "/cluster/upload")
+        _progress(65, "Uploading archive to destination node")
+        upload_response = await signed_cluster_request(
+            "POST",
+            upload_url,
+            key=cluster_key,
+            ca_certificate=dest_ca,
+            content=archive_data,
+            headers={
+                "Content-Type": "application/gzip",
+                "X-UpservX-Filename": f"{resource_name}.tar.gz",
+            },
+            timeout=300.0,
+        )
+        if upload_response.status_code != 200:
+            _progress(100, "Upload failed", status="failed")
+            return False
 
-                return False
-            
-            _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
-            _progress(100, "Replication completed successfully", status="completed")
-            notify(
-                "replication_success",
-                f"Replication '{resource_name}' completed | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
-            )
-            return True
+        uploaded_path = upload_response.json().get("path")
+        import_url = cluster_url(
+            dest_ip,
+            dest_port,
+            f"/cluster/import/{resource_type}",
+        )
+        _progress(85, "Importing on destination node")
+        import_response = await signed_cluster_request(
+            "POST",
+            import_url,
+            key=cluster_key,
+            ca_certificate=dest_ca,
+            params={"archive_path": uploaded_path, "name": resource_name},
+            timeout=300.0,
+        )
+        if import_response.status_code != 200:
+            _progress(100, "Import failed", status="failed")
+            return False
+
+        _clog(f"[REPLICATION] Successfully replicated {resource_type} '{resource_name}' from {origin_node} to {destination_node}")
+        _progress(100, "Replication completed successfully", status="completed")
+        notify(
+            "replication_success",
+            f"Replication '{resource_name}' completed | Type: {resource_type} | From: {origin_node} | To: {destination_node}",
+        )
+        return True
             
     except Exception as e:
         _clog(f"[REPLICATION] Error during replication: {e}", error=True)
@@ -1955,66 +2268,68 @@ async def get_node_resources(hostname: str):
         master_config = read_master_config()
         cluster_key = master_config.get("key")
         node_ip = node_config['ip_address']
-        node_port = node_config.get('port', 9500)
+        ca_certificate, node_port, _ = await _resolve_peer_tls(
+            node_config,
+            cluster_key,
+            expected_node_id=hostname,
+        )
         
         _clog(f"[REPLICATION] Fetching from {node_ip}:{node_port}")
         
         resources = []
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                containers_url = f"http://{node_ip}:{node_port}/containers"
-                _clog(f"[REPLICATION] Fetching containers from: {containers_url}")
-                containers_response = await client.get(
-                    containers_url,
-                    params={"include_compose": "false"},
-                    headers={"Authorization": f"Bearer {cluster_key}"}
-                )
+        try:
+            containers_url = cluster_url(node_ip, node_port, "/containers")
+            _clog(f"[REPLICATION] Fetching containers from: {containers_url}")
+            containers_response = await signed_cluster_request(
+                "GET",
+                containers_url,
+                key=cluster_key,
+                ca_certificate=ca_certificate,
+                params={"include_compose": "false"},
+                timeout=10.0,
+            )
                 
-                _clog(f"[REPLICATION] Containers response status: {containers_response.status_code}")
+            _clog(f"[REPLICATION] Containers response status: {containers_response.status_code}")
                 
-                if containers_response.status_code == 200:
-                    containers = containers_response.json()
-                    _clog(f"[REPLICATION] Found {len(containers)} containers")
-                    for container in containers:
-                        name = container.get("name")
-                        if name and name.strip():
-                            resources.append({
-                                "name": name,
-                                "type": "container"
-                            })
-                else:
-                    _clog(f"[REPLICATION] Failed to fetch containers: {containers_response.text}", error=True)
+            if containers_response.status_code == 200:
+                containers = containers_response.json()
+                _clog(f"[REPLICATION] Found {len(containers)} containers")
+                for container in containers:
+                    name = container.get("name")
+                    if name and name.strip():
+                        resources.append({"name": name, "type": "container"})
+            else:
+                _clog(f"[REPLICATION] Failed to fetch containers: {containers_response.text}", error=True)
 
-            except Exception as e:
-                _clog(f"[REPLICATION] Error fetching containers: {e}", error=True)
+        except Exception as e:
+            _clog(f"[REPLICATION] Error fetching containers: {e}", error=True)
 
-            
-            try:
-                vms_url = f"http://{node_ip}:{node_port}/vms"
-                _clog(f"[REPLICATION] Fetching VMs from: {vms_url}")
-                vms_response = await client.get(
-                    vms_url,
-                    headers={"Authorization": f"Bearer {cluster_key}"}
-                )
+        try:
+            vms_url = cluster_url(node_ip, node_port, "/vms")
+            _clog(f"[REPLICATION] Fetching VMs from: {vms_url}")
+            vms_response = await signed_cluster_request(
+                "GET",
+                vms_url,
+                key=cluster_key,
+                ca_certificate=ca_certificate,
+                timeout=10.0,
+            )
                 
-                _clog(f"[REPLICATION] VMs response status: {vms_response.status_code}")
+            _clog(f"[REPLICATION] VMs response status: {vms_response.status_code}")
                 
-                if vms_response.status_code == 200:
-                    vms = vms_response.json()
-                    _clog(f"[REPLICATION] Found {len(vms)} VMs")
-                    for vm in vms:
-                        name = vm.get("name")
-                        if name and name.strip():
-                            resources.append({
-                                "name": name,
-                                "type": "vm"
-                            })
-                else:
-                    _clog(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}", error=True)
+            if vms_response.status_code == 200:
+                vms = vms_response.json()
+                _clog(f"[REPLICATION] Found {len(vms)} VMs")
+                for vm in vms:
+                    name = vm.get("name")
+                    if name and name.strip():
+                        resources.append({"name": name, "type": "vm"})
+            else:
+                _clog(f"[REPLICATION] Failed to fetch VMs: {vms_response.text}", error=True)
 
-            except Exception as e:
-                _clog(f"[REPLICATION] Error fetching VMs: {e}", error=True)
+        except Exception as e:
+            _clog(f"[REPLICATION] Error fetching VMs: {e}", error=True)
 
         
         _clog(f"[REPLICATION] Total resources found: {len(resources)}")
@@ -2039,27 +2354,9 @@ def _safe_tar_extractall(tar, dest_dir: str):
     tar.extractall(dest_dir)
 
 @router.post("/cluster/export/{resource_type}/{resource_name}")
-async def export_resource(resource_type: str, resource_name: str, authorization: str = Header(None, alias="Authorization")):
+async def export_resource(resource_type: str, resource_name: str):
     """Export a container or VM with all volumes/storage"""
     _clog(f"[EXPORT] Called with resource_type={resource_type}, resource_name={resource_name}")
-    
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header missing or invalid")
-    
-    provided_key = authorization[7:]
-    master_config = read_master_config()
-    child_config = read_child_config()
-    
-    valid_key = False
-    if master_config and master_config.get("key") == provided_key:
-        valid_key = True
-    elif child_config:
-        child_key = child_config.get("cluster_key") or child_config.get("key")
-        if child_key == provided_key:
-            valid_key = True
-    
-    if not valid_key:
-        raise HTTPException(status_code=401, detail="Invalid cluster key")
     
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
@@ -2223,6 +2520,8 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
             "export_id": export_id
         }
         
+    except HTTPException:
+        raise
     except subprocess.CalledProcessError as e:
         _clog(f"[EXPORT] Command failed: {e.stderr if e.stderr else str(e)}", error=True)
 
@@ -2235,25 +2534,14 @@ async def export_resource(resource_type: str, resource_name: str, authorization:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/cluster/download/{filename}")
-async def download_export(filename: str, authorization: str = Header(None, alias="Authorization")):
+async def download_export(filename: str):
     """Download an exported archive"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization")
-    
-    provided_key = authorization[7:]
-    master_config = read_master_config()
-    child_config = read_child_config()
-    
-    valid_key = False
-    if master_config and master_config.get("key") == provided_key:
-        valid_key = True
-    elif child_config:
-        child_key = child_config.get("cluster_key") or child_config.get("key")
-        if child_key == provided_key:
-            valid_key = True
-    
-    if not valid_key:
-        raise HTTPException(status_code=401, detail="Invalid cluster key")
+    if (
+        not filename
+        or filename in {".", ".."}
+        or os.path.basename(filename) != filename
+    ):
+        raise HTTPException(status_code=400, detail="Invalid export filename")
     
     file_path = os.path.join(TEMP_EXPORT_DIR, filename)
     
@@ -2270,75 +2558,57 @@ async def download_export(filename: str, authorization: str = Header(None, alias
     )
 
 @router.post("/cluster/upload")
-async def upload_archive(file: UploadFile = File(...), authorization: str = Header(None, alias="Authorization")):
+async def upload_archive(request: Request):
     """Upload an archive for import"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization")
-    
-    provided_key = authorization[7:]
-    master_config = read_master_config()
-    child_config = read_child_config()
-    
-    valid_key = False
-    if master_config and master_config.get("key") == provided_key:
-        valid_key = True
-    elif child_config:
-        child_key = child_config.get("cluster_key") or child_config.get("key")
-        if child_key == provided_key:
-            valid_key = True
-    
-    if not valid_key:
-        raise HTTPException(status_code=401, detail="Invalid cluster key")
-    
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
+
+        filename = request.headers.get("X-UpservX-Filename", "")
+        if (
+            not filename
+            or filename in {".", ".."}
+            or os.path.basename(filename) != filename
+        ):
+            raise HTTPException(status_code=400, detail="Invalid upload filename")
         
         import uuid
         upload_id = str(uuid.uuid4())
-        upload_path = os.path.join(TEMP_EXPORT_DIR, f"{upload_id}_{file.filename}")
+        upload_path = os.path.join(TEMP_EXPORT_DIR, f"{upload_id}_{filename}")
         
-        _clog(f"[UPLOAD] Receiving file: {file.filename}")
+        _clog(f"[UPLOAD] Receiving file: {filename}")
         
         with open(upload_path, "wb") as f:
-            content = await file.read()
+            content = await request.body()
             f.write(content)
         
         _clog(f"[UPLOAD] Saved to: {upload_path} ({len(content)} bytes)")
         
         return {
             "path": upload_path,
-            "filename": file.filename
+            "filename": filename
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
         _clog(f"[UPLOAD] Upload failed: {e}", error=True)
 
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/cluster/import/{resource_type}")
-async def import_resource(resource_type: str, archive_path: str = "", name: str = "", authorization: str = Header(None, alias="Authorization")):
+async def import_resource(resource_type: str, archive_path: str = "", name: str = ""):
     """Import a container or VM from archive"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization")
-    
-    provided_key = authorization[7:]
-    master_config = read_master_config()
-    child_config = read_child_config()
-    
-    valid_key = False
-    if master_config and master_config.get("key") == provided_key:
-        valid_key = True
-    elif child_config:
-        child_key = child_config.get("cluster_key") or child_config.get("key")
-        if child_key == provided_key:
-            valid_key = True
-    
-    if not valid_key:
-        raise HTTPException(status_code=401, detail="Invalid cluster key")
-    
     try:
-        if not os.path.exists(archive_path):
+        if resource_type not in {"container", "vm"}:
+            raise HTTPException(status_code=400, detail="Unknown resource type")
+        if not name or name in {".", ".."} or os.path.basename(name) != name:
+            raise HTTPException(status_code=400, detail="Invalid resource name")
+        export_root = os.path.realpath(TEMP_EXPORT_DIR)
+        resolved_archive_path = os.path.realpath(archive_path)
+        if not resolved_archive_path.startswith(export_root + os.sep):
+            raise HTTPException(status_code=400, detail="Archive path is outside export storage")
+        if not os.path.isfile(resolved_archive_path):
             raise HTTPException(status_code=404, detail="Archive not found")
+        archive_path = resolved_archive_path
         
         _clog(f"[IMPORT] Importing {resource_type} '{name}' from {archive_path}")
         
@@ -2552,7 +2822,9 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
             "message": f"{resource_type.capitalize()} imported successfully",
             "name": name
         }
-        
+
+    except HTTPException:
+        raise
     except subprocess.CalledProcessError as e:
         _clog(f"[IMPORT] Command failed: {e.stderr if e.stderr else str(e)}", error=True)
 
