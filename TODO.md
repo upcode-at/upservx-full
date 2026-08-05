@@ -1,401 +1,403 @@
 # TODO – UpservX
 
-Diese Datei enthält nur noch offene Arbeiten, die sich aus dem aktuellen
-Repository-Stand ableiten lassen. Allgemeine Ideen stehen hinter konkreten
-Fehlern, Sicherheitslücken und fehlenden Qualitätssicherungen zurück.
+This file contains only work that is still open based on the current
+repository state. Concrete defects, security gaps, and missing quality gates
+take precedence over general ideas.
 
-**Letzter vollständiger Repository-Audit:** 5. August 2026
+**Last full repository audit:** August 5, 2026
 
-**Geprüfter Stand:** `0.6.0`
-**Prioritäten:** P0 = Release-Blocker, P1 = vor stabilem Produktivbetrieb,
-P2 = nächster Funktionsausbau, P3 = langfristige/Enterprise-Roadmap
+**Audited version:** `0.6.0`
 
-## P0 – Release-Blocker
+**Priorities:** P0 = release blocker, P1 = required before stable production
+use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 
-### Autorisierung und Vertrauensgrenzen
+## P0 – Release blockers
 
-- [ ] Die Backend-Autorisierung vollständig korrigieren und mit Negativtests
-  absichern.
-  - `/security/*` ist derzeit nicht als Admin-Bereich eingestuft. Dadurch kann
-    jeder angemeldete Benutzer unter anderem Paket-Upgrades auslösen und
-    Fail2Ban-Sperren aufheben.
-  - `/cluster/*`, `/cluster/ha/*` und `/vm-networks/*` fallen ebenfalls durch
-    die aktuelle Standardfreigabe. Cluster-Erstellung, Replikation, Failover
-    und Netzwerkänderungen müssen explizite Rollen erfordern.
-  - Berechtigungen nicht nur über URL-Präfixe, sondern pro Route und Aktion
-    definieren; lesende und verändernde Operationen getrennt behandeln.
-  - Tests für alle Rollen, API-Schlüssel, Cluster-Principals und unbekannte
-    Routen ergänzen. Standardverhalten muss „deny by default“ sein.
+### Authorization and trust boundaries
 
-- [ ] Interne Cluster- und HA-Endpunkte wirklich authentifizieren.
-  - Die Middleware überspringt Heartbeat, Vote, Master-Update,
-    VIP-Owner-Update und Config-Sync; die Routen selbst prüfen aktuell keinen
-    Cluster-Schlüssel.
-  - Nachrichten signieren beziehungsweise mTLS verwenden, Replay-Schutz und
-    Zeitfenster ergänzen sowie Schlüsselrotation ermöglichen.
-  - Den Cluster-Token nicht mehr über `/cluster/info` an jeden angemeldeten
-    Benutzer ausgeben.
-  - Inter-Node-Verkehr nicht unverschlüsselt über `http://` betreiben.
+- [ ] Correct backend authorization comprehensively and cover it with negative
+  tests.
+  - `/security/*` is not currently classified as an admin area. As a result,
+    any authenticated user can trigger package upgrades and remove Fail2Ban
+    bans, among other actions.
+  - `/cluster/*`, `/cluster/ha/*`, and `/vm-networks/*` also fall through
+    the current default allow behavior. Cluster creation, replication,
+    failover, and network changes must require explicit roles.
+  - Define permissions per route and action instead of relying only on URL
+    prefixes; handle read and mutation operations separately.
+  - Add tests for every role, API keys, cluster principals, and unknown routes.
+    The default behavior must be deny by default.
 
-- [ ] Geheimnisse und Sitzungen härten.
-  - Backup-Konfiguration darf Passwörter nicht über Debug-Ausgaben loggen;
-    Vorschauen von Verschlüsselungsschlüsseln und Ciphertext entfernen.
-  - Verschlüsselung muss bei Fehlern geschlossen abbrechen. Niemals Klartext
-    als stillen Fallback speichern oder zurückgeben.
-  - Für die 2FA-Anmeldung kein Linux-Passwort mehr in
-    `/etc/upservx/login_tokens.json` zwischenspeichern; Benutzername und
-    erfolgreich bestandene erste Authentifizierungsstufe reichen aus.
-  - Session-Cookie für HTTPS mit `Secure`, passendem `SameSite`-/Domain-/Path-
-    Verhalten und klarer Ablauf-/Widerrufsstrategie versehen.
-  - Den einzelnen globalen API-Key durch widerrufbare, gehashte und
-    rollen-/scope-gebundene API-Tokens ersetzen.
-  - Dateirechte aller Dateien unter `/etc/upservx` zentral definieren und testen.
+- [ ] Properly authenticate internal cluster and HA endpoints.
+  - The middleware skips heartbeat, vote, master-update, VIP-owner-update, and
+    config-sync requests; the routes themselves currently do not verify a
+    cluster key.
+  - Sign messages or use mTLS, add replay protection and time windows, and
+    support key rotation.
+  - Stop exposing the cluster token through `/cluster/info` to every
+    authenticated user.
+  - Do not send inter-node traffic unencrypted over `http://`.
 
-### Prozessmodell und persistenter Zustand
+- [ ] Harden secrets and sessions.
+  - Backup configuration must not log passwords through debug output; remove
+    previews of encryption keys and ciphertext.
+  - Encryption must fail closed. Never store or return plaintext as a silent
+    fallback.
+  - Stop storing Linux passwords temporarily in
+    `/etc/upservx/login_tokens.json` during 2FA login; the username and a
+    successfully completed first authentication step are sufficient.
+  - Configure the session cookie for HTTPS with `Secure`, suitable
+    `SameSite`/domain/path behavior, and a clear expiry and revocation
+    strategy.
+  - Replace the single global API key with revocable, hashed API tokens bound to
+    roles and scopes.
+  - Centrally define and test file permissions for all files under
+    `/etc/upservx`.
 
-- [ ] Das Backend-Prozessmodell mit `uvicorn --workers 4` korrigieren.
-  - Rate-Limits, WebSocket-Tickets, HA-Manager, Metrikzustand und verschiedene
-    globale Manager leben derzeit nur im Speicher eines Workers.
-  - Ein Ticket kann deshalb in Worker A erzeugt und in Worker B abgelehnt
-    werden; Rate-Limits lassen sich pro Worker umgehen.
-  - Entweder vorerst einen Worker erzwingen oder alle gemeinsam benötigten
-    Zustände in einen transaktions- und nebenläufigkeitssicheren Store verlegen.
-  - Prozesslokale Locks bei gemeinsam beschriebenen JSON-Dateien durch echte
-    Cross-Process-Synchronisation und atomare Updates ersetzen.
+### Process model and persistent state
 
-- [ ] Langlebige Arbeiten aus HTTP- und Worker-Prozessen herauslösen.
-  - Backups, Replikationen, Exporte, Scans und Updates als persistente Jobs mit
-    Status, Retry, Abbruch, Timeout und Wiederaufnahme ausführen.
-  - Ein Neustart darf laufende Arbeit nicht unbemerkt verlieren oder dauerhaft
-    den Status `running` hinterlassen.
+- [ ] Correct the backend process model used with `uvicorn --workers 4`.
+  - Rate limits, WebSocket tickets, the HA manager, metric state, and several
+    global managers currently live only in one worker's memory.
+  - A ticket can therefore be created in worker A and rejected in worker B;
+    rate limits can be bypassed on a per-worker basis.
+  - Either enforce a single worker for now or move all shared state into a
+    transactional, concurrency-safe store.
+  - Replace process-local locks around shared JSON files with real
+    cross-process synchronization and atomic updates.
 
-### Installation, Dienstrechte und Updates
+- [ ] Move long-running work out of HTTP and worker processes.
+  - Run backups, replications, exports, scans, and updates as persistent jobs
+    with status, retry, cancellation, timeout, and resume support.
+  - A restart must not silently lose active work or leave it permanently marked
+    as `running`.
 
-- [ ] Ein eindeutiges Privilegienmodell festlegen und installieren.
-  - Der systemd-Dienst läuft je nach Installationsart als normaler Benutzer oder
-    root, während Backend-Funktionen gleichzeitig `/etc`, Netzwerk, Firewall,
-    Benutzer, Datenträger, libvirt, Docker und systemd verändern wollen.
-  - Einen dedizierten Dienstbenutzer und eng begrenzte privilegierte Helfer,
-    Gruppen beziehungsweise sudoers-Regeln einrichten.
-  - Docker-, LXD-, libvirt-/KVM- und Dateiberechtigungen beim Installieren
-    reproduzierbar setzen und mit einem Post-Install-Smoke-Test prüfen.
+### Installation, service privileges, and updates
 
-- [ ] Den Updatepfad neu bauen.
-  - `install.sh` kopiert ohne `.git` nach `/opt/upservx`, `update.sh` versucht
-    dort aber `git pull` auszuführen.
-  - Das Update wird vom laufenden Dienst gestartet und stoppt genau diesen
-    Dienst; mit dem üblichen systemd-KillMode kann der Updateprozess dabei
-    selbst beendet werden.
-  - Update außerhalb des Webdienstes ausführen, signierte/versionierte Artefakte
-    verwenden, Konfiguration sichern, atomar umschalten, Health-Check und
-    Rollback ergänzen.
-  - Fehlerhafte Exit-Codes müssen als Fehler gemeldet werden; derzeit antwortet
-    die API auch bei einem fehlgeschlagenen Skript mit „update completed“.
+- [ ] Define and install one unambiguous privilege model.
+  - Depending on how it was installed, the systemd service runs either as a
+    regular user or as root, while backend functions need to modify `/etc`,
+    networking, the firewall, users, disks, libvirt, Docker, and systemd.
+  - Create a dedicated service user and narrowly scoped privileged helpers,
+    groups, or sudoers rules.
+  - Configure Docker, LXD, libvirt/KVM, and file permissions reproducibly
+    during installation and verify them with a post-install smoke test.
 
-- [ ] Den Installer sicher und minimal machen.
-  - Das globale Entfernen von `pam_lastlog.so` aus PAM-Dateien unterlassen.
-  - Heruntergeladene K3s-/Repository-Skripte und Schlüssel verbindlich prüfen;
-    keine ungeprüften Remote-Skripte ausführen.
-  - K3s, LXD, PostgreSQL, FTP/vsftpd, OpenVPN, ZFS und weitere große Komponenten
-    als optionale Profile statt immer als Pflichtpakete installieren.
-  - `npm ci` und reproduzierbare Python-Abhängigkeiten statt veränderlicher
-    Installationen verwenden.
-  - Frontend und Backend als getrennte systemd-Units mit Readiness-/Liveness-
-    Checks betreiben.
+- [ ] Rebuild the update path.
+  - `install.sh` copies the application to `/opt/upservx` without `.git`,
+    but `update.sh` tries to run `git pull` there.
+  - The update is started by the running service and stops that same service;
+    with the usual systemd KillMode, this can terminate the update process
+    itself.
+  - Execute updates outside the web service, use signed and versioned artifacts,
+    back up configuration, switch atomically, and add health checks and
+    rollback.
+  - Report non-zero exit codes as failures; the API currently responds with
+    “update completed” even when the script fails.
 
-- [ ] Die noVNC-Quelle im Repository reparieren.
-  - `upservx/public/novnc` ist ein Gitlink, aber es gibt keine passende
-    `.gitmodules`-Zuordnung.
-  - Entweder korrektes Submodul eintragen oder noVNC ausschließlich als
-    installierte/geprüfte Abhängigkeit beziehen und den Gitlink entfernen.
+- [ ] Make the installer safe and minimal.
+  - Stop removing `pam_lastlog.so` globally from PAM files.
+  - Require verification of downloaded K3s/repository scripts and keys; do not
+    execute unverified remote scripts.
+  - Install K3s, LXD, PostgreSQL, FTP/vsftpd, OpenVPN, ZFS, and other large
+    components as optional profiles instead of mandatory packages.
+  - Use `npm ci` and reproducibly locked Python dependencies instead of
+    mutable installations.
+  - Run the frontend and backend as separate systemd units with readiness and
+    liveness checks.
 
-### Backup-System funktionsfähig machen
+- [ ] Repair the noVNC source in the repository.
+  - `upservx/public/novnc` is a Gitlink, but no matching `.gitmodules`
+    mapping exists.
+  - Either add a correct submodule or obtain noVNC exclusively as an installed,
+    verified dependency and remove the Gitlink.
 
-- [ ] Eine einzige Datenquelle für Backup-Server verwenden.
-  - Erstellen, Auflisten und Löschen arbeiten derzeit mit
-    `backup_servers.json`; Aktualisieren und Verbindungstest greifen auf die
-    SQLite-Tabelle `backup_servers` zu.
-  - Ein Schema auswählen, bestehende Daten migrieren und CRUD, Jobs,
-    Zugangsdaten sowie Fremdschlüssel durchgehend darüber abwickeln.
-  - Statuswerte und Modelle vereinheitlichen (`active` versus
+### Make the backup system functional
+
+- [ ] Use one data source for backup servers.
+  - Create, list, and delete currently use `backup_servers.json`; update and
+    connection testing use the SQLite `backup_servers` table.
+  - Select one schema, migrate existing data, and use it consistently for CRUD,
+    jobs, credentials, and foreign keys.
+  - Standardize status values and models (`active` versus
     `connected`/`disconnected`/`error`).
 
-- [ ] Geplante Backups ausführbar machen.
-  - Der Cron-Manager zeigt auf `lib/execute_backup.py`, die Datei liegt jedoch
-    unter `handlers/execute_backup.py`.
-  - Cron verwendet `/usr/bin/python3` statt des installierten UpservX-Venvs.
-  - Änderungen an Zeitplan und Aktivstatus müssen vorhandene Cron-Einträge
-    aktualisieren beziehungsweise entfernen.
-  - Cron-Ausführung, manuelle Ausführung und UI-Trigger müssen denselben
-    getesteten Codepfad verwenden.
+- [ ] Make scheduled backups executable.
+  - The cron manager points to `lib/execute_backup.py`, but the file is under
+    `handlers/execute_backup.py`.
+  - Cron uses `/usr/bin/python3` instead of the installed UpservX virtual
+    environment.
+  - Schedule and active-state changes must update or remove existing cron
+    entries.
+  - Cron execution, manual execution, and UI triggers must use the same tested
+    code path.
 
-- [ ] Backup-Lebenszyklus vervollständigen.
-  - Wiederherstellen für Datei-, Container- und VM-Backups als sichere API- und
-    UI-Workflows implementieren; Tar-Extraktion gegen Traversal, Symlinks und
-    Überschreiben absichern.
-  - Beim Löschen einer Backup-Instanz auch das lokale beziehungsweise entfernte
-    Archiv behandeln; aktuell wird nur der Datenbankeintrag gelöscht.
-  - `retention_days` tatsächlich auf Archive und Metadaten anwenden.
-  - Den `compression`-Schalter im produktiven Ausführungspfad respektieren.
-  - Prüfsummen, automatische Integritätsprüfung und regelmäßige Test-Restores
-    ergänzen.
-  - VM-Konsistenz über libvirt-Snapshots/QEMU Guest Agent sicherstellen statt
-    große laufende Disks lediglich zu suspendieren und zu tar-en.
+- [ ] Complete the backup lifecycle.
+  - Implement restore operations for file, container, and VM backups as safe
+    API and UI workflows; protect tar extraction against traversal, symlinks,
+    and overwrites.
+  - When deleting a backup instance, also handle the local or remote archive;
+    currently only the database record is deleted.
+  - Apply `retention_days` to archives and metadata.
+  - Respect the `compression` setting in the production execution path.
+  - Add checksums, automatic integrity verification, and regular test restores.
+  - Ensure VM consistency through libvirt snapshots/QEMU Guest Agent instead of
+    merely suspending and archiving large active disks with tar.
 
-### Defekte API-Verträge und Cluster-Synchronisation
+### Broken API contracts and cluster synchronization
 
-- [ ] Frontend, CLI und Backend gegen einen gemeinsamen API-Vertrag abgleichen.
-  - Das Frontend ruft `/settings/generate-api-key` auf, das Backend bietet
-    `/settings/api-key` an.
-  - Der TypeScript-Client enthält `/backup/servers/{id}/info` und komplette
-    `/ssh-keys/*`-APIs, für die keine Routen registriert sind.
-  - Die CLI bietet Container-`restart` und `inspect`, obwohl entsprechende
-    Backend-Routen fehlen.
-  - `upservx backup create` sendet kein gültiges `BackupJobCreate`-Objekt und
-    kann so keinen Job erstellen.
-  - CLI-2FA-Anmeldung implementieren oder klar als nicht unterstützt behandeln.
-  - OpenAPI als Quelle für generierte TypeScript-/CLI-Typen und Contract-Tests
-    verwenden.
+- [ ] Align the frontend, CLI, and backend with a shared API contract.
+  - The frontend calls `/settings/generate-api-key`, while the backend exposes
+    `/settings/api-key`.
+  - The TypeScript client includes `/backup/servers/{id}/info` and complete
+    `/ssh-keys/*` APIs for which no routes are registered.
+  - The CLI offers container `restart` and `inspect`, although the
+    corresponding backend routes do not exist.
+  - `upservx backup create` does not send a valid `BackupJobCreate` object
+    and therefore cannot create a job.
+  - Implement CLI 2FA login or clearly mark it as unsupported.
+  - Use OpenAPI as the source for generated TypeScript/CLI types and contract
+    tests.
 
-- [ ] Container-Synchronisation im Cluster fertigstellen oder bis dahin aus der
-  UI entfernen.
-  - Der Sync-Manager sendet an `/containers/deploy`; diese Route existiert nicht.
-  - Das Auslesen der Service-Konfiguration ist ausdrücklich nur ein Platzhalter.
-  - „Migration“ löscht nur lokalen Sync-Zustand und stoppt den Quellcontainer
-    nicht.
-  - Teilfehler werden nicht aggregiert; `/cluster/sync/execute` kann Erfolg
-    melden, obwohl keine Replikation funktioniert hat.
-  - Volumes, Secrets, Netzwerke, Portkonflikte, Images und Rollback korrekt
-    übertragen beziehungsweise behandeln.
+- [ ] Finish container synchronization in the cluster or remove it from the UI
+  until it works.
+  - The sync manager sends data to `/containers/deploy`; this route does not
+    exist.
+  - Reading service configuration is explicitly implemented as a placeholder.
+  - “Migration” only deletes local sync state and does not stop the source
+    container.
+  - Partial failures are not aggregated; `/cluster/sync/execute` can report
+    success even though no replication worked.
+  - Correctly transfer or handle volumes, secrets, networks, port conflicts,
+    images, and rollback.
 
-### App Store korrigieren
+### Correct the App Store
 
-- [ ] Alle Templates durch einen verbindlichen Schema- und Compose-Test bringen.
-  - `mailcow/docker-compose.yml` ist syntaktisch ungültig.
-  - `apache-kafka/` ist leer, obwohl Kafka in Release Notes als vorhanden gilt.
-  - Home Assistant, Paperless-ngx und Uptime Kuma verwenden Objektlisten für
-    `ports`, `volumes` und `environment`; das aktuelle Frontend erwartet dort
-    `string[]` beziehungsweise ein String-Objekt und kann die Detailansicht
-    nicht zuverlässig rendern.
-  - Ein JSON-Schema festlegen und alle 61 vorhandenen vollständigen Templates
-    darauf migrieren.
+- [ ] Make every template pass mandatory schema and Compose validation.
+  - `mailcow/docker-compose.yml` is syntactically invalid.
+  - `apache-kafka/` is empty even though Kafka is listed as available in the
+    release notes.
+  - Home Assistant, Paperless-ngx, and Uptime Kuma use object arrays for
+    `ports`, `volumes`, and `environment`; the current frontend expects
+    `string[]` or a string-valued object and cannot render the detail view
+    reliably.
+  - Define a JSON schema and migrate all 61 complete existing templates to it.
 
-- [ ] Aus „Install“ eine echte, sichere Installation machen.
-  - Der Handler kopiert derzeit nur das Template in ein Projektverzeichnis und
-    startet keinen Compose-Stack.
-  - Umgebungsvariablen aus `app.json` im Installationsdialog editierbar machen,
-    Required-Felder prüfen und Secrets automatisch sicher generieren.
-  - Harte Standardpasswörter und `changeme`-/`admin`-Zugangsdaten aus den
-    produktiven Compose-Dateien entfernen.
-  - Installation transaktional ausführen: Compose validieren, Images beziehen,
-    starten, Health-Checks abwarten und bei Fehlern zurückrollen.
-  - Benutzerdefinierte Projektnamen beim Installationsstatus korrekt zuordnen.
-  - Image-Versionen bewusst pinnen und einen getesteten Updatepfad für Apps
-    definieren, statt überall unkontrolliert `latest` zu verwenden.
+- [ ] Turn “Install” into a real, secure installation.
+  - The handler currently only copies the template into a project directory and
+    does not start a Compose stack.
+  - Make environment variables from `app.json` editable in the installation
+    dialog, validate required fields, and generate secrets securely.
+  - Remove hard-coded default passwords and `changeme`/`admin` credentials
+    from production Compose files.
+  - Execute installation transactionally: validate Compose, pull images, start
+    services, wait for health checks, and roll back on failure.
+  - Correctly associate custom project names with installation status.
+  - Pin image versions intentionally and define a tested application update
+    path instead of using uncontrolled `latest` tags everywhere.
 
-### Qualitätssicherung wieder verbindlich machen
+### Restore mandatory quality gates
 
-- [ ] Den Frontend-Lint-Befehl für Next.js 16 reparieren.
-  - `npm run lint` verwendet das entfernte `next lint`; direkter ESLint-Aufruf
-    funktioniert.
-  - `eslint-config-next` auf dieselbe Hauptversion wie `next` bringen.
+- [ ] Repair the frontend lint command for Next.js 16.
+  - `npm run lint` uses the removed `next lint`; invoking ESLint directly
+    works.
+  - Align the `eslint-config-next` major version with `next`.
 
-- [ ] CI-Prüfungen als echte Gates konfigurieren.
-  - Backend-Tests und beide Linter dürfen Fehler nicht mehr mit
-    `continue-on-error` oder `|| echo` verschlucken.
-  - Python-Syntaxprüfung rekursiv auf `api/`, `handlers/`, `lib/`, CLI und Tests
-    anwenden statt nur auf `*.py` im Wurzelverzeichnis.
-  - App-JSON-Schema, `docker compose config`, Shell-Syntax, OpenAPI-Contracts,
-    Frontend-Build und CLI-Tests in CI aufnehmen.
-  - Für lokale Entwicklung einen dokumentierten, reproduzierbaren Test-Befehl
-    bereitstellen; das vorhandene Root-`.venv` enthält aktuell weder pip noch
-    importierbares pytest.
+- [ ] Configure CI checks as real gates.
+  - Backend tests and both linters must no longer swallow errors through
+    `continue-on-error` or `|| echo`.
+  - Apply Python syntax checks recursively to `api/`, `handlers/`, `lib/`,
+    the CLI, and tests instead of only `*.py` in the root directory.
+  - Add App JSON schema checks, `docker compose config`, shell syntax,
+    OpenAPI contracts, the frontend build, and CLI tests to CI.
+  - Provide a documented, reproducible test command for local development; the
+    root `.venv` in the current checkout contains neither pip nor an
+    importable pytest installation.
 
-## P1 – Stabilität vor produktivem Einsatz
+## P1 – Stability before production use
 
-### Tests und reale Integrationen
+### Tests and real integrations
 
-- [ ] Backend-Testabdeckung auf alle kritischen Module erweitern: Backup,
-  Cluster/HA, VM/LXC/KVM, App Store/Compose, Firewall, Netzwerk, Reverse Proxy,
-  Security, Settings/VPN, Benachrichtigungen und Updates.
-- [ ] Veraltete Tests auf Bearer-/Cookie-Authentifizierung umstellen; Fixtures
-  dokumentieren noch Basic Auth, obwohl die Middleware nur Bearer-Tokens nutzt.
-- [ ] Echte Systemtests in isolierten VMs ergänzen:
-  - Neuinstallation und Update auf unterstützten Debian-/Ubuntu-Versionen
-  - Docker und Compose, LXD/LXC, KVM/libvirt und noVNC
-  - Backup plus Restore lokal und über SSH
-  - Zwei- und Drei-Knoten-Cluster inklusive Netzwerkausfall und Split-Brain
-  - Firewall-, Netzwerk- und Datenträgeroperationen mit sicherem Rollback
-- [ ] Frontend-Komponenten-, Accessibility- und End-to-End-Tests ergänzen.
-- [ ] CLI-Unit- und Contract-Tests für jeden dokumentierten Befehl ergänzen.
+- [ ] Expand backend test coverage to all critical modules: backup, cluster/HA,
+  VM/LXC/KVM, App Store/Compose, firewall, networking, reverse proxy, security,
+  settings/VPN, notifications, and updates.
+- [ ] Update stale tests to use Bearer/cookie authentication; fixtures still
+  document Basic Auth even though the middleware accepts only Bearer tokens.
+- [ ] Add real system tests in isolated VMs:
+  - Fresh installation and updates on supported Debian and Ubuntu versions
+  - Docker and Compose, LXD/LXC, KVM/libvirt, and noVNC
+  - Backup and restore locally and over SSH
+  - Two- and three-node clusters, including network failure and split-brain
+  - Firewall, network, and disk operations with safe rollback
+- [ ] Add frontend component, accessibility, and end-to-end tests.
+- [ ] Add CLI unit and contract tests for every documented command.
 
-### Eingaben, Ressourcen und Fehlerbehandlung
+### Input, resources, and error handling
 
-- [ ] Uploads und Downloads streamen und begrenzen.
-  - ISO-Upload, VPN-/Logo-/Banner-Upload und Cluster-Upload haben teilweise
-    keine Größenlimits und lesen komplette Dateien in den Speicher.
-  - Cluster-Export verwendet `capture_output` für komplette Container- und
-    Image-Archive; große Ressourcen müssen direkt auf Disk/Storage streamen.
-  - Quotas, freie Speicherkontrolle, Timeouts, Abbruch und Bereinigung
-    unvollständiger Dateien ergänzen.
-- [ ] ISO-URL-Download gegen DNS-Rebinding, Redirects, IPv6/private Netze,
-  fehlende Timeouts und unbegrenzte Dateigröße härten.
-- [ ] Bild-Uploads anhand des tatsächlichen Dateiinhalts prüfen, SVG entweder
-  sanitizen oder verbieten und gespeicherte Dateien mit sicheren Headern
-  ausliefern.
-- [ ] Destruktive Aktionen serverseitig validieren: Systemdisk, Root-Dateisystem,
-  aktive Netzwerkschnittstelle, Management-Zugang und fremde Pfade dürfen nicht
-  versehentlich formatiert, ausgehängt oder abgeschnitten werden.
-- [ ] Breite `except Exception`-/`pass`-Blöcke durch definierte Fehler,
-  strukturierte Logs und verwertbare API-Fehler ersetzen.
-- [ ] Debug-Ausgaben im Backup-/Cluster-Code entfernen und einheitliches,
-  redigiertes Logging mit Rotation und Audit-Ereignissen verwenden.
+- [ ] Stream and limit uploads and downloads.
+  - ISO upload, VPN/logo/banner upload, and cluster upload partly lack size
+    limits and read entire files into memory.
+  - Cluster export uses `capture_output` for complete container and image
+    archives; large resources must stream directly to disk or storage.
+  - Add quotas, free-space checks, timeouts, cancellation, and cleanup of
+    incomplete files.
+- [ ] Harden ISO URL downloads against DNS rebinding, redirects, IPv6/private
+  networks, missing timeouts, and unlimited file sizes.
+- [ ] Validate image uploads by their actual contents, either sanitize or
+  prohibit SVG, and serve stored files with secure headers.
+- [ ] Validate destructive operations on the server: the system disk, root
+  filesystem, active network interface, management access, and unrelated paths
+  must not be accidentally formatted, unmounted, or disconnected.
+- [ ] Replace broad `except Exception`/`pass` blocks with defined errors,
+  structured logs, and actionable API errors.
+- [ ] Remove debug output from backup and cluster code and use consistent,
+  redacted logging with rotation and audit events.
 
-### Frontend und Bedienung
+### Frontend and usability
 
-- [ ] Den globalen `window.fetch`-Monkey-Patch durch einen zentralen API-Client
-  ersetzen, der Cookies, Fehler, Timeouts, Abbruch und 401-Verhalten konsistent
-  behandelt.
-- [ ] Lade-, Leer-, Teilfehler- und Retry-Zustände in allen Modulen einheitlich
-  umsetzen; Fehler nicht nur in der Browser-Konsole verwerfen.
-- [ ] Lange Operationen über Jobfortschritt statt blockierende Requests führen.
-- [ ] Sicherheitskritische Aktionen mit konkreter Auswirkung, Ziel und
-  Wiederherstellbarkeit bestätigen lassen.
-- [ ] Die fest eingetragene Entwicklungs-IP in `next.config.ts` entfernen und
-  erlaubte Origins konfigurierbar machen.
+- [ ] Replace the global `window.fetch` monkey patch with a central API client
+  that handles cookies, errors, timeouts, cancellation, and 401 responses
+  consistently.
+- [ ] Implement loading, empty, partial-failure, and retry states consistently
+  across all modules; do not discard errors only to the browser console.
+- [ ] Expose long-running operations through job progress instead of blocking
+  requests.
+- [ ] Require confirmation for security-critical actions that explains the
+  exact impact, target, and recoverability.
+- [ ] Remove the hard-coded development IP from `next.config.ts` and make
+  allowed origins configurable.
 
-### Datenmodelle und Wartbarkeit
+### Data models and maintainability
 
-- [ ] Persistenz konsolidieren. Aktuell werden SQLite, viele JSON-Dateien,
-  `/etc/crontab` und Prozessspeicher parallel genutzt; Transaktionen,
-  Migrationen, Backups und Ownership sind dadurch uneinheitlich.
-- [ ] Unbenutzte beziehungsweise widersprüchliche DB-Abhängigkeiten und
-  Dokumentationsbehauptungen zu PostgreSQL/SQLAlchemy/Alembic entfernen oder
-  eine echte, versionierte Datenbankmigration implementieren.
-- [ ] Große Module (`api/cluster.py`, `handlers/vms.py` und mehrere sehr große
-  React-Komponenten) in klar getestete Domänen aufteilen.
-- [ ] Pydantic-v2-APIs (`model_dump`) konsistent verwenden und Eingabemodelle mit
-  Enums, Limits, Pfad-/Namensvalidierung sowie aussagekräftigen Constraints
-  versehen.
-- [ ] Hintergrundzustände, temporäre Exporte, Uploads und alte Progress-Daten
-  regelmäßig und nachvollziehbar bereinigen.
+- [ ] Consolidate persistence. SQLite, numerous JSON files, `/etc/crontab`,
+  and process memory are currently used in parallel, resulting in inconsistent
+  transactions, migrations, backups, and ownership.
+- [ ] Remove unused or contradictory database dependencies and documentation
+  claims about PostgreSQL/SQLAlchemy/Alembic, or implement real, versioned
+  database migrations.
+- [ ] Split large modules (`api/cluster.py`, `handlers/vms.py`, and several
+  very large React components) into clearly tested domains.
+- [ ] Use Pydantic v2 APIs (`model_dump`) consistently and define input models
+  with enums, limits, path/name validation, and meaningful constraints.
+- [ ] Regularly and transparently clean up background state, temporary exports,
+  uploads, and stale progress data.
 
-### Dokumentation und Repository-Hygiene
+### Documentation and repository hygiene
 
-- [ ] Dokumentation mit dem tatsächlichen Code synchronisieren.
-  - Auth-Dokumentation beschreibt teilweise noch Basic Auth und Base64-Cookies.
-  - Viele Endpoint-Tabellen, Dateipfade, Modellnamen und Funktionsnamen stimmen
-    nicht mit den registrierten Routern überein.
-  - Architektur behauptet PostgreSQL/Alembic und eine alte Dateistruktur, obwohl
-    der aktive Code überwiegend JSON und SQLite nutzt.
-  - App-Store-Dokumentation nennt 49 Apps; vorhanden sind 61 vollständige
-    Templates plus ein leeres Kafka-Verzeichnis.
-  - `upservx/README.md` ist noch das generische Create-Next-App-README.
-- [ ] Unterstützte Versionen eindeutig festlegen.
-  - Der Code benötigt wegen `X | None` mindestens Python 3.10, README und Docs
-    versprechen Python 3.8.
-  - Installer/CI verwenden Node 20, README nennt Node 18; die Next.js-Angabe im
-    Badge ist ebenfalls falsch.
-- [ ] `.gitignore` um lokale Venvs, Laufzeit-Schlüsselverzeichnisse,
-  Test-/Build-Caches und temporäre Backend-Daten ergänzen.
-- [ ] Debug-/Hilfsskripte (`debug_backup_test.py`, `test_encryption.py`) entweder
-  in echte Tests überführen oder aus dem Produktquellbaum entfernen.
+- [ ] Synchronize documentation with the actual code.
+  - Authentication documentation still partly describes Basic Auth and Base64
+    cookies.
+  - Many endpoint tables, file paths, model names, and function names do not
+    match the registered routers.
+  - The architecture claims PostgreSQL/Alembic and an old file structure,
+    although the active code primarily uses JSON and SQLite.
+  - App Store documentation lists 49 apps; there are 61 complete templates plus
+    an empty Kafka directory.
+  - `upservx/README.md` is still the generic Create Next App README.
+- [ ] Define supported versions unambiguously.
+  - Because it uses `X | None`, the code requires at least Python 3.10, while
+    the README and documentation promise Python 3.8.
+  - The installer and CI use Node 20, while the README names Node 18; the
+    Next.js version in the badge is also incorrect.
+- [ ] Extend `.gitignore` for local virtual environments, runtime key
+  directories, test/build caches, and temporary backend data.
+- [ ] Convert debug/helper scripts (`debug_backup_test.py`,
+  `test_encryption.py`) into real tests or remove them from the product source
+  tree.
 
-## P2 – Nächster Funktionsausbau
+## P2 – Next feature phase
 
-### Virtuelle Maschinen
+### Virtual machines
 
-- [ ] Verwaltete VM-Templates und versionierte Images mit schnellem Rollout
-  implementieren.
-- [ ] Linked Clones zusätzlich zum vorhandenen vollständigen Clone unterstützen.
-- [ ] Mehrere Netzwerkkarten pro VM, per-VM-Portweiterleitungen und
-  Firewall-/Security-Profile ergänzen.
-- [ ] QEMU Guest Agent integrieren: IP-/Hostname-Erkennung, geordnetes Shutdown,
-  Filesystem-Freeze/Thaw und backup-konsistente Snapshots.
-- [ ] Libvirt-Storage-Pools als eigenes Modell mit Kapazität, Auswahl,
-  Berechtigungen und Lifecycle verwalten.
-- [ ] Vorhandenes Cloud-init, Snapshots, Clone sowie OVA/OVF-Import/-Export mit
-  verschiedenen Distributionen, Firmwaretypen, Multi-Disk-VMs und externen
-  Hypervisoren interoperabel testen.
+- [ ] Implement managed VM templates and versioned images with fast rollout.
+- [ ] Support linked clones in addition to the existing full clone.
+- [ ] Add multiple network interfaces per VM, per-VM port forwarding, and
+  firewall/security profiles.
+- [ ] Integrate QEMU Guest Agent: IP/hostname detection, orderly shutdown,
+  filesystem freeze/thaw, and backup-consistent snapshots.
+- [ ] Manage libvirt storage pools as a dedicated model with capacity,
+  selection, permissions, and lifecycle.
+- [ ] Test existing cloud-init, snapshots, cloning, and OVA/OVF import/export
+  interoperability with different distributions, firmware types, multi-disk
+  VMs, and external hypervisors.
 
-### Backup und Disaster Recovery
+### Backup and disaster recovery
 
-- [ ] Backup-Archive optional clientseitig beziehungsweise vor dem Upload
-  verschlüsseln; Schlüsselrotation, Recovery-Key und dokumentierte
-  Wiederherstellung vorsehen.
-- [ ] Inkrementelle/deduplizierte Backups, Bandbreitenlimits und resumierbare
-  Remote-Transfers implementieren.
-- [ ] Aufbewahrungsregeln nach Anzahl, Alter und Speicherbudget sowie
-  unveränderliche/offsite Ziele unterstützen.
-- [ ] Einen vollständigen Disaster-Recovery-Ablauf für UpservX-Konfiguration,
-  Benutzer, Cluster, Apps, Container und VMs dokumentieren und automatisiert
-  testen.
+- [ ] Optionally encrypt backup archives client-side or before upload; support
+  key rotation, recovery keys, and documented recovery.
+- [ ] Implement incremental/deduplicated backups, bandwidth limits, and
+  resumable remote transfers.
+- [ ] Support retention rules based on count, age, and storage budget, as well
+  as immutable and off-site targets.
+- [ ] Document and automatically test a complete disaster recovery procedure
+  for UpservX configuration, users, clusters, apps, containers, and VMs.
 
-### Netzwerk, Storage und Plattform
+### Networking, storage, and platform
 
-- [ ] Bonding, verwaltete Bridges, Open vSwitch und VXLAN/Overlay-Netze ergänzen.
-- [ ] NFS/iSCSI und LVM-Thin als first-class Storage-Pools integrieren.
-- [ ] Load-Balancer-Funktionalität klar trennen:
-  - vorhandene Workload-Platzierung und Empfehlungen zuverlässig ausführen
-  - optional HAProxy/Traefik-Datastore, Health-Checks, TLS und Sticky Sessions
-    als echten Traffic-Load-Balancer bereitstellen
-- [ ] Ressourcenpools, Quotas, Placement-/Anti-Affinity-Regeln und geplante
-  Wartungsmodi ergänzen.
+- [ ] Add bonding, managed bridges, Open vSwitch, and VXLAN/overlay networks.
+- [ ] Integrate NFS/iSCSI and LVM Thin as first-class storage pools.
+- [ ] Clearly separate load-balancing capabilities:
+  - Reliably execute existing workload placement and recommendations.
+  - Optionally provide an HAProxy/Traefik data store, health checks, TLS, and
+    sticky sessions as a real traffic load balancer.
+- [ ] Add resource pools, quotas, placement/anti-affinity rules, and scheduled
+  maintenance modes.
 
-### Identitäten und UX
+### Identities and UX
 
-- [ ] LDAP/Active Directory sowie OIDC/SAML-SSO integrieren und externe Gruppen
-  auf interne Rollen abbilden.
-- [ ] Rollen feiner als Linux-Gruppen modellieren: read-only, operator,
-  subsystem-admin und audit-only.
-- [ ] Internationalisierung technisch einführen und danach vollständige
-  Übersetzungen für Englisch und Deutsch bereitstellen; weitere Sprachen erst
-  auf derselben Übersetzungsbasis ergänzen.
-- [ ] Tastaturbedienung, Screenreader-Texte, Fokusführung, Kontrast und responsive
-  Darstellung systematisch nach WCAG prüfen.
-- [ ] Durchgängige Audit-Historie für Benutzer-, API- und Cluster-Aktionen mit
-  Filter, Export und manipulationsgeschützter Aufbewahrung ergänzen.
+- [ ] Integrate LDAP/Active Directory and OIDC/SAML SSO, and map external groups
+  to internal roles.
+- [ ] Model roles more precisely than Linux groups: read-only, operator,
+  subsystem admin, and audit-only.
+- [ ] Introduce the technical foundation for internationalization, then provide
+  complete English and German translations; add more languages only on the
+  same translation foundation.
+- [ ] Systematically audit keyboard operation, screen reader text, focus
+  management, contrast, and responsive presentation against WCAG.
+- [ ] Add a complete audit history for user, API, and cluster actions with
+  filtering, export, and tamper-resistant retention.
 
-## P3 – Langfristige Enterprise-Roadmap
+## P3 – Long-term enterprise roadmap
 
-- [ ] Quorum-basierter Cluster mit Fencing/STONITH und nachweisbarem
-  Split-Brain-Schutz; bestehende eigene HA-Logik vorher klar als experimentell
-  kennzeichnen.
-- [ ] Live-Migration laufender VMs inklusive Shared-/Local-Storage-Behandlung.
-- [ ] Ceph/RBD, Storage-Replikation und optional Erasure Coding integrieren.
-- [ ] Automatische HA-Ressourcenwiederherstellung, Startreihenfolgen,
-  Failover-Policies und Wartungsorchestrierung implementieren.
-- [ ] Multi-Node-Upgrade mit Versionskompatibilitätsprüfung, gestaffeltem Rollout
-  und automatischem Rollback entwickeln.
-- [ ] Mandantenfähigkeit mit isolierten Ressourcen, Netzwerken, Secrets,
-  Abrechnung/Quotas und delegierter Administration evaluieren.
+- [ ] Build a quorum-based cluster with fencing/STONITH and demonstrable
+  split-brain protection; first clearly mark the existing custom HA logic as
+  experimental.
+- [ ] Support live migration of running VMs, including shared and local storage
+  handling.
+- [ ] Integrate Ceph/RBD, storage replication, and optional erasure coding.
+- [ ] Implement automatic HA resource recovery, startup ordering, failover
+  policies, and maintenance orchestration.
+- [ ] Develop multi-node upgrades with version compatibility checks, staged
+  rollout, and automatic rollback.
+- [ ] Evaluate multi-tenancy with isolated resources, networks, secrets,
+  billing/quotas, and delegated administration.
 
-## Definition of Done für den nächsten Release-Kandidaten
+## Definition of done for the next release candidate
 
-- [ ] Sauberer Clone hat keinen defekten Gitlink und baut reproduzierbar.
-- [ ] `npm ci`, Frontend-Build, ESLint, Python-Lint, vollständige Backend-/CLI-
-  Tests, Contract-Tests und alle Template-Validatoren laufen lokal und in CI
-  ohne ignorierte Fehler durch.
-- [ ] Installation und Update wurden auf mindestens einer unterstützten Debian-
-  und Ubuntu-Version inklusive Rollback getestet.
-- [ ] Keine Route mit Systemänderungsrechten ist für eine unberechtigte Rolle
-  erreichbar; Cluster-interne Endpunkte sind authentifiziert und verschlüsselt.
-- [ ] Backup lokal und über SSH wurde erstellt, verifiziert, wiederhergestellt
-  und anhand der Retention-Regel gelöscht.
-- [ ] App-Store-Installation startet einen validierten Stack ohne bekannte
-  Standardpasswörter und meldet Health-/Rollback-Status korrekt.
-- [ ] Dokumentierte API, CLI-Befehle, Versionen, Pfade und Voraussetzungen
-  entsprechen dem ausgelieferten Code.
+- [ ] A clean clone has no broken Gitlink and builds reproducibly.
+- [ ] `npm ci`, the frontend build, ESLint, Python linting, all backend/CLI
+  tests, contract tests, and all template validators pass locally and in CI
+  without ignored errors.
+- [ ] Installation and update, including rollback, have been tested on at least
+  one supported Debian version and one supported Ubuntu version.
+- [ ] No route with system-changing privileges is accessible to an unauthorized
+  role; internal cluster endpoints are authenticated and encrypted.
+- [ ] A backup has been created, verified, restored, and removed by its
+  retention rule both locally and over SSH.
+- [ ] App Store installation starts a validated stack without known default
+  passwords and reports health and rollback status correctly.
+- [ ] Documented APIs, CLI commands, versions, paths, and prerequisites match
+  the shipped code.
 
-## Bereits vorhanden – nicht erneut als fehlend einplanen
+## Already implemented – do not plan again as missing
 
-Folgende Punkte aus der alten TODO sind im aktuellen Code grundsätzlich schon
-vorhanden und benötigen Tests/Härtung statt einer Neuimplementierung:
+The following items from the old TODO already exist at a basic level in the
+current code and need testing or hardening rather than reimplementation:
 
-- Cloud-init-User-Data bei der VM-Erstellung
-- VLAN-Unterstützung und interne libvirt-Netze
-- VM-Cloning, Snapshots sowie OVA/OVF-Import und -Export
-- Linux-Gruppen-basierte Basisberechtigungen, API-Key und TOTP-2FA
-- Grundlegende Cluster-, Replikations-, Placement- und HA/VIP-Oberflächen
-- Lokale und SSH-basierte Backup-Grundfunktionen
-- nftables-Firewall, Reverse Proxy, Zertifikate, VPN und Security-Dashboard
+- Cloud-init user data during VM creation
+- VLAN support and internal libvirt networks
+- VM cloning, snapshots, and OVA/OVF import and export
+- Basic Linux-group-based permissions, API key, and TOTP 2FA
+- Basic cluster, replication, placement, and HA/VIP interfaces
+- Basic local and SSH-based backup functionality
+- nftables firewall, reverse proxy, certificates, VPN, and security dashboard
