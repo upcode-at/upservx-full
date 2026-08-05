@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from lib.system_utils import get_server_addresses
 from lib.vnc_proxy import ensure_proxy_running
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket  # noqa: F401 – re-exported for routers
-from lib.permissions import get_user_groups, check_path_permission
+from lib.permissions import check_path_permission, get_user_groups, is_public_request
 from lib.session_tokens import verify_session_token
 from handlers.settings import load_settings
 from lib.logger import log_system
@@ -28,7 +28,7 @@ from lib.logger import log_system
 # Logging – tee stdout/stderr to log file
 # ---------------------------------------------------------------------------
 
-LOG_FILE = "/etc/upservx.log"
+LOG_FILE = os.getenv("UPSERVX_LOG_FILE", "/etc/upservx.log")
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 _orig_stdout = sys.stdout
@@ -142,43 +142,8 @@ async def pam_auth_middleware(request: Request, call_next):
     if request.headers.get("upgrade", "").lower() == "websocket":
         return await call_next(request)
 
-    # Skip authentication for app store icons (public assets)
-    if "/app-store/apps/" in request.url.path and request.url.path.endswith("/icon"):
-        return await call_next(request)
-
-    # Skip authentication for ISO file downloads (read-only, large files used for VM installation)
-    if request.url.path.startswith("/isos/") and request.url.path.endswith("/file") and request.method == "GET":
-        return await call_next(request)
-
-    # Skip authentication for customization read endpoints (public – used on login screen)
-    if request.url.path.startswith("/settings/customization") and request.method == "GET":
-        return await call_next(request)
-
-    if request.url.path == "/auth/login" and request.method == "POST":
-        return await call_next(request)
-
-    # Skip authentication for 2FA completion (uses its own temp-token auth)
-    if request.url.path == "/auth/2fa/complete" and request.method == "POST":
-        return await call_next(request)
-
-    # Skip authentication for internal cluster membership endpoints (validate cluster key internally)
-    if request.url.path == "/cluster/register" and request.method == "POST":
-        return await call_next(request)
-
-    if request.url.path == "/cluster/force-leave" and request.method == "POST":
-        return await call_next(request)
-
-    # Skip middleware auth for cluster replication endpoints - they handle auth internally
-    if (
-        request.url.path.startswith("/cluster/export")
-        or request.url.path.startswith("/cluster/download")
-        or request.url.path.startswith("/cluster/upload")
-        or request.url.path.startswith("/cluster/import")
-    ):
-        return await call_next(request)
-
-    # Skip middleware auth for HA inter-node endpoints (heartbeat, vote, master-update, vip-owner-update, config-sync)
-    if request.url.path in ("/cluster/ha/heartbeat", "/cluster/ha/vote", "/cluster/ha/master-update", "/cluster/ha/vip-owner-update", "/cluster/ha/config-sync", "/cluster/ha/config"):
+    # Public routes are explicit method/path pairs in the authorization policy.
+    if is_public_request(request.method, request.url.path):
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization")
@@ -230,7 +195,12 @@ async def pam_auth_middleware(request: Request, call_next):
     _username = request.state.user
     _groups = get_user_groups(_username)
     request.state.groups = _groups
-    if not check_path_permission(_username, _groups, request.url.path):
+    if not check_path_permission(
+        _username,
+        _groups,
+        request.url.path,
+        request.method,
+    ):
         return Response(status_code=403)
 
     response = await call_next(request)

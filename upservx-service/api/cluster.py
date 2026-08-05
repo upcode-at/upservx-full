@@ -751,7 +751,8 @@ async def join_cluster(request: ClusterJoinRequest):
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 master_url,
-                json=node_data
+                json=node_data,
+                headers={"Authorization": f"Bearer {request.token}"},
             )
             
             _clog(f"[CLUSTER] Response status: {response.status_code}")
@@ -2562,4 +2563,3 @@ async def import_resource(resource_type: str, archive_path: str = "", name: str 
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
-

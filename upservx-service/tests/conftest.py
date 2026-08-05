@@ -9,6 +9,7 @@ Structure
 - `auth_headers` – Basic Auth header representing a logged-in user.
 """
 
+import os
 import sys
 import types
 import importlib
@@ -46,16 +47,20 @@ _register_stub("uvicorn")
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def app():
+def app(tmp_path_factory):
     """
     Returns a fully configured FastAPI test application.
 
     Setup happens only once per test session (scope='session') because
     main.py creates logging files and registers middleware on import.
     """
+    test_log_file = tmp_path_factory.mktemp("upservx-logs") / "upservx.log"
+
     with (
+        patch.dict(os.environ, {"UPSERVX_LOG_FILE": str(test_log_file)}),
         patch("builtins.open", wraps=open),                  # allow filesystem writes
         patch("os.makedirs"),                                  # do not create /etc/upservx
+        patch("os.chmod"),                                     # do not mutate runtime key dirs
         patch("lib.vnc_proxy.ensure_proxy_running"),           # do not start VNC process
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,

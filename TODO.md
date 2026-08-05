@@ -15,27 +15,26 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 
 ### Authorization and trust boundaries
 
-- [ ] Correct backend authorization comprehensively and cover it with negative
+- [x] Correct backend authorization comprehensively and cover it with negative
   tests.
-  - `/security/*` is not currently classified as an admin area. As a result,
-    any authenticated user can trigger package upgrades and remove Fail2Ban
-    bans, among other actions.
-  - `/cluster/*`, `/cluster/ha/*`, and `/vm-networks/*` also fall through
-    the current default allow behavior. Cluster creation, replication,
-    failover, and network changes must require explicit roles.
-  - Define permissions per route and action instead of relying only on URL
-    prefixes; handle read and mutation operations separately.
-  - Add tests for every role, API keys, cluster principals, and unknown routes.
-    The default behavior must be deny by default.
+  - `/security/*` and user-facing `/cluster/*` and `/cluster/ha/*` operations
+    now require administrator access; `/vm-networks/*` requires a VM role.
+  - Every registered route is classified by HTTP method and read/write action
+    instead of inheriting access from a URL prefix.
+  - Cluster principals are no longer administrators and are limited to the
+    explicit inter-node and inventory routes required for cluster operation.
+  - Negative tests cover every Linux role, API keys, cluster principals,
+    cross-subsystem access, wrong methods, and unknown routes. Unknown routes
+    are denied even for administrators and API keys.
 
-- [ ] Properly authenticate internal cluster and HA endpoints.
-  - The middleware skips heartbeat, vote, master-update, VIP-owner-update, and
-    config-sync requests; the routes themselves currently do not verify a
-    cluster key.
+- [ ] Harden authentication for internal cluster and HA endpoints.
+  - The middleware now requires the shared cluster Bearer key for heartbeat,
+    vote, master-update, VIP-owner-update, config-sync, and replication
+    transport requests, but the static shared-secret model still needs stronger
+    peer authentication.
   - Sign messages or use mTLS, add replay protection and time windows, and
     support key rotation.
-  - Stop exposing the cluster token through `/cluster/info` to every
-    authenticated user.
+  - Remove the cluster token from `/cluster/info` responses entirely.
   - Do not send inter-node traffic unencrypted over `http://`.
 
 - [ ] Harden secrets and sessions.
