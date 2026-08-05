@@ -128,60 +128,38 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 
 ### Make the backup system functional
 
-- [ ] Use one data source for backup servers.
-  - Create, list, and delete currently use `backup_servers.json`; update and
-    connection testing use the SQLite `backup_servers` table.
-  - Select one schema, migrate existing data, and use it consistently for CRUD,
-    jobs, credentials, and foreign keys.
-  - Standardize status values and models (`active` versus
-    `connected`/`disconnected`/`error`).
+- [x] Use one data source for backup servers.
+  - SQLite now owns CRUD, jobs, encrypted credentials, and foreign keys.
+  - Legacy `backup_servers.json` data is imported once and archived.
+  - Server connection states are `connected`, `disconnected`, or `error`.
 
-- [ ] Make scheduled backups executable.
-  - The cron manager points to `lib/execute_backup.py`, but the file is under
-    `handlers/execute_backup.py`.
-  - Cron uses `/usr/bin/python3` instead of the installed UpservX virtual
-    environment.
-  - Schedule and active-state changes must update or remove existing cron
-    entries.
-  - Cron execution, manual execution, and UI triggers must use the same tested
-    code path.
+- [x] Make scheduled backups executable.
+  - Cron uses the installed interpreter and `handlers/execute_backup.py`.
+  - Schedule/status changes atomically replace or remove existing entries.
+  - Cron, manual, CLI, and UI runs share the durable worker queue path.
 
-- [ ] Complete the backup lifecycle.
-  - Implement restore operations for file, container, and VM backups as safe
-    API and UI workflows; protect tar extraction against traversal, symlinks,
-    and overwrites.
-  - When deleting a backup instance, also handle the local or remote archive;
-    currently only the database record is deleted.
-  - Apply `retention_days` to archives and metadata.
-  - Respect the `compression` setting in the production execution path.
-  - Add checksums, automatic integrity verification, and regular test restores.
-  - Ensure VM consistency through libvirt snapshots/QEMU Guest Agent instead of
-    merely suspending and archiving large active disks with tar.
+- [x] Complete the backup lifecycle.
+  - Safe staged restore workflows reject traversal, links, special files, and
+    implicit overwrites for file, container, and VM archive assets.
+  - Deletion and retention remove the local/SFTP archive before metadata.
+  - Production honors compression and performs checksums, verification, and
+    test restores, including post-upload remote verification.
+  - Running VMs use quiesced atomic libvirt snapshots through QEMU Guest Agent.
 
 ### Broken API contracts and cluster synchronization
 
-- [ ] Align the frontend, CLI, and backend with a shared API contract.
-  - The TypeScript client includes `/backup/servers/{id}/info` and complete
-    `/ssh-keys/*` APIs for which no routes are registered.
-  - The CLI offers container `restart` and `inspect`, although the
-    corresponding backend routes do not exist.
-  - `upservx backup create` does not send a valid `BackupJobCreate` object
-    and therefore cannot create a job.
-  - Implement CLI 2FA login or clearly mark it as unsupported.
-  - Use OpenAPI as the source for generated TypeScript/CLI types and contract
-    tests.
+- [x] Align the frontend, CLI, and backend with a shared API contract.
+  - Backup-server info, SSH-key, container restart, and container inspect routes
+    now match their clients.
+  - CLI backup creation sends `BackupJobCreate`, and CLI login completes 2FA.
+  - TypeScript/CLI request types and contract tests derive from OpenAPI.
 
-- [ ] Finish container synchronization in the cluster or remove it from the UI
+- [x] Finish container synchronization in the cluster or remove it from the UI
   until it works.
-  - The sync manager sends data to `/containers/deploy`; this route does not
-    exist.
-  - Reading service configuration is explicitly implemented as a placeholder.
-  - “Migration” only deletes local sync state and does not stop the source
-    container.
-  - Partial failures are not aggregated; `/cluster/sync/execute` can report
-    success even though no replication worked.
-  - Correctly transfer or handle volumes, secrets, networks, port conflicts,
-    images, and rollback.
+  - Unsafe replication/migration controls are removed from the UI.
+  - Mutation/execute endpoints return `501` and never report false success until
+    volumes, secrets, networks, ports, images, source stop, and rollback can be
+    handled transactionally.
 
 ### Correct the App Store
 

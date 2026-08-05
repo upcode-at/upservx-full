@@ -78,16 +78,16 @@ The user file takes precedence. Environment variables override everything.
 | Field | Default | Description |
 |-------|---------|-------------|
 | `api_url` | `http://127.0.0.1:9500` | UpservX backend URL |
-| `credentials` | *(empty)* | `base64(username:password)` — set by `auth login` |
-| `token` | *(empty)* | Revocable Bearer API token — takes priority over credentials |
+| `username` | *(empty)* | Last logged-in username (display only) |
+| `token` | *(empty)* | Session or revocable API Bearer token |
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `UPSERVX_API_URL` | Override the backend URL |
-| `UPSERVX_CREDENTIALS` | Override stored Basic Auth credentials |
 | `UPSERVX_TOKEN` | Override stored Bearer API token |
+| `UPSERVX_USERNAME` | Override the display username |
 
 ### Example Config File
 
@@ -106,10 +106,11 @@ The UpservX backend requires authentication on every request. The CLI supports t
 
 | Method | How |
 |--------|-----|
-| **Basic Auth** | Username + password via `upservx auth login` |
+| **Session login** | Username/password and, when enabled, an interactive TOTP challenge |
 | **Bearer Token** | Set `token` in config or `UPSERVX_TOKEN` env var |
 
-The interactive login flow stores credentials in `~/.upservx-cli.conf` so you don't need to enter them on every command.
+The interactive login flow stores only the issued session token, never the raw
+password. The user config is written with mode `0600`.
 
 ```bash
 # One-time login
@@ -166,8 +167,8 @@ upservx auth <action>
 # Interactive login (prompts for username and password)
 upservx auth login
 
-# Non-interactive (password visible in shell history — avoid in production)
-upservx auth login --username admin --password secret
+# A 2FA-enabled account prompts for its TOTP code after password validation.
+upservx auth login --username admin
 
 # Check who is logged in and whether the session is still active
 upservx auth whoami
@@ -182,6 +183,7 @@ upservx auth logout
 |--------|-------|-------------|
 | `--username` | `-u` | Username (prompted if omitted) |
 | `--password` | `-p` | Password (prompted securely if omitted) |
+| `--totp` | | TOTP code (prompted securely when required) |
 
 ---
 
@@ -329,7 +331,7 @@ upservx backup <action> [options]
 | Action | Description |
 |--------|-------------|
 | `list` | List all configured backup jobs |
-| `create` | Create and trigger a new backup job |
+| `create` | Create a valid scheduled backup job |
 | `status` | Show scheduled cron-based backup jobs |
 
 **Examples**
@@ -338,9 +340,13 @@ upservx backup <action> [options]
 # List all backup jobs
 upservx backup list
 
-# Trigger a new backup (optional target name)
-upservx backup create
-upservx backup create --target my-remote-server
+# Create a nightly system backup and queue its first run
+upservx backup create --name nightly-etc --type system \
+  --target /etc --server-id 1 --schedule "0 2 * * *" --run-now
+
+# A container target uses the canonical target prefix
+upservx backup create --name app --type container \
+  --target container:my-app --server-id 1
 
 # Check scheduled jobs
 upservx backup status
@@ -350,7 +356,14 @@ upservx backup status
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--target` | `-t` | Backup target / server name |
+| `--name` | | Backup job name (required) |
+| `--type` | | `vm`, `container`, `system`, or `database` (required) |
+| `--target` | `-t` | Path, `vm:NAME`, or `container:NAME`; repeatable (required) |
+| `--server-id` | | Destination backup-server ID (required) |
+| `--schedule` | | Five-field cron expression (default `0 2 * * *`) |
+| `--retention-days` | | Archive retention in days (default 30) |
+| `--no-compression` | | Write an uncompressed tar archive |
+| `--run-now` | | Queue the job immediately after creation |
 
 ---
 

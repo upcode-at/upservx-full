@@ -69,7 +69,7 @@ upservx apps install <app>        # Install an app
 
 ```bash
 upservx backup list               # List all backups
-upservx backup create [--target]  # Create a backup
+upservx backup create --name nightly --type system --target /etc --server-id 1
 upservx backup status             # Show backup job status
 ```
 

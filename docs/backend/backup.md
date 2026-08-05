@@ -1,119 +1,67 @@
 # Backup System
 
-**Files:** `upservx-service/backup.py`, `upservx-service/backup_db.py`, `upservx-service/execute_backup.py`
+**Core files:** `upservx-service/api/backup.py`,
+`upservx-service/handlers/backup.py`, `upservx-service/lib/backup_db.py`, and
+`upservx-service/handlers/execute_backup.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 
----
+## Architecture
 
-## Overview
+Backup servers, jobs, credentials, and archive metadata use the single SQLite
+database `/etc/upservx/backup/backup.db`. On first startup, the former
+`backup_servers.json` store is imported and renamed with a `.migrated` suffix.
+Credential ciphertext uses the application encryption key and is never returned
+by public API responses.
 
-The backup system provides scheduled and on-demand backups for:
+Server connection status is one of `connected`, `disconnected`, or `error`.
+Job scheduling status is independently one of `active`, `paused`, or `error`.
 
-- Docker volumes
-- Docker containers (via `docker export`)
-- Virtual machines (via `virsh` snapshots / disk images)
-- Directories
-- A separate SQLite backup database
+Cron entries call the Python interpreter running the installed service and the
+real `handlers/execute_backup.py` entry point. Cron, the API, CLI `--run-now`,
+and the UI all enqueue the same durable `backup` worker task. Editing an active
+schedule replaces its existing entry; pausing or deleting a job removes it.
 
----
+## Archive lifecycle
 
-## Backup Database
+- Compression follows each job's `compression` setting (`.tar.gz` or `.tar`).
+- Every completed archive receives a SHA-256 checksum, a readability check,
+  and an isolated test extraction before it is marked verified.
+- Remote archives are downloaded and verified after upload, so transfer
+  corruption is detected.
+- `retention_days` deletes the stored local/SFTP archive before deleting its
+  metadata row.
+- Deleting an instance or job also deletes its archive. Metadata remains when
+  the storage deletion cannot be confirmed.
+- Restore requests run in the persistent worker and stage file, container, or
+  VM assets at an administrator-selected absolute path. Extraction rejects
+  absolute/traversal paths, links, special files, duplicate members, symlinked
+  destinations, and implicit overwrites.
 
-The backup configuration is stored in a **separate SQLite database** (`/etc/upservx/backups.db`):
+Container archives contain the exported filesystem, Docker inspection data,
+and mounted-volume data. VM archives contain the libvirt XML and disks. A
+running VM must support a quiesced atomic external libvirt snapshot through the
+QEMU Guest Agent; the guest continues running on overlay disks while stable base
+images are archived, and the overlays are committed and pivoted afterward.
 
-```python
-# Models
-class BackupJob(Base):
-    __tablename__ = "backup_jobs"
-    id: int (PK)
-    name: str
-    type: str              # "docker_volume", "docker_container", "vm", "directory"
-    source: str            # Source to back up
-    destination: str       # Backup target path
-    schedule: str          # Cron expression
-    retention_count: int   # Max. retained backups
-    enabled: bool
-    last_run: datetime
-    last_status: str       # "success", "error", "running"
-    created_at: datetime
-
-class BackupResult(Base):
-    __tablename__ = "backup_results"
-    id: int (PK)
-    job_id: int (FK → backup_jobs)
-    started_at: datetime
-    finished_at: datetime
-    status: str            # "success", "error"
-    size_bytes: int
-    path: str
-    error_message: str
-```
-
----
-
-## Backup Types
-
-### Docker Volume
-```bash
-docker run --rm -v <volume>:/data -v <dest>:/backup   busybox tar czf /backup/<name>-<timestamp>.tar.gz /data
-```
-
-### Docker Container
-```bash
-docker export <container> | gzip > <dest>/<name>-<timestamp>.tar.gz
-```
-
-### Virtual Machine
-```bash
-virsh snapshot-create-as <vm> --disk-only --quiesce
-# Copy disk image
-virsh snapshot-delete <vm> <snapshot>
-```
-
-### Directory
-```bash
-tar czf <dest>/<name>-<timestamp>.tar.gz -C <source> .
-```
-
----
-
-## Scheduling
-
-The backup system uses the **crontab manager** (`crontab_manager.py`) to register schedules. Cron only enqueues work; the persistent `upservx-worker` performs the backup. Each backup schedule gets its own entry:
-
-```
-*/30 * * * * /usr/local/bin/upservx-backup execute <job_id>
-```
-
-The cron expression is stored in the `BackupJob.schedule` field.
-
----
-
-## Retention Management
-
-When a backup succeeds, the system checks existing backups and deletes old ones based on `retention_count`:
-
-```python
-def cleanup_old_backups(job: BackupJob, dest_path: str):
-    backups = sorted(glob.glob(f"{dest_path}/{job.name}-*.tar.gz"))
-    while len(backups) > job.retention_count:
-        os.remove(backups.pop(0))
-```
-
----
-
-## API Endpoints
+## API endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/backup/jobs` | All backup jobs |
-| `POST` | `/backup/jobs` | Create new job |
-| `GET` | `/backup/jobs/{id}` | Job details |
-| `PUT` | `/backup/jobs/{id}` | Edit job |
-| `DELETE` | `/backup/jobs/{id}` | Delete job |
-| `POST` | `/backup/jobs/{id}/execute` | Queue job immediately |
-| `POST` | `/backup/jobs/{id}/trigger` | Queue job immediately (compatibility alias) |
+| `GET/POST` | `/backup/servers` | List/create destinations |
+| `GET/PUT/DELETE` | `/backup/servers/{id}` | Read/update/delete an unused destination |
+| `POST` | `/backup/servers/{id}/test` | Test connection and update status |
+| `GET` | `/backup/servers/{id}/info` | Live capacity information |
+| `GET/POST` | `/backup/jobs` | List/create jobs |
+| `GET/PUT/DELETE` | `/backup/jobs/{id}` | Read/update/delete a job and its archives |
+| `POST` | `/backup/jobs/{id}/execute` | Queue a durable run |
+| `POST` | `/backup/jobs/{id}/trigger` | Compatibility alias for the same run path |
 | `GET` | `/backup/jobs/{id}/progress` | Latest persistent job progress |
-| `GET` | `/backup/jobs/{id}/results` | Execution history |
-| `GET` | `/backup/results` | All results |
+| `GET` | `/backup/instances` | List archive metadata |
+| `GET/DELETE` | `/backup/instances/{id}` | Read or delete archive and metadata |
+| `POST` | `/backup/instances/{id}/restore` | Queue verified safe extraction |
+| `POST` | `/backup/instances/{id}/verify` | Queue checksum verification and test restore |
+
+The request types consumed by the TypeScript client and CLI are generated from
+FastAPI's OpenAPI schema with `tools/generate_api_contract.py`. Use `--check` in
+CI to detect stale generated contracts.

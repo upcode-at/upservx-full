@@ -16,7 +16,7 @@ import subprocess
 import time
 import httpx
 from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
-from lib.container_sync import get_sync_manager, SyncRule, SyncStrategy
+from lib.container_sync import get_sync_manager
 from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
@@ -1536,142 +1536,53 @@ class ContainerMigrationRequest(BaseModel):
 
 @router.post("/cluster/sync/rules")
 async def add_sync_rule(request: SyncRuleRequest):
-    """Add or update container synchronization rule"""
-    if not is_master_node():
-        raise HTTPException(status_code=403, detail="Only master node can manage sync rules")
-    
-    sync_manager = get_sync_manager()
-    
-    rule = SyncRule(
-        service_name=request.service_name,
-        strategy=request.strategy,
-        target_nodes=request.target_nodes,
-        replica_count=request.replica_count
+    """Reject sync configuration while transactional replication is disabled."""
+    raise HTTPException(
+        status_code=501,
+        detail="Container synchronization is disabled until transactional replication is available",
     )
-    
-    sync_manager.add_sync_rule(rule)
-    
-    return {
-        "message": f"Sync rule added for service {request.service_name}",
-        "rule": rule.to_dict()
-    }
 
 @router.get("/cluster/sync/rules")
 async def get_sync_rules():
-    """Get all container synchronization rules"""
+    """Report that container synchronization is unavailable."""
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view sync rules")
-    
-    sync_manager = get_sync_manager()
-    
-    return {
-        "rules": {
-            name: rule.to_dict()
-            for name, rule in sync_manager.sync_rules.items()
-        }
-    }
+    return {"enabled": False, "rules": {}}
 
 @router.delete("/cluster/sync/rules/{service_name}")
 async def remove_sync_rule(service_name: str):
-    """Remove container synchronization rule"""
-    if not is_master_node():
-        raise HTTPException(status_code=403, detail="Only master node can manage sync rules")
-    
-    sync_manager = get_sync_manager()
-    sync_manager.remove_sync_rule(service_name)
-    
-    return {
-        "message": f"Sync rule removed for service {service_name}"
-    }
+    """Reject sync configuration while transactional replication is disabled."""
+    raise HTTPException(
+        status_code=501,
+        detail="Container synchronization is disabled until transactional replication is available",
+    )
 
 @router.post("/cluster/sync/execute")
 async def execute_synchronization():
-    """Execute container synchronization across cluster"""
-    if not is_master_node():
-        raise HTTPException(status_code=403, detail="Only master node can execute synchronization")
-    
-    cluster_info = await get_cluster_info()
-    master_config = read_master_config()
-    cluster_key = master_config.get("key")
-    
-    nodes_dict = [
-        {
-            "id": n.id,
-            "hostname": n.hostname,
-            "ip_address": n.ip_address,
-            "port": n.port,
-            "status": n.status
-        }
-        for n in cluster_info.nodes
-    ]
-    
-    sync_manager = get_sync_manager()
-    await sync_manager.sync_all_containers(nodes_dict, cluster_key)
-    
-    return {
-        "message": "Container synchronization executed",
-        "status": sync_manager.get_sync_status()
-    }
+    """Never report success while transactional replication is disabled."""
+    raise HTTPException(
+        status_code=501,
+        detail="Container synchronization is disabled; no replication was attempted",
+    )
 
 @router.get("/cluster/sync/status")
 async def get_sync_status():
-    """Get container synchronization status"""
+    """Report disabled status instead of stale synchronization state."""
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can view sync status")
-    
-    sync_manager = get_sync_manager()
-    status = sync_manager.get_sync_status()
-    distribution = sync_manager.get_container_distribution()
-    
     return {
-        "status": status,
-        "distribution": distribution
+        "enabled": False,
+        "status": "disabled",
+        "distribution": {},
     }
 
 @router.post("/cluster/sync/migrate")
 async def migrate_container(request: ContainerMigrationRequest):
-    """Migrate a container from one node to another"""
-    if not is_master_node():
-        raise HTTPException(status_code=403, detail="Only master node can migrate containers")
-    
-    cluster_info = await get_cluster_info()
-    master_config = read_master_config()
-    cluster_key = master_config.get("key")
-    
-    target_node = None
-    for node in cluster_info.nodes:
-        if node.id == request.target_node_id:
-            target_node = {
-                "id": node.id,
-                "hostname": node.hostname,
-                "ip_address": node.ip_address,
-                "port": node.port,
-                "status": node.status
-            }
-            break
-    
-    if not target_node:
-        raise HTTPException(status_code=404, detail="Target node not found")
-    
-    if target_node["status"] != "online":
-        raise HTTPException(status_code=400, detail="Target node is not online")
-    
-    sync_manager = get_sync_manager()
-    success = await sync_manager.migrate_container(
-        request.service_name,
-        request.source_node_id,
-        target_node,
-        cluster_key
+    """Reject migration until source stop and rollback are transactional."""
+    raise HTTPException(
+        status_code=501,
+        detail="Container migration is disabled until source stop and rollback are transactional",
     )
-    
-    if success:
-        return {
-            "message": f"Container {request.service_name} migrated successfully",
-            "source_node": request.source_node_id,
-            "target_node": request.target_node_id
-        }
-    else:
-        raise HTTPException(status_code=500, detail="Container migration failed")
 
 @router.get("/cluster/containers/distribution")
 async def get_container_distribution():

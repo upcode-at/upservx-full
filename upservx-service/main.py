@@ -343,6 +343,7 @@ from api.proxy import router as proxy_router
 from api.security import router as security_router
 from api.ha import router as ha_router
 from api.jobs import router as jobs_router
+from api.ssh_keys import router as ssh_keys_router
 
 app.include_router(auth_router)
 app.include_router(system_router)
@@ -365,6 +366,7 @@ app.include_router(proxy_router)
 app.include_router(security_router)
 app.include_router(ha_router)
 app.include_router(jobs_router)
+app.include_router(ssh_keys_router)
 
 # ---------------------------------------------------------------------------
 # Entry point

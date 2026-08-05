@@ -11,20 +11,16 @@ import logging
 # Add the service directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 service_dir = os.path.dirname(current_dir)
-sys.path.append(service_dir)
+sys.path.insert(0, service_dir)
 
-from lib.backup_db import backup_db
+from lib.backup_execution import queue_backup_job
 from lib.logger import log_backup
-from lib.jobs import enqueue_job
 
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('/var/log/upservx_backup.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler()]
 )
 
 logger = logging.getLogger(__name__)
@@ -32,17 +28,7 @@ logger = logging.getLogger(__name__)
 def execute_backup_job(job_id: int) -> bool:
     """Queue a scheduled backup for the persistent worker."""
     try:
-        job = backup_db.get_backup_job(job_id)
-        if not job:
-            logger.error("Backup job %s not found in database", job_id)
-            return False
-        persistent_job = enqueue_job(
-            "backup",
-            {"backup_job_id": job_id},
-            idempotency_key=f"backup:{job_id}",
-            resource_type="backup_job",
-            resource_id=job_id,
-        )
+        persistent_job = queue_backup_job(job_id)
         logger.info("Queued backup job %s as %s", job_id, persistent_job["id"])
         log_backup(f"Queued scheduled backup job [ID:{job_id}]")
         return True

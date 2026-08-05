@@ -12,11 +12,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 import logging
 from lib.logger import log_ssh
+from lib.secure_store import secure_write_bytes, secure_write_text
 
 logger = logging.getLogger(__name__)
 
-SSH_KEY_DIR = "./ssh_keys"
-AUTHORIZED_KEYS_DIR = "./authorized_keys"
+STATE_DIR = os.getenv("UPSERVX_STATE_DIR", "/var/lib/upservx")
+SSH_KEY_DIR = os.getenv("UPSERVX_SSH_KEY_DIR", os.path.join(STATE_DIR, "ssh_keys"))
+AUTHORIZED_KEYS_DIR = os.getenv(
+    "UPSERVX_AUTHORIZED_KEYS_DIR", os.path.join(STATE_DIR, "authorized_keys")
+)
 
 _KEY_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,64}$')
 
@@ -25,9 +29,11 @@ def _safe_key_path(key_name: str, base_dir: str) -> str:
     if not _KEY_NAME_RE.match(key_name):
         raise ValueError(f"Invalid key name: {key_name!r}")
     abs_base = os.path.realpath(base_dir)
-    candidate = os.path.realpath(os.path.join(abs_base, key_name))
-    if not candidate.startswith(abs_base + os.sep) and candidate != abs_base:
+    candidate = os.path.abspath(os.path.join(abs_base, key_name))
+    if os.path.commonpath((abs_base, candidate)) != abs_base:
         raise ValueError(f"Path traversal detected for key name: {key_name!r}")
+    if os.path.lexists(candidate) and os.path.islink(candidate):
+        raise ValueError(f"Refusing symbolic-link key path: {key_name!r}")
     return candidate
 
 class SSHKeyManager:
@@ -46,7 +52,8 @@ class SSHKeyManager:
                             key_name: str, 
                             key_type: str = "rsa", 
                             key_size: int = 4096,
-                            passphrase: Optional[str] = None) -> Dict[str, str]:
+                            passphrase: Optional[str] = None,
+                            overwrite: bool = False) -> Dict[str, str]:
         """
         Generate a new SSH key pair.
         
@@ -62,6 +69,10 @@ class SSHKeyManager:
         try:
             private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
             public_key_path = f"{private_key_path}.pub"
+            if not overwrite and (
+                os.path.lexists(private_key_path) or os.path.lexists(public_key_path)
+            ):
+                raise FileExistsError(f"SSH key already exists: {key_name}")
             
             if key_type.lower() == "rsa":
                 private_key = rsa.generate_private_key(
@@ -91,13 +102,10 @@ class SSHKeyManager:
                 format=serialization.PublicFormat.OpenSSH
             )
             
-            with open(private_key_path, 'wb') as f:
-                f.write(private_pem)
-            os.chmod(private_key_path, 0o600)
+            secure_write_bytes(private_key_path, private_pem)
             
             public_key_content = f"{public_ssh.decode()} {key_name}@upservx"
-            with open(public_key_path, 'w') as f:
-                f.write(public_key_content)
+            secure_write_text(public_key_path, public_key_content)
             os.chmod(public_key_path, 0o644)
             
             log_ssh(f"Generated SSH key pair [{key_name}] (type: {key_type})")
@@ -117,7 +125,8 @@ class SSHKeyManager:
     def store_ssh_key(self, 
                      key_name: str, 
                      private_key_content: str,
-                     passphrase: Optional[str] = None) -> Dict[str, str]:
+                     passphrase: Optional[str] = None,
+                     overwrite: bool = False) -> Dict[str, str]:
         """
         Store an existing SSH private key.
         
@@ -131,23 +140,28 @@ class SSHKeyManager:
         """
         try:
             private_key_path = _safe_key_path(key_name, SSH_KEY_DIR)
+            public_key_path = f"{private_key_path}.pub"
+            if not overwrite and (
+                os.path.lexists(private_key_path) or os.path.lexists(public_key_path)
+            ):
+                raise FileExistsError(f"SSH key already exists: {key_name}")
 
             try:
                 key_bytes = private_key_content.encode()
                 passphrase_bytes = passphrase.encode() if passphrase else None
                 
-                serialization.load_pem_private_key(
-                    key_bytes, 
-                    password=passphrase_bytes
-                )
+                try:
+                    serialization.load_ssh_private_key(key_bytes, password=passphrase_bytes)
+                except (ValueError, TypeError):
+                    serialization.load_pem_private_key(
+                        key_bytes,
+                        password=passphrase_bytes,
+                    )
             except Exception as e:
                 raise ValueError(f"Invalid private key: {e}")
             
-            with open(private_key_path, 'w') as f:
-                f.write(private_key_content)
-            os.chmod(private_key_path, 0o600)
+            secure_write_text(private_key_path, private_key_content)
             
-            public_key_path = f"{private_key_path}.pub"
             try:
                 result = subprocess.run([
                     'ssh-keygen', '-y', '-f', private_key_path
@@ -155,8 +169,7 @@ class SSHKeyManager:
                 
                 if result.returncode == 0:
                     public_key_content = f"{result.stdout.strip()} {key_name}@upservx"
-                    with open(public_key_path, 'w') as f:
-                        f.write(public_key_content)
+                    secure_write_text(public_key_path, public_key_content)
                     os.chmod(public_key_path, 0o644)
                 else:
                     public_key_content = "Could not extract public key"
@@ -275,19 +288,23 @@ class SSHKeyManager:
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             try:
-                if passphrase:
-                    key = paramiko.RSAKey.from_private_key_file(key_path, password=passphrase)
-                else:
-                    key = None
-                    for key_class in [paramiko.RSAKey, paramiko.DSSKey, paramiko.ECDSAKey, paramiko.Ed25519Key]:
-                        try:
-                            key = key_class.from_private_key_file(key_path)
-                            break
-                        except Exception:
-                            continue
-                    
-                    if not key:
-                        return False, "Could not load private key"
+                key = None
+                key_classes = [
+                    key_class
+                    for name in ("RSAKey", "DSSKey", "ECDSAKey", "Ed25519Key")
+                    if (key_class := getattr(paramiko, name, None)) is not None
+                ]
+                for key_class in key_classes:
+                    try:
+                        key = key_class.from_private_key_file(
+                            key_path,
+                            password=passphrase,
+                        )
+                        break
+                    except Exception:
+                        continue
+                if not key:
+                    return False, "Could not load private key"
             except Exception as e:
                 return False, f"Key loading error: {str(e)}"
             
@@ -297,7 +314,8 @@ class SSHKeyManager:
                 username=username,
                 pkey=key,
                 timeout=10,
-                look_for_keys=False
+                look_for_keys=False,
+                allow_agent=False,
             )
             
             stdin, stdout, stderr = client.exec_command('echo "test"')

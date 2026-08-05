@@ -58,6 +58,24 @@ def test_claim_is_transactional_across_competing_workers(job_store):
     assert claimed[0]["id"] == queued["id"]
 
 
+def test_active_resource_check_does_not_only_consider_latest_job(job_store):
+    first = jobs.enqueue_job(
+        "cve_scan", {}, resource_type="backup_instance", resource_id=42
+    )
+    jobs.claim_next_job("worker-a")
+    second = jobs.enqueue_job(
+        "cve_scan", {}, resource_type="backup_instance", resource_id=42
+    )
+    jobs.claim_next_job("worker-b")
+    jobs.complete_job(second["id"], {"ok": True})
+
+    assert jobs.find_latest_job("backup_instance", 42)["id"] == second["id"]
+    assert jobs.has_active_job("backup_instance", 42) is True
+
+    jobs.complete_job(first["id"], {"ok": True})
+    assert jobs.has_active_job("backup_instance", 42) is False
+
+
 def test_active_idempotency_key_deduplicates_but_terminal_job_does_not(job_store):
     first = jobs.enqueue_job(
         "backup",

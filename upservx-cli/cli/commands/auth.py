@@ -69,10 +69,34 @@ def cmd_login(args) -> int:
         data = {}
 
     if data.get("2fa_required"):
-        error("2FA is enabled for this account. Complete login via Web UI for now.")
-        return 1
+        login_token = data.get("login_token", "")
+        if not login_token:
+            error("2FA is required but the API did not return a login token.")
+            return 1
+        code = args.totp or getpass.getpass("2FA code: ").strip()
+        if not code:
+            error("2FA code cannot be empty.")
+            return 1
+        try:
+            resp = session.post(
+                f"{api_url}/auth/2fa/complete",
+                json={"login_token": login_token, "code": code},
+                timeout=10,
+            )
+        except Exception as e:
+            error(f"Cannot complete 2FA login: {e}")
+            return 1
+        if not resp.ok:
+            error("Invalid or expired 2FA code.")
+            return 1
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
 
-    session_token = data.get("session_token", "")
+    # Browser logins use an HttpOnly cookie; the CLI extracts that cookie from
+    # its own requests session and persists the token as a Bearer credential.
+    session_token = data.get("session_token", "") or session.cookies.get("auth", "")
     if not session_token:
         error("Login succeeded but no session token was returned.")
         return 1
@@ -147,6 +171,7 @@ def register(subparsers):
     login_p = sp.add_parser("login", help="Authenticate with username and password")
     login_p.add_argument("--username", "-u", metavar="USER", help="Username")
     login_p.add_argument("--password", "-p", metavar="PASS", help="Password (unsafe – prefer interactive prompt)")
+    login_p.add_argument("--totp", metavar="CODE", help="TOTP code (unsafe – prefer interactive prompt)")
 
     sp.add_parser("logout", help="Remove stored session token")
     sp.add_parser("whoami", help="Show current session info")

@@ -36,6 +36,8 @@ TERMINAL_STATUSES = (COMPLETED, FAILED, CANCELLED)
 JOB_DEFAULTS: dict[str, tuple[int, int]] = {
     # kind: (timeout seconds, maximum attempts)
     "backup": (24 * 60 * 60, 3),
+    "backup_restore": (24 * 60 * 60, 1),
+    "backup_verify": (24 * 60 * 60, 2),
     "replication": (24 * 60 * 60, 3),
     "vm_export": (4 * 60 * 60, 2),
     "cluster_export": (4 * 60 * 60, 2),
@@ -318,6 +320,24 @@ def find_latest_job(resource_type: str, resource_id: str | int) -> Optional[dict
             (resource_type, str(resource_id)),
         ).fetchone()
     return _record(row)
+
+
+def has_active_job(resource_type: str, resource_id: str | int) -> bool:
+    """Return whether any queued or running job currently uses a resource."""
+
+    initialize_job_store()
+    placeholders = ",".join("?" for _ in ACTIVE_STATUSES)
+    with _connection() as connection:
+        row = connection.execute(
+            f"""
+            SELECT 1 FROM jobs
+            WHERE resource_type = ? AND resource_id = ?
+              AND status IN ({placeholders})
+            LIMIT 1
+            """,
+            (resource_type, str(resource_id), *ACTIVE_STATUSES),
+        ).fetchone()
+    return row is not None
 
 
 def claim_next_job(worker_id: str) -> Optional[dict[str, Any]]:

@@ -189,6 +189,10 @@
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
+| `GET/POST` | `/backup/servers` | Admin | List/create destinations in SQLite |
+| `GET/PUT/DELETE` | `/backup/servers/{id}` | Admin | Read/update/delete an unused destination |
+| `POST` | `/backup/servers/{id}/test` | Admin | Test destination connectivity |
+| `GET` | `/backup/servers/{id}/info` | Admin | Live destination capacity |
 | `GET` | `/backup/jobs` | Admin | All backup jobs |
 | `POST` | `/backup/jobs` | Admin | Create job |
 | `PUT` | `/backup/jobs/{id}` | Admin | Edit job |
@@ -196,7 +200,10 @@
 | `POST` | `/backup/jobs/{id}/execute` | Admin | Queue a durable run |
 | `POST` | `/backup/jobs/{id}/trigger` | Admin | Queue a durable run (compatibility alias) |
 | `GET` | `/backup/jobs/{id}/progress` | Admin | Latest durable run status |
-| `GET` | `/backup/results` | Admin | All results |
+| `GET` | `/backup/instances` | Admin | Archive metadata and integrity state |
+| `DELETE` | `/backup/instances/{id}` | Admin | Delete archive, then metadata |
+| `POST` | `/backup/instances/{id}/restore` | Admin | Queue verified safe extraction |
+| `POST` | `/backup/instances/{id}/verify` | Admin | Queue checksum and test restore |
 
 ## Persistent Jobs
 

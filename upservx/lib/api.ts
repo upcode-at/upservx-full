@@ -1,40 +1,14 @@
-// Type definitions
-
-interface BackupServerCreate {
-  name: string
-  type: string
-  host?: string
-  port?: number
-  remote_path?: string
-  local_path?: string
-}
-
-interface BackupServerUpdate {
-  name?: string
-  type?: string
-  host?: string
-  port?: number
-  remote_path?: string
-  local_path?: string
-}
-
-
-
-interface BackupJobCreate {
-  name: string
-  backup_type: 'vm' | 'container' | 'system' | 'database'
-  targets: string[]
-  schedule: string
-  server_id: number
-}
-
-interface BackupJobUpdate {
-  name?: string
-  backup_type?: 'vm' | 'container' | 'system' | 'database'
-  targets?: string[]
-  schedule?: string
-  server_id?: number
-}
+// Request models are generated from FastAPI's OpenAPI schema.
+import type {
+  BackupJobCreate,
+  BackupJobUpdate,
+  BackupRestoreRequest,
+  BackupServerCreate,
+  BackupServerUpdate,
+  SSHKeyGenerateRequest,
+  SSHKeyImportRequest,
+  SSHKeyTestRequest,
+} from './generated-api-types'
 
 export function apiUrl(path: string): string {
   // ALWAYS check runtime location first (browser-side)
@@ -175,6 +149,7 @@ export const api = {
   backupServers: {
     list: async () => {
       const response = await fetch(apiUrl("/backup/servers"), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -184,6 +159,7 @@ export const api = {
     create: async (server: BackupServerCreate) => {
       const response = await fetch(apiUrl("/backup/servers"), {
         method: 'POST',
+        credentials: 'include',
         headers: getJsonHeaders(),
         body: JSON.stringify(server)
       })
@@ -193,6 +169,7 @@ export const api = {
     
     get: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -202,6 +179,7 @@ export const api = {
     update: async (id: number, data: BackupServerUpdate) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
         method: 'PUT',
+        credentials: 'include',
         headers: getJsonHeaders(),
         body: JSON.stringify(data)
       })
@@ -212,6 +190,7 @@ export const api = {
     delete: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}`), {
         method: 'DELETE',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -221,6 +200,7 @@ export const api = {
     test: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}/test`), {
         method: 'POST',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -229,6 +209,7 @@ export const api = {
     
     getInfo: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/servers/${id}/info`), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -240,6 +221,7 @@ export const api = {
   backupJobs: {
     list: async () => {
       const response = await fetch(apiUrl("/backup/jobs"), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -249,6 +231,7 @@ export const api = {
     create: async (job: BackupJobCreate) => {
       const response = await fetch(apiUrl("/backup/jobs"), {
         method: 'POST',
+        credentials: 'include',
         headers: getJsonHeaders(),
         body: JSON.stringify(job)
       })
@@ -258,6 +241,7 @@ export const api = {
     
     get: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -267,6 +251,7 @@ export const api = {
     update: async (id: number, data: BackupJobUpdate) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
         method: 'PUT',
+        credentials: 'include',
         headers: getJsonHeaders(),
         body: JSON.stringify(data)
       })
@@ -277,6 +262,7 @@ export const api = {
     delete: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
         method: 'DELETE',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -286,6 +272,7 @@ export const api = {
     execute: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/jobs/${id}/execute`), {
         method: 'POST',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -305,6 +292,7 @@ export const api = {
         apiUrl("/backup/instances")
         
       const response = await fetch(url, {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -313,6 +301,7 @@ export const api = {
     
     get: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/instances/${id}`), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -322,6 +311,29 @@ export const api = {
     delete: async (id: number) => {
       const response = await fetch(apiUrl(`/backup/instances/${id}`), {
         method: 'DELETE',
+        credentials: 'include',
+        headers: getAuthHeaders()
+      })
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      return response.json()
+    },
+
+    restore: async (id: number, restorePath: string) => {
+      const request: BackupRestoreRequest = { restore_path: restorePath }
+      const response = await fetch(apiUrl(`/backup/instances/${id}/restore`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: getJsonHeaders(),
+        body: JSON.stringify(request)
+      })
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      return response.json()
+    },
+
+    verify: async (id: number) => {
+      const response = await fetch(apiUrl(`/backup/instances/${id}/verify`), {
+        method: 'POST',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -333,6 +345,7 @@ export const api = {
   sshKeys: {
     list: async () => {
       const response = await fetch(apiUrl("/ssh-keys"), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -340,38 +353,36 @@ export const api = {
     },
     
     generate: async (keyName: string, keyType: string = "rsa", keySize: number = 4096, passphrase?: string) => {
-      const params = new URLSearchParams({
-        key_name: keyName,
-        key_type: keyType,
-        key_size: keySize.toString()
-      })
-      if (passphrase) params.append('passphrase', passphrase)
-      
-      const response = await fetch(apiUrl(`/ssh-keys/generate?${params.toString()}`), {
+      const request: SSHKeyGenerateRequest = {
+        key_name: keyName, key_type: keyType, key_size: keySize, passphrase
+      }
+      const response = await fetch(apiUrl('/ssh-keys/generate'), {
         method: 'POST',
-        headers: getAuthHeaders()
+        credentials: 'include',
+        headers: getJsonHeaders(),
+        body: JSON.stringify(request)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       return response.json()
     },
     
     import: async (keyName: string, privateKey: string, passphrase?: string) => {
-      const params = new URLSearchParams({
-        key_name: keyName,
-        private_key: privateKey
-      })
-      if (passphrase) params.append('passphrase', passphrase)
-      
-      const response = await fetch(apiUrl(`/ssh-keys/import?${params.toString()}`), {
+      const request: SSHKeyImportRequest = {
+        key_name: keyName, private_key: privateKey, passphrase
+      }
+      const response = await fetch(apiUrl('/ssh-keys/import'), {
         method: 'POST',
-        headers: getAuthHeaders()
+        credentials: 'include',
+        headers: getJsonHeaders(),
+        body: JSON.stringify(request)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       return response.json()
     },
     
     get: async (keyName: string) => {
-      const response = await fetch(apiUrl(`/ssh-keys/${keyName}`), {
+      const response = await fetch(apiUrl(`/ssh-keys/${encodeURIComponent(keyName)}`), {
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -379,8 +390,9 @@ export const api = {
     },
     
     delete: async (keyName: string) => {
-      const response = await fetch(apiUrl(`/ssh-keys/${keyName}`), {
+      const response = await fetch(apiUrl(`/ssh-keys/${encodeURIComponent(keyName)}`), {
         method: 'DELETE',
+        credentials: 'include',
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -388,16 +400,12 @@ export const api = {
     },
     
     test: async (keyName: string, host: string, username: string, port: number = 22, passphrase?: string) => {
-      const params = new URLSearchParams({
-        host,
-        username,
-        port: port.toString()
-      })
-      if (passphrase) params.append('passphrase', passphrase)
-      
-      const response = await fetch(apiUrl(`/ssh-keys/${keyName}/test?${params.toString()}`), {
+      const request: SSHKeyTestRequest = { host, username, port, passphrase }
+      const response = await fetch(apiUrl(`/ssh-keys/${encodeURIComponent(keyName)}/test`), {
         method: 'POST',
-        headers: getAuthHeaders()
+        credentials: 'include',
+        headers: getJsonHeaders(),
+        body: JSON.stringify(request)
       })
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       return response.json()

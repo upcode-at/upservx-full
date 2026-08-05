@@ -210,6 +210,48 @@ def stop_container(name: str):
     notify("container_stop", f"Container '{name}' stopped | Type: {ctype.upper()}")
     return {"detail": "stopped"}
 
+
+@router.post("/{name}/restart")
+def restart_container(name: str):
+    """Restart a container using its native backend."""
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "restart", name], capture_output=True, text=True)
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(["lxc", "restart", name], capture_output=True, text=True)
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(
+            ["kubectl", "rollout", "restart", f"deployment/{name}"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            result = subprocess.run(
+                ["kubectl", "rollout", "restart", f"statefulset/{name}"],
+                capture_output=True,
+                text=True,
+            )
+    elif ctype == "api":
+        from handlers.containers import containers
+        result = None
+        for container in containers:
+            if container.name == name:
+                container.status = "running"
+                break
+    else:
+        raise HTTPException(status_code=404, detail="container not found")
+    if result is not None and result.returncode != 0:
+        raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to restart")
+    log_container(f"Restarted container [{name}] (type: {ctype})")
+    return {"detail": "restarted"}
+
+
 @router.get("/{name}/logs")
 def get_container_logs(name: str, lines: int = 100):
     """Get logs from a Docker container."""
@@ -894,3 +936,47 @@ def delete_lxc_storage(name: str):
     if success:
         return {"message": "Storage pool deleted successfully"}
     raise HTTPException(status_code=400, detail="Failed to delete storage pool")
+
+
+# Keep this one-segment dynamic route after all static GET routes so names such
+# as ``volumes`` and ``compose-projects`` cannot shadow their API endpoints.
+@router.get("/{name}")
+def inspect_container(name: str):
+    """Return backend-native inspection data for one container."""
+    ctype = find_container_type(name)
+    if ctype == "docker":
+        if shutil.which("docker") is None:
+            raise HTTPException(status_code=404, detail="docker not installed")
+        result = subprocess.run(["docker", "inspect", name], capture_output=True, text=True)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            return data[0] if data else {}
+    elif ctype == "lxc":
+        if shutil.which("lxc") is None:
+            raise HTTPException(status_code=404, detail="lxc not installed")
+        result = subprocess.run(
+            ["lxc", "config", "show", name, "--expanded", "--format=json"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    elif ctype == "k8s":
+        if shutil.which("kubectl") is None:
+            raise HTTPException(status_code=404, detail="kubectl not installed")
+        result = subprocess.run(
+            ["kubectl", "get", "pod", name, "-o", "json"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    elif ctype == "api":
+        from handlers.containers import containers
+        container = next((item for item in containers if item.name == name), None)
+        if container:
+            return container.dict()
+        raise HTTPException(status_code=404, detail="container not found")
+    else:
+        raise HTTPException(status_code=404, detail="container not found")
+    raise HTTPException(status_code=400, detail=result.stderr.strip() or "failed to inspect")

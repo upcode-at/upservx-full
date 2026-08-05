@@ -7,7 +7,6 @@ import os
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from lib.encryption import get_encryption_manager
 from lib.file_lock import InterProcessFileLock
 from lib.secure_store import (
@@ -18,10 +17,11 @@ from lib.secure_store import (
     secure_write_text,
 )
 
-CONFIG_DIR = "/etc/upservx"
+CONFIG_DIR = os.getenv("UPSERVX_CONFIG_DIR", "/etc/upservx")
 BACKUP_DIR = os.path.join(CONFIG_DIR, "backup")
 BACKUP_SERVERS_FILE = os.path.join(BACKUP_DIR, "backup_servers.json")
-SSH_KEYS_DIR = os.path.join(CONFIG_DIR, "ssh_keys")
+STATE_DIR = os.getenv("UPSERVX_STATE_DIR", "/var/lib/upservx")
+SSH_KEYS_DIR = os.getenv("UPSERVX_SSH_KEY_DIR", os.path.join(STATE_DIR, "ssh_keys"))
 
 class ConfigManager:
     """Manage /etc/upservx configuration files."""
@@ -78,22 +78,22 @@ class ConfigManager:
     
     # Backup Servers
 
-    def _get_backup_servers_raw(self) -> List[Dict[str, Any]]:
-        data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
-        servers = data.get("servers", [])
-        if not isinstance(servers, list):
-            raise ValueError("Invalid backup server configuration")
-        return servers
+    def _backup_store(self):
+        """Return the canonical SQLite store for compatibility callers."""
+        store = getattr(self, "_backup_store_instance", None)
+        if store is None:
+            from lib.backup_db import BackupDatabase
 
-    @staticmethod
-    def _without_password(server: Dict[str, Any]) -> Dict[str, Any]:
-        sanitized = server.copy()
-        sanitized["password"] = None
-        return sanitized
+            store = BackupDatabase(
+                os.path.join(BACKUP_DIR, "backup.db"),
+                BACKUP_SERVERS_FILE,
+            )
+            self._backup_store_instance = store
+        return store
 
     def get_backup_servers(self) -> List[Dict[str, Any]]:
-        """Get all configured backup servers."""
-        return [self._without_password(server) for server in self._get_backup_servers_raw()]
+        """Compatibility wrapper around the canonical SQLite store."""
+        return self._backup_store().get_backup_servers()
 
     def get_backup_server(
         self,
@@ -101,73 +101,55 @@ class ConfigManager:
         *,
         include_secret: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        """Get a backup server, decrypting credentials only for internal use."""
-        servers = self._get_backup_servers_raw()
-        
-        for server in servers:
-            if server.get("id") == server_id:
-                if not include_secret:
-                    return self._without_password(server)
-                server_copy = server.copy()
-                encrypted_password = server.get("password")
-                if encrypted_password:
-                    if not server.get("password_encrypted"):
-                        raise ValueError("Refusing plaintext backup password")
-                    server_copy["password"] = get_encryption_manager().decrypt(
-                        encrypted_password
-                    )
-                return server_copy
-        return None
+        """Get a server and decrypt credentials only for internal callers."""
+        server = self._backup_store().get_backup_server(
+            server_id,
+            include_secrets=include_secret,
+        )
+        if not server or not include_secret:
+            return server
+        if server.get("password_encrypted"):
+            server["password"] = get_encryption_manager().decrypt(
+                server["password_encrypted"]
+            )
+        if server.get("ssh_key_passphrase_encrypted"):
+            server["ssh_key_passphrase"] = get_encryption_manager().decrypt(
+                server["ssh_key_passphrase_encrypted"]
+            )
+        return server
     
     def add_backup_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Add new backup server configuration."""
+        """Add a backup server to SQLite; JSON is migration input only."""
         server_data = server_data.copy()
-        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
-            servers = self._get_backup_servers_raw()
-            max_id = max([s.get("id", 0) for s in servers], default=0)
-            server_data["id"] = max_id + 1
-            server_data["created"] = datetime.now().isoformat()
-            server_data["status"] = "active"
-            if "password" in server_data and server_data["password"]:
-                encrypted_password = get_encryption_manager().encrypt(server_data["password"])
-                server_data["password"] = encrypted_password
-                server_data["password_encrypted"] = True
-            servers.append(server_data)
-            if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-                return self._without_password(server_data)
-            raise Exception("Failed to save backup server configuration")
+        password = server_data.pop("password", None)
+        passphrase = server_data.pop("ssh_key_passphrase", None)
+        if password:
+            server_data["password_encrypted"] = get_encryption_manager().encrypt(password)
+        if passphrase:
+            server_data["ssh_key_passphrase_encrypted"] = (
+                get_encryption_manager().encrypt(passphrase)
+            )
+        server_id = self._backup_store().create_backup_server(server_data)
+        return self._backup_store().get_backup_server(server_id)
     
     def update_backup_server(self, server_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Update existing backup server."""
+        """Update an existing SQLite backup server."""
         updates = updates.copy()
-        
-        if "password" in updates and updates["password"]:
-            encryption = get_encryption_manager()
-            updates["password"] = encryption.encrypt(updates["password"])
-            updates["password_encrypted"] = True
-        
-        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
-            servers = self._get_backup_servers_raw()
-            for i, server in enumerate(servers):
-                if server.get("id") == server_id:
-                    server.update(updates)
-                    server["updated"] = datetime.now().isoformat()
-                    servers[i] = server
-                    if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-                        return self._without_password(server)
-                    raise Exception("Failed to update backup server configuration")
-        
-        return None
+        if "password" in updates:
+            password = updates.pop("password")
+            updates["password_encrypted"] = get_encryption_manager().encrypt(password)
+        if "ssh_key_passphrase" in updates:
+            passphrase = updates.pop("ssh_key_passphrase")
+            updates["ssh_key_passphrase_encrypted"] = (
+                get_encryption_manager().encrypt(passphrase)
+            )
+        if not self._backup_store().update_backup_server(server_id, updates):
+            return None
+        return self._backup_store().get_backup_server(server_id)
     
     def delete_backup_server(self, server_id: int) -> bool:
-        """Delete backup server configuration."""
-        with InterProcessFileLock(f"{BACKUP_SERVERS_FILE}.lock"):
-            servers = self._get_backup_servers_raw()
-            original_count = len(servers)
-            servers = [s for s in servers if s.get("id") != server_id]
-            if len(servers) < original_count:
-                return self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers})
-            return False
+        """Delete an unused backup server from SQLite."""
+        return self._backup_store().delete_backup_server(server_id)
     
     # SSH Key Management
     

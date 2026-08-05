@@ -22,19 +22,23 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
     from handlers.backup import backup_manager
     from handlers.notifications import notify
     from lib.backup_db import backup_db
-    from lib.config_manager import get_config_manager
+    from lib.encryption import get_encryption_manager
     from lib.logger import log_backup
 
     backup_job_id = int(payload["backup_job_id"])
     backup_job = backup_db.get_backup_job(backup_job_id)
     if not backup_job:
         raise RuntimeError("Backup job not found")
-    server = get_config_manager().get_backup_server(
-        backup_job["server_id"],
-        include_secret=True,
-    )
+    server = backup_db.get_backup_server(backup_job["server_id"], include_secrets=True)
     if not server:
         raise RuntimeError("Backup server not found")
+    encryption = get_encryption_manager()
+    if server.get("password_encrypted"):
+        server["password"] = encryption.decrypt(server["password_encrypted"])
+    if server.get("ssh_key_passphrase_encrypted"):
+        server["ssh_key_passphrase"] = encryption.decrypt(
+            server["ssh_key_passphrase_encrypted"]
+        )
 
     checkpoint = context.checkpoint or {}
     instance_id = checkpoint.get("instance_id")
@@ -52,9 +56,19 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
         }
     if existing_instance:
         instance_id = int(instance_id)
+        if existing_instance.get("backup_path"):
+            if not backup_manager.delete_instance_archive(existing_instance, server):
+                raise RuntimeError("Could not remove the archive from a failed backup attempt")
         backup_db.update_backup_instance(
             instance_id,
-            {"status": "in_progress", "error_message": None, "completed": None},
+            {
+                "status": "in_progress",
+                "backup_path": "",
+                "backup_size": 0,
+                "error_message": None,
+                "integrity_status": "pending",
+                "completed": None,
+            },
         )
     else:
         instance_id = backup_db.create_backup_instance(
@@ -70,6 +84,7 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
                 "backup_type": backup_job["backup_type"],
                 "targets": backup_job["targets"],
                 "error_message": None,
+                "integrity_status": "pending",
                 "started": datetime.now().isoformat(),
                 "completed": None,
             }
@@ -100,6 +115,7 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
             save_checkpoint=True,
         )
 
+    result: dict[str, Any] = {}
     try:
         result = backup_manager.execute_backup(
             backup_job,
@@ -116,8 +132,43 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
                 "backup_path": result.get("backup_path", ""),
                 "completed": datetime.now().isoformat(),
                 "error_message": None,
+                "checksum_sha256": result.get("checksum_sha256"),
+                "integrity_status": result.get("integrity_status", "verified"),
+                "verified_at": datetime.now().isoformat(),
+                "last_test_restore": (
+                    datetime.now().isoformat() if result.get("test_restore") else None
+                ),
             },
         )
+        backup_db.update_backup_job(
+            backup_job_id,
+            {
+                "last_run": datetime.now().isoformat(),
+                "last_size": result.get("size", 0),
+            },
+        )
+
+        # Retention is archive-aware: metadata is removed only after the local
+        # or remote object has been deleted successfully.
+        retention_failures = []
+        for expired in backup_db.get_expired_instances(
+            backup_job_id, backup_job.get("retention_days", 30)
+        ):
+            if int(expired["id"]) == int(instance_id):
+                continue
+            try:
+                if backup_manager.delete_instance_archive(expired, server):
+                    backup_db.delete_backup_instance(int(expired["id"]))
+                else:
+                    retention_failures.append(int(expired["id"]))
+            except Exception:
+                retention_failures.append(int(expired["id"]))
+        if retention_failures:
+            log_backup(
+                "Retention could not remove backup instances "
+                + ", ".join(str(value) for value in retention_failures),
+                error=True,
+            )
         size = int(result.get("size", 0) or 0)
         log_backup(
             f"Backup job [{backup_job['name']}] completed successfully "
@@ -135,12 +186,40 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
             "instance_id": instance_id,
             "backup_path": result.get("backup_path"),
             "size": size,
+            "retention_failures": retention_failures,
         }
     except Exception as error:
+        archive_path = result.get("backup_path")
+        remaining_archive_path = ""
+        if archive_path:
+            try:
+                if not backup_manager.delete_instance_archive(
+                    {"backup_path": archive_path}, server
+                ):
+                    remaining_archive_path = archive_path
+                    log_backup(
+                        f"Could not clean failed backup archive [{archive_path}]",
+                        error=True,
+                    )
+            except Exception:
+                remaining_archive_path = archive_path
+                log_backup(
+                    f"Could not clean failed backup archive [{archive_path}]",
+                    error=True,
+                )
+        backup_db.update_backup_job(
+            backup_job_id,
+            {"last_run": datetime.now().isoformat()},
+        )
         backup_db.update_backup_instance(
             instance_id,
             {
                 "status": "failed",
+                "backup_path": remaining_archive_path,
+                "backup_size": (
+                    result.get("size", 0) if remaining_archive_path else 0
+                ),
+                "integrity_status": "error",
                 "completed": datetime.now().isoformat(),
                 "error_message": str(error),
             },
@@ -151,6 +230,89 @@ def _backup(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
             f"Backup job '{backup_job['name']}' failed: {error}",
         )
         raise
+
+
+def _backup_restore(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
+    from handlers.backup import backup_manager
+    from lib.backup_db import backup_db
+    from lib.encryption import get_encryption_manager
+
+    instance_id = int(payload["instance_id"])
+    instance = backup_db.get_backup_instance(instance_id)
+    if not instance:
+        raise RuntimeError("Backup instance not found")
+    server = backup_db.get_backup_server(instance["server_id"], include_secrets=True)
+    if not server:
+        raise RuntimeError("Backup server not found")
+    encryption = get_encryption_manager()
+    if server.get("password_encrypted"):
+        server["password"] = encryption.decrypt(server["password_encrypted"])
+    if server.get("ssh_key_passphrase_encrypted"):
+        server["ssh_key_passphrase"] = encryption.decrypt(
+            server["ssh_key_passphrase_encrypted"]
+        )
+    context.progress(10, "Verifying backup archive")
+    result = backup_manager.restore_instance(
+        instance,
+        server,
+        str(payload["restore_path"]),
+        overwrite=False,
+    )
+    backup_db.update_backup_instance(
+        instance_id,
+        {
+            "checksum_sha256": result["checksum_sha256"],
+            "integrity_status": result["integrity_status"],
+            "verified_at": datetime.now().isoformat(),
+        },
+    )
+    context.progress(100, "Backup restored")
+    return result
+
+
+def _backup_verify(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
+    from handlers.backup import backup_manager
+    from lib.backup_db import backup_db
+    from lib.encryption import get_encryption_manager
+
+    instance_id = int(payload["instance_id"])
+    instance = backup_db.get_backup_instance(instance_id)
+    if not instance:
+        raise RuntimeError("Backup instance not found")
+    server = backup_db.get_backup_server(instance["server_id"], include_secrets=True)
+    if not server:
+        raise RuntimeError("Backup server not found")
+    encryption = get_encryption_manager()
+    if server.get("password_encrypted"):
+        server["password"] = encryption.decrypt(server["password_encrypted"])
+    if server.get("ssh_key_passphrase_encrypted"):
+        server["ssh_key_passphrase"] = encryption.decrypt(
+            server["ssh_key_passphrase_encrypted"]
+        )
+    context.progress(10, "Verifying backup archive")
+    try:
+        result = backup_manager.verify_instance(instance, server, test_restore=True)
+    except Exception:
+        backup_db.update_backup_instance(
+            instance_id,
+            {
+                "integrity_status": "error",
+                "verified_at": datetime.now().isoformat(),
+            },
+        )
+        raise
+    now = datetime.now().isoformat()
+    backup_db.update_backup_instance(
+        instance_id,
+        {
+            "checksum_sha256": result["checksum_sha256"],
+            "integrity_status": result["integrity_status"],
+            "verified_at": now,
+            "last_test_restore": now,
+        },
+    )
+    context.progress(100, "Backup verified and test-restored")
+    return {"instance_id": instance_id, **result, "test_restore": True}
 
 
 def _replication(payload: dict[str, Any], context: JobContext) -> dict[str, Any]:
@@ -418,6 +580,8 @@ def _system_update(payload: dict[str, Any], context: JobContext) -> dict[str, An
 
 TASK_HANDLERS: dict[str, TaskHandler] = {
     "backup": _backup,
+    "backup_restore": _backup_restore,
+    "backup_verify": _backup_verify,
     "replication": _replication,
     "vm_export": _vm_export,
     "cluster_export": _cluster_export,

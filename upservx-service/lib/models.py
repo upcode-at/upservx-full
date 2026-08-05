@@ -2,8 +2,8 @@
 Pydantic models for the UpservX API.
 """
 
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
 
 class Container(BaseModel):
     id: int
@@ -267,8 +267,8 @@ class VirtualMachineUpdate(BaseModel):
 class BackupServer(BaseModel):
     id: int
     name: str
-    type: str  # 'local', 'remote'
-    status: str  # 'connected', 'disconnected', 'error'
+    type: Literal['local', 'remote']
+    status: Literal['connected', 'disconnected', 'error']
     host: Optional[str] = None  # For remote servers
     port: Optional[int] = None  # For remote servers
     remote_path: Optional[str] = None  # For remote servers
@@ -282,12 +282,12 @@ class BackupServer(BaseModel):
 
 class BackupServerCreate(BaseModel):
     name: str
-    type: str  # 'local', 'remote'
+    type: Literal['local', 'remote']
     host: Optional[str] = None
-    port: Optional[int] = 22
+    port: Optional[int] = Field(default=22, ge=1, le=65535)
     remote_path: Optional[str] = '/backups'
-    local_path: Optional[str] = '/var/backups'
-    auth_type: Optional[str] = None  # 'password', 'ssh_key'
+    local_path: Optional[str] = '/var/lib/upservx/backups'
+    auth_type: Optional[Literal['password', 'ssh_key']] = None
     username: Optional[str] = None
     password: Optional[str] = None  # Will be encrypted
     ssh_key: Optional[str] = None  # SSH private key content
@@ -295,11 +295,12 @@ class BackupServerCreate(BaseModel):
 
 class BackupServerUpdate(BaseModel):
     name: Optional[str] = None
+    type: Optional[Literal['local', 'remote']] = None
     host: Optional[str] = None
-    port: Optional[int] = None
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
     remote_path: Optional[str] = None
     local_path: Optional[str] = None
-    auth_type: Optional[str] = None
+    auth_type: Optional[Literal['password', 'ssh_key']] = None
     username: Optional[str] = None
     password: Optional[str] = None
     ssh_key: Optional[str] = None
@@ -312,7 +313,7 @@ class BackupJob(BaseModel):
     targets: List[str]  # List of target names/paths
     schedule: str  # Cron-like schedule
     server_id: int  # Reference to BackupServer
-    status: str  # 'active', 'paused', 'error'
+    status: Literal['active', 'paused', 'error']
     last_run: Optional[str] = None
     next_run: Optional[str] = None
     last_size: Optional[int] = None  # Size in bytes
@@ -322,21 +323,21 @@ class BackupJob(BaseModel):
 
 class BackupJobCreate(BaseModel):
     name: str
-    backup_type: str
-    targets: List[str]
+    backup_type: Literal['vm', 'container', 'system', 'database']
+    targets: List[str] = Field(min_length=1)
     schedule: str
     server_id: int
-    retention_days: int = 30
+    retention_days: int = Field(default=30, ge=0)
     compression: bool = True
 
 class BackupJobUpdate(BaseModel):
     name: Optional[str] = None
-    backup_type: Optional[str] = None
-    targets: Optional[List[str]] = None
+    backup_type: Optional[Literal['vm', 'container', 'system', 'database']] = None
+    targets: Optional[List[str]] = Field(default=None, min_length=1)
     schedule: Optional[str] = None
     server_id: Optional[int] = None
-    status: Optional[str] = None
-    retention_days: Optional[int] = None
+    status: Optional[Literal['active', 'paused', 'error']] = None
+    retention_days: Optional[int] = Field(default=None, ge=0)
     compression: Optional[bool] = None
 
 class BackupInstance(BaseModel):
@@ -350,12 +351,16 @@ class BackupInstance(BaseModel):
     created: str
     backup_type: str
     targets: List[str]
+    checksum_sha256: Optional[str] = None
+    integrity_status: Optional[str] = None
+    verified_at: Optional[str] = None
+    last_test_restore: Optional[str] = None
+    error_message: Optional[str] = None
 
 class BackupExecuteRequest(BaseModel):
     job_id: int
 
 class BackupRestoreRequest(BaseModel):
-    backup_id: int
     restore_path: str
 
 class BackupListResponse(BaseModel):

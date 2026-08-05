@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Server, Plus, Loader2, AlertCircle, Play, Trash2, HardDrive, Clock } from "lucide-react"
+import { Server, Plus, Loader2, AlertCircle, Play, Pause, Trash2, HardDrive, Clock, RotateCcw, ShieldCheck } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { apiUrl, getAuthHeaders } from "@/lib/api"
+import type { BackupJobCreate, BackupServerCreate } from "@/lib/generated-api-types"
 import {
   Table,
   TableBody,
@@ -33,28 +34,17 @@ interface BackupServer {
   created: string
 }
 
-interface BackupServerCreate {
-  name: string
-  type: string
-  host?: string
-  port?: number
-  remote_path?: string
-  local_path?: string
+type DefinedForm<T, K extends keyof T> = {
+  [P in K]-?: NonNullable<T[P]>
 }
 
-interface BackupJobCreate {
-  name: string
-  backup_type: 'vm' | 'container' | 'system' | 'database'
-  targets: string[]
-  schedule: string
-  server_id: number
-  rsync_enabled?: boolean
-  rsync_host?: string
-  rsync_port?: number
-  rsync_user?: string
-  rsync_path?: string
-  rsync_ssh_key?: string
-}
+type BackupServerForm = DefinedForm<
+  BackupServerCreate,
+  'name' | 'type' | 'host' | 'port' | 'remote_path' | 'local_path' |
+  'auth_type' | 'username' | 'password' | 'ssh_key'
+>
+
+type BackupJobForm = DefinedForm<BackupJobCreate, keyof BackupJobCreate>
 
 interface BackupJob {
   id: number
@@ -69,12 +59,6 @@ interface BackupJob {
   last_size?: number
   retention_days: number
   compression: boolean
-  rsync_enabled?: boolean
-  rsync_host?: string
-  rsync_port?: number
-  rsync_user?: string
-  rsync_path?: string
-  rsync_ssh_key?: string
   created: string
 }
 
@@ -86,10 +70,25 @@ interface BackupJobProgress {
   updated_at?: string | null
 }
 
+interface BackupInstance {
+  id: number
+  job_id: number
+  server_id: number
+  backup_name: string
+  backup_path: string
+  backup_size: number
+  backup_type: string
+  status: 'in_progress' | 'completed' | 'failed'
+  integrity_status?: string
+  checksum_sha256?: string
+  created: string
+}
+
 // Helper functions that use apiUrl at runtime, not at module load
 async function fetchBackupServers(): Promise<BackupServer[]> {
   const response = await fetch(apiUrl('/backup/servers'), {
     method: 'GET',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -102,6 +101,7 @@ async function fetchBackupServers(): Promise<BackupServer[]> {
 async function createBackupServer(data: BackupServerCreate): Promise<BackupServer> {
   const response = await fetch(apiUrl('/backup/servers'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -115,6 +115,7 @@ async function createBackupServer(data: BackupServerCreate): Promise<BackupServe
 async function deleteBackupServer(id: number): Promise<void> {
   const response = await fetch(apiUrl(`/backup/servers/${id}`), {
     method: 'DELETE',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -126,6 +127,7 @@ async function deleteBackupServer(id: number): Promise<void> {
 async function fetchBackupJobs(): Promise<BackupJob[]> {
   const response = await fetch(apiUrl('/backup/jobs'), {
     method: 'GET',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -138,6 +140,7 @@ async function fetchBackupJobs(): Promise<BackupJob[]> {
 async function createBackupJob(data: BackupJobCreate): Promise<BackupJob> {
   const response = await fetch(apiUrl('/backup/jobs'), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -151,6 +154,7 @@ async function createBackupJob(data: BackupJobCreate): Promise<BackupJob> {
 async function executeBackupJob(jobId: number): Promise<{ message: string }> {
   const response = await fetch(apiUrl(`/backup/jobs/${jobId}/trigger`), {
     method: 'POST',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -163,6 +167,7 @@ async function executeBackupJob(jobId: number): Promise<{ message: string }> {
 async function fetchBackupJobProgress(jobId: number): Promise<BackupJobProgress> {
   const response = await fetch(apiUrl(`/backup/jobs/${jobId}/progress`), {
     method: 'GET',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -175,6 +180,7 @@ async function fetchBackupJobProgress(jobId: number): Promise<BackupJobProgress>
 async function deleteBackupJob(id: number): Promise<void> {
   const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
     method: 'DELETE',
+    credentials: 'include',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json'
@@ -183,10 +189,61 @@ async function deleteBackupJob(id: number): Promise<void> {
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 }
 
+async function setBackupJobStatus(id: number, status: 'active' | 'paused'): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/jobs/${id}`), {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+}
+
+async function fetchBackupInstances(): Promise<BackupInstance[]> {
+  const response = await fetch(apiUrl('/backup/instances'), {
+    credentials: 'include',
+    headers: getAuthHeaders()
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return response.json()
+}
+
+async function restoreBackupInstance(id: number, restorePath: string): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/instances/${id}/restore`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ restore_path: restorePath })
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP error! status: ${response.status}`)
+  }
+}
+
+async function verifyBackupInstance(id: number): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/instances/${id}/verify`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: getAuthHeaders()
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+}
+
+async function deleteBackupInstance(id: number): Promise<void> {
+  const response = await fetch(apiUrl(`/backup/instances/${id}`), {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: getAuthHeaders()
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+}
+
 async function fetchVMs(): Promise<{ name: string; id: string }[]> {
   try {
     const response = await fetch(apiUrl('/vms'), {
       method: 'GET',
+      credentials: 'include',
       headers: {
         ...getAuthHeaders(),
         'Content-Type': 'application/json'
@@ -203,6 +260,7 @@ async function fetchContainers(): Promise<{ name: string; id: string }[]> {
   try {
     const response = await fetch(apiUrl('/containers'), {
       method: 'GET',
+      credentials: 'include',
       headers: {
         ...getAuthHeaders(),
         'Content-Type': 'application/json'
@@ -219,6 +277,7 @@ export default function BackupManagement() {
   const [activeTab, setActiveTab] = useState('servers')
   const [backupServers, setBackupServers] = useState<BackupServer[]>([])
   const [backupJobs, setBackupJobs] = useState<BackupJob[]>([])
+  const [backupInstances, setBackupInstances] = useState<BackupInstance[]>([])
   const [availableVMs, setAvailableVMs] = useState<{ name: string; id: string }[]>([])
   const [availableContainers, setAvailableContainers] = useState<{ name: string; id: string }[]>([])
   const [backupProgress, setBackupProgress] = useState<Record<number, BackupJobProgress>>({})
@@ -228,49 +287,31 @@ export default function BackupManagement() {
   const [showServerDialog, setShowServerDialog] = useState(false)
   const [showJobDialog, setShowJobDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'server' | 'job', id: number, name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'server' | 'job' | 'instance', id: number, name: string } | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<BackupInstance | null>(null)
+  const [restorePath, setRestorePath] = useState('/var/lib/upservx/restores')
   
-  const [serverForm, setServerForm] = useState({
+  const [serverForm, setServerForm] = useState<BackupServerForm>({
     name: '',
     type: 'local',
-    local_path: '/var/backups',
+    local_path: '/var/lib/upservx/backups',
     host: '',
     port: 22,
-    remote_path: '',
+    remote_path: '/backups',
     username: 'root',
     auth_type: 'ssh_key',
     password: '',
     ssh_key: ''
   })
   
-  const [jobForm, setJobForm] = useState<{
-    name: string
-    backup_type: 'vm' | 'container' | 'system' | 'database'
-    targets: string[]
-    schedule: string
-    server_id: number
-    retention_days: number
-    compression: boolean
-    rsync_enabled: boolean
-    rsync_host: string
-    rsync_port: number
-    rsync_user: string
-    rsync_path: string
-    rsync_ssh_key: string
-  }>({
+  const [jobForm, setJobForm] = useState<BackupJobForm>({
     name: '',
     backup_type: 'system',
     targets: [''],
     schedule: '0 2 * * *',
     server_id: 0,
     retention_days: 30,
-    compression: true,
-    rsync_enabled: false,
-    rsync_host: '',
-    rsync_port: 22,
-    rsync_user: 'root',
-    rsync_path: '/backups',
-    rsync_ssh_key: ''
+    compression: true
   })
 
   useEffect(() => {
@@ -322,15 +363,17 @@ export default function BackupManagement() {
       setLoading(true)
       setError(null)
 
-      const [serversData, jobsData, vmsData, containersData] = await Promise.all([
+      const [serversData, jobsData, instancesData, vmsData, containersData] = await Promise.all([
         fetchBackupServers(),
         fetchBackupJobs(),
+        fetchBackupInstances(),
         fetchVMs(),
         fetchContainers()
       ])
       
       setBackupServers(serversData)
       setBackupJobs(jobsData)
+      setBackupInstances(instancesData)
       setAvailableVMs(vmsData)
       setAvailableContainers(containersData)
     } catch (err) {
@@ -347,15 +390,17 @@ export default function BackupManagement() {
       setServerForm({ 
         name: '', 
         type: 'local', 
-        local_path: '/var/backups',
+        local_path: '/var/lib/upservx/backups',
         host: '',
         port: 22,
-        remote_path: '',
+        remote_path: '/backups',
         username: 'root',
         auth_type: 'ssh_key',
         password: '',
         ssh_key: ''
       })
+      await loadData()
+      setShowServerDialog(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error creating server')
     }
@@ -374,13 +419,7 @@ export default function BackupManagement() {
         schedule: '0 2 * * *',
         server_id: 0,
         retention_days: 30,
-        compression: true,
-        rsync_enabled: false,
-        rsync_host: '',
-        rsync_port: 22,
-        rsync_user: 'root',
-        rsync_path: '/backups',
-        rsync_ssh_key: ''
+        compression: true
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error creating job')
@@ -404,7 +443,16 @@ export default function BackupManagement() {
     }
   }
 
-  const handleDeleteClick = (type: 'server' | 'job', id: number, name: string) => {
+  const handleToggleJob = async (job: BackupJob) => {
+    try {
+      await setBackupJobStatus(job.id, job.status === 'active' ? 'paused' : 'active')
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error updating job schedule')
+    }
+  }
+
+  const handleDeleteClick = (type: 'server' | 'job' | 'instance', id: number, name: string) => {
     setDeleteTarget({ type, id, name })
     setShowDeleteDialog(true)
   }
@@ -415,14 +463,34 @@ export default function BackupManagement() {
     try {
       if (deleteTarget.type === 'server') {
         await deleteBackupServer(deleteTarget.id)
-      } else {
+      } else if (deleteTarget.type === 'job') {
         await deleteBackupJob(deleteTarget.id)
+      } else {
+        await deleteBackupInstance(deleteTarget.id)
       }
       await loadData()
       setShowDeleteDialog(false)
       setDeleteTarget(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error deleting')
+    }
+  }
+
+  const handleRestore = async () => {
+    if (!restoreTarget || !restorePath.startsWith('/')) return
+    try {
+      await restoreBackupInstance(restoreTarget.id, restorePath)
+      setRestoreTarget(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error queueing restore')
+    }
+  }
+
+  const handleVerify = async (id: number) => {
+    try {
+      await verifyBackupInstance(id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error queueing verification')
     }
   }
 
@@ -522,7 +590,7 @@ export default function BackupManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="servers" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             Backup Servers
@@ -530,6 +598,10 @@ export default function BackupManagement() {
           <TabsTrigger value="jobs" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             Backup Jobs
+          </TabsTrigger>
+          <TabsTrigger value="instances" className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4" />
+            Backup Archives
           </TabsTrigger>
         </TabsList>
 
@@ -561,7 +633,7 @@ export default function BackupManagement() {
                     <Label htmlFor="type">Type</Label>
                     <Select
                       value={serverForm.type}
-                      onValueChange={(value) => setServerForm(prev => ({ ...prev, type: value }))}
+                      onValueChange={(value: 'local' | 'remote') => setServerForm(prev => ({ ...prev, type: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -579,7 +651,7 @@ export default function BackupManagement() {
                         id="local_path"
                         value={serverForm.local_path}
                         onChange={(e) => setServerForm(prev => ({ ...prev, local_path: e.target.value }))}
-                        placeholder="/var/backups"
+                        placeholder="/var/lib/upservx/backups"
                       />
                     </div>
                   )}
@@ -630,7 +702,7 @@ export default function BackupManagement() {
                         <Label htmlFor="auth_type">Authentication Method</Label>
                         <Select
                           value={serverForm.auth_type}
-                          onValueChange={(value) => setServerForm(prev => ({ ...prev, auth_type: value }))}
+                          onValueChange={(value: 'password' | 'ssh_key') => setServerForm(prev => ({ ...prev, auth_type: value }))}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -654,16 +726,16 @@ export default function BackupManagement() {
                         </div>
                       ) : (
                         <div>
-                          <Label htmlFor="ssh_key">SSH Private Key (optional)</Label>
+                          <Label htmlFor="ssh_key">SSH Private Key</Label>
                           <textarea
                             id="ssh_key"
                             value={serverForm.ssh_key}
                             onChange={(e) => setServerForm(prev => ({ ...prev, ssh_key: e.target.value }))}
-                            placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
                             className="w-full h-32 p-2 border rounded-md font-mono text-xs"
                           />
                           <p className="text-xs text-muted-foreground mt-1">
-                            Paste your SSH private key or leave empty to use SSH agent
+                            Paste the private key used by the background backup worker.
                           </p>
                         </div>
                       )}
@@ -711,7 +783,7 @@ export default function BackupManagement() {
                       <Badge variant="outline">{server.type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={server.status === "active" ? "bg-green-600 text-white" : "bg-gray-600 text-white"}>
+                      <Badge className={server.status === "connected" ? "bg-green-600 text-white" : server.status === "error" ? "bg-red-600 text-white" : "bg-gray-600 text-white"}>
                         {server.status}
                       </Badge>
                     </TableCell>
@@ -855,78 +927,27 @@ export default function BackupManagement() {
                     </div>
                   </div>
 
-                  {/* Rsync Remote Sync Configuration */}
-                  <div className="space-y-4 border-t pt-4">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="rsync_enabled"
-                        checked={jobForm.rsync_enabled}
-                        onChange={(e) => setJobForm(prev => ({ ...prev, rsync_enabled: e.target.checked }))}
-                        className="rounded"
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="retention_days">Retention (days)</Label>
+                      <Input
+                        id="retention_days"
+                        type="number"
+                        min="0"
+                        value={jobForm.retention_days}
+                        onChange={(e) => setJobForm(prev => ({ ...prev, retention_days: Math.max(0, parseInt(e.target.value) || 0) }))}
                       />
-                      <Label htmlFor="rsync_enabled" className="cursor-pointer">
-                        Sync backup to remote server via rsync after creation
-                      </Label>
                     </div>
-
-                    {jobForm.rsync_enabled && (
-                      <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="rsync_host">Remote Host</Label>
-                            <Input
-                              id="rsync_host"
-                              value={jobForm.rsync_host}
-                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_host: e.target.value }))}
-                              placeholder="backup.example.com"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="rsync_port">SSH Port</Label>
-                            <Input
-                              id="rsync_port"
-                              type="number"
-                              value={jobForm.rsync_port}
-                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_port: parseInt(e.target.value) || 22 }))}
-                              placeholder="22"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="rsync_user">Remote User</Label>
-                            <Input
-                              id="rsync_user"
-                              value={jobForm.rsync_user}
-                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_user: e.target.value }))}
-                              placeholder="root"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="rsync_path">Remote Path</Label>
-                            <Input
-                              id="rsync_path"
-                              value={jobForm.rsync_path}
-                              onChange={(e) => setJobForm(prev => ({ ...prev, rsync_path: e.target.value }))}
-                              placeholder="/backups"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor="rsync_ssh_key">SSH Private Key Path (optional)</Label>
-                          <Input
-                            id="rsync_ssh_key"
-                            value={jobForm.rsync_ssh_key}
-                            onChange={(e) => setJobForm(prev => ({ ...prev, rsync_ssh_key: e.target.value }))}
-                            placeholder="/root/.ssh/id_rsa"
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Leave empty to use SSH agent or default key
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={jobForm.compression}
+                          onChange={(e) => setJobForm(prev => ({ ...prev, compression: e.target.checked }))}
+                        />
+                        Compress archive with gzip
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2">
@@ -993,6 +1014,9 @@ export default function BackupManagement() {
                         <Button variant="outline" size="sm" onClick={() => handleExecuteJob(job.id)}>
                           <Play className="h-4 w-4" />
                         </Button>
+                        <Button variant="outline" size="sm" title={job.status === 'active' ? 'Pause schedule' : 'Activate schedule'} onClick={() => handleToggleJob(job)}>
+                          {job.status === 'active' ? <Pause className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -1009,14 +1033,79 @@ export default function BackupManagement() {
             </Table>
           </div>
         </TabsContent>
+
+        <TabsContent value="instances" className="space-y-4">
+          <h3 className="text-xl font-semibold">Backup Archives</h3>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Integrity</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {backupInstances.map((instance) => (
+                <TableRow key={instance.id}>
+                  <TableCell className="font-medium">{instance.backup_name}</TableCell>
+                  <TableCell><Badge variant="outline">{instance.backup_type}</Badge></TableCell>
+                  <TableCell>{instance.status}</TableCell>
+                  <TableCell>
+                    <Badge className={instance.integrity_status === 'verified' ? 'bg-green-600 text-white' : 'bg-gray-600 text-white'}>
+                      {instance.integrity_status || 'pending'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{(instance.backup_size / 1024 / 1024).toFixed(1)} MB</TableCell>
+                  <TableCell>{instance.created}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" title="Verify and test restore" disabled={instance.status !== 'completed'} onClick={() => handleVerify(instance.id)}>
+                        <ShieldCheck className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" title="Restore" disabled={instance.status !== 'completed'} onClick={() => setRestoreTarget(instance)}>
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" title="Delete archive and metadata" className="text-red-600" onClick={() => handleDeleteClick('instance', instance.id, instance.backup_name)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={restoreTarget !== null} onOpenChange={(open) => !open && setRestoreTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Restore {restoreTarget?.backup_name}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              The archive is checksum-verified before extraction. Existing files and links are never overwritten.
+            </p>
+            <div>
+              <Label htmlFor="restore-path">Absolute restore destination</Label>
+              <Input id="restore-path" value={restorePath} onChange={(event) => setRestorePath(event.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRestoreTarget(null)}>Cancel</Button>
+              <Button onClick={handleRestore} disabled={!restorePath.startsWith('/')}>Queue Restore</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteTarget?.type === 'server' ? 'Delete Backup Server' : 'Delete Backup Job'}
+              {deleteTarget?.type === 'server' ? 'Delete Backup Server' : deleteTarget?.type === 'job' ? 'Delete Backup Job' : 'Delete Backup Archive'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -1024,8 +1113,11 @@ export default function BackupManagement() {
               Are you sure you want to delete <strong>&quot;{deleteTarget?.name}&quot;</strong>?
               {deleteTarget?.type === 'server' && (
                 <span className="block mt-2 text-red-600">
-                  Warning: All associated backup jobs will also be deleted.
+                  This server cannot be deleted while backup jobs reference it.
                 </span>
+              )}
+              {deleteTarget?.type === 'instance' && (
+                <span className="block mt-2 text-red-600">The stored archive will be deleted before its metadata.</span>
               )}
             </p>
             <div className="flex justify-end gap-2">
@@ -1033,7 +1125,7 @@ export default function BackupManagement() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteConfirm}>
-                {deleteTarget?.type === 'server' ? 'Delete Server' : 'Delete Job'}
+                {deleteTarget?.type === 'server' ? 'Delete Server' : deleteTarget?.type === 'job' ? 'Delete Job' : 'Delete Archive'}
               </Button>
             </div>
           </div>

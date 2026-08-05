@@ -38,13 +38,33 @@ class CrontabManager:
     _CRON_FIELD_NAMES = ["minute", "hour", "day-of-month", "month", "day-of-week"]
 
     @classmethod
-    def _validate_cron_field(cls, value: str, field_name: str) -> None:
+    def _validate_cron_field(
+        cls, value: str, field_name: str, minimum: int, maximum: int
+    ) -> None:
         """Raise ValueError if a cron field contains invalid characters."""
         if not cls._CRON_FIELD_RE.match(value):
             raise ValueError(
                 f"Invalid cron {field_name} field {value!r}: "
                 "only digits, *, , - / are allowed"
             )
+        for expression in value.split(","):
+            base, separator, step = expression.partition("/")
+            if separator:
+                if not step.isdigit() or int(step) < 1:
+                    raise ValueError(f"Invalid cron {field_name} step: {expression!r}")
+                if "/" in step:
+                    raise ValueError(f"Invalid cron {field_name} field: {expression!r}")
+            if base == "*":
+                continue
+            if "-" in base:
+                start, dash, end = base.partition("-")
+                if not dash or not start.isdigit() or not end.isdigit() or "-" in end:
+                    raise ValueError(f"Invalid cron {field_name} range: {expression!r}")
+                start_value, end_value = int(start), int(end)
+                if not minimum <= start_value <= end_value <= maximum:
+                    raise ValueError(f"Cron {field_name} range is out of bounds")
+            elif not base.isdigit() or not minimum <= int(base) <= maximum:
+                raise ValueError(f"Cron {field_name} value is out of bounds")
 
     @classmethod
     def _validate_schedule(cls, schedule: str) -> list[str]:
@@ -52,8 +72,10 @@ class CrontabManager:
         parts = schedule.strip().split()
         if len(parts) != 5:
             raise ValueError(f"Cron schedule must have exactly 5 fields, got: {schedule!r}")
-        for part, name in zip(parts, cls._CRON_FIELD_NAMES):
-            cls._validate_cron_field(part, name)
+        for part, name, limits in zip(
+            parts, cls._CRON_FIELD_NAMES, cls._CRON_FIELD_RANGES
+        ):
+            cls._validate_cron_field(part, name, *limits)
         return parts
 
     @staticmethod
@@ -93,18 +115,21 @@ class CrontabManager:
     
     def write_crontab(self, lines: List[str]) -> bool:
         """Write lines to crontab."""
+        temp_path = None
         try:
             # Write to temporary file first
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
                 temp_file.writelines(lines)
                 temp_path = temp_file.name
             
-            result = require_privileged("install-cron", temp_path)
-            os.unlink(temp_path)
+            require_privileged("install-cron", temp_path)
             return True
         except Exception as e:
             logger.error(f"Error writing crontab: {e}")
             return False
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
     
     def ensure_backup_section(self, lines: List[str]) -> List[str]:
         """Ensure backup section markers exist in crontab."""
@@ -176,34 +201,17 @@ class CrontabManager:
         return cron_entry
     
     def add_backup_job(self, job_id: int, schedule: str, job_name: str) -> bool:
-        """Add backup job to crontab."""
+        """Atomically add or replace one backup cron entry."""
         try:
             lines = self.read_crontab()
+            marker = f"{self.BACKUP_JOB_MARKER}_ID_{job_id}"
+            lines = [line for line in lines if marker not in line]
             lines = self.ensure_backup_section(lines)
-            
-            # Remove existing entry for this job if it exists
-            self.remove_backup_job(job_id, write_immediately=False)
-            lines = self.read_crontab()  # Re-read after removal
-            
-            # Find insertion point (before section end marker)
-            insert_index = -1
-            for i, line in enumerate(lines):
-                if self.BACKUP_SECTION_END in line:
-                    insert_index = i
-                    break
-            
-            if insert_index == -1:
-                lines = self.ensure_backup_section(lines)
-                for i, line in enumerate(lines):
-                    if self.BACKUP_SECTION_END in line:
-                        insert_index = i
-                        break
-            
-            # Generate and insert cron entry
+            insert_index = next(
+                i for i, line in enumerate(lines) if self.BACKUP_SECTION_END in line
+            )
             cron_entry = self.get_backup_job_cron_entry(job_id, schedule, job_name)
             lines.insert(insert_index, cron_entry)
-            
-            # Write updated crontab
             return self.write_crontab(lines)
             
         except Exception as e:
@@ -214,24 +222,12 @@ class CrontabManager:
         """Add replication job to crontab."""
         try:
             lines = self.read_crontab()
+            marker = f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id}"
+            lines = [line for line in lines if marker not in line]
             lines = self.ensure_replication_section(lines)
-
-            self.remove_replication_job(replication_id, write_immediately=False)
-            lines = self.read_crontab()
-
-            insert_index = -1
-            for i, line in enumerate(lines):
-                if self.REPLICATION_SECTION_END in line:
-                    insert_index = i
-                    break
-
-            if insert_index == -1:
-                lines = self.ensure_replication_section(lines)
-                for i, line in enumerate(lines):
-                    if self.REPLICATION_SECTION_END in line:
-                        insert_index = i
-                        break
-
+            insert_index = next(
+                i for i, line in enumerate(lines) if self.REPLICATION_SECTION_END in line
+            )
             cron_entry = self.get_replication_job_cron_entry(replication_id, schedule, replication_name)
             lines.insert(insert_index, cron_entry)
 
@@ -250,16 +246,8 @@ class CrontabManager:
             marker = f"{self.BACKUP_JOB_MARKER}_ID_{job_id}"
             filtered_lines = [line for line in lines if marker not in line]
             
-            if len(filtered_lines) != len(lines):
-                if write_immediately:
-                    return self.write_crontab(filtered_lines)
-                else:
-                    # Just update the file for the caller to write later
-                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
-                        temp_file.writelines(filtered_lines)
-                        temp_path = temp_file.name
-                    require_privileged("install-cron", temp_path)
-                    os.unlink(temp_path)
+            if len(filtered_lines) != len(lines) and write_immediately:
+                return self.write_crontab(filtered_lines)
             
             return True
             

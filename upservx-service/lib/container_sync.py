@@ -4,19 +4,10 @@ Container Synchronization Module for UpservX Cluster Management
 Handles container state synchronization across cluster nodes.
 """
 
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 from datetime import datetime
-import asyncio
 import json
 import os
-from handlers.compose_manager import ComposeManager
-from lib.cluster_security import (
-    bootstrap_peer_ca,
-    cluster_url,
-    normalize_cluster_port,
-    signed_cluster_request,
-)
-from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
 from lib.secure_store import secure_write_json
 
 UPSERVX_CONFIG_DIR = "/etc/upservx"
@@ -169,121 +160,14 @@ class ContainerSyncManager:
         Returns:
             True if sync successful, False otherwise
         """
-        try:
-            service_config = await self._get_service_config(service_name)
-            
-            if not service_config:
-                return False
-            
-            port = normalize_cluster_port(target_node.get("port"))
-            ca_certificate = target_node.get("tls_ca_certificate")
-            if not ca_certificate:
-                ca_certificate, authenticated_node_id, port = await bootstrap_peer_ca(
-                    target_node["ip_address"],
-                    port,
-                    cluster_key,
-                    expected_node_id=target_node.get("hostname"),
-                )
-                target_node["tls_ca_certificate"] = ca_certificate
-                target_node["port"] = port
-                from api.cluster import write_node_config
-
-                write_node_config(
-                    str(target_node.get("hostname") or authenticated_node_id),
-                    target_node,
-                )
-
-            response = await signed_cluster_request(
-                "POST",
-                cluster_url(
-                    target_node["ip_address"],
-                    port,
-                    "/containers/deploy",
-                ),
-                key=cluster_key,
-                ca_certificate=ca_certificate,
-                json_data={
-                    "service_name": service_name,
-                    "config": service_config,
-                },
-                timeout=30.0,
-            )
-
-            if response.status_code == 200:
-                state_key = f"{service_name}_{target_node['id']}"
-                self.container_states[state_key] = ContainerState(
-                    service_id=state_key,
-                    service_name=service_name,
-                    status="running",
-                    node_id=target_node['id'],
-                    config=service_config
-                )
-                self.save_sync_state()
-                return True
-
-        except Exception as e:
-            print(f"Error syncing container to node: {e}")
-        
-        return False
-    
-    async def _get_service_config(self, service_name: str) -> Optional[Dict]:
-        """Get service configuration"""
-        # This is a placeholder - would need actual implementation
-        # to read docker-compose files or app store configs
-        try:
-            compose_manager = ComposeManager()
-            projects = compose_manager.list_projects()
-            
-            for project in projects:
-                for service in project.get("services", []):
-                    if service.get("name") == service_name or f"{project['name']}_{service.get('name')}" == service_name:
-                        return {
-                            "name": service_name,
-                            "image": service.get("image", ""),
-                            "environment": service.get("environment", {}),
-                            "volumes": service.get("volumes", []),
-                            "ports": service.get("ports", [])
-                        }
-        except Exception as e:
-            print(f"Error getting service config: {e}")
-        
-        return None
+        raise RuntimeError(
+            "Container synchronization is disabled until volumes, secrets, "
+            "networks, images, port conflicts, and rollback are handled transactionally"
+        )
     
     async def sync_all_containers(self, nodes: List[Dict], cluster_key: str):
-        """
-        Synchronize all containers according to sync rules
-        
-        Args:
-            nodes: List of available cluster nodes
-            cluster_key: Cluster authentication key
-        """
-        for service_name, rule in self.sync_rules.items():
-            await self._sync_service_by_rule(service_name, rule, nodes, cluster_key)
-    
-    async def _sync_service_by_rule(self, service_name: str, rule: SyncRule,
-                                    nodes: List[Dict], cluster_key: str):
-        """Synchronize a service according to its rule"""
-        online_nodes = [n for n in nodes if n.get("status") == "online"]
-        
-        if rule.strategy == SyncStrategy.REPLICATE:
-            for node in online_nodes:
-                await self.sync_container_to_node(service_name, node, cluster_key)
-        
-        elif rule.strategy == SyncStrategy.DISTRIBUTE:
-            lb = get_load_balancer()
-            for i in range(rule.replica_count):
-                selected_node = lb.select_node(
-                    online_nodes,
-                    strategy=LoadBalancingStrategy.LEAST_LOADED,
-                    service_id=f"{service_name}_replica_{i}"
-                )
-                if selected_node:
-                    await self.sync_container_to_node(service_name, selected_node, cluster_key)
-        
-        elif rule.strategy == SyncStrategy.CUSTOM:
-            for node in online_nodes:
-                if node.get("id") in rule.target_nodes:
-                    await self.sync_container_to_node(service_name, node, cluster_key)
+        """Reject synchronization until transactional replication is implemented."""
+        raise RuntimeError("Container synchronization is disabled")
     
     def get_container_distribution(self) -> Dict[str, List[str]]:
         """Get distribution of containers across nodes"""
@@ -299,29 +183,8 @@ class ContainerSyncManager:
     
     async def migrate_container(self, service_name: str, source_node_id: str,
                                target_node: Dict, cluster_key: str) -> bool:
-        """
-        Migrate a container from one node to another
-        
-        Args:
-            service_name: Service to migrate
-            source_node_id: Source node identifier
-            target_node: Target node information
-            cluster_key: Cluster authentication key
-        
-        Returns:
-            True if migration successful, False otherwise
-        """
-        success = await self.sync_container_to_node(service_name, target_node, cluster_key)
-        
-        if success:
-            source_key = f"{service_name}_{source_node_id}"
-            if source_key in self.container_states:
-                del self.container_states[source_key]
-                self.save_sync_state()
-            
-            return True
-        
-        return False
+        """Reject migration until source stop and rollback are transactional."""
+        raise RuntimeError("Container migration is disabled")
     
     def get_sync_status(self) -> Dict:
         """Get overall synchronization status"""

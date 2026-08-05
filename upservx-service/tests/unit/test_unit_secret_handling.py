@@ -41,12 +41,12 @@ def test_backup_password_is_encrypted_hidden_and_not_logged(backup_config, capsy
             "password": plaintext,
         }
     )
-    raw = (config_root / "backup" / "backup_servers.json").read_text()
+    raw = (config_root / "backup" / "backup.db").read_bytes()
 
-    assert plaintext not in raw
+    assert plaintext.encode() not in raw
     assert plaintext not in capsys.readouterr().out
-    assert created["password"] is None
-    assert manager.get_backup_server(created["id"])["password"] is None
+    assert "password_encrypted" not in created
+    assert "password_encrypted" not in manager.get_backup_server(created["id"])
     assert (
         manager.get_backup_server(created["id"], include_secret=True)["password"]
         == plaintext
@@ -68,8 +68,8 @@ def test_encryption_failure_never_stores_plaintext(backup_config, monkeypatch):
             {"name": "remote", "type": "remote", "password": "do-not-store"}
         )
 
-    path = config_root / "backup" / "backup_servers.json"
-    assert not path.exists() or "do-not-store" not in path.read_text()
+    path = config_root / "backup" / "backup.db"
+    assert not path.exists() or b"do-not-store" not in path.read_bytes()
 
 
 def test_plaintext_legacy_backup_password_is_never_returned(backup_config):
@@ -77,17 +77,30 @@ def test_plaintext_legacy_backup_password_is_never_returned(backup_config):
     path = config_root / "backup" / "backup_servers.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"servers": [{"id": 1, "password": "legacy-plaintext"}]})
+        json.dumps({"servers": [{
+            "id": 1,
+            "name": "legacy",
+            "type": "local",
+            "password": "legacy-plaintext",
+        }]})
     )
 
-    assert manager.get_backup_server(1)["password"] is None
-    with pytest.raises(ValueError, match="Refusing plaintext"):
-        manager.get_backup_server(1, include_secret=True)
+    assert "password_encrypted" not in manager.get_backup_server(1)
+    assert "password" not in manager.get_backup_server(1, include_secret=True)
 
 
-def test_backup_encryption_helpers_fail_closed():
-    manager = BackupManager.__new__(BackupManager)
-    manager.encryption_key = b"invalid-key"
+def test_backup_encryption_helpers_fail_closed(monkeypatch):
+    class BrokenEncryption:
+        def encrypt(self, _value):
+            raise RuntimeError("unavailable")
+
+        def decrypt(self, _value):
+            raise ValueError("unavailable")
+
+    monkeypatch.setattr(
+        "handlers.backup.get_encryption_manager", lambda: BrokenEncryption()
+    )
+    manager = BackupManager()
 
     with pytest.raises(RuntimeError, match="Failed to encrypt"):
         manager.encrypt_sensitive_data("secret")
