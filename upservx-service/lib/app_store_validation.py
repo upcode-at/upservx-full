@@ -23,6 +23,8 @@ UNSAFE_CREDENTIAL_MARKERS = (
     "harbor12345",
     "redispassword",
 )
+SECRET_NAME_MARKERS = ("PASSWORD", "PASS", "SECRET", "TOKEN", "CREDENTIAL")
+NON_SECRET_NAMES = {"MAILCOW_PASS_SCHEME", "SHOW_PASSWORD_HINT"}
 VARIABLE_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -82,6 +84,10 @@ def validate_manifest(
             raise TemplateValidationError(
                 f"{variable['name']}: generated values must be required"
             )
+        if variable.get("generator") and not variable["generate"]:
+            raise TemplateValidationError(
+                f"{variable['name']}: generator requires generate=true"
+            )
 
 
 def _image_tag(image: str) -> str | None:
@@ -138,6 +144,26 @@ def validate_compose_structure(
             raise TemplateValidationError(
                 f"{path}: service {service_name!r} image is not intentionally pinned: {image}"
             )
+        environment = service.get("environment") or {}
+        assignments: list[tuple[str, Any]] = []
+        if isinstance(environment, dict):
+            assignments = list(environment.items())
+        elif isinstance(environment, list):
+            for assignment in environment:
+                if isinstance(assignment, str) and "=" in assignment:
+                    name, value = assignment.split("=", 1)
+                    assignments.append((name, value))
+        for name, value in assignments:
+            upper_name = str(name).upper()
+            if (
+                upper_name not in NON_SECRET_NAMES
+                and any(marker in upper_name for marker in SECRET_NAME_MARKERS)
+                and value not in (None, "")
+                and "${" not in str(value)
+            ):
+                raise TemplateValidationError(
+                    f"{path}: service {service_name!r} hard-codes credential {name!r}"
+                )
     lowered = raw.lower()
     for marker in UNSAFE_CREDENTIAL_MARKERS:
         if marker in lowered:

@@ -107,6 +107,10 @@ def main() -> int:
         os.environ["UPSERVX_CONFIG_DIR"] = config_dir
         os.environ["UPSERVX_STATE_DIR"] = config_dir
         os.environ["UPSERVX_JOB_DB"] = str(Path(config_dir) / "jobs.db")
+        os.environ["UPSERVX_LOG_FILE"] = str(Path(config_dir) / "upservx.log")
+        os.environ["UPSERVX_COMPOSE_DIR"] = str(Path(config_dir) / "compose")
+        os.environ["UPSERVX_APP_DATA_DIR"] = str(Path(config_dir) / "app-data")
+        os.environ["UPSERVX_APP_STORE_DIR"] = str(Path(config_dir) / "app-store")
         from main import app  # noqa: PLC0415
 
         schema = app.openapi()

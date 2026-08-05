@@ -372,11 +372,15 @@ class AppStore:
                 )
                 project_dir.mkdir(mode=0o700)
                 try:
+                    if "APP_DATA_DIR" in values:
+                        data_dir.mkdir(parents=True, mode=0o750)
                     for source in template_dir.iterdir():
                         if source.is_symlink():
                             raise ValueError("Template files cannot be symbolic links")
                         destination = project_dir / source.name
                         if source.is_dir():
+                            if any(path.is_symlink() for path in source.rglob("*")):
+                                raise ValueError("Template directories cannot contain symbolic links")
                             shutil.copytree(source, destination, symlinks=False)
                         elif source.is_file():
                             shutil.copy2(source, destination)
@@ -524,7 +528,22 @@ class AppStore:
     def uninstall_app(self, project_name: str) -> Dict[str, Any]:
         from handlers.compose_manager import compose_manager
 
+        project_name = self._project_name(project_name)
         result = compose_manager.delete_project(project_name, remove_volumes=True)
+        if result.get("success"):
+            data_dir = Path(APP_DATA_BASE_DIR) / project_name
+            try:
+                if data_dir.is_symlink():
+                    data_dir.unlink()
+                elif data_dir.exists():
+                    shutil.rmtree(data_dir)
+                result["data_removed"] = True
+            except OSError as error:
+                result = {
+                    "success": False,
+                    "message": f"Project removed but application data cleanup failed: {error}",
+                    "data_removed": False,
+                }
         if result.get("success"):
             log_appstore(f"Uninstalled app / project [{project_name}]")
         else:

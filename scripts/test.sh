@@ -4,24 +4,35 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 quality_venv="$(mktemp -d /tmp/upservx-quality.XXXXXX)"
 quality_python="$quality_venv/bin/python"
+test_python="${UPSERVX_TEST_PYTHON:-python3.11}"
 trap 'rm -rf "$quality_venv"' EXIT
 
 cd "$repository_root"
 
-command -v python3 >/dev/null
+if ! command -v "$test_python" >/dev/null; then
+  echo "Python 3.11 is required (or set UPSERVX_TEST_PYTHON explicitly)." >&2
+  exit 127
+fi
 command -v npm >/dev/null
 command -v docker >/dev/null
 docker compose version >/dev/null
 
-python3 -m venv "$quality_venv"
-"$quality_python" -m pip install --upgrade pip
+"$test_python" -m venv "$quality_venv"
 "$quality_python" -m pip install \
   -r upservx-service/requirements.lock \
   -r upservx-cli/requirements.lock \
-  flake8==7.3.0
+  -r requirements-quality.lock
 
 export PYTHONPATH="$repository_root/upservx-service:$repository_root/upservx-cli"
 export PYTHONPYCACHEPREFIX="$quality_venv/pycache"
+export UPSERVX_CONFIG_DIR="$quality_venv/config"
+export UPSERVX_STATE_DIR="$quality_venv/state"
+export UPSERVX_JOB_DB="$quality_venv/config/jobs.db"
+export UPSERVX_LOG_FILE="$quality_venv/upservx.log"
+export UPSERVX_COMPOSE_DIR="$quality_venv/compose"
+export UPSERVX_APP_DATA_DIR="$quality_venv/app-data"
+export UPSERVX_APP_STORE_DIR="$repository_root/app-store-templates"
+export UPSERVX_APP_SCHEMA="$repository_root/app-store-templates/app.schema.json"
 
 "$quality_python" -m compileall -q \
   upservx-service/api \
@@ -40,7 +51,7 @@ export PYTHONPYCACHEPREFIX="$quality_venv/pycache"
   upservx-cli/cli \
   upservx-cli/tests \
   tools \
-  --count --select=E9,F63,F7,F82 --show-source --statistics
+  --jobs=1 --count --select=E9,F63,F7,F82 --show-source --statistics
 
 "$quality_python" -m pytest upservx-service/tests
 "$quality_python" -m pytest upservx-cli/tests

@@ -120,11 +120,22 @@ class ComposeManager:
     def _get_project_status(self, project_name: str, project_dir: str) -> str:
         """Get the status of a compose project."""
         try:
+            command = ["docker", "compose"]
+            env_file = os.path.join(project_dir, ".env")
+            if os.path.isfile(env_file):
+                command.extend(["--env-file", env_file])
+            command.extend([
+                "--project-directory", project_dir,
+                "-f", os.path.join(project_dir, "docker-compose.yml"),
+                "-p", project_name,
+                "ps", "-q",
+            ])
             result = subprocess.run(
-                ["docker", "compose", "-f", os.path.join(project_dir, "docker-compose.yml"), "-p", project_name, "ps", "-q"],
+                command,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                cwd=project_dir,
             )
             
             if result.returncode == 0:

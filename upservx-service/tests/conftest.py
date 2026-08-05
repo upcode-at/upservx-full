@@ -86,22 +86,27 @@ def app(tmp_path_factory):
             if token == "test-api-key"
             else None
         )
-        # Startup migration is covered against isolated stores by unit tests.
-        # The shared integration app must never mutate the host's /etc/upservx.
-        _main_module.enforce_config_permissions = lambda _root: {}
-        _main_module.migrate_legacy_api_key = lambda _path: False
-        _main_module.initialize_job_store = lambda: None
-        _main_module.acquire_web_process_lock = lambda: None
-        _main_module.release_web_process_lock = lambda: None
-        import lib.totp as _totp_module  # noqa: PLC0415
-        _totp_module.migrate_login_token_store = lambda: None
         yield _app
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def client(app):
     """Synchronous TestClient for integration and functional tests."""
-    with TestClient(app, raise_server_exceptions=False) as c:
+    import main as main_module  # noqa: PLC0415
+    import lib.totp as totp_module  # noqa: PLC0415
+
+    # Startup migration is covered against isolated stores by unit tests. Each
+    # client gets narrowly scoped patches so later security tests still execute
+    # the real migration functions.
+    with (
+        patch.object(main_module, "enforce_config_permissions", return_value={}),
+        patch.object(main_module, "migrate_legacy_api_key", return_value=False),
+        patch.object(main_module, "initialize_job_store"),
+        patch.object(main_module, "acquire_web_process_lock"),
+        patch.object(main_module, "release_web_process_lock"),
+        patch.object(totp_module, "migrate_login_token_store"),
+        TestClient(app, raise_server_exceptions=False) as c,
+    ):
         yield c
 
 

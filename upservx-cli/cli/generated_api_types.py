@@ -2,7 +2,6 @@
 
 from typing import Any, Literal, NotRequired, TypedDict
 
-
 class BackupServerCreate(TypedDict):
     name: str
     type: Literal['local', 'remote']
@@ -15,7 +14,6 @@ class BackupServerCreate(TypedDict):
     password: NotRequired[str | None]
     ssh_key: NotRequired[str | None]
     ssh_key_passphrase: NotRequired[str | None]
-
 
 class BackupServerUpdate(TypedDict):
     name: NotRequired[str | None]
@@ -30,7 +28,6 @@ class BackupServerUpdate(TypedDict):
     ssh_key: NotRequired[str | None]
     ssh_key_passphrase: NotRequired[str | None]
 
-
 class BackupJobCreate(TypedDict):
     name: str
     backup_type: Literal['vm', 'container', 'system', 'database']
@@ -39,7 +36,6 @@ class BackupJobCreate(TypedDict):
     server_id: int
     retention_days: NotRequired[int]
     compression: NotRequired[bool]
-
 
 class BackupJobUpdate(TypedDict):
     name: NotRequired[str | None]
@@ -51,10 +47,8 @@ class BackupJobUpdate(TypedDict):
     retention_days: NotRequired[int | None]
     compression: NotRequired[bool | None]
 
-
 class BackupRestoreRequest(TypedDict):
     restore_path: str
-
 
 class SSHKeyGenerateRequest(TypedDict):
     key_name: str
@@ -62,19 +56,16 @@ class SSHKeyGenerateRequest(TypedDict):
     key_size: NotRequired[int]
     passphrase: NotRequired[str | None]
 
-
 class SSHKeyImportRequest(TypedDict):
     key_name: str
     private_key: str
     passphrase: NotRequired[str | None]
-
 
 class SSHKeyTestRequest(TypedDict):
     host: str
     username: str
     port: NotRequired[int]
     passphrase: NotRequired[str | None]
-
 
 class AppInstallRequest(TypedDict):
     custom_name: NotRequired[str | None]

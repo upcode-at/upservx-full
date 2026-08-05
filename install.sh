@@ -279,7 +279,7 @@ step_create_service_accounts() {
   install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/log/upservx
   install -d -o root -g "$SERVICE_USER" -m 0750 /var/lib/upservx/updates /var/lib/upservx/update-state
   install -d -o root -g root -m 0700 /var/backups/upservx
-  for directory in app-store compose customization; do
+  for directory in app-store compose app-data customization; do
     install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "/var/lib/upservx/$directory"
   done
   for directory in ssh_keys authorized_keys; do

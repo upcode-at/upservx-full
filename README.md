@@ -55,7 +55,9 @@ Run the same mandatory checks used by CI from a clean checkout:
 make test
 ```
 
-The command requires Python 3.11+, Node.js 20+, npm, and Docker Compose. It
+The command uses Python 3.11 to match CI (set `UPSERVX_TEST_PYTHON` to an
+explicit compatible interpreter), and requires Node.js 20+, npm, and Docker
+Compose. It
 creates an isolated temporary Python virtual environment from the locked
 dependency files, so it does not use or modify the repository's `.venv`. It
 validates every App Store manifest and rendered Compose file, checks generated

@@ -17,6 +17,8 @@ def test_openapi_contains_frontend_and_cli_routes(app):
         "/ssh-keys/{key_name}/test": {"post"},
         "/containers/{name}": {"get"},
         "/containers/{name}/restart": {"post"},
+        "/containers/app-store/apps/{app_id}/install": {"post"},
+        "/containers/app-store/apps/{project_name}/update": {"post"},
     }
     for path, methods in expected.items():
         assert path in paths

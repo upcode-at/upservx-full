@@ -478,7 +478,7 @@ export function ComposeBuilder() {
                 <DialogHeader>
                   <DialogTitle>Create Compose Project</DialogTitle>
                   <DialogDescription>
-                    Create a new Docker Compose project in /opt/upservx/compose
+                    Create a new Docker Compose project in /var/lib/upservx/compose
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">

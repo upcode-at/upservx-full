@@ -106,8 +106,6 @@ export function AppStore() {
   const [pageSize, setPageSize] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const getApiUrl = apiUrl
-
   const filterApps = () => {
     let filtered = apps
 
@@ -142,7 +140,7 @@ export function AppStore() {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
       
-      const url = getApiUrl("/containers/app-store/apps")
+      const url = apiUrl("/containers/app-store/apps")
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
@@ -158,7 +156,7 @@ export function AppStore() {
       // Ensure we're in the browser before calling apiUrl
       if (typeof window === "undefined") return
       
-      const url = getApiUrl("/containers/app-store/categories")
+      const url = apiUrl("/containers/app-store/categories")
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
@@ -176,7 +174,7 @@ export function AppStore() {
 
   const handleShowDetails = async (appId: string) => {
     try {
-      const res = await fetch(getApiUrl(`/containers/app-store/apps/${appId}`))
+      const res = await fetch(apiUrl(`/containers/app-store/apps/${appId}`))
       if (res.ok) {
         const data = await res.json()
         setSelectedApp(data)
@@ -189,7 +187,9 @@ export function AppStore() {
 
   const handleInstallClick = (app: App) => {
     setSelectedApp(app as AppDetails)
-    setCustomName("")
+    setCustomName(
+      app.installed ? `${app.id}-${app.installations.length + 1}` : ""
+    )
     setEnvironmentValues(
       Object.fromEntries(
         app.environment
@@ -230,7 +230,7 @@ export function AppStore() {
         ),
       }
       const res = await fetch(
-        getApiUrl(`/containers/app-store/apps/${selectedApp.id}/install`),
+        apiUrl(`/containers/app-store/apps/${selectedApp.id}/install`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -260,7 +260,7 @@ export function AppStore() {
     setSuccess(null)
     try {
       const res = await fetch(
-        getApiUrl(`/containers/app-store/apps/${encodeURIComponent(projectName)}/update`),
+        apiUrl(`/containers/app-store/apps/${encodeURIComponent(projectName)}/update`),
         { method: "POST" }
       )
       const data = await res.json()
@@ -358,7 +358,7 @@ export function AppStore() {
                   <div className="text-4xl">
                     {app.icon.startsWith('/') ? (
                       <img 
-                        src={getApiUrl(app.icon)} 
+                        src={apiUrl(app.icon)} 
                         alt={app.name}
                         className="w-12 h-12 object-contain rounded"
                       />
@@ -480,7 +480,7 @@ export function AppStore() {
             <div className="flex items-center gap-3">
               {selectedApp?.icon.startsWith('/') ? (
                 <img 
-                  src={getApiUrl(selectedApp.icon)} 
+                  src={apiUrl(selectedApp.icon)} 
                   alt={selectedApp.name}
                   className="w-16 h-16 object-contain rounded"
                 />

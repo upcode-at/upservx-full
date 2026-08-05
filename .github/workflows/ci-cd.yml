@@ -16,6 +16,14 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}/upservx-service:${{ github.workspace }}/upservx-cli
       PYTHONPYCACHEPREFIX: /tmp/upservx-pycache
+      UPSERVX_CONFIG_DIR: /tmp/upservx-test/config
+      UPSERVX_STATE_DIR: /tmp/upservx-test/state
+      UPSERVX_JOB_DB: /tmp/upservx-test/config/jobs.db
+      UPSERVX_LOG_FILE: /tmp/upservx-test/upservx.log
+      UPSERVX_COMPOSE_DIR: /tmp/upservx-test/compose
+      UPSERVX_APP_DATA_DIR: /tmp/upservx-test/app-data
+      UPSERVX_APP_STORE_DIR: ${{ github.workspace }}/app-store-templates
+      UPSERVX_APP_SCHEMA: ${{ github.workspace }}/app-store-templates/app.schema.json
 
     steps:
       - name: Checkout code
@@ -31,12 +39,11 @@ jobs:
           cache-dependency-path: |
             upservx-service/requirements.lock
             upservx-cli/requirements.lock
+            requirements-quality.lock
 
       - name: Install locked dependencies and backend linter
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r upservx-service/requirements.lock -r upservx-cli/requirements.lock
-          python -m pip install flake8==7.3.0
+          python -m pip install -r upservx-service/requirements.lock -r upservx-cli/requirements.lock -r requirements-quality.lock
 
       - name: Check Python syntax recursively
         run: >-
@@ -59,7 +66,7 @@ jobs:
           upservx-cli/cli
           upservx-cli/tests
           tools
-          --count --select=E9,F63,F7,F82 --show-source --statistics
+          --jobs=1 --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run backend tests
         run: python -m pytest upservx-service/tests

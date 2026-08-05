@@ -38,7 +38,11 @@ def test_frontend_api_worker_and_update_have_separate_units():
 
 
 def test_python_lock_files_pin_every_distribution_exactly():
-    for relative in ("upservx-service/requirements.lock", "upservx-cli/requirements.lock"):
+    for relative in (
+        "upservx-service/requirements.lock",
+        "upservx-cli/requirements.lock",
+        "requirements-quality.lock",
+    ):
         lines = [
             line.strip() for line in (ROOT / relative).read_text().splitlines()
             if line.strip() and not line.startswith("#")

@@ -117,6 +117,7 @@ Do not disable `UPSERVX_COOKIE_SECURE` in production.
 | `/var/log/upservx/activity.log` | Structured activity log |
 | `/var/lib/upservx/app-store/` | Mutable app store templates (`/opt/upservx/app-store` is a compatibility link) |
 | `/var/lib/upservx/compose/` | Installed Docker Compose projects (`/opt/upservx/compose` is a compatibility link) |
+| `/var/lib/upservx/app-data/` | Per-project managed App Store bind data |
 | `/etc/upservx/settings.json` | Application settings (hostname, timezone, SSH and monitoring options) |
 | `/etc/upservx/proxy_config.json` | Nginx proxy metadata |
 | `upservx-service/network_settings.json` | Network settings |

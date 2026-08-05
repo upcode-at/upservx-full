@@ -1,203 +1,113 @@
-# App Store Templates
+# App Store templates
 
-**Directory:** `app-store-templates/`
+UpservX ships 62 schema-versioned Docker Compose templates in
+`app-store-templates/`. `app-store-templates/app.schema.json` is the canonical
+manifest contract. A template is eligible for listing or installation only
+when both its `app.json` and `docker-compose.yml` pass validation.
 
----
+## Required files and contract
 
-## Overview
+Each template directory contains `app.json`, `docker-compose.yml`, and a
+`README.md`. An optional PNG/JPEG icon may be included. The directory name must
+equal the manifest `id`.
 
-The `app-store-templates/` directory contains Docker Compose templates for all 49 available applications. Each app has its own subdirectory with:
-
-- `app.json` – App descriptor
-- `docker-compose.yml` – Docker Compose configuration
-- `README.md` – App-specific documentation (optional)
-- `icon.png` or `icon.svg` – App icon (optional)
-
----
-
-## Directory Structure
-
-```
-app-store-templates/
-├── adminer/
-├── apache-guacamole/
-├── apache-kafka/
-├── docker-registry/
-├── domain-locker/
-├── elasticsearch/
-├── emby/
-├── gitea/
-├── gitlab/
-├── grafana/
-├── harbor/
-├── home-assistant/
-├── influxdb/
-├── jellyfin/
-├── jenkins/
-├── jitsi/
-├── jupyter/
-├── keycloak/
-├── loki/
-├── mailcow/
-├── mongodb/
-├── motioneye/
-├── mysql/
-├── n8n/
-├── neo4j/
-├── nextcloud/
-├── nginx-proxy-manager/
-├── octoprint/
-├── ombi/
-├── onlyoffice-docs/
-├── openldap/
-├── paperless-ngx/
-├── phpmyadmin/
-├── pihole/
-├── plex/
-├── postgres/
-├── prometheus/
-├── rabbitmq/
-├── redis/
-├── roundcube/
-├── rustdesk/
-├── teamspeak/
-├── traefik/
-├── tunarr/
-├── typo3/
-├── uptime-kuma/
-├── vaultwarden/
-└── wordpress/
-```
-
----
-
-## app.json Reference
-
-Full schema of an app descriptor:
+The version 1 manifest uses these canonical shapes:
 
 ```json
 {
-  "id": "app-id",
-  "name": "Display Name",
-  "description": "Short description of the application",
-  "category": "Category",
-  "tags": ["tag1", "tag2"],
-  "icon": "icon.png",
-  "version": "1.0",
-  "author": "Author",
-  "website": "https://example.com",
-  "documentation": "https://docs.example.com",
-  "license": "MIT",
+  "schema_version": 1,
+  "id": "example",
+  "name": "Example",
+  "description": "Example service",
+  "version": "1.2.3",
+  "category": "tools",
+  "icon": "🧰",
+  "author": "Example",
   "ports": [
-    {
-      "host": 8080,
-      "container": 80,
-      "protocol": "tcp",
-      "description": "Web UI"
-    }
+    {"host": 8080, "container": 80, "protocol": "tcp", "description": "Web UI"}
   ],
   "volumes": [
-    {
-      "host": "/opt/upservx/app-store/app-id/data",
-      "container": "/data",
-      "description": "App data"
-    }
+    {"host": "./data", "container": "/data", "mode": "rw", "description": "Data"}
   ],
-  "env": [
+  "environment": [
     {
-      "name": "ENV_VAR_NAME",
-      "label": "Display Label",
-      "description": "What this variable does",
-      "default": "default-value",
+      "name": "ADMIN_PASSWORD",
+      "label": "Administrator password",
+      "description": "Initial administrator credential",
+      "default": "",
       "required": true,
-      "secret": false,
-      "type": "string"
+      "secret": true,
+      "generate": true,
+      "min_length": 24
     }
   ],
-  "requires": ["other-app-id"],
-  "min_ram_mb": 256,
-  "min_disk_mb": 1024,
-  "networks": ["upservx_default"]
+  "update": {"strategy": "compose-pull-recreate"}
 }
 ```
 
----
+Environment variables may additionally be marked `managed`; the backend sets
+these and rejects client overrides. `APP_DATA_DIR` is the supported managed
+per-installation data root. Generated values are created with Python's
+cryptographic `secrets` module and stored only in the project's owner-readable
+`.env` file.
 
-## docker-compose.yml Conventions
+Compose images must use intentional release tags or immutable digests. Floating
+tags such as `latest`, `stable`, `main`, and `lts`, hard-coded container names,
+undeclared variables, and hard-coded credentials are rejected. Secret manifest
+defaults must always be empty.
 
-All templates follow these conventions:
+## Validation
 
-```yaml
-version: "3.8"
+From the repository root, validate the JSON schema, security invariants, YAML,
+and every rendered Compose project:
 
-services:
-  app-name:
-    image: image:${VERSION:-latest}
-    container_name: ${CONTAINER_NAME:-app-name}
-    restart: unless-stopped
-    ports:
-      - "${HOST_PORT:-8080}:80"
-    volumes:
-      - "${DATA_DIR:-/opt/upservx/app-store/app-name/data}:/data"
-    environment:
-      - SOME_VAR=${SOME_VAR:-default}
-    networks:
-      - upservx_default
-
-networks:
-  upservx_default:
-    external: true
+```bash
+python tools/validate_app_store.py
 ```
 
-Environment variables use `${VAR:-default}` syntax so templates work both with and without a `.env` file.
+This requires the locked backend Python dependencies and Docker Compose. The
+repository-wide `make test` command provisions those dependencies in a
+temporary virtual environment and runs this validation as a mandatory gate.
 
----
+## Transactional installation
 
-## Category Overview
+`POST /containers/app-store/apps/{template_id}/install` accepts:
 
-| Category | Apps |
-|---|---|
-| **Database** | Adminer, MySQL, PostgreSQL, MongoDB, Redis, InfluxDB, Neo4j, Elasticsearch, RabbitMQ |
-| **Developer Tools** | Gitea, GitLab, Jenkins, Harbor, Docker Registry, JupyterLab |
-| **Media** | Jellyfin, Emby, Plex, Ombi, Tunarr |
-| **Monitoring** | Grafana, Prometheus, Loki, Uptime Kuma |
-| **Home Automation** | Home Assistant, MotionEye, OctoPrint |
-| **Communication** | Jitsi, RustDesk, TeamSpeak |
-| **Office / Productivity** | Nextcloud, OnlyOffice Docs, Roundcube, Mailcow |
-| **Security / Auth** | Vaultwarden, Keycloak, OpenLDAP, Pi-hole |
-| **Infrastructure** | Nginx Proxy Manager, Traefik, Apache Kafka |
-| **CMS / Web** | WordPress, TYPO3, Domain Locker |
-| **Automation** | N8N, Paperless-ngx |
-| **Remote Access** | Apache Guacamole |
-| **Other** | PHPMyAdmin |
-
----
-
-## Adding a New App
-
-1. Create a new directory in `app-store-templates/`:
-   ```bash
-   mkdir app-store-templates/my-app
-   ```
-
-2. Create `app.json` – use the schema above
-
-3. Create `docker-compose.yml` – follow the conventions above
-
-4. Optionally add `icon.png` (64×64 or 128×128 px recommended)
-
-5. Optionally add `README.md` with setup instructions
-
-6. Restart the UpservX backend – the app appears in the store automatically
-
----
-
-## App Installation Path
-
-Installed apps are placed in:
+```json
+{
+  "custom_name": "customer-example",
+  "environment": {"PUBLIC_HOSTNAME": "example.internal"}
+}
 ```
-/opt/upservx/app-store/<app-id>/
-├── docker-compose.yml   (generated with env vars applied)
-├── .env                 (generated env file)
-└── data/                (volume data, if applicable)
-```
+
+The backend validates the template and submitted fields, generates omitted
+secrets, copies the template into `/var/lib/upservx/compose/{project}`, writes a
+mode-0600 `.env`, renders `docker compose config`, pulls the pinned images, and
+runs `docker compose up -d --wait`. Any failure triggers `down --volumes`, then
+removes the incomplete project and its managed bind-data directory. Installed
+project metadata stores variable names but never their values.
+
+Custom project names are recorded in `.upservx-installation.json`; listing and
+status checks use that project name rather than assuming it equals the template
+ID. Uninstall removes Compose resources, project metadata, and managed bind
+data. It does not delete anything when `docker compose down` fails.
+
+## Tested update path
+
+`POST /containers/app-store/apps/{project_name}/update` supports the manifest's
+`compose-pull-recreate` strategy. It preserves existing environment values,
+creates newly introduced generated secrets, validates the new Compose file,
+pulls its pinned images, and waits for services to become running/healthy. If
+that fails, the old manifest, Compose file, and `.env` are restored and the old
+stack is recreated. Unit tests exercise successful install/update, generated
+secrets, custom names, and rollback behavior.
+
+To update an image, change its exact tag and the manifest version together,
+then run `make test`. Do not use an uncontrolled floating tag as an update
+mechanism.
+
+## Adding a template
+
+Copy an existing version 1 template, change its ID and metadata, declare every
+Compose variable in `environment`, pin all images, and run the validator. CI
+rejects incomplete directories and invalid schemas or Compose projects.
