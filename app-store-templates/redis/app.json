@@ -1,17 +1,51 @@
 {
+  "schema_version": 1,
+  "id": "redis",
   "name": "Redis",
   "description": "In-memory data structure store. Fast, versatile key-value database used as cache, message broker, and real-time data store.",
-  "version": "latest",
+  "version": "7.4.5",
   "category": "database",
   "icon": "🔴",
   "author": "Redis Ltd.",
   "ports": [
-    "6379:6379"
+    {
+      "host": 6379,
+      "container": 6379,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/redis/data:/data"
+    {
+      "host": "/opt/upservx/data/redis/data",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "REDIS_PASSWORD": "redispassword"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "REDIS_PASSWORD",
+      "label": "Redis Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

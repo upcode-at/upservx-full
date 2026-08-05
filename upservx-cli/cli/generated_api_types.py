@@ -74,3 +74,8 @@ class SSHKeyTestRequest(TypedDict):
     username: str
     port: NotRequired[int]
     passphrase: NotRequired[str | None]
+
+
+class AppInstallRequest(TypedDict):
+    custom_name: NotRequired[str | None]
+    environment: NotRequired[dict[str, str]]

@@ -1,28 +1,57 @@
 {
+  "schema_version": 1,
+  "id": "uptime-kuma",
   "name": "Uptime Kuma",
   "description": "A fancy self-hosted monitoring tool like 'Uptime Robot'. Monitor HTTP(s), TCP, DNS, Docker containers, and more with beautiful status pages.",
-  "version": "latest",
+  "version": "1.23.16",
   "category": "monitoring",
   "icon": "📊",
-  "tags": ["monitoring", "uptime", "status-page", "alerting", "health-check"],
   "author": "Louis Lam",
   "website": "https://uptime.kuma.pet/",
   "repository": "https://github.com/louislam/uptime-kuma",
+  "tags": [
+    "monitoring",
+    "uptime",
+    "status-page",
+    "alerting",
+    "health-check"
+  ],
   "ports": [
     {
-      "container": 3001,
       "host": 3001,
+      "container": 3001,
+      "protocol": "tcp",
       "description": "Web interface"
     }
   ],
   "volumes": [
     {
-      "container": "/app/data",
       "host": "./data",
+      "container": "/app/data",
+      "mode": "rw",
       "description": "Application data and database"
     }
   ],
-  "environment": [],
+  "environment": [
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Berlin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "UPTIME_KUMA_PORT",
+      "label": "Uptime Kuma Port",
+      "description": "",
+      "default": "3001",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
   "requirements": {
     "memory": "512MB",
     "cpu": "1 core",
@@ -37,5 +66,8 @@
     "Data is stored in SQLite database",
     "Supports multiple users and RBAC",
     "Optional: Mount Docker socket for container monitoring"
-  ]
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

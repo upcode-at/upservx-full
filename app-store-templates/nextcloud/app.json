@@ -1,20 +1,79 @@
 {
+  "schema_version": 1,
+  "id": "nextcloud",
   "name": "Nextcloud",
   "description": "Self-hosted productivity platform. Files, calendar, contacts, and more in one place. A safe home for all your data.",
-  "version": "latest",
+  "version": "31.0.8",
   "category": "productivity",
   "icon": "☁️",
   "author": "Nextcloud GmbH",
   "ports": [
-    "8080:80"
+    {
+      "host": 8080,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/nextcloud:/var/www/html"
+    {
+      "host": "/opt/upservx/data/nextcloud",
+      "container": "/var/www/html",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "MYSQL_ROOT_PASSWORD": "changeme",
-    "MYSQL_DATABASE": "nextcloud",
-    "MYSQL_USER": "nextcloud",
-    "MYSQL_PASSWORD": "nextcloud"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "MYSQL_DATABASE",
+      "label": "Mysql Database",
+      "description": "",
+      "default": "nextcloud",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_PASSWORD",
+      "label": "Mysql Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_USER",
+      "label": "Mysql User",
+      "description": "",
+      "default": "nextcloud",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

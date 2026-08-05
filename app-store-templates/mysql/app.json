@@ -1,21 +1,85 @@
 {
+  "schema_version": 1,
+  "id": "mysql",
   "name": "MySQL",
   "description": "The world's most popular open-source relational database. Fast, reliable, and scalable SQL database for web applications and enterprise solutions.",
-  "version": "latest",
+  "version": "8.4.6",
   "category": "database",
   "icon": "🐬",
   "author": "Oracle",
   "ports": [
-    "3306:3306"
+    {
+      "host": 3306,
+      "container": 3306,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/mysql/data:/var/lib/mysql",
-    "/opt/upservx/data/mysql/conf:/etc/mysql/conf.d"
+    {
+      "host": "/opt/upservx/data/mysql/data",
+      "container": "/var/lib/mysql",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/mysql/conf",
+      "container": "/etc/mysql/conf.d",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "MYSQL_ROOT_PASSWORD": "rootpassword",
-    "MYSQL_DATABASE": "mydb",
-    "MYSQL_USER": "myuser",
-    "MYSQL_PASSWORD": "mypassword"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "MYSQL_DATABASE",
+      "label": "Mysql Database",
+      "description": "",
+      "default": "mydb",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_PASSWORD",
+      "label": "Mysql Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_USER",
+      "label": "Mysql User",
+      "description": "",
+      "default": "myuser",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

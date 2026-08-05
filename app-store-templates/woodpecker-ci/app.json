@@ -1,24 +1,109 @@
 {
+  "schema_version": 1,
+  "id": "woodpecker-ci",
   "name": "Woodpecker CI",
   "description": "A lightweight, open-source CI/CD engine built on top of Docker. Woodpecker is a community fork of Drone CI and integrates natively with Gitea, GitHub, GitLab, and Forgejo for automated build, test, and deploy pipelines.",
-  "version": "latest",
+  "version": "3.9.0",
   "category": "development",
   "icon": "🪵",
   "author": "Woodpecker CI",
   "ports": [
-    "8000:8000",
-    "9000:9000"
+    {
+      "host": 8000,
+      "container": 8000,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 9000,
+      "container": 9000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/woodpecker-server:/var/lib/woodpecker",
-    "/var/run/docker.sock:/var/run/docker.sock"
+    {
+      "host": "/opt/upservx/data/woodpecker-server",
+      "container": "/var/lib/woodpecker",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/var/run/docker.sock",
+      "container": "/var/run/docker.sock",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "WOODPECKER_HOST": "http://your-server:8000",
-    "WOODPECKER_GITEA": "true",
-    "WOODPECKER_GITEA_URL": "http://your-gitea:3000",
-    "WOODPECKER_GITEA_CLIENT": "your-oauth2-client-id",
-    "WOODPECKER_GITEA_SECRET": "your-oauth2-client-secret",
-    "WOODPECKER_AGENT_SECRET": "changeme-random-secret"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "WOODPECKER_AGENT_SECRET",
+      "label": "Woodpecker Agent Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "WOODPECKER_GITEA",
+      "label": "Woodpecker Gitea",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WOODPECKER_GITEA_CLIENT",
+      "label": "Woodpecker Gitea Client",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WOODPECKER_GITEA_SECRET",
+      "label": "Woodpecker Gitea Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": false,
+      "min_length": 24
+    },
+    {
+      "name": "WOODPECKER_GITEA_URL",
+      "label": "Woodpecker Gitea Url",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WOODPECKER_HOST",
+      "label": "Woodpecker Host",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

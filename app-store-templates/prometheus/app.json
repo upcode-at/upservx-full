@@ -1,16 +1,47 @@
 {
+  "schema_version": 1,
+  "id": "prometheus",
   "name": "Prometheus",
   "description": "Open-source monitoring and alerting system. Time series database with powerful query language for monitoring metrics and generating alerts.",
-  "version": "latest",
+  "version": "3.5.0",
   "category": "monitoring",
   "icon": "🔥",
   "author": "Prometheus Authors",
   "ports": [
-    "9090:9090"
+    {
+      "host": 9090,
+      "container": 9090,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/prometheus/data:/prometheus",
-    "/opt/upservx/data/prometheus/config:/etc/prometheus"
+    {
+      "host": "/opt/upservx/data/prometheus/data",
+      "container": "/prometheus",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/prometheus/config",
+      "container": "/etc/prometheus",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {}
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

@@ -17,4 +17,5 @@ python-multipart==0.0.32
 python-pam==2.0.2
 six==1.17.0
 pyyaml>=6.0.2,<6.1
+jsonschema>=4.25.1,<5
 pyotp==2.9.0

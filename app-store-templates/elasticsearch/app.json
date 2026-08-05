@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "id": "elasticsearch",
   "name": "Elasticsearch",
   "description": "Distributed, RESTful search and analytics engine. Store, search and analyze large volumes of data in near real-time. Includes Kibana for visualization and data exploration.",
   "version": "8.17.0",
@@ -6,16 +8,56 @@
   "icon": "🔍",
   "author": "Elastic",
   "ports": [
-    "9200:9200",
-    "5601:5601"
+    {
+      "host": 9200,
+      "container": 9200,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 5601,
+      "container": 5601,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/elasticsearch/data:/usr/share/elasticsearch/data",
-    "/opt/upservx/data/elasticsearch/kibana:/usr/share/kibana/data"
+    {
+      "host": "/opt/upservx/data/elasticsearch/data",
+      "container": "/usr/share/elasticsearch/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/elasticsearch/kibana",
+      "container": "/usr/share/kibana/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "discovery.type": "single-node",
-    "ELASTIC_PASSWORD": "changeme_strong_password",
-    "xpack.security.enabled": "true"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ELASTIC_PASSWORD",
+      "label": "Elastic Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,21 +1,80 @@
 {
+  "schema_version": 1,
+  "id": "stirling-pdf",
   "name": "Stirling PDF",
   "description": "Powerful locally hosted web-based PDF manipulation tool. Merge, split, compress, convert, rotate, watermark and more — all in one place.",
-  "version": "latest",
+  "version": "0.46.2",
   "category": "productivity",
   "icon": "📄",
   "author": "Stirling-Tools",
   "ports": [
-    "8080:8080"
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/stirling-pdf/configs:/configs",
-    "/opt/upservx/data/stirling-pdf/logs:/logs",
-    "/opt/upservx/data/stirling-pdf/customFiles:/customFiles"
+    {
+      "host": "/opt/upservx/data/stirling-pdf/configs",
+      "container": "/configs",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/stirling-pdf/logs",
+      "container": "/logs",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/stirling-pdf/customFiles",
+      "container": "/customFiles",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "DOCKER_ENABLE_SECURITY": "false",
-    "INSTALL_BOOK_AND_ADVANCED_HTML_OPS": "false",
-    "LANGS": "en_GB"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "DOCKER_ENABLE_SECURITY",
+      "label": "Docker Enable Security",
+      "description": "",
+      "default": "false",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "INSTALL_BOOK_AND_ADVANCED_HTML_OPS",
+      "label": "Install Book And Advanced Html Ops",
+      "description": "",
+      "default": "false",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "LANGS",
+      "label": "Langs",
+      "description": "",
+      "default": "en_GB",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

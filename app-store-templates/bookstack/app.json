@@ -1,22 +1,103 @@
 {
+  "schema_version": 1,
+  "id": "bookstack",
   "name": "BookStack",
   "description": "A simple, self-hosted, and easy-to-use wiki and documentation platform. BookStack organizes content in a structured hierarchy of Books, Chapters, and Pages – ideal for team knowledge bases and internal documentation.",
-  "version": "latest",
+  "version": "25.05.2",
   "category": "productivity",
   "icon": "📚",
   "author": "BookStack",
   "ports": [
-    "6875:80"
+    {
+      "host": 6875,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/bookstack:/config",
-    "/opt/upservx/data/bookstack-db:/config/mysql"
+    {
+      "host": "/opt/upservx/data/bookstack",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/bookstack-db",
+      "container": "/config/mysql",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "APP_URL": "http://your-server:6875",
-    "DB_HOST": "bookstack-db",
-    "DB_DATABASE": "bookstack",
-    "DB_USERNAME": "bookstack",
-    "DB_PASSWORD": "changeme"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "APP_URL",
+      "label": "App Url",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DB_DATABASE",
+      "label": "Db Database",
+      "description": "",
+      "default": "bookstack",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DB_HOST",
+      "label": "Db Host",
+      "description": "",
+      "default": "bookstack-db",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DB_PASSWORD",
+      "label": "Db Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "DB_USERNAME",
+      "label": "Db Username",
+      "description": "",
+      "default": "bookstack",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

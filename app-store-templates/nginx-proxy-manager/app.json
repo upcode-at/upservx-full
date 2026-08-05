@@ -1,18 +1,59 @@
 {
+  "schema_version": 1,
+  "id": "nginx-proxy-manager",
   "name": "Nginx Proxy Manager",
   "description": "Docker container for managing Nginx proxy hosts with a simple, powerful interface. Expose your services easily and securely with SSL certificates, access lists, and more.",
-  "version": "latest",
+  "version": "2.12.3",
   "category": "networking",
   "icon": "🌐",
   "author": "jc21",
   "ports": [
-    "80:80",
-    "443:443",
-    "81:81"
+    {
+      "host": 80,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 443,
+      "container": 443,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 81,
+      "container": 81,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/nginx-proxy-manager/data:/data",
-    "/opt/upservx/data/nginx-proxy-manager/letsencrypt:/etc/letsencrypt"
+    {
+      "host": "/opt/upservx/data/nginx-proxy-manager/data",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/nginx-proxy-manager/letsencrypt",
+      "container": "/etc/letsencrypt",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {}
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

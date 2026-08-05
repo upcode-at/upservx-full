@@ -1,25 +1,22 @@
-version: '3.8'
-
 services:
   vaultwarden:
-    image: vaultwarden/server:latest
-    container_name: vaultwarden
+    image: vaultwarden/server:1.34.3
     restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
-      - /opt/upservx/data/vaultwarden:/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/vaultwarden:/data
     environment:
-      - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=true
-      - INVITATIONS_ALLOWED=true
-      - SHOW_PASSWORD_HINT=false
-      - DOMAIN=https://localhost:8080
+      - WEBSOCKET_ENABLED=${WEBSOCKET_ENABLED:-true}
+      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-true}
+      - INVITATIONS_ALLOWED=${INVITATIONS_ALLOWED:-true}
+      - SHOW_PASSWORD_HINT=${SHOW_PASSWORD_HINT:-false}
+      - DOMAIN=${DOMAIN:-https://localhost:8080}
       - SMTP_HOST=
       - SMTP_FROM=
       - SMTP_PORT=587
       - SMTP_SECURITY=starttls
       - SMTP_USERNAME=
-      - SMTP_PASSWORD=
-      - ADMIN_TOKEN=
+      - SMTP_PASSWORD=${SMTP_PASSWORD:?SMTP_PASSWORD is required}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?ADMIN_TOKEN is required}
       - LOG_LEVEL=info

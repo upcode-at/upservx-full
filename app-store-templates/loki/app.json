@@ -1,18 +1,47 @@
 {
+  "schema_version": 1,
+  "id": "loki",
   "name": "Loki",
   "description": "Horizontally scalable, highly available log aggregation system inspired by Prometheus. Like Prometheus, but for logs.",
-  "version": "latest",
+  "version": "3.5.3",
   "category": "monitoring",
   "icon": "🪵",
   "author": "Grafana Labs",
   "ports": [
-    "3100:3100"
+    {
+      "host": 3100,
+      "container": 3100,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/loki/data:/loki",
-    "/opt/upservx/data/loki/config:/etc/loki"
+    {
+      "host": "/opt/upservx/data/loki/data",
+      "container": "/loki",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/loki/config",
+      "container": "/etc/loki",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "LOKI_STORAGE_FILESYSTEM_DIRECTORY": "/loki/chunks"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

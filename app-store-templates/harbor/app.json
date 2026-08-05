@@ -1,24 +1,108 @@
 {
+  "schema_version": 1,
+  "id": "harbor",
   "name": "Harbor",
   "description": "Open-source container image registry with role-based access control, image vulnerability scanning, content signing, and replication. The enterprise-grade alternative to Docker Hub.",
-  "version": "latest",
+  "version": "2.11.0",
   "category": "development",
   "icon": "⚓",
   "author": "CNCF / VMware",
   "ports": [
-    "80:8080",
-    "443:8443"
+    {
+      "host": 80,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 443,
+      "container": 8443,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/harbor/data:/data",
-    "/opt/upservx/data/harbor/config:/etc/harbor",
-    "/opt/upservx/data/harbor/log:/var/log/harbor"
+    {
+      "host": "/opt/upservx/data/harbor/data",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/harbor/config",
+      "container": "/etc/harbor",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/harbor/log",
+      "container": "/var/log/harbor",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "HARBOR_ADMIN_PASSWORD": "Harbor12345",
-    "DATABASE_PASSWORD": "harbor",
-    "CORE_SECRET": "changeme_core_secret",
-    "JOBSERVICE_SECRET": "changeme_job_secret",
-    "HARBOR_HOSTNAME": "localhost"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "CORE_SECRET",
+      "label": "Core Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "DATABASE_PASSWORD",
+      "label": "Database Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "HARBOR_ADMIN_PASSWORD",
+      "label": "Harbor Admin Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "HARBOR_HOSTNAME",
+      "label": "Harbor Hostname",
+      "description": "",
+      "default": "localhost",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "JOBSERVICE_SECRET",
+      "label": "Jobservice Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,17 +1,52 @@
 {
+  "schema_version": 1,
+  "id": "phpmyadmin",
   "name": "phpMyAdmin",
   "description": "Web-based MySQL/MariaDB administration tool. Manage databases, tables, users, and execute SQL queries through an intuitive web interface.",
-  "version": "latest",
+  "version": "5.2.2",
   "category": "tools",
   "icon": "🗄️",
   "author": "phpMyAdmin Team",
   "ports": [
-    "8082:80"
+    {
+      "host": 8082,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [],
-  "environment": {
-    "PMA_HOST": "mysql",
-    "PMA_PORT": "3306",
-    "MYSQL_ROOT_PASSWORD": "rootpassword"
+  "environment": [
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "PMA_HOST",
+      "label": "Pma Host",
+      "description": "",
+      "default": "mysql",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PMA_PORT",
+      "label": "Pma Port",
+      "description": "",
+      "default": "3306",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

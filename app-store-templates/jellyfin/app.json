@@ -1,22 +1,86 @@
 {
+  "schema_version": 1,
+  "id": "jellyfin",
   "name": "Jellyfin",
   "description": "The Free Software Media System. Stream your media to any device. No premium, no subscriptions, just your media.",
-  "version": "latest",
+  "version": "10.10.7",
   "category": "media",
   "icon": "🎥",
   "author": "Jellyfin Team",
   "ports": [
-    "8096:8096",
-    "8920:8920"
+    {
+      "host": 8096,
+      "container": 8096,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8920,
+      "container": 8920,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/jellyfin/config:/config",
-    "/opt/upservx/data/jellyfin/cache:/cache",
-    "/mnt/media:/media"
+    {
+      "host": "/opt/upservx/data/jellyfin/config",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jellyfin/cache",
+      "container": "/cache",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/mnt/media",
+      "container": "/media",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "PUID": "1000",
-    "PGID": "1000",
-    "TZ": "Europe/Vienna"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "PGID",
+      "label": "Pgid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PUID",
+      "label": "Puid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

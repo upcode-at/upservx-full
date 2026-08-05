@@ -1,15 +1,41 @@
 {
+  "schema_version": 1,
+  "id": "openvpn",
   "name": "OpenVPN",
   "description": "A full-featured, open-source SSL/TLS VPN solution. OpenVPN allows you to create secure point-to-point or site-to-site connections with routed or bridged configurations and remote access for clients.",
-  "version": "latest",
+  "version": "2.4",
   "category": "network",
   "icon": "🔒",
   "author": "OpenVPN",
   "ports": [
-    "1194:1194/udp"
+    {
+      "host": 1194,
+      "container": 1194,
+      "protocol": "udp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/openvpn:/etc/openvpn"
+    {
+      "host": "/opt/upservx/data/openvpn",
+      "container": "/etc/openvpn",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {}
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

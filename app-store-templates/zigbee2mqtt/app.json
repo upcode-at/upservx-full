@@ -1,20 +1,68 @@
 {
+  "schema_version": 1,
+  "id": "zigbee2mqtt",
   "name": "Zigbee2MQTT",
   "description": "Bridge your Zigbee devices to MQTT. Zigbee2MQTT allows you to use your Zigbee devices without vendor bridges or cloud services by connecting them via a Zigbee USB adapter to a local MQTT broker.",
-  "version": "latest",
+  "version": "2.6.1",
   "category": "iot",
   "icon": "📡",
   "author": "Zigbee2MQTT",
   "ports": [
-    "8080:8080"
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/zigbee2mqtt:/app/data",
-    "/opt/upservx/data/mosquitto/config:/mosquitto/config",
-    "/opt/upservx/data/mosquitto/data:/mosquitto/data",
-    "/opt/upservx/data/mosquitto/log:/mosquitto/log"
+    {
+      "host": "/opt/upservx/data/zigbee2mqtt",
+      "container": "/app/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/mosquitto/config",
+      "container": "/mosquitto/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/mosquitto/data",
+      "container": "/mosquitto/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/mosquitto/log",
+      "container": "/mosquitto/log",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "ZIGBEE2MQTT_DATA": "/app/data"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ZIGBEE2MQTT_DATA",
+      "label": "Zigbee2Mqtt Data",
+      "description": "",
+      "default": "/app/data",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

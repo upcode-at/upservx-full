@@ -1,22 +1,84 @@
 {
+  "schema_version": 1,
+  "id": "apache-guacamole",
   "name": "Apache Guacamole",
   "description": "Clientless remote desktop gateway. Access VNC, RDP, and SSH connections directly from your browser – no plugins or client software required.",
-  "version": "latest",
+  "version": "1.6.0",
   "category": "networking",
   "icon": "🌐",
   "author": "Apache Software Foundation",
   "ports": [
-    "8080:8080"
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/apache-guacamole/drive:/drive",
-    "/opt/upservx/data/apache-guacamole/record:/record"
+    {
+      "host": "/opt/upservx/data/apache-guacamole/drive",
+      "container": "/drive",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/apache-guacamole/record",
+      "container": "/record",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "GUACD_HOSTNAME": "guacd",
-    "GUACD_PORT": "4822",
-    "POSTGRES_DATABASE": "guacamole_db",
-    "POSTGRES_USER": "guacamole_user",
-    "POSTGRES_PASSWORD": "guacamole_password"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "GUACD_HOSTNAME",
+      "label": "Guacd Hostname",
+      "description": "",
+      "default": "guacd",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "GUACD_PORT",
+      "label": "Guacd Port",
+      "description": "",
+      "default": "4822",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "POSTGRES_PASSWORD",
+      "label": "Postgres Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "POSTGRES_USER",
+      "label": "Postgres User",
+      "description": "",
+      "default": "guacamole_user",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

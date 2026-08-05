@@ -1,16 +1,13 @@
-version: '3.8'
-
 services:
   heimdall:
-    image: lscr.io/linuxserver/heimdall:latest
-    container_name: heimdall
+    image: lscr.io/linuxserver/heimdall:version-2.7.6
     restart: unless-stopped
     ports:
       - "8888:80"
       - "8889:443"
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Berlin
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Berlin}
     volumes:
-      - /opt/upservx/data/heimdall:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/heimdall:/config

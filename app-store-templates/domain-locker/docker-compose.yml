@@ -1,30 +1,26 @@
-version: '3.8'
-
 services:
   domain-locker:
-    image: powerdnsadmin/pda-legacy:latest
-    container_name: domain-locker
+    image: powerdnsadmin/pda-legacy:0.4.2
     restart: unless-stopped
     ports:
       - "8081:80"
     environment:
-      - SECRET_KEY=changeme_random_secret
-      - SQLALCHEMY_DATABASE_URI=postgresql://domainlocker:domainlocker@domain-locker-db/domainlocker
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - SQLALCHEMY_DATABASE_URI=postgresql://domainlocker:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@domain-locker-db/domainlocker
       - GUNICORN_TIMEOUT=60
       - GUNICORN_WORKERS=2
       - GUNICORN_LOGLEVEL=info
     volumes:
-      - /opt/upservx/data/domain-locker:/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/domain-locker:/data
     depends_on:
       - domain-locker-db
 
   domain-locker-db:
-    image: postgres:15-alpine
-    container_name: domain-locker-db
+    image: postgres:15.13-alpine
     restart: unless-stopped
     environment:
       - POSTGRES_USER=domainlocker
-      - POSTGRES_PASSWORD=domainlocker
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_DB=domainlocker
     volumes:
-      - /opt/upservx/data/domain-locker-db:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/domain-locker-db:/var/lib/postgresql/data

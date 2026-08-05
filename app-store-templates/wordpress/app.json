@@ -1,25 +1,112 @@
 {
+  "schema_version": 1,
+  "id": "wordpress",
   "name": "WordPress",
   "description": "The world's most popular CMS. Create beautiful websites, blogs, and online stores with thousands of themes and plugins.",
-  "version": "latest",
+  "version": "6.8.2",
   "category": "cms",
   "icon": "📝",
   "author": "WordPress",
   "ports": [
-    "8080:80"
+    {
+      "host": 8080,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/wordpress/html:/var/www/html",
-    "/opt/upservx/data/wordpress/db:/var/lib/mysql"
+    {
+      "host": "/opt/upservx/data/wordpress/html",
+      "container": "/var/www/html",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/wordpress/db",
+      "container": "/var/lib/mysql",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "WORDPRESS_DB_HOST": "wordpress-db",
-    "WORDPRESS_DB_USER": "wordpress",
-    "WORDPRESS_DB_PASSWORD": "wordpress",
-    "WORDPRESS_DB_NAME": "wordpress",
-    "MYSQL_ROOT_PASSWORD": "rootpassword",
-    "MYSQL_DATABASE": "wordpress",
-    "MYSQL_USER": "wordpress",
-    "MYSQL_PASSWORD": "wordpress"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "MYSQL_DATABASE",
+      "label": "Mysql Database",
+      "description": "",
+      "default": "wordpress",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_USER",
+      "label": "Mysql User",
+      "description": "",
+      "default": "wordpress",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WORDPRESS_DB_HOST",
+      "label": "Wordpress Db Host",
+      "description": "",
+      "default": "wordpress-db",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WORDPRESS_DB_NAME",
+      "label": "Wordpress Db Name",
+      "description": "",
+      "default": "wordpress",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WORDPRESS_DB_PASSWORD",
+      "label": "Wordpress Db Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "WORDPRESS_DB_USER",
+      "label": "Wordpress Db User",
+      "description": "",
+      "default": "wordpress",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

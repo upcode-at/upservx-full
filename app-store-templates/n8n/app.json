@@ -1,21 +1,86 @@
 {
+  "schema_version": 1,
+  "id": "n8n",
   "name": "n8n",
   "description": "Workflow automation tool. n8n is a fair-code licensed workflow automation tool that lets you connect anything to everything via its open, fair-code model.",
-  "version": "latest",
+  "version": "1.105.4",
   "category": "productivity",
   "icon": "🔗",
   "author": "n8n GmbH",
   "ports": [
-    "5678:5678"
+    {
+      "host": 5678,
+      "container": 5678,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/n8n:/home/node/.n8n"
+    {
+      "host": "/opt/upservx/data/n8n",
+      "container": "/home/node/.n8n",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "N8N_HOST": "localhost",
-    "N8N_PORT": "5678",
-    "N8N_PROTOCOL": "http",
-    "WEBHOOK_URL": "http://localhost:5678/",
-    "GENERIC_TIMEZONE": "Europe/Vienna"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "GENERIC_TIMEZONE",
+      "label": "Generic Timezone",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "N8N_HOST",
+      "label": "N8N Host",
+      "description": "",
+      "default": "localhost",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "N8N_PORT",
+      "label": "N8N Port",
+      "description": "",
+      "default": "5678",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "N8N_PROTOCOL",
+      "label": "N8N Protocol",
+      "description": "",
+      "default": "http",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WEBHOOK_URL",
+      "label": "Webhook Url",
+      "description": "",
+      "default": "http://localhost:5678/",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

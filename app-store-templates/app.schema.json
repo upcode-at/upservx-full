@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://upservx.dev/schemas/app-store-template-v1.json",
+  "title": "UpservX App Store template",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "description",
+    "version",
+    "category",
+    "icon",
+    "author",
+    "ports",
+    "volumes",
+    "environment",
+    "update"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "name": {"type": "string", "minLength": 1, "maxLength": 100},
+    "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "not": {"enum": ["latest", "stable", "release", "main", "lts"]}
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+    },
+    "icon": {"type": "string", "minLength": 1, "maxLength": 128},
+    "author": {"type": "string", "minLength": 1, "maxLength": 200},
+    "website": {"type": "string", "format": "uri"},
+    "repository": {"type": "string", "format": "uri"},
+    "tags": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 64},
+      "uniqueItems": true
+    },
+    "ports": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/port"}
+    },
+    "volumes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/volume"}
+    },
+    "environment": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/environmentVariable"}
+    },
+    "requirements": {"$ref": "#/$defs/requirements"},
+    "notes": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "privileged": {"type": "boolean"},
+    "network_mode": {"type": "string", "minLength": 1},
+    "update": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy"],
+      "properties": {
+        "strategy": {"const": "compose-pull-recreate"},
+        "release_notes": {"type": "string", "format": "uri"}
+      }
+    }
+  },
+  "$defs": {
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "container", "protocol", "description"],
+      "properties": {
+        "host": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "container": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "protocol": {"enum": ["tcp", "udp"]},
+        "description": {"type": "string", "maxLength": 200}
+      }
+    },
+    "volume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "container", "mode", "description"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1},
+        "container": {"type": "string", "pattern": "^/"},
+        "mode": {"enum": ["rw", "ro"]},
+        "description": {"type": "string", "maxLength": 200}
+      }
+    },
+    "environmentVariable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "label",
+        "description",
+        "default",
+        "required",
+        "secret",
+        "generate"
+      ],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "description": {"type": "string", "maxLength": 500},
+        "default": {"type": "string"},
+        "required": {"type": "boolean"},
+        "secret": {"type": "boolean"},
+        "generate": {"type": "boolean"},
+        "managed": {"type": "boolean"},
+        "generator": {"enum": ["token-url-safe", "kafka-cluster-id"]},
+        "min_length": {"type": "integer", "minimum": 1, "maximum": 4096}
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memory": {"type": "string"},
+        "cpu": {"type": "string"},
+        "disk": {"type": "string"}
+      }
+    }
+  }
+}

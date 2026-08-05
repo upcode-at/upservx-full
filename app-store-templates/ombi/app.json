@@ -1,19 +1,68 @@
 {
+  "schema_version": 1,
+  "id": "ombi",
   "name": "Ombi",
   "description": "Ombi is a self-hosted web application that automatically gives your shared Plex, Emby or Jellyfin users the ability to request content by themselves.",
-  "version": "latest",
+  "version": "4.47.1",
   "category": "media",
   "icon": "🎬",
   "author": "Ombi Team",
   "ports": [
-    "3579:3579"
+    {
+      "host": 3579,
+      "container": 3579,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/ombi/config:/config"
+    {
+      "host": "/opt/upservx/data/ombi/config",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "PUID": "1000",
-    "PGID": "1000",
-    "TZ": "Europe/Vienna"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "PGID",
+      "label": "Pgid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PUID",
+      "label": "Puid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

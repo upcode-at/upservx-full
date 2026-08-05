@@ -4,7 +4,7 @@ API routes for container management.
 
 from fastapi import APIRouter, HTTPException, WebSocket, File, UploadFile, Request
 from starlette.websockets import WebSocketDisconnect
-from typing import List
+from typing import Dict, List
 import subprocess
 import shutil
 import asyncio
@@ -32,7 +32,7 @@ import tarfile
 import shutil
 from handlers.compose_manager import compose_manager
 from handlers.app_store import app_store
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from lib.logger import log_container, log_appstore
 from handlers.notifications import notify
@@ -864,16 +864,32 @@ def get_app_icon(app_id: str):
 
 class AppInstallRequest(BaseModel):
     custom_name: Optional[str] = None
+    environment: Dict[str, str] = Field(default_factory=dict)
 
 @router.post("/app-store/apps/{app_id}/install")
 def install_app_from_store(app_id: str, request: AppInstallRequest):
     """Install an app from the store."""
-    result = app_store.install_app(app_id, request.custom_name)
+    result = app_store.install_app(
+        app_id, request.custom_name, request.environment
+    )
     if result["success"]:
         display_name = request.custom_name or app_id
         log_appstore(f"Installed app [{display_name}] (template: {app_id})")
         return result
     log_appstore(f"Failed to install app [{app_id}]: {result.get('message')}", error=True)
+    raise HTTPException(status_code=400, detail=result["message"])
+
+@router.post("/app-store/apps/{project_name}/update")
+def update_app_from_store(project_name: str):
+    """Update a managed App Store installation using its pinned template."""
+    result = app_store.update_app(project_name)
+    if result["success"]:
+        log_appstore(f"Updated App Store project [{project_name}]")
+        return result
+    log_appstore(
+        f"Failed to update App Store project [{project_name}]: {result.get('message')}",
+        error=True,
+    )
     raise HTTPException(status_code=400, detail=result["message"])
 
 @router.delete("/app-store/apps/{project_name}/uninstall")

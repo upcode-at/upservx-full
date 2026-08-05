@@ -1,24 +1,110 @@
 {
+  "schema_version": 1,
+  "id": "roundcube",
   "name": "Roundcube",
   "description": "Open-source browser-based IMAP email client with a modern UI. Supports SMTP sending, address book, calendar (with plugins), HTML email, and S/MIME encryption.",
-  "version": "latest",
+  "version": "1.6.11",
   "category": "productivity",
   "icon": "✉️",
   "author": "The Roundcube Community",
   "ports": [
-    "8090:80"
+    {
+      "host": 8090,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/roundcube/www:/var/www/html",
-    "/opt/upservx/data/roundcube/db:/var/roundcube/db"
+    {
+      "host": "/opt/upservx/data/roundcube/www",
+      "container": "/var/www/html",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/roundcube/db",
+      "container": "/var/roundcube/db",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "ROUNDCUBEMAIL_DEFAULT_HOST": "ssl://mail.example.com",
-    "ROUNDCUBEMAIL_DEFAULT_PORT": "993",
-    "ROUNDCUBEMAIL_SMTP_SERVER": "tls://mail.example.com",
-    "ROUNDCUBEMAIL_SMTP_PORT": "587",
-    "ROUNDCUBEMAIL_DB_TYPE": "sqlite",
-    "ROUNDCUBEMAIL_SKIN": "elastic",
-    "ROUNDCUBEMAIL_PLUGINS": "archive,zipdownload,managesieve"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ROUNDCUBEMAIL_DB_TYPE",
+      "label": "Roundcubemail Db Type",
+      "description": "",
+      "default": "sqlite",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_DEFAULT_HOST",
+      "label": "Roundcubemail Default Host",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_DEFAULT_PORT",
+      "label": "Roundcubemail Default Port",
+      "description": "",
+      "default": "993",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_PLUGINS",
+      "label": "Roundcubemail Plugins",
+      "description": "",
+      "default": "archive,zipdownload,managesieve",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_SKIN",
+      "label": "Roundcubemail Skin",
+      "description": "",
+      "default": "elastic",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_SMTP_PORT",
+      "label": "Roundcubemail Smtp Port",
+      "description": "",
+      "default": "587",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ROUNDCUBEMAIL_SMTP_SERVER",
+      "label": "Roundcubemail Smtp Server",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

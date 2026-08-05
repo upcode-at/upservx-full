@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   gitlab:
-    image: gitlab/gitlab-ce:latest
-    container_name: gitlab
+    image: gitlab/gitlab-ce:18.2.1-ce.0
     restart: unless-stopped
     hostname: localhost
     ports:
@@ -11,16 +8,9 @@ services:
       - "443:443"
       - "22:22"
     volumes:
-      - /opt/upservx/data/gitlab/config:/etc/gitlab
-      - /opt/upservx/data/gitlab/logs:/var/log/gitlab
-      - /opt/upservx/data/gitlab/data:/var/opt/gitlab
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/gitlab/config:/etc/gitlab
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/gitlab/logs:/var/log/gitlab
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/gitlab/data:/var/opt/gitlab
     environment:
-      GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://localhost'
-        gitlab_rails['gitlab_shell_ssh_port'] = 22
-        gitlab_rails['time_zone'] = 'UTC'
-        # Reduce memory usage for smaller servers
-        puma['worker_processes'] = 2
-        sidekiq['concurrency'] = 10
-        prometheus_monitoring['enable'] = false
+      GITLAB_OMNIBUS_CONFIG: "${GITLAB_OMNIBUS_CONFIG:-external_url 'http://localhost'; gitlab_rails['gitlab_shell_ssh_port'] = 22;}"
     shm_size: '256m'

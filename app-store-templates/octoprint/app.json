@@ -1,18 +1,59 @@
 {
+  "schema_version": 1,
+  "id": "octoprint",
   "name": "OctoPrint",
   "description": "The snappy web interface for your 3D printer. Monitor and control your printer remotely, manage print jobs, view webcam streams, and extend functionality with hundreds of plugins.",
-  "version": "latest",
+  "version": "1.11.2",
   "category": "other",
   "icon": "🖨️",
   "author": "Gina Häußge",
   "ports": [
-    "5000:5000"
+    {
+      "host": 5000,
+      "container": 5000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/octoprint:/octoprint"
+    {
+      "host": "/opt/upservx/data/octoprint",
+      "container": "/octoprint",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "OCTOPRINT_PORT": "5000",
-    "ENABLE_MJPG_STREAMER": "false"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ENABLE_MJPG_STREAMER",
+      "label": "Enable Mjpg Streamer",
+      "description": "",
+      "default": "false",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "OCTOPRINT_PORT",
+      "label": "Octoprint Port",
+      "description": "",
+      "default": "5000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

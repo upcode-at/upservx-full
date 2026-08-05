@@ -1,21 +1,77 @@
 {
+  "schema_version": 1,
+  "id": "gitea",
   "name": "Gitea",
   "description": "A painless self-hosted Git service. Gitea is a community managed lightweight code hosting solution written in Go. It's easy to install, has a low resource footprint, and runs on almost any platform.",
-  "version": "latest",
+  "version": "1.24.3",
   "category": "productivity",
   "icon": "🦊",
   "author": "Gitea",
   "ports": [
-    "3000:3000",
-    "2222:22"
+    {
+      "host": 3000,
+      "container": 3000,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 2222,
+      "container": 22,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/gitea:/data",
-    "/etc/timezone:/etc/timezone:ro",
-    "/etc/localtime:/etc/localtime:ro"
+    {
+      "host": "/opt/upservx/data/gitea",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/etc/timezone",
+      "container": "/etc/timezone",
+      "mode": "ro",
+      "description": ""
+    },
+    {
+      "host": "/etc/localtime",
+      "container": "/etc/localtime",
+      "mode": "ro",
+      "description": ""
+    }
   ],
-  "environment": {
-    "USER_UID": "1000",
-    "USER_GID": "1000"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "USER_GID",
+      "label": "User Gid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "USER_UID",
+      "label": "User Uid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,24 +1,20 @@
-version: '3.8'
-
 services:
   hbbs:
-    image: rustdesk/rustdesk-server:latest
-    container_name: rustdesk-hbbs
+    image: rustdesk/rustdesk-server:1.1.14
     command: hbbs
     restart: unless-stopped
     network_mode: host
     volumes:
-      - /opt/upservx/data/rustdesk:/root
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/rustdesk:/root
     environment:
-      - ENCRYPTED_ONLY=1
+      - ENCRYPTED_ONLY=${ENCRYPTED_ONLY:-1}
     depends_on:
       - hbbr
 
   hbbr:
-    image: rustdesk/rustdesk-server:latest
-    container_name: rustdesk-hbbr
+    image: rustdesk/rustdesk-server:1.1.14
     command: hbbr
     restart: unless-stopped
     network_mode: host
     volumes:
-      - /opt/upservx/data/rustdesk:/root
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/rustdesk:/root

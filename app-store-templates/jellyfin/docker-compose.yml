@@ -1,17 +1,14 @@
-version: '3.8'
-
 services:
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest
-    container_name: jellyfin
+    image: jellyfin/jellyfin:10.10.7
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Vienna
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Vienna}
     volumes:
-      - /opt/upservx/data/jellyfin/config:/config
-      - /opt/upservx/data/jellyfin/cache:/cache
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/jellyfin/config:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/jellyfin/cache:/cache
       - /mnt/media:/media
     ports:
       - "8096:8096"

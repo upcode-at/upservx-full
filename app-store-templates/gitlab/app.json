@@ -1,21 +1,74 @@
 {
+  "schema_version": 1,
+  "id": "gitlab",
   "name": "GitLab",
   "description": "Complete DevSecOps platform. Manage Git repositories, CI/CD pipelines, container registry, issue tracking, and more — all in one self-hosted application.",
-  "version": "latest",
+  "version": "18.2.1",
   "category": "development",
   "icon": "🦊",
   "author": "GitLab Inc.",
   "ports": [
-    "80:80",
-    "443:443",
-    "22:22"
+    {
+      "host": 80,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 443,
+      "container": 443,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 22,
+      "container": 22,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/gitlab/config:/etc/gitlab",
-    "/opt/upservx/data/gitlab/logs:/var/log/gitlab",
-    "/opt/upservx/data/gitlab/data:/var/opt/gitlab"
+    {
+      "host": "/opt/upservx/data/gitlab/config",
+      "container": "/etc/gitlab",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/gitlab/logs",
+      "container": "/var/log/gitlab",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/gitlab/data",
+      "container": "/var/opt/gitlab",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "GITLAB_OMNIBUS_CONFIG": "external_url 'http://localhost'; gitlab_rails['gitlab_shell_ssh_port'] = 22;"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "GITLAB_OMNIBUS_CONFIG",
+      "label": "Gitlab Omnibus Config",
+      "description": "",
+      "default": "external_url 'http://localhost'; gitlab_rails['gitlab_shell_ssh_port'] = 22;",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

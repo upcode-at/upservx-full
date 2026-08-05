@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "id": "rabbitmq",
   "name": "RabbitMQ",
   "description": "Open-source message broker supporting AMQP, MQTT, and STOMP protocols. Enables reliable asynchronous communication between services. Includes the RabbitMQ Management UI for monitoring queues, exchanges, and connections.",
   "version": "4-management",
@@ -6,16 +8,74 @@
   "icon": "🐇",
   "author": "Broadcom / VMware",
   "ports": [
-    "5672:5672",
-    "15672:15672"
+    {
+      "host": 5672,
+      "container": 5672,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 15672,
+      "container": 15672,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/rabbitmq/data:/var/lib/rabbitmq",
-    "/opt/upservx/data/rabbitmq/logs:/var/log/rabbitmq"
+    {
+      "host": "/opt/upservx/data/rabbitmq/data",
+      "container": "/var/lib/rabbitmq",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/rabbitmq/logs",
+      "container": "/var/log/rabbitmq",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "RABBITMQ_DEFAULT_USER": "admin",
-    "RABBITMQ_DEFAULT_PASS": "changeme_strong_password",
-    "RABBITMQ_DEFAULT_VHOST": "/"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "RABBITMQ_DEFAULT_PASS",
+      "label": "Rabbitmq Default Pass",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "RABBITMQ_DEFAULT_USER",
+      "label": "Rabbitmq Default User",
+      "description": "",
+      "default": "admin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "RABBITMQ_DEFAULT_VHOST",
+      "label": "Rabbitmq Default Vhost",
+      "description": "",
+      "default": "/",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

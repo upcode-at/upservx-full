@@ -1,35 +1,31 @@
-version: '3.8'
-
 services:
   mattermost:
-    image: mattermost/mattermost-team-edition:latest
-    container_name: mattermost
+    image: mattermost/mattermost-team-edition:10.10.1
     restart: unless-stopped
     ports:
       - "8065:8065"
     environment:
-      - MM_SQLSETTINGS_DRIVERNAME=postgres
-      - MM_SQLSETTINGS_DATASOURCE=postgres://mattermost:mattermost@mattermost-db/mattermost?sslmode=disable
-      - MM_BLEVESETTINGS_INDEXDIR=/mattermost/bleve-indexes
+      - MM_SQLSETTINGS_DRIVERNAME=${MM_SQLSETTINGS_DRIVERNAME:-postgres}
+      - MM_SQLSETTINGS_DATASOURCE=postgres://mattermost:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@mattermost-db/mattermost?sslmode=disable
+      - MM_BLEVESETTINGS_INDEXDIR=${MM_BLEVESETTINGS_INDEXDIR:-/mattermost/bleve-indexes}
     volumes:
-      - /opt/upservx/data/mattermost/config:/mattermost/config
-      - /opt/upservx/data/mattermost/data:/mattermost/data
-      - /opt/upservx/data/mattermost/logs:/mattermost/logs
-      - /opt/upservx/data/mattermost/plugins:/mattermost/plugins
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mattermost/config:/mattermost/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mattermost/data:/mattermost/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mattermost/logs:/mattermost/logs
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mattermost/plugins:/mattermost/plugins
     depends_on:
       mattermost-db:
         condition: service_healthy
 
   mattermost-db:
-    image: postgres:15-alpine
-    container_name: mattermost-db
+    image: postgres:15.13-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=mattermost
-      - POSTGRES_USER=mattermost
-      - POSTGRES_PASSWORD=mattermost
+      - POSTGRES_DB=${POSTGRES_DB:-mattermost}
+      - POSTGRES_USER=${POSTGRES_USER:-mattermost}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-      - /opt/upservx/data/mattermost-db:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mattermost-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mattermost"]
       interval: 10s

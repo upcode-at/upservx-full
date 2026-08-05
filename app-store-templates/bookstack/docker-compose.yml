@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   bookstack:
-    image: lscr.io/linuxserver/bookstack:latest
-    container_name: bookstack
+    image: lscr.io/linuxserver/bookstack:version-v25.05.2
     restart: unless-stopped
     ports:
       - "6875:80"
@@ -12,34 +9,33 @@ services:
       - PGID=1000
       - TZ=Europe/Berlin
       # Public URL – must match exactly, including port
-      - APP_URL=http://your-server:6875
-      - DB_HOST=bookstack-db
+      - APP_URL=${APP_URL:?APP_URL is required}
+      - DB_HOST=${DB_HOST:-bookstack-db}
       - DB_PORT=3306
-      - DB_DATABASE=bookstack
-      - DB_USERNAME=bookstack
-      - DB_PASSWORD=changeme
+      - DB_DATABASE=${DB_DATABASE:-bookstack}
+      - DB_USERNAME=${DB_USERNAME:-bookstack}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
-      - /opt/upservx/data/bookstack:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/bookstack:/config
     depends_on:
       bookstack-db:
         condition: service_healthy
 
   bookstack-db:
-    image: lscr.io/linuxserver/mariadb:latest
-    container_name: bookstack-db
+    image: mariadb:11.4.8
     restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Berlin
-      - MYSQL_ROOT_PASSWORD=changeme-root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       - MYSQL_DATABASE=bookstack
       - MYSQL_USER=bookstack
-      - MYSQL_PASSWORD=changeme
+      - MYSQL_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
-      - /opt/upservx/data/bookstack-db:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/bookstack-db:/config
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bookstack", "-pchangeme"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bookstack", "-p$${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5

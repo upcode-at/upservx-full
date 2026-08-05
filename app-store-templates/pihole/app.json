@@ -1,22 +1,87 @@
 {
+  "schema_version": 1,
+  "id": "pihole",
   "name": "Pi-hole",
   "description": "Network-wide ad blocker. DNS sinkhole that protects your devices from unwanted content without installing client-side software.",
-  "version": "latest",
+  "version": "2025.04.0",
   "category": "networking",
   "icon": "🛡️",
   "author": "Pi-hole LLC",
   "ports": [
-    "53:53/tcp",
-    "53:53/udp",
-    "8084:80"
+    {
+      "host": 53,
+      "container": 53,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 53,
+      "container": 53,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 8084,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/pihole/etc:/etc/pihole",
-    "/opt/upservx/data/pihole/dnsmasq:/etc/dnsmasq.d"
+    {
+      "host": "/opt/upservx/data/pihole/etc",
+      "container": "/etc/pihole",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/pihole/dnsmasq",
+      "container": "/etc/dnsmasq.d",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "TZ": "Europe/Vienna",
-    "WEBPASSWORD": "admin",
-    "FTLCONF_LOCAL_IPV4": "0.0.0.0"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "FTLCONF_LOCAL_IPV4",
+      "label": "Ftlconf Local Ipv4",
+      "description": "",
+      "default": "0.0.0.0",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WEBPASSWORD",
+      "label": "Webpassword",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,21 +1,73 @@
 {
+  "schema_version": 1,
+  "id": "domain-locker",
   "name": "Domain Locker",
   "description": "Domain and DNS management tool with security features. Protect and manage your domains with DNSSEC, monitoring, and access control.",
-  "version": "latest",
+  "version": "0.4.2",
   "category": "security",
   "icon": "🔒",
   "author": "Domain Locker Team",
   "ports": [
-    "8081:80",
-    "53:53/udp",
-    "53:53/tcp"
+    {
+      "host": 8081,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 53,
+      "container": 53,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 53,
+      "container": 53,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/domain-locker:/data"
+    {
+      "host": "/opt/upservx/data/domain-locker",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "ADMIN_USERNAME": "admin",
-    "ADMIN_PASSWORD": "changeme",
-    "SECRET_KEY": "changeme_random_secret"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "POSTGRES_PASSWORD",
+      "label": "Postgres Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "SECRET_KEY",
+      "label": "Secret Key",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,20 +1,75 @@
 {
+  "schema_version": 1,
+  "id": "mongodb",
   "name": "MongoDB",
   "description": "Leading NoSQL document database. Flexible, scalable database designed for modern applications with dynamic schemas and horizontal scaling.",
-  "version": "latest",
+  "version": "8.0.13",
   "category": "database",
   "icon": "🍃",
   "author": "MongoDB Inc.",
   "ports": [
-    "27017:27017"
+    {
+      "host": 27017,
+      "container": 27017,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/mongodb/data:/data/db",
-    "/opt/upservx/data/mongodb/config:/data/configdb"
+    {
+      "host": "/opt/upservx/data/mongodb/data",
+      "container": "/data/db",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/mongodb/config",
+      "container": "/data/configdb",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "MONGO_INITDB_ROOT_USERNAME": "admin",
-    "MONGO_INITDB_ROOT_PASSWORD": "adminpassword",
-    "MONGO_INITDB_DATABASE": "mydb"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "MONGO_INITDB_DATABASE",
+      "label": "Mongo Initdb Database",
+      "description": "",
+      "default": "mydb",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MONGO_INITDB_ROOT_PASSWORD",
+      "label": "Mongo Initdb Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MONGO_INITDB_ROOT_USERNAME",
+      "label": "Mongo Initdb Root Username",
+      "description": "",
+      "default": "admin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

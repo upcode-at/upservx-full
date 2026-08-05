@@ -1,36 +1,48 @@
 {
+  "schema_version": 1,
+  "id": "home-assistant",
   "name": "Home Assistant",
   "description": "Open source home automation that puts local control and privacy first. Control all your devices from a single, unified interface.",
-  "version": "latest",
+  "version": "2025.7.4",
   "category": "automation",
   "icon": "🏠",
-  "tags": ["home-automation", "iot", "smart-home", "automation", "dashboard"],
   "author": "Home Assistant",
   "website": "https://www.home-assistant.io/",
   "repository": "https://github.com/home-assistant/core",
+  "tags": [
+    "home-automation",
+    "iot",
+    "smart-home",
+    "automation",
+    "dashboard"
+  ],
   "ports": [
     {
-      "container": 8123,
       "host": 8123,
+      "container": 8123,
+      "protocol": "tcp",
       "description": "Web interface"
     }
   ],
   "volumes": [
     {
-      "container": "/config",
       "host": "./config",
+      "container": "/config",
+      "mode": "rw",
       "description": "Configuration files"
     }
   ],
   "environment": [
     {
       "name": "TZ",
+      "label": "Tz",
+      "description": "Timezone for the application",
       "default": "Europe/Berlin",
-      "description": "Timezone for the application"
+      "required": false,
+      "secret": false,
+      "generate": false
     }
   ],
-  "privileged": true,
-  "network_mode": "host",
   "requirements": {
     "memory": "1GB",
     "cpu": "2 cores",
@@ -45,5 +57,10 @@
     "USB devices (Zigbee/Z-Wave) need to be passed through to the container",
     "For USB devices, add device mappings in docker-compose.yml",
     "Consider using the supervised installation for add-ons support"
-  ]
+  ],
+  "privileged": true,
+  "network_mode": "host",
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

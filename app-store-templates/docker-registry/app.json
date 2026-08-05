@@ -1,21 +1,91 @@
 {
+  "schema_version": 1,
+  "id": "docker-registry",
   "name": "Docker Registry",
   "description": "Simple, lightweight private Docker container image registry. Store and distribute Docker images within your own infrastructure without relying on Docker Hub.",
-  "version": "latest",
+  "version": "3.0.0",
   "category": "development",
   "icon": "🗃️",
   "author": "Docker Inc.",
   "ports": [
-    "5000:5000"
+    {
+      "host": 5000,
+      "container": 5000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/registry/data:/var/lib/registry",
-    "/opt/upservx/data/registry/config:/etc/docker/registry",
-    "/opt/upservx/data/registry/auth:/auth"
+    {
+      "host": "/opt/upservx/data/registry/data",
+      "container": "/var/lib/registry",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/registry/config",
+      "container": "/etc/docker/registry",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/registry/auth",
+      "container": "/auth",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "REGISTRY_HTTP_ADDR": "0.0.0.0:5000",
-    "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY": "/var/lib/registry",
-    "REGISTRY_HTTP_SECRET": "changeme_registry_secret"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "NGINX_PROXY_PASS_URL",
+      "label": "Nginx Proxy Pass Url",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "REGISTRY_HTTP_ADDR",
+      "label": "Registry Http Addr",
+      "description": "",
+      "default": "0.0.0.0:5000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "REGISTRY_HTTP_SECRET",
+      "label": "Registry Http Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY",
+      "label": "Registry Storage Filesystem Rootdirectory",
+      "description": "",
+      "default": "/var/lib/registry",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

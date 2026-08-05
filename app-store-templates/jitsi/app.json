@@ -1,27 +1,179 @@
 {
+  "schema_version": 1,
+  "id": "jitsi",
   "name": "Jitsi Meet",
   "description": "Free, open-source video conferencing solution. Host your own secure video meetings without limits. Perfect alternative to Zoom, Teams, or Google Meet.",
-  "version": "stable",
+  "version": "10184",
   "category": "communication",
   "icon": "📹",
   "author": "Jitsi",
   "ports": [
-    "8000:80",
-    "8443:443",
-    "10000:10000/udp"
+    {
+      "host": 8000,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8443,
+      "container": 443,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 10000,
+      "container": 10000,
+      "protocol": "udp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/jitsi/web:/config/web",
-    "/opt/upservx/data/jitsi/transcripts:/usr/share/jitsi-meet/transcripts",
-    "/opt/upservx/data/jitsi/prosody/config:/config",
-    "/opt/upservx/data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom",
-    "/opt/upservx/data/jitsi/jicofo:/config",
-    "/opt/upservx/data/jitsi/jvb:/config"
+    {
+      "host": "/opt/upservx/data/jitsi/web",
+      "container": "/config/web",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jitsi/transcripts",
+      "container": "/usr/share/jitsi-meet/transcripts",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jitsi/prosody/config",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jitsi/prosody/prosody-plugins-custom",
+      "container": "/prosody-plugins-custom",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jitsi/jicofo",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/jitsi/jvb",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "PUBLIC_URL": "https://localhost:8443",
-    "TZ": "Europe/Vienna",
-    "ENABLE_AUTH": "0",
-    "ENABLE_GUESTS": "1"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ENABLE_AUTH",
+      "label": "Enable Auth",
+      "description": "",
+      "default": "0",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "ENABLE_GUESTS",
+      "label": "Enable Guests",
+      "description": "",
+      "default": "1",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "JIBRI_RECORDER_PASSWORD",
+      "label": "Jibri Recorder Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "JIBRI_XMPP_PASSWORD",
+      "label": "Jibri Xmpp Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "JICOFO_AUTH_PASSWORD",
+      "label": "Jicofo Auth Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "JICOFO_COMPONENT_SECRET",
+      "label": "Jicofo Component Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "JIGASI_XMPP_PASSWORD",
+      "label": "Jigasi Xmpp Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "JVB_AUTH_PASSWORD",
+      "label": "Jvb Auth Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "PUBLIC_URL",
+      "label": "Public Url",
+      "description": "",
+      "default": "https://localhost:8443",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

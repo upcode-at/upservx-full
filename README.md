@@ -47,6 +47,21 @@ UpservX includes over 20 pre-configured app templates for quick deployments:
 
 All templates are located in the `app-store-templates/` folder and can be easily extended.
 
+## Local quality gates
+
+Run the same mandatory checks used by CI from a clean checkout:
+
+```bash
+make test
+```
+
+The command requires Python 3.11+, Node.js 20+, npm, and Docker Compose. It
+creates an isolated temporary Python virtual environment from the locked
+dependency files, so it does not use or modify the repository's `.venv`. It
+validates every App Store manifest and rendered Compose file, checks generated
+OpenAPI client types, runs backend and CLI tests and Python/shell syntax checks,
+then runs the frontend ESLint and production build gates.
+
 ## 📋 Prerequisites
 
 - **Operating System**: Linux Debian

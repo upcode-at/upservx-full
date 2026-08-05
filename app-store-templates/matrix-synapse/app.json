@@ -1,24 +1,105 @@
 {
+  "schema_version": 1,
+  "id": "matrix-synapse",
   "name": "Matrix Synapse + Element",
   "description": "A self-hosted, federated, end-to-end encrypted messaging platform. Matrix Synapse is the reference homeserver for the Matrix protocol, and Element is the feature-rich web client – together providing a privacy-first alternative to Slack, Teams, or Discord.",
-  "version": "latest",
+  "version": "1.136.0",
   "category": "communication",
   "icon": "🔐",
   "author": "Matrix.org / Element",
   "ports": [
-    "8008:8008",
-    "8448:8448",
-    "8009:80"
+    {
+      "host": 8008,
+      "container": 8008,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8448,
+      "container": 8448,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8009,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/synapse:/data",
-    "/opt/upservx/data/synapse-db:/var/lib/postgresql/data"
+    {
+      "host": "/opt/upservx/data/synapse",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/synapse-db",
+      "container": "/var/lib/postgresql/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "SYNAPSE_SERVER_NAME": "your-domain.com",
-    "SYNAPSE_REPORT_STATS": "no",
-    "POSTGRES_DB": "synapse",
-    "POSTGRES_USER": "synapse",
-    "POSTGRES_PASSWORD": "changeme"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "POSTGRES_DB",
+      "label": "Postgres Db",
+      "description": "",
+      "default": "synapse",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "POSTGRES_PASSWORD",
+      "label": "Postgres Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "POSTGRES_USER",
+      "label": "Postgres User",
+      "description": "",
+      "default": "synapse",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "SYNAPSE_REPORT_STATS",
+      "label": "Synapse Report Stats",
+      "description": "",
+      "default": "no",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "SYNAPSE_SERVER_NAME",
+      "label": "Synapse Server Name",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

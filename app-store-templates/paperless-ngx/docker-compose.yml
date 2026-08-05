@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   broker:
-    image: docker.io/library/redis:7
-    container_name: paperless-redis
+    image: docker.io/library/redis:7.4.5-alpine
     restart: unless-stopped
     volumes:
       - redisdata:/data
@@ -11,21 +8,19 @@ services:
       - paperless-network
 
   db:
-    image: docker.io/library/postgres:16
-    container_name: paperless-db
+    image: docker.io/library/postgres:16.9-alpine
     restart: unless-stopped
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: ${PAPERLESS_DBNAME:-paperless}
       POSTGRES_USER: ${PAPERLESS_DBUSER:-paperless}
-      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:-paperless}
+      POSTGRES_PASSWORD: "${PAPERLESS_DBPASS:?PAPERLESS_DBPASS is required}"
     networks:
       - paperless-network
 
   webserver:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
-    container_name: paperless-ngx
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.18.1
     restart: unless-stopped
     depends_on:
       - db
@@ -38,20 +33,20 @@ services:
       - ./export:/usr/src/paperless/export
       - ./consume:/usr/src/paperless/consume
     environment:
-      PAPERLESS_REDIS: ${PAPERLESS_REDIS:-redis://broker:6379}
-      PAPERLESS_DBHOST: ${PAPERLESS_DBHOST:-db}
-      PAPERLESS_DBNAME: ${PAPERLESS_DBNAME:-paperless}
-      PAPERLESS_DBUSER: ${PAPERLESS_DBUSER:-paperless}
-      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS:-paperless}
-      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
-      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
-      PAPERLESS_TIME_ZONE: ${PAPERLESS_TIME_ZONE:-Europe/Berlin}
-      PAPERLESS_OCR_LANGUAGE: ${PAPERLESS_OCR_LANGUAGE:-deu+eng}
-      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
-      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-admin}
-      PAPERLESS_ADMIN_MAIL: ${PAPERLESS_ADMIN_MAIL:-admin@example.com}
-      USERMAP_UID: ${USERMAP_UID:-1000}
-      USERMAP_GID: ${USERMAP_GID:-1000}
+      PAPERLESS_REDIS: "${PAPERLESS_REDIS:-redis://redis:6379}"
+      PAPERLESS_DBHOST: "${PAPERLESS_DBHOST:-db}"
+      PAPERLESS_DBNAME: "${PAPERLESS_DBNAME:-paperless}"
+      PAPERLESS_DBUSER: "${PAPERLESS_DBUSER:-paperless}"
+      PAPERLESS_DBPASS: "${PAPERLESS_DBPASS:?PAPERLESS_DBPASS is required}"
+      PAPERLESS_SECRET_KEY: "${PAPERLESS_SECRET_KEY:?PAPERLESS_SECRET_KEY is required}"
+      PAPERLESS_URL: "${PAPERLESS_URL:-http://localhost:8000}"
+      PAPERLESS_TIME_ZONE: "${PAPERLESS_TIME_ZONE:-Europe/Berlin}"
+      PAPERLESS_OCR_LANGUAGE: "${PAPERLESS_OCR_LANGUAGE:-deu+eng}"
+      PAPERLESS_ADMIN_USER: "${PAPERLESS_ADMIN_USER:-admin}"
+      PAPERLESS_ADMIN_PASSWORD: "${PAPERLESS_ADMIN_PASSWORD:?PAPERLESS_ADMIN_PASSWORD is required}"
+      PAPERLESS_ADMIN_MAIL: "${PAPERLESS_ADMIN_MAIL:?PAPERLESS_ADMIN_MAIL is required}"
+      USERMAP_UID: "${USERMAP_UID:-1000}"
+      USERMAP_GID: "${USERMAP_GID:-1000}"
     networks:
       - paperless-network
 

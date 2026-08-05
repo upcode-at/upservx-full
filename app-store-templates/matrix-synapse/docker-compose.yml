@@ -1,44 +1,39 @@
-version: '3.8'
-
 services:
   synapse:
-    image: matrixdotorg/synapse:latest
-    container_name: synapse
+    image: matrixdotorg/synapse:v1.136.0
     restart: unless-stopped
     ports:
       - "8008:8008"   # Client-Server API
       - "8448:8448"   # Federation API
     environment:
-      - SYNAPSE_SERVER_NAME=your-domain.com
-      - SYNAPSE_REPORT_STATS=no
+      - SYNAPSE_SERVER_NAME=${SYNAPSE_SERVER_NAME:?SYNAPSE_SERVER_NAME is required}
+      - SYNAPSE_REPORT_STATS=${SYNAPSE_REPORT_STATS:-no}
       - SYNAPSE_CONFIG_PATH=/data/homeserver.yaml
     volumes:
-      - /opt/upservx/data/synapse:/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/synapse:/data
     depends_on:
       synapse-db:
         condition: service_healthy
 
   element:
-    image: vectorim/element-web:latest
-    container_name: element
+    image: vectorim/element-web:v1.11.106
     restart: unless-stopped
     ports:
       - "8009:80"     # Element Web UI
     volumes:
-      - /opt/upservx/data/element/config.json:/app/config.json:ro
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/element/config.json:/app/config.json:ro
 
   synapse-db:
-    image: postgres:15-alpine
-    container_name: synapse-db
+    image: postgres:15.13-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=synapse
-      - POSTGRES_USER=synapse
-      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_DB=${POSTGRES_DB:-synapse}
+      - POSTGRES_USER=${POSTGRES_USER:-synapse}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # Required by Synapse – must be C locale
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     volumes:
-      - /opt/upservx/data/synapse-db:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/synapse-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U synapse"]
       interval: 10s

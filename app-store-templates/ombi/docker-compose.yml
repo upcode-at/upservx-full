@@ -1,15 +1,12 @@
-version: '3.8'
-
 services:
   ombi:
-    image: lscr.io/linuxserver/ombi:latest
-    container_name: ombi
+    image: lscr.io/linuxserver/ombi:version-v4.47.1
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Vienna
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Vienna}
     volumes:
-      - /opt/upservx/data/ombi/config:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/ombi/config:/config
     ports:
       - "3579:3579"

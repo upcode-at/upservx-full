@@ -1,15 +1,12 @@
-version: '3.8'
-
 services:
   prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
+    image: prom/prometheus:v3.5.0
     restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
-      - /opt/upservx/data/prometheus/data:/prometheus
-      - /opt/upservx/data/prometheus/config:/etc/prometheus
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/prometheus/data:/prometheus
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/prometheus/config:/etc/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'

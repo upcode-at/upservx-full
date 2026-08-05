@@ -1,17 +1,50 @@
 {
+  "schema_version": 1,
+  "id": "ollama",
   "name": "Ollama",
   "description": "Run large language models locally on your server. Ollama makes it easy to get up and running with LLMs like Llama 3, Mistral, Gemma, Phi, and many more – with a simple REST API and CLI.",
-  "version": "latest",
+  "version": "0.11.2",
   "category": "ai",
   "icon": "🦙",
   "author": "Ollama",
   "ports": [
-    "11434:11434"
+    {
+      "host": 11434,
+      "container": 11434,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/ollama:/root/.ollama"
+    {
+      "host": "/opt/upservx/data/ollama",
+      "container": "/root/.ollama",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "OLLAMA_HOST": "0.0.0.0"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "OLLAMA_HOST",
+      "label": "Ollama Host",
+      "description": "",
+      "default": "0.0.0.0",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

@@ -1,17 +1,50 @@
 {
+  "schema_version": 1,
+  "id": "tunarr",
   "name": "Tunarr",
   "description": "Create live TV channels from your Plex, Jellyfin, or Emby media libraries. Stream via HDHR or M3U to any player or DVR. Schedule movies, shows, and filler content on custom virtual channels.",
-  "version": "latest",
+  "version": "0.22.0",
   "category": "media",
   "icon": "📺",
   "author": "Tunarr Community",
   "ports": [
-    "8000:8000"
+    {
+      "host": 8000,
+      "container": 8000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/tunarr/config:/config"
+    {
+      "host": "/opt/upservx/data/tunarr/config",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "TZ": "Europe/Berlin"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Berlin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

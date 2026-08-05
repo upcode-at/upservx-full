@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   jenkins:
-    image: jenkins/jenkins:lts
-    container_name: jenkins
+    image: jenkins/jenkins:2.516.1-lts-jdk21
     restart: unless-stopped
     privileged: true
     user: root
@@ -11,7 +8,7 @@ services:
       - "8080:8080"
       - "50000:50000"
     environment:
-      - JENKINS_OPTS=--prefix=/jenkins
+      - JENKINS_OPTS=${JENKINS_OPTS:---prefix=/jenkins}
     volumes:
-      - /opt/upservx/data/jenkins:/var/jenkins_home
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/jenkins:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock

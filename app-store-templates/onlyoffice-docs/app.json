@@ -1,32 +1,164 @@
 {
+  "schema_version": 1,
+  "id": "onlyoffice-docs",
   "name": "ONLYOFFICE Docs",
   "description": "Full ONLYOFFICE Community Edition stack with Document Server, Community Server (portal, CRM, projects) and built-in Mail Server. Compatible with Microsoft Office formats.",
-  "version": "latest",
+  "version": "8.3.3",
   "category": "productivity",
   "icon": "📝",
   "author": "Ascensio System SIA",
   "ports": [
-    "8090:80",
-    "8091:80",
-    "25:25",
-    "143:143",
-    "587:587",
-    "993:993",
-    "5222:5222"
+    {
+      "host": 8090,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8091,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 25,
+      "container": 25,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 143,
+      "container": 143,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 587,
+      "container": 587,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 993,
+      "container": 993,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 5222,
+      "container": 5222,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/onlyoffice-docs/logs:/var/log/onlyoffice",
-    "/opt/upservx/data/onlyoffice-docs/data:/var/www/onlyoffice/Data",
-    "/opt/upservx/data/onlyoffice-docs/lib:/var/lib/onlyoffice",
-    "/opt/upservx/data/onlyoffice-docs/community/data:/var/www/onlyoffice/Data",
-    "/opt/upservx/data/onlyoffice-docs/mail/vmail:/var/vmail",
-    "/opt/upservx/data/onlyoffice-docs/mysql:/var/lib/mysql"
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/logs",
+      "container": "/var/log/onlyoffice",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/data",
+      "container": "/var/www/onlyoffice/Data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/lib",
+      "container": "/var/lib/onlyoffice",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/community/data",
+      "container": "/var/www/onlyoffice/Data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/mail/vmail",
+      "container": "/var/vmail",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/onlyoffice-docs/mysql",
+      "container": "/var/lib/mysql",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "JWT_ENABLED": "true",
-    "JWT_SECRET": "changeme_use_a_strong_secret",
-    "MYSQL_SERVER_USER": "onlyoffice_user",
-    "MYSQL_SERVER_PASS": "onlyoffice_password",
-    "MAIL_DOMAIN": "mail.example.com"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "JWT_ENABLED",
+      "label": "Jwt Enabled",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "JWT_SECRET",
+      "label": "Jwt Secret",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MAIL_DOMAIN",
+      "label": "Mail Domain",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_SERVER_PASS",
+      "label": "Mysql Server Pass",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_SERVER_USER",
+      "label": "Mysql Server User",
+      "description": "",
+      "default": "onlyoffice_user",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

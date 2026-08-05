@@ -1,40 +1,35 @@
-version: '3.8'
-
 services:
   guacd:
-    image: guacamole/guacd:latest
-    container_name: guacamole-guacd
+    image: guacamole/guacd:1.6.0
     restart: unless-stopped
     volumes:
-      - /opt/upservx/data/apache-guacamole/drive:/drive:rw
-      - /opt/upservx/data/apache-guacamole/record:/record:rw
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/apache-guacamole/drive:/drive:rw
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/apache-guacamole/record:/record:rw
 
   postgres:
-    image: postgres:15-alpine
-    container_name: guacamole-postgres
+    image: postgres:15.13-alpine
     restart: unless-stopped
     environment:
       - POSTGRES_DB=guacamole_db
-      - POSTGRES_USER=guacamole_user
-      - POSTGRES_PASSWORD=guacamole_password
+      - POSTGRES_USER=${POSTGRES_USER:-guacamole_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-      - /opt/upservx/data/apache-guacamole/postgres:/var/lib/postgresql/data
-      - /opt/upservx/data/apache-guacamole/init:/docker-entrypoint-initdb.d:ro
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/apache-guacamole/postgres:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/apache-guacamole/init:/docker-entrypoint-initdb.d:ro
 
   guacamole:
-    image: guacamole/guacamole:latest
-    container_name: guacamole-web
+    image: guacamole/guacamole:1.6.0
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - GUACD_HOSTNAME=guacd
-      - GUACD_PORT=4822
+      - GUACD_HOSTNAME=${GUACD_HOSTNAME:-guacd}
+      - GUACD_PORT=${GUACD_PORT:-4822}
       - POSTGRESQL_HOSTNAME=postgres
       - POSTGRESQL_PORT=5432
       - POSTGRESQL_DATABASE=guacamole_db
       - POSTGRESQL_USER=guacamole_user
-      - POSTGRESQL_PASSWORD=guacamole_password
+      - POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     depends_on:
       - guacd
       - postgres

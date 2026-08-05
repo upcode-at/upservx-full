@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   crowdsec:
-    image: crowdsecurity/crowdsec:latest
-    container_name: crowdsec
+    image: crowdsecurity/crowdsec:v1.6.4
     restart: unless-stopped
     ports:
       - "8080:8080"   # Local API (for bouncers)
@@ -12,8 +9,8 @@ services:
       - GID=1000
       - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/nginx
     volumes:
-      - /opt/upservx/data/crowdsec/config:/etc/crowdsec
-      - /opt/upservx/data/crowdsec/data:/var/lib/crowdsec/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/crowdsec/config:/etc/crowdsec
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/crowdsec/data:/var/lib/crowdsec/data
       # Host logs to analyze – add more as needed
       - /var/log/auth.log:/var/log/auth.log:ro
       - /var/log/syslog:/var/log/syslog:ro
@@ -21,8 +18,7 @@ services:
 
   # Firewall bouncer – blocks IPs via nftables/iptables on the host
   crowdsec-firewall-bouncer:
-    image: crowdsecurity/cs-firewall-bouncer:latest
-    container_name: crowdsec-firewall-bouncer
+    image: crowdsecurity/cs-firewall-bouncer:v0.0.34
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -30,6 +26,6 @@ services:
     environment:
       - CROWDSEC_LAPI_URL=http://crowdsec:8080
       # Set this after registering the bouncer: see README
-      - CROWDSEC_LAPI_KEY=changeme
+      - CROWDSEC_LAPI_KEY=${CROWDSEC_LAPI_KEY:?CROWDSEC_LAPI_KEY is required}
     depends_on:
       - crowdsec

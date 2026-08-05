@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   homeassistant:
-    container_name: home-assistant
-    image: ghcr.io/home-assistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:2025.7.4
     restart: unless-stopped
     network_mode: host
     privileged: true

@@ -1,19 +1,69 @@
 {
+  "schema_version": 1,
+  "id": "postgres",
   "name": "PostgreSQL",
   "description": "Advanced open-source relational database. The world's most advanced open-source database with powerful features and excellent standards compliance.",
-  "version": "latest",
+  "version": "16.10",
   "category": "database",
   "icon": "🐘",
   "author": "PostgreSQL Global Development Group",
   "ports": [
-    "5432:5432"
+    {
+      "host": 5432,
+      "container": 5432,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/postgres/data:/var/lib/postgresql/data"
+    {
+      "host": "/opt/upservx/data/postgres/data",
+      "container": "/var/lib/postgresql/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "POSTGRES_PASSWORD": "postgres",
-    "POSTGRES_USER": "postgres",
-    "POSTGRES_DB": "mydb"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "POSTGRES_DB",
+      "label": "Postgres Db",
+      "description": "",
+      "default": "mydb",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "POSTGRES_PASSWORD",
+      "label": "Postgres Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "POSTGRES_USER",
+      "label": "Postgres User",
+      "description": "",
+      "default": "postgres",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

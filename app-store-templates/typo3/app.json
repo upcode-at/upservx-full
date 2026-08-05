@@ -1,25 +1,113 @@
 {
+  "schema_version": 1,
+  "id": "typo3",
   "name": "TYPO3",
   "description": "Professional, flexible Content Management System. Enterprise-grade CMS trusted by organizations worldwide for complex websites and digital experiences.",
-  "version": "latest",
+  "version": "13.4.14",
   "category": "cms",
   "icon": "🦁",
   "author": "TYPO3 Association",
   "ports": [
-    "8081:80"
+    {
+      "host": 8081,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/typo3/html:/var/www/html",
-    "/opt/upservx/data/typo3/db:/var/lib/mysql"
+    {
+      "host": "/opt/upservx/data/typo3/html",
+      "container": "/var/www/html",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/typo3/db",
+      "container": "/var/lib/mysql",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "TYPO3_DB_HOST": "typo3-db",
-    "TYPO3_DB_USER": "typo3",
-    "TYPO3_DB_PASSWORD": "typo3",
-    "TYPO3_DB_NAME": "typo3",
-    "MYSQL_ROOT_PASSWORD": "rootpassword",
-    "MYSQL_DATABASE": "typo3",
-    "MYSQL_USER": "typo3",
-    "MYSQL_PASSWORD": "typo3"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "MYSQL_DATABASE",
+      "label": "Mysql Database",
+      "description": "",
+      "default": "typo3",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "label": "Mysql Root Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "MYSQL_USER",
+      "label": "Mysql User",
+      "description": "",
+      "default": "typo3",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TYPO3_DB_HOST",
+      "label": "Typo3 Db Host",
+      "description": "",
+      "default": "typo3-db",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TYPO3_DB_NAME",
+      "label": "Typo3 Db Name",
+      "description": "",
+      "default": "typo3",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TYPO3_DB_PASSWORD",
+      "label": "Typo3 Db Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "TYPO3_INSTALL_TOOL_PASSWORD",
+      "label": "Typo3 Install Tool Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

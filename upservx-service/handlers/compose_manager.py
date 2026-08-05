@@ -10,7 +10,7 @@ import re
 from typing import List, Dict, Optional
 from pathlib import Path
 
-COMPOSE_BASE_DIR = "/opt/upservx/compose"
+COMPOSE_BASE_DIR = os.getenv("UPSERVX_COMPOSE_DIR", "/var/lib/upservx/compose")
 
 def normalize_project_name(name: str) -> str:
     """
@@ -36,8 +36,7 @@ class ComposeManager:
     """Manages Docker Compose projects and their files."""
     
     def __init__(self):
-        """Initialize compose manager and ensure base directory exists."""
-        os.makedirs(COMPOSE_BASE_DIR, exist_ok=True)
+        """Initialize the manager without mutating host state on import."""
     
     def list_projects(self) -> List[Dict]:
         """List all compose projects with detailed service information."""
@@ -498,7 +497,12 @@ class ComposeManager:
                 if remove_volumes:
                     cmd.append("-v")
                 
-                subprocess.run(cmd, capture_output=True, cwd=project_dir)
+                result = subprocess.run(cmd, capture_output=True, text=True, cwd=project_dir)
+                if result.returncode != 0:
+                    return {
+                        "success": False,
+                        "message": result.stderr.strip() or "Failed to stop Compose project",
+                    }
             
             shutil.rmtree(project_dir)
             

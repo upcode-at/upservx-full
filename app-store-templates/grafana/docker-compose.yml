@@ -1,18 +1,15 @@
-version: '3.8'
-
 services:
   grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+    image: grafana/grafana:12.1.0
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - /opt/upservx/data/grafana/data:/var/lib/grafana
-      - /opt/upservx/data/grafana/provisioning:/etc/grafana/provisioning
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/grafana/data:/var/lib/grafana
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=
-      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD is required}
+      - GF_INSTALL_PLUGINS=${GF_INSTALL_PLUGINS:-}
+      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://localhost:3000}
     user: "472"

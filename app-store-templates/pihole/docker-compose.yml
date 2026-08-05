@@ -1,21 +1,18 @@
-version: '3.8'
-
 services:
   pihole:
-    image: pihole/pihole:latest
-    container_name: pihole
+    image: pihole/pihole:2025.04.0
     restart: unless-stopped
     ports:
       - "53:53/tcp"
       - "53:53/udp"
       - "8084:80"
     volumes:
-      - /opt/upservx/data/pihole/etc:/etc/pihole
-      - /opt/upservx/data/pihole/dnsmasq:/etc/dnsmasq.d
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/pihole/etc:/etc/pihole
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/pihole/dnsmasq:/etc/dnsmasq.d
     environment:
-      - TZ=Europe/Vienna
-      - WEBPASSWORD=admin
-      - FTLCONF_LOCAL_IPV4=0.0.0.0
+      - TZ=${TZ:-Europe/Vienna}
+      - WEBPASSWORD=${WEBPASSWORD:?WEBPASSWORD is required}
+      - FTLCONF_LOCAL_IPV4=${FTLCONF_LOCAL_IPV4:-0.0.0.0}
     cap_add:
       - NET_ADMIN
     dns:

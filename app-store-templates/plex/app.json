@@ -1,30 +1,137 @@
 {
+  "schema_version": 1,
+  "id": "plex",
   "name": "Plex Media Server",
   "description": "Stream your media library to any device. Plex is a powerful media server that organizes your video, music, and photo collections and streams them to all of your devices.",
-  "version": "latest",
+  "version": "1.42.1",
   "category": "media",
   "icon": "🎬",
   "author": "Plex Inc.",
   "ports": [
-    "32400:32400/tcp",
-    "1900:1900/udp",
-    "5353:5353/udp",
-    "8324:8324/tcp",
-    "32410:32410/udp",
-    "32412:32412/udp",
-    "32413:32413/udp",
-    "32414:32414/udp",
-    "32469:32469/tcp"
+    {
+      "host": 32400,
+      "container": 32400,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 1900,
+      "container": 1900,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 5353,
+      "container": 5353,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 8324,
+      "container": 8324,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 32410,
+      "container": 32410,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 32412,
+      "container": 32412,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 32413,
+      "container": 32413,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 32414,
+      "container": 32414,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 32469,
+      "container": 32469,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/plex/config:/config",
-    "/opt/upservx/data/plex/transcode:/transcode",
-    "/mnt/media:/media"
+    {
+      "host": "/opt/upservx/data/plex/config",
+      "container": "/config",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/plex/transcode",
+      "container": "/transcode",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/mnt/media",
+      "container": "/media",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "PUID": "1000",
-    "PGID": "1000",
-    "TZ": "Europe/Vienna",
-    "VERSION": "docker"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "PGID",
+      "label": "Pgid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PUID",
+      "label": "Puid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TZ",
+      "label": "Tz",
+      "description": "",
+      "default": "Europe/Vienna",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "VERSION",
+      "label": "Version",
+      "description": "",
+      "default": "docker",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

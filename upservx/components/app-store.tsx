@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { apiUrl } from "@/lib/api"
+import type { AppInstallRequest } from "@/lib/generated-api-types"
 import {
   Card,
   CardContent,
@@ -24,7 +25,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Download, CheckCircle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { NotificationContainer } from "@/components/ui/notification"
 import {
   Select,
@@ -34,6 +35,40 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+interface AppPort {
+  host: number
+  container: number
+  protocol: "tcp" | "udp"
+  description: string
+}
+
+interface AppVolume {
+  host: string
+  container: string
+  mode: "rw" | "ro"
+  description: string
+}
+
+interface AppEnvironmentVariable {
+  name: string
+  label: string
+  description: string
+  default: string
+  required: boolean
+  secret: boolean
+  generate: boolean
+  managed?: boolean
+  min_length?: number
+}
+
+interface AppInstallation {
+  project_name: string
+  version: string
+  status: string
+  installed_at?: string
+  updated_at?: string
+}
+
 interface App {
   id: string
   name: string
@@ -42,13 +77,14 @@ interface App {
   category: string
   icon: string
   author: string
-  ports: string[]
-  volumes: string[]
+  ports: AppPort[]
+  volumes: AppVolume[]
+  environment: AppEnvironmentVariable[]
   installed: boolean
+  installations: AppInstallation[]
 }
 
 interface AppDetails extends App {
-  environment: Record<string, string>
   compose_content: string
   readme: string
 }
@@ -63,6 +99,7 @@ export function AppStore() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [customName, setCustomName] = useState("")
+  const [environmentValues, setEnvironmentValues] = useState<Record<string, string>>({})
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -153,23 +190,51 @@ export function AppStore() {
   const handleInstallClick = (app: App) => {
     setSelectedApp(app as AppDetails)
     setCustomName("")
+    setEnvironmentValues(
+      Object.fromEntries(
+        app.environment
+          .filter((variable) => !variable.managed)
+          .map((variable) => [variable.name, variable.default])
+      )
+    )
     setInstallDialogOpen(true)
   }
 
   const handleInstall = async () => {
     if (!selectedApp) return
 
+    const missing = selectedApp.environment.find(
+      (variable) =>
+        !variable.managed &&
+        variable.required &&
+        !variable.generate &&
+        !(environmentValues[variable.name] || variable.default)
+    )
+    if (missing) {
+      setError(`${missing.label} is required`)
+      return
+    }
+
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
+      const payload: AppInstallRequest = {
+        custom_name: customName || null,
+        environment: Object.fromEntries(
+          Object.entries(environmentValues).filter(([name, value]) => {
+            const descriptor = selectedApp.environment.find((item) => item.name === name)
+            return !(descriptor?.generate && !value)
+          })
+        ),
+      }
       const res = await fetch(
         getApiUrl(`/containers/app-store/apps/${selectedApp.id}/install`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ custom_name: customName || null }),
+          body: JSON.stringify(payload),
         }
       )
 
@@ -184,6 +249,27 @@ export function AppStore() {
       }
     } catch {
       setError("Failed to install app")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdate = async (projectName: string) => {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await fetch(
+        getApiUrl(`/containers/app-store/apps/${encodeURIComponent(projectName)}/update`),
+        { method: "POST" }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || "Failed to update app")
+      setSuccess(data.message)
+      await loadApps()
+      if (selectedApp) await handleShowDetails(selectedApp.id)
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Failed to update app")
     } finally {
       setLoading(false)
     }
@@ -290,7 +376,7 @@ export function AppStore() {
                 {app.installed && (
                   <Badge variant="secondary" className="gap-1">
                     <CheckCircle className="h-3 w-3" />
-                    Installed
+                    {app.installations.length} installed
                   </Badge>
                 )}
               </div>
@@ -314,20 +400,14 @@ export function AppStore() {
               >
                 Details
               </Button>
-              {!app.installed ? (
-                <Button
-                  size="sm"
-                  className="flex-1 gap-1"
-                  onClick={() => handleInstallClick(app)}
-                >
-                  <Download className="h-4 w-4" />
-                  Install
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" className="flex-1" disabled>
-                  Installed
-                </Button>
-              )}
+              <Button
+                size="sm"
+                className="flex-1 gap-1"
+                onClick={() => handleInstallClick(app)}
+              >
+                <Download className="h-4 w-4" />
+                Install
+              </Button>
             </CardFooter>
           </Card>
         ))}
@@ -432,9 +512,10 @@ export function AppStore() {
                 <div>
                   <h3 className="font-semibold mb-2">Ports</h3>
                   <div className="flex flex-wrap gap-2">
-                    {selectedApp?.ports.map((port, idx) => (
-                      <Badge key={idx} variant="outline">
-                        {port}
+                    {selectedApp?.ports.map((port) => (
+                      <Badge key={`${port.host}-${port.container}-${port.protocol}`} variant="outline">
+                        {port.host}:{port.container}/{port.protocol}
+                        {port.description ? ` — ${port.description}` : ""}
                       </Badge>
                     ))}
                   </div>
@@ -447,31 +528,63 @@ export function AppStore() {
                         key={idx}
                         className="block text-xs bg-muted p-2 rounded"
                       >
-                        {volume}
+                        {volume.host}:{volume.container}:{volume.mode}
+                        {volume.description ? ` — ${volume.description}` : ""}
                       </code>
                     ))}
                   </div>
                 </div>
                 {selectedApp?.environment &&
-                  Object.keys(selectedApp.environment).length > 0 && (
+                  selectedApp.environment.length > 0 && (
                     <div>
                       <h3 className="font-semibold mb-2">
                         Environment Variables
                       </h3>
                       <div className="space-y-1">
-                        {Object.entries(selectedApp.environment).map(
-                          ([key, value]) => (
+                        {selectedApp.environment.map(
+                          (variable) => (
                             <code
-                              key={key}
+                              key={variable.name}
                               className="block text-xs bg-muted p-2 rounded"
                             >
-                              {key}={value}
+                              {variable.name}
+                              {variable.required ? " (required)" : ""}
+                              {variable.secret ? " — secret" : variable.default ? `=${variable.default}` : ""}
                             </code>
                           )
                         )}
                       </div>
                     </div>
                   )}
+                {selectedApp && selectedApp.installations.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Installations</h3>
+                    <div className="space-y-2">
+                      {selectedApp.installations.map((installation) => (
+                        <div
+                          key={installation.project_name}
+                          className="flex items-center justify-between gap-3 rounded border p-3"
+                        >
+                          <div>
+                            <p className="font-mono text-sm">{installation.project_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              v{installation.version} · {installation.status}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={loading}
+                            onClick={() => handleUpdate(installation.project_name)}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Update
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="compose">
                 <pre className="text-xs bg-muted p-4 rounded overflow-x-auto">
@@ -488,27 +601,20 @@ export function AppStore() {
             </ScrollArea>
           </Tabs>
           <DialogFooter>
-            {!selectedApp?.installed ? (
-              <Button onClick={() => {
-                setDetailsOpen(false)
-                handleInstallClick(selectedApp!)
-              }}>
-                <Download className="h-4 w-4 mr-2" />
-                Install
-              </Button>
-            ) : (
-              <Badge variant="secondary" className="gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Already Installed
-              </Badge>
-            )}
+            <Button onClick={() => {
+              setDetailsOpen(false)
+              handleInstallClick(selectedApp!)
+            }}>
+              <Download className="h-4 w-4 mr-2" />
+              Install another
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Install Dialog */}
       <Dialog open={installDialogOpen} onOpenChange={setInstallDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Install {selectedApp?.name}</DialogTitle>
             <DialogDescription>
@@ -529,6 +635,38 @@ export function AppStore() {
                 Will be normalized to lowercase with hyphens
               </p>
             </div>
+            {selectedApp?.environment
+              .filter((variable) => !variable.managed)
+              .map((variable) => (
+                <div key={variable.name} className="space-y-1">
+                  <Label htmlFor={`app-env-${variable.name}`}>
+                    {variable.label}
+                    {variable.required && !variable.generate ? " *" : ""}
+                  </Label>
+                  <Input
+                    id={`app-env-${variable.name}`}
+                    type={variable.secret ? "password" : "text"}
+                    autoComplete={variable.secret ? "new-password" : "off"}
+                    value={environmentValues[variable.name] ?? ""}
+                    minLength={variable.min_length}
+                    placeholder={
+                      variable.generate
+                        ? "Leave blank to generate securely"
+                        : variable.default || undefined
+                    }
+                    onChange={(event) =>
+                      setEnvironmentValues((current) => ({
+                        ...current,
+                        [variable.name]: event.target.value,
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {variable.description || variable.name}
+                    {variable.generate ? " A cryptographically secure value is generated when blank." : ""}
+                  </p>
+                </div>
+              ))}
           </div>
           <DialogFooter>
             <Button

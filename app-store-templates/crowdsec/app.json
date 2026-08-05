@@ -1,18 +1,69 @@
 {
+  "schema_version": 1,
+  "id": "crowdsec",
   "name": "CrowdSec",
   "description": "A modern, open-source, collaborative security engine. CrowdSec detects and blocks malicious IPs and behaviors by analyzing logs, sharing threat intelligence across a global community, and enforcing bans via bouncers.",
-  "version": "latest",
+  "version": "1.6.4",
   "category": "security",
   "icon": "🛡️",
   "author": "CrowdSec",
   "ports": [
-    "8080:8080",
-    "6060:6060"
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 6060,
+      "container": 6060,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/crowdsec/config:/etc/crowdsec",
-    "/opt/upservx/data/crowdsec/data:/var/lib/crowdsec/data",
-    "/var/log:/var/log:ro"
+    {
+      "host": "/opt/upservx/data/crowdsec/config",
+      "container": "/etc/crowdsec",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/crowdsec/data",
+      "container": "/var/lib/crowdsec/data",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/var/log",
+      "container": "/var/log",
+      "mode": "ro",
+      "description": ""
+    }
   ],
-  "environment": {}
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "CROWDSEC_LAPI_KEY",
+      "label": "Crowdsec Lapi Key",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": false,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

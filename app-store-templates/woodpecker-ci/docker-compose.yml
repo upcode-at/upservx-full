@@ -1,36 +1,32 @@
-version: '3.8'
-
 services:
   woodpecker-server:
-    image: woodpeckerci/woodpecker-server:latest
-    container_name: woodpecker-server
+    image: woodpeckerci/woodpecker-server:v3.9.0
     restart: unless-stopped
     ports:
       - "8000:8000"   # Web UI & API
       - "9000:9000"   # gRPC (agent communication)
     environment:
       # Public URL of the Woodpecker server
-      - WOODPECKER_HOST=http://your-server:8000
+      - WOODPECKER_HOST=${WOODPECKER_HOST:?WOODPECKER_HOST is required}
       # Gitea integration – create an OAuth2 app in Gitea first (see README)
-      - WOODPECKER_GITEA=true
-      - WOODPECKER_GITEA_URL=http://your-gitea:3000
-      - WOODPECKER_GITEA_CLIENT=your-oauth2-client-id
-      - WOODPECKER_GITEA_SECRET=your-oauth2-client-secret
+      - WOODPECKER_GITEA=${WOODPECKER_GITEA:-true}
+      - WOODPECKER_GITEA_URL=${WOODPECKER_GITEA_URL:?WOODPECKER_GITEA_URL is required}
+      - WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT:?WOODPECKER_GITEA_CLIENT is required}
+      - WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET:?WOODPECKER_GITEA_SECRET is required}
       # Shared secret between server and agents – use a random string
-      - WOODPECKER_AGENT_SECRET=changeme-random-secret
+      - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET:?WOODPECKER_AGENT_SECRET is required}
       # Database (SQLite by default, change to postgres for production)
       - WOODPECKER_DATABASE_DRIVER=sqlite3
       - WOODPECKER_DATABASE_DATASOURCE=/var/lib/woodpecker/woodpecker.sqlite
     volumes:
-      - /opt/upservx/data/woodpecker-server:/var/lib/woodpecker
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/woodpecker-server:/var/lib/woodpecker
 
   woodpecker-agent:
-    image: woodpeckerci/woodpecker-agent:latest
-    container_name: woodpecker-agent
+    image: woodpeckerci/woodpecker-agent:v3.9.0
     restart: unless-stopped
     environment:
       - WOODPECKER_SERVER=woodpecker-server:9000
-      - WOODPECKER_AGENT_SECRET=changeme-random-secret
+      - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET:?WOODPECKER_AGENT_SECRET is required}
       - WOODPECKER_MAX_WORKFLOWS=4
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

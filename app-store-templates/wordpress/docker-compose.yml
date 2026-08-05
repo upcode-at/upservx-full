@@ -1,31 +1,27 @@
-version: '3.8'
-
 services:
   wordpress-db:
-    image: mariadb:11
-    container_name: wordpress-db
+    image: mariadb:11.4.8
     restart: unless-stopped
     volumes:
-      - /opt/upservx/data/wordpress/db:/var/lib/mysql
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/wordpress/db:/var/lib/mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=wordpress
-      - MYSQL_USER=wordpress
-      - MYSQL_PASSWORD=wordpress
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-wordpress}
+      - MYSQL_USER=${MYSQL_USER:-wordpress}
+      - MYSQL_PASSWORD=${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD is required}
     command: '--default-authentication-plugin=mysql_native_password'
 
   wordpress:
-    image: wordpress:latest
-    container_name: wordpress
+    image: wordpress:6.8.2-php8.3-apache
     restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
-      - /opt/upservx/data/wordpress/html:/var/www/html
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/wordpress/html:/var/www/html
     environment:
-      - WORDPRESS_DB_HOST=wordpress-db
-      - WORDPRESS_DB_USER=wordpress
-      - WORDPRESS_DB_PASSWORD=wordpress
-      - WORDPRESS_DB_NAME=wordpress
+      - WORDPRESS_DB_HOST=${WORDPRESS_DB_HOST:-wordpress-db}
+      - WORDPRESS_DB_USER=${WORDPRESS_DB_USER:-wordpress}
+      - WORDPRESS_DB_PASSWORD=${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD is required}
+      - WORDPRESS_DB_NAME=${WORDPRESS_DB_NAME:-wordpress}
     depends_on:
       - wordpress-db

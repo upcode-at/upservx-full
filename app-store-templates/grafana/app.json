@@ -1,21 +1,84 @@
 {
+  "schema_version": 1,
+  "id": "grafana",
   "name": "Grafana",
   "description": "Analytics and interactive visualization platform. Create, explore, and share beautiful dashboards with your team for monitoring and observability.",
-  "version": "latest",
+  "version": "12.1.0",
   "category": "monitoring",
   "icon": "📊",
   "author": "Grafana Labs",
   "ports": [
-    "3000:3000"
+    {
+      "host": 3000,
+      "container": 3000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/grafana/data:/var/lib/grafana",
-    "/opt/upservx/data/grafana/provisioning:/etc/grafana/provisioning"
+    {
+      "host": "/opt/upservx/data/grafana/data",
+      "container": "/var/lib/grafana",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/grafana/provisioning",
+      "container": "/etc/grafana/provisioning",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "GF_SECURITY_ADMIN_USER": "admin",
-    "GF_SECURITY_ADMIN_PASSWORD": "admin",
-    "GF_INSTALL_PLUGINS": "",
-    "GF_SERVER_ROOT_URL": "http://localhost:3000"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "GF_INSTALL_PLUGINS",
+      "label": "Gf Install Plugins",
+      "description": "",
+      "default": "",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "GF_SECURITY_ADMIN_PASSWORD",
+      "label": "Gf Security Admin Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "GF_SECURITY_ADMIN_USER",
+      "label": "Gf Security Admin User",
+      "description": "",
+      "default": "admin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "GF_SERVER_ROOT_URL",
+      "label": "Gf Server Root Url",
+      "description": "",
+      "default": "http://localhost:3000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

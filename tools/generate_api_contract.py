@@ -24,6 +24,7 @@ SELECTED_SCHEMAS = (
     "SSHKeyGenerateRequest",
     "SSHKeyImportRequest",
     "SSHKeyTestRequest",
+    "AppInstallRequest",
 )
 
 
@@ -43,7 +44,17 @@ def _type(schema: dict[str, Any], *, typescript: bool) -> str:
         item = _type(schema.get("items", {}), typescript=typescript)
         return f"{item}[]" if typescript else f"list[{item}]"
     if kind == "object":
-        return "Record<string, unknown>" if typescript else "dict[str, Any]"
+        value_schema = schema.get("additionalProperties")
+        value_type = (
+            _type(value_schema, typescript=typescript)
+            if isinstance(value_schema, dict)
+            else ("unknown" if typescript else "Any")
+        )
+        return (
+            f"Record<string, {value_type}>"
+            if typescript
+            else f"dict[str, {value_type}]"
+        )
     mapping = {
         "string": "string" if typescript else "str",
         "integer": "number" if typescript else "int",

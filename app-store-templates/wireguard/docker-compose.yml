@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   wireguard:
-    image: ghcr.io/wg-easy/wg-easy:latest
-    container_name: wireguard
+    image: ghcr.io/wg-easy/wg-easy:15.1.0
     restart: unless-stopped
     ports:
       - "51820:51820/udp"
@@ -16,14 +13,14 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     environment:
       # Replace with your server's public IP or domain
-      - WG_HOST=your-server-ip-or-domain
+      - WG_HOST=${WG_HOST:?WG_HOST is required}
       # Generate a bcrypt hash: docker run --rm ghcr.io/wg-easy/wg-easy wgpw YOUR_PASSWORD
-      - PASSWORD_HASH=changeme
-      - WG_DEFAULT_DNS=1.1.1.1
-      - WG_DEFAULT_ADDRESS=10.8.0.x
-      - WG_ALLOWED_IPS=0.0.0.0/0
+      - PASSWORD_HASH=${PASSWORD_HASH:?PASSWORD_HASH is required}
+      - WG_DEFAULT_DNS=${WG_DEFAULT_DNS:-1.1.1.1}
+      - WG_DEFAULT_ADDRESS=${WG_DEFAULT_ADDRESS:-10.8.0.x}
+      - WG_ALLOWED_IPS=${WG_ALLOWED_IPS:-0.0.0.0/0}
       - WG_PERSISTENT_KEEPALIVE=25
       - PORT=51821
       - WG_PORT=51820
     volumes:
-      - /opt/upservx/data/wireguard:/etc/wireguard
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/wireguard:/etc/wireguard

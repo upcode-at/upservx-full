@@ -1,18 +1,60 @@
 {
+  "schema_version": 1,
+  "id": "open-webui",
   "name": "Open WebUI",
   "description": "A user-friendly, self-hosted web interface for running large language models locally via Ollama or remotely via OpenAI-compatible APIs. Supports chat history, model management, system prompts, and multi-user access.",
-  "version": "latest",
+  "version": "0.6.22",
   "category": "ai",
   "icon": "🤖",
   "author": "Open WebUI",
   "ports": [
-    "3000:8080"
+    {
+      "host": 3000,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/open-webui:/app/backend/data"
+    {
+      "host": "/opt/upservx/data/open-webui",
+      "container": "/app/backend/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "OLLAMA_BASE_URL": "http://ollama:11434",
-    "WEBUI_SECRET_KEY": "changeme-use-a-random-secret"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "OLLAMA_BASE_URL",
+      "label": "Ollama Base Url",
+      "description": "",
+      "default": "http://ollama:11434",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "WEBUI_SECRET_KEY",
+      "label": "Webui Secret Key",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

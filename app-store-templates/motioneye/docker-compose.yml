@@ -1,18 +1,15 @@
-version: '3.8'
-
 services:
   motioneye:
-    image: ghcr.io/motioneye-project/motioneye:latest
-    container_name: motioneye
+    image: ghcr.io/motioneye-project/motioneye:0.43.1
     restart: unless-stopped
     ports:
       - "8765:8765"
     volumes:
-      - /opt/upservx/data/motioneye/config:/etc/motioneye
-      - /opt/upservx/data/motioneye/media:/var/lib/motioneye
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/motioneye/config:/etc/motioneye
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/motioneye/media:/var/lib/motioneye
       - /etc/localtime:/etc/localtime:ro
     environment:
-      - TZ=Europe/Berlin
+      - TZ=${TZ:-Europe/Berlin}
     # Pass through video devices (USB cameras)
     # Uncomment and adjust as needed:
     # devices:

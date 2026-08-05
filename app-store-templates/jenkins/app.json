@@ -1,18 +1,56 @@
 {
+  "schema_version": 1,
+  "id": "jenkins",
   "name": "Jenkins",
   "description": "Leading open source automation server for CI/CD. Build, test, and deploy your software with powerful automation pipelines.",
-  "version": "lts",
+  "version": "2.516.1",
   "category": "development",
   "icon": "🔧",
   "author": "Jenkins Project",
   "ports": [
-    "8080:8080",
-    "50000:50000"
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 50000,
+      "container": 50000,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/jenkins:/var/jenkins_home"
+    {
+      "host": "/opt/upservx/data/jenkins",
+      "container": "/var/jenkins_home",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "JENKINS_OPTS": "--prefix=/jenkins"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "JENKINS_OPTS",
+      "label": "Jenkins Opts",
+      "description": "",
+      "default": "--prefix=/jenkins",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

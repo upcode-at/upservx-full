@@ -1,16 +1,13 @@
-version: '3.8'
-
 services:
   mongodb:
-    image: mongo:latest
-    container_name: mongodb
+    image: mongo:8.0.13
     restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
-      - /opt/upservx/data/mongodb/data:/data/db
-      - /opt/upservx/data/mongodb/config:/data/configdb
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mongodb/data:/data/db
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/mongodb/config:/data/configdb
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=adminpassword
-      - MONGO_INITDB_DATABASE=mydb
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD is required}
+      - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-mydb}

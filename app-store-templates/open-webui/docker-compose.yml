@@ -1,26 +1,22 @@
-version: '3.8'
-
 services:
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
+    image: ghcr.io/open-webui/open-webui:v0.6.22
     restart: unless-stopped
     ports:
       - "3000:8080"
     environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - WEBUI_SECRET_KEY=changeme-use-a-random-secret
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:?WEBUI_SECRET_KEY is required}
     volumes:
-      - /opt/upservx/data/open-webui:/app/backend/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/open-webui:/app/backend/data
     depends_on:
       - ollama
 
   ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
+    image: ollama/ollama:0.11.2
     restart: unless-stopped
     volumes:
-      - /opt/upservx/data/ollama:/root/.ollama
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/ollama:/root/.ollama
     # Uncomment the following lines to enable NVIDIA GPU support:
     # deploy:
     #   resources:

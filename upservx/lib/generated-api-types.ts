@@ -72,3 +72,8 @@ export interface SSHKeyTestRequest {
   port?: number
   passphrase?: string | null
 }
+
+export interface AppInstallRequest {
+  custom_name?: string | null
+  environment?: Record<string, string>
+}

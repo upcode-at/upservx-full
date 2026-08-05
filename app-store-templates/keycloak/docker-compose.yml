@@ -1,40 +1,36 @@
-version: '3.8'
-
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    container_name: keycloak
+    image: quay.io/keycloak/keycloak:26.3.2
     restart: unless-stopped
     ports:
       - "8080:8080"
       - "8443:8443"
     volumes:
-      - /opt/upservx/data/keycloak/data:/opt/keycloak/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/keycloak/data:/opt/keycloak/data
     environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_DB=postgres
-      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
-      - KC_DB_USERNAME=keycloak
-      - KC_DB_PASSWORD=keycloak
-      - KC_HOSTNAME=localhost
-      - KC_HTTP_ENABLED=true
-      - KC_PROXY=edge
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      - KC_DB=${KC_DB:-postgres}
+      - KC_DB_URL=${KC_DB_URL:-jdbc:postgresql://keycloak-db:5432/keycloak}
+      - KC_DB_USERNAME=${KC_DB_USERNAME:-keycloak}
+      - KC_DB_PASSWORD=${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
+      - KC_HOSTNAME=${KC_HOSTNAME:-localhost}
+      - KC_HTTP_ENABLED=${KC_HTTP_ENABLED:-true}
+      - KC_PROXY=${KC_PROXY:-edge}
     command: start
     depends_on:
       keycloak-db:
         condition: service_healthy
 
   keycloak-db:
-    image: postgres:16-alpine
-    container_name: keycloak-db
+    image: postgres:16.9-alpine
     restart: unless-stopped
     volumes:
-      - /opt/upservx/data/keycloak/db:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/keycloak/db:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=keycloak
       - POSTGRES_USER=keycloak
-      - POSTGRES_PASSWORD=keycloak
+      - POSTGRES_PASSWORD=${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak"]
       interval: 10s

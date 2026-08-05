@@ -1,18 +1,60 @@
 {
+  "schema_version": 1,
+  "id": "jupyter",
   "name": "Jupyter Notebook",
   "description": "Web-based interactive computing platform for data science and scientific computing. Create and share documents with live code, equations, visualizations and narrative text.",
-  "version": "latest",
+  "version": "2025.03.14",
   "category": "development",
   "icon": "📓",
   "author": "Project Jupyter",
   "ports": [
-    "8888:8888"
+    {
+      "host": 8888,
+      "container": 8888,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/jupyter:/home/jovyan/work"
+    {
+      "host": "/opt/upservx/data/jupyter",
+      "container": "/home/jovyan/work",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "JUPYTER_ENABLE_LAB": "yes",
-    "JUPYTER_TOKEN": "changeme"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "JUPYTER_ENABLE_LAB",
+      "label": "Jupyter Enable Lab",
+      "description": "",
+      "default": "yes",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "JUPYTER_TOKEN",
+      "label": "Jupyter Token",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

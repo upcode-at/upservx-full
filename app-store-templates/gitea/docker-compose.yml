@@ -1,15 +1,12 @@
-version: '3.8'
-
 services:
   gitea:
-    image: gitea/gitea:latest
-    container_name: gitea
+    image: gitea/gitea:1.24.3
     restart: unless-stopped
     environment:
-      - USER_UID=1000
-      - USER_GID=1000
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
     volumes:
-      - /opt/upservx/data/gitea:/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/gitea:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     ports:

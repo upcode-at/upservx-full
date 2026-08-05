@@ -1,23 +1,103 @@
 {
+  "schema_version": 1,
+  "id": "influxdb",
   "name": "InfluxDB",
   "description": "High-performance time series database. Purpose-built for storing and analyzing time-stamped data like metrics, events, and real-time analytics.",
-  "version": "latest",
+  "version": "2.7.12",
   "category": "database",
   "icon": "📈",
   "author": "InfluxData",
   "ports": [
-    "8086:8086"
+    {
+      "host": 8086,
+      "container": 8086,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/influxdb/data:/var/lib/influxdb2",
-    "/opt/upservx/data/influxdb/config:/etc/influxdb2"
+    {
+      "host": "/opt/upservx/data/influxdb/data",
+      "container": "/var/lib/influxdb2",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/influxdb/config",
+      "container": "/etc/influxdb2",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "DOCKER_INFLUXDB_INIT_MODE": "setup",
-    "DOCKER_INFLUXDB_INIT_USERNAME": "admin",
-    "DOCKER_INFLUXDB_INIT_PASSWORD": "adminpassword",
-    "DOCKER_INFLUXDB_INIT_ORG": "myorg",
-    "DOCKER_INFLUXDB_INIT_BUCKET": "mybucket",
-    "DOCKER_INFLUXDB_INIT_ADMIN_TOKEN": "mytoken123456"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_ADMIN_TOKEN",
+      "label": "Docker Influxdb Init Admin Token",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_BUCKET",
+      "label": "Docker Influxdb Init Bucket",
+      "description": "",
+      "default": "mybucket",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_MODE",
+      "label": "Docker Influxdb Init Mode",
+      "description": "",
+      "default": "setup",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_ORG",
+      "label": "Docker Influxdb Init Org",
+      "description": "",
+      "default": "myorg",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_PASSWORD",
+      "label": "Docker Influxdb Init Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "DOCKER_INFLUXDB_INIT_USERNAME",
+      "label": "Docker Influxdb Init Username",
+      "description": "",
+      "default": "admin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

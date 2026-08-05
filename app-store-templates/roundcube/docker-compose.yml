@@ -1,28 +1,25 @@
-version: '3.8'
-
 services:
   roundcube:
-    image: roundcube/roundcubemail:latest
-    container_name: roundcube
+    image: roundcube/roundcubemail:1.6.11-apache
     restart: unless-stopped
     ports:
       - "8090:80"
     volumes:
-      - /opt/upservx/data/roundcube/www:/var/www/html
-      - /opt/upservx/data/roundcube/db:/var/roundcube/db
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/roundcube/www:/var/www/html
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/roundcube/db:/var/roundcube/db
     environment:
       # IMAP server settings ← change to your mail server
-      - ROUNDCUBEMAIL_DEFAULT_HOST=ssl://mail.example.com
-      - ROUNDCUBEMAIL_DEFAULT_PORT=993
+      - ROUNDCUBEMAIL_DEFAULT_HOST=${ROUNDCUBEMAIL_DEFAULT_HOST:?ROUNDCUBEMAIL_DEFAULT_HOST is required}
+      - ROUNDCUBEMAIL_DEFAULT_PORT=${ROUNDCUBEMAIL_DEFAULT_PORT:-993}
       # SMTP server settings ← change to your mail server
-      - ROUNDCUBEMAIL_SMTP_SERVER=tls://mail.example.com
-      - ROUNDCUBEMAIL_SMTP_PORT=587
+      - ROUNDCUBEMAIL_SMTP_SERVER=${ROUNDCUBEMAIL_SMTP_SERVER:?ROUNDCUBEMAIL_SMTP_SERVER is required}
+      - ROUNDCUBEMAIL_SMTP_PORT=${ROUNDCUBEMAIL_SMTP_PORT:-587}
       # Database (sqlite for single-user/small setups, mysql for larger)
-      - ROUNDCUBEMAIL_DB_TYPE=sqlite
+      - ROUNDCUBEMAIL_DB_TYPE=${ROUNDCUBEMAIL_DB_TYPE:-sqlite}
       # UI
-      - ROUNDCUBEMAIL_SKIN=elastic
+      - ROUNDCUBEMAIL_SKIN=${ROUNDCUBEMAIL_SKIN:-elastic}
       # Plugins (comma-separated)
-      - ROUNDCUBEMAIL_PLUGINS=archive,zipdownload,managesieve
+      - ROUNDCUBEMAIL_PLUGINS=${ROUNDCUBEMAIL_PLUGINS:-archive,zipdownload,managesieve}
       # Upload limit
       - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=25M
       # Spam folder

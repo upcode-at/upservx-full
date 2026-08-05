@@ -1,20 +1,17 @@
-version: '3.8'
-
 services:
   immich-server:
-    image: ghcr.io/immich-app/immich-server:release
-    container_name: immich-server
+    image: ghcr.io/immich-app/immich-server:v1.136.0
     restart: unless-stopped
     ports:
       - "2283:2283"
     environment:
       - DB_HOSTNAME=immich-db
-      - DB_USERNAME=immich
-      - DB_PASSWORD=changeme
-      - DB_DATABASE_NAME=immich
+      - DB_USERNAME=${DB_USERNAME:-immich}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_DATABASE_NAME=${DB_DATABASE_NAME:-immich}
       - REDIS_HOSTNAME=immich-redis
     volumes:
-      - /opt/upservx/data/immich/upload:/usr/src/app/upload
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/immich/upload:/usr/src/app/upload
       - /etc/localtime:/etc/localtime:ro
     depends_on:
       immich-db:
@@ -23,18 +20,17 @@ services:
         condition: service_started
 
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:release
-    container_name: immich-machine-learning
+    image: ghcr.io/immich-app/immich-machine-learning:v1.136.0
     restart: unless-stopped
     environment:
       - DB_HOSTNAME=immich-db
-      - DB_USERNAME=immich
-      - DB_PASSWORD=changeme
-      - DB_DATABASE_NAME=immich
+      - DB_USERNAME=${DB_USERNAME:-immich}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_DATABASE_NAME=${DB_DATABASE_NAME:-immich}
       - REDIS_HOSTNAME=immich-redis
     volumes:
-      - /opt/upservx/data/immich/upload:/usr/src/app/upload
-      - /opt/upservx/data/immich/model-cache:/cache
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/immich/upload:/usr/src/app/upload
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/immich/model-cache:/cache
       - /etc/localtime:/etc/localtime:ro
     depends_on:
       immich-db:
@@ -43,20 +39,18 @@ services:
         condition: service_started
 
   immich-redis:
-    image: redis:7-alpine
-    container_name: immich-redis
+    image: redis:7.4.5-alpine
     restart: unless-stopped
 
   immich-db:
     image: tensorchord/pgvecto-rs:pg14-v0.2.0
-    container_name: immich-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=immich
-      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - POSTGRES_DB=immich
     volumes:
-      - /opt/upservx/data/immich-db:/var/lib/postgresql/data
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/immich-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U immich"]
       interval: 10s

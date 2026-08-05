@@ -1,25 +1,91 @@
 {
+  "schema_version": 1,
+  "id": "openldap",
   "name": "OpenLDAP",
   "description": "Open-source implementation of the Lightweight Directory Access Protocol (LDAP). Centrally manage users, groups, and authentication for your infrastructure.",
-  "version": "latest",
+  "version": "1.5.0",
   "category": "security",
   "icon": "📒",
   "author": "OpenLDAP Foundation",
   "ports": [
-    "389:389",
-    "636:636"
+    {
+      "host": 389,
+      "container": 389,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 636,
+      "container": 636,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/openldap/data:/var/lib/ldap",
-    "/opt/upservx/data/openldap/config:/etc/ldap/slapd.d"
+    {
+      "host": "/opt/upservx/data/openldap/data",
+      "container": "/var/lib/ldap",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/openldap/config",
+      "container": "/etc/ldap/slapd.d",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "LDAP_ORGANISATION": "My Organisation",
-    "LDAP_DOMAIN": "example.com",
-    "LDAP_ADMIN_PASSWORD": "admin",
-    "LDAP_CONFIG_PASSWORD": "config",
-    "LDAP_READONLY_USER": "false",
-    "LDAP_TLS": "true",
-    "LDAP_TLS_VERIFY_CLIENT": "never"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "LDAP_ADMIN_PASSWORD",
+      "label": "Ldap Admin Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "LDAP_CONFIG_ADMIN_PASSWORD",
+      "label": "Ldap Config Admin Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "LDAP_DOMAIN",
+      "label": "Ldap Domain",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "LDAP_ORGANISATION",
+      "label": "Ldap Organisation",
+      "description": "",
+      "default": "My Organisation",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

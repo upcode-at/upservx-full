@@ -1,22 +1,80 @@
 {
+  "schema_version": 1,
+  "id": "rustdesk",
   "name": "RustDesk",
   "description": "Open-source remote desktop software with self-hosted server. Provides secure, encrypted remote access without relying on third-party servers. Full alternative to TeamViewer or AnyDesk.",
-  "version": "latest",
+  "version": "1.1.14",
   "category": "networking",
   "icon": "🖥️",
   "author": "RustDesk",
   "ports": [
-    "21115:21115",
-    "21116:21116",
-    "21116:21116/udp",
-    "21117:21117",
-    "21118:21118",
-    "21119:21119"
+    {
+      "host": 21115,
+      "container": 21115,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 21116,
+      "container": 21116,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 21116,
+      "container": 21116,
+      "protocol": "udp",
+      "description": ""
+    },
+    {
+      "host": 21117,
+      "container": 21117,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 21118,
+      "container": 21118,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 21119,
+      "container": 21119,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/rustdesk:/data"
+    {
+      "host": "/opt/upservx/data/rustdesk",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "ENCRYPTED_ONLY": "1"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "ENCRYPTED_ONLY",
+      "label": "Encrypted Only",
+      "description": "",
+      "default": "1",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

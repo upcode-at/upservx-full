@@ -1,27 +1,128 @@
 {
+  "schema_version": 1,
+  "id": "traefik",
   "name": "Traefik",
   "description": "Modern HTTP reverse proxy and load balancer that makes deploying microservices easy. Supports automatic SSL via Let's Encrypt, Docker-native service discovery, and a built-in dashboard.",
-  "version": "latest",
+  "version": "3.5.0",
   "category": "networking",
   "icon": "🔀",
   "author": "Traefik Labs",
   "ports": [
-    "80:80",
-    "443:443",
-    "8080:8080"
+    {
+      "host": 80,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 443,
+      "container": 443,
+      "protocol": "tcp",
+      "description": ""
+    },
+    {
+      "host": 8080,
+      "container": 8080,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/traefik/config:/etc/traefik",
-    "/opt/upservx/data/traefik/acme:/acme",
-    "/var/run/docker.sock:/var/run/docker.sock:ro"
+    {
+      "host": "/opt/upservx/data/traefik/config",
+      "container": "/etc/traefik",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/opt/upservx/data/traefik/acme",
+      "container": "/acme",
+      "mode": "rw",
+      "description": ""
+    },
+    {
+      "host": "/var/run/docker.sock",
+      "container": "/var/run/docker.sock",
+      "mode": "ro",
+      "description": ""
+    }
   ],
-  "environment": {
-    "TRAEFIK_API_INSECURE": "true",
-    "TRAEFIK_API_DASHBOARD": "true",
-    "TRAEFIK_PROVIDERS_DOCKER": "true",
-    "TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT": "false",
-    "TRAEFIK_ENTRYPOINTS_WEB_ADDRESS": ":80",
-    "TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS": ":443",
-    "TRAEFIK_LOG_LEVEL": "INFO"
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "TRAEFIK_API_DASHBOARD",
+      "label": "Traefik Api Dashboard",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_API_INSECURE",
+      "label": "Traefik Api Insecure",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS",
+      "label": "Traefik Entrypoints Websecure Address",
+      "description": "",
+      "default": ":443",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_ENTRYPOINTS_WEB_ADDRESS",
+      "label": "Traefik Entrypoints Web Address",
+      "description": "",
+      "default": ":80",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_LOG_LEVEL",
+      "label": "Traefik Log Level",
+      "description": "",
+      "default": "INFO",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_PROVIDERS_DOCKER",
+      "label": "Traefik Providers Docker",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT",
+      "label": "Traefik Providers Docker Exposedbydefault",
+      "description": "",
+      "default": "false",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

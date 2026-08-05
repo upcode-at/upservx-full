@@ -1,13 +1,10 @@
-version: '3.8'
-
 services:
   openvpn:
-    image: kylemanna/openvpn:latest
-    container_name: openvpn
+    image: kylemanna/openvpn:2.4
     restart: unless-stopped
     ports:
       - "1194:1194/udp"
     cap_add:
       - NET_ADMIN
     volumes:
-      - /opt/upservx/data/openvpn:/etc/openvpn
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/openvpn:/etc/openvpn

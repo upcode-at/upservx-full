@@ -1,106 +1,193 @@
 {
+  "schema_version": 1,
+  "id": "paperless-ngx",
   "name": "Paperless-ngx",
   "description": "A community-supported supercharged version of paperless: scan, index and archive all your physical documents",
-  "version": "latest",
+  "version": "2.18.1",
   "category": "document",
   "icon": "📄",
-  "tags": ["document-management", "ocr", "scanning", "archive", "productivity"],
   "author": "paperless-ngx",
   "website": "https://docs.paperless-ngx.com/",
   "repository": "https://github.com/paperless-ngx/paperless-ngx",
+  "tags": [
+    "document-management",
+    "ocr",
+    "scanning",
+    "archive",
+    "productivity"
+  ],
   "ports": [
     {
-      "container": 8000,
       "host": 8000,
+      "container": 8000,
+      "protocol": "tcp",
       "description": "Web interface"
     }
   ],
   "volumes": [
     {
-      "container": "/usr/src/paperless/data",
       "host": "./data",
+      "container": "/usr/src/paperless/data",
+      "mode": "rw",
       "description": "Application data"
     },
     {
-      "container": "/usr/src/paperless/media",
       "host": "./media",
+      "container": "/usr/src/paperless/media",
+      "mode": "rw",
       "description": "Document storage"
     },
     {
-      "container": "/usr/src/paperless/export",
       "host": "./export",
+      "container": "/usr/src/paperless/export",
+      "mode": "rw",
       "description": "Export directory"
     },
     {
-      "container": "/usr/src/paperless/consume",
       "host": "./consume",
+      "container": "/usr/src/paperless/consume",
+      "mode": "rw",
       "description": "Document intake directory"
     }
   ],
   "environment": [
     {
-      "name": "PAPERLESS_REDIS",
-      "default": "redis://redis:6379",
-      "description": "Redis connection string"
-    },
-    {
-      "name": "PAPERLESS_DBHOST",
-      "default": "db",
-      "description": "PostgreSQL database host"
-    },
-    {
-      "name": "PAPERLESS_DBNAME",
-      "default": "paperless",
-      "description": "Database name"
-    },
-    {
-      "name": "PAPERLESS_DBUSER",
-      "default": "paperless",
-      "description": "Database user"
-    },
-    {
-      "name": "PAPERLESS_DBPASS",
-      "default": "paperless",
-      "description": "Database password",
-      "secret": true
-    },
-    {
-      "name": "PAPERLESS_SECRET_KEY",
+      "name": "PAPERLESS_ADMIN_MAIL",
+      "label": "Paperless Admin Mail",
+      "description": "Admin email address",
       "default": "",
-      "description": "Secret key for encryption (generate a random string)",
-      "secret": true,
-      "required": true
-    },
-    {
-      "name": "PAPERLESS_URL",
-      "default": "http://localhost:8000",
-      "description": "Public URL for the application"
-    },
-    {
-      "name": "PAPERLESS_TIME_ZONE",
-      "default": "Europe/Berlin",
-      "description": "Timezone for the application"
-    },
-    {
-      "name": "PAPERLESS_OCR_LANGUAGE",
-      "default": "deu+eng",
-      "description": "OCR language codes (e.g., deu+eng for German and English)"
-    },
-    {
-      "name": "PAPERLESS_ADMIN_USER",
-      "default": "admin",
-      "description": "Initial admin username"
+      "required": true,
+      "secret": false,
+      "generate": false
     },
     {
       "name": "PAPERLESS_ADMIN_PASSWORD",
-      "default": "admin",
+      "label": "Paperless Admin Password",
       "description": "Initial admin password",
-      "secret": true
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
     },
     {
-      "name": "PAPERLESS_ADMIN_MAIL",
-      "default": "admin@example.com",
-      "description": "Admin email address"
+      "name": "PAPERLESS_ADMIN_USER",
+      "label": "Paperless Admin User",
+      "description": "Initial admin username",
+      "default": "admin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_DBHOST",
+      "label": "Paperless Dbhost",
+      "description": "PostgreSQL database host",
+      "default": "db",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_DBNAME",
+      "label": "Paperless Dbname",
+      "description": "Database name",
+      "default": "paperless",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_DBPASS",
+      "label": "Paperless Dbpass",
+      "description": "Database password",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "PAPERLESS_DBUSER",
+      "label": "Paperless Dbuser",
+      "description": "Database user",
+      "default": "paperless",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_OCR_LANGUAGE",
+      "label": "Paperless Ocr Language",
+      "description": "OCR language codes (e.g., deu+eng for German and English)",
+      "default": "deu+eng",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_PORT",
+      "label": "Paperless Port",
+      "description": "",
+      "default": "8000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_REDIS",
+      "label": "Paperless Redis",
+      "description": "Redis connection string",
+      "default": "redis://redis:6379",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_SECRET_KEY",
+      "label": "Paperless Secret Key",
+      "description": "Secret key for encryption (generate a random string)",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "PAPERLESS_TIME_ZONE",
+      "label": "Paperless Time Zone",
+      "description": "Timezone for the application",
+      "default": "Europe/Berlin",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "PAPERLESS_URL",
+      "label": "Paperless Url",
+      "description": "Public URL for the application",
+      "default": "http://localhost:8000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "USERMAP_GID",
+      "label": "Usermap Gid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "USERMAP_UID",
+      "label": "Usermap Uid",
+      "description": "",
+      "default": "1000",
+      "required": false,
+      "secret": false,
+      "generate": false
     }
   ],
   "requirements": {
@@ -115,5 +202,8 @@
     "Configure OCR_LANGUAGE for your preferred languages",
     "Generate a secure PAPERLESS_SECRET_KEY (at least 32 random characters)",
     "Access the web interface at http://your-server:8000"
-  ]
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
+  }
 }

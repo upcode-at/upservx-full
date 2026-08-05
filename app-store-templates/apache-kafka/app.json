@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "id": "apache-kafka",
+  "name": "Apache Kafka",
+  "description": "Distributed event streaming platform running in single-node KRaft mode.",
+  "version": "3.9.1",
+  "category": "infrastructure",
+  "icon": "📨",
+  "author": "Apache Software Foundation",
+  "website": "https://kafka.apache.org/",
+  "repository": "https://github.com/apache/kafka",
+  "tags": [
+    "streaming",
+    "events",
+    "messaging"
+  ],
+  "ports": [
+    {
+      "host": 9092,
+      "container": 9092,
+      "protocol": "tcp",
+      "description": "Kafka client listener"
+    }
+  ],
+  "volumes": [
+    {
+      "host": "/opt/upservx/data/apache-kafka",
+      "container": "/var/lib/kafka/data",
+      "mode": "rw",
+      "description": "Kafka log data"
+    }
+  ],
+  "environment": [
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "KAFKA_CLUSTER_ID",
+      "label": "Kafka Cluster Id",
+      "description": "KRaft cluster identifier generated during installation.",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "generator": "kafka-cluster-id",
+      "min_length": 22
+    }
+  ],
+  "requirements": {
+    "memory": "1GB",
+    "cpu": "2 cores",
+    "disk": "5GB"
+  },
+  "notes": [
+    "This template provides one KRaft broker for small installations and development.",
+    "Use a multi-broker deployment for production availability."
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate",
+    "release_notes": "https://kafka.apache.org/downloads"
+  }
+}

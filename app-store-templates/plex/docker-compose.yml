@@ -1,19 +1,16 @@
-version: '3.8'
-
 services:
   plex:
-    image: lscr.io/linuxserver/plex:latest
-    container_name: plex
+    image: plexinc/pms-docker:1.42.1.10060-4e8b05daf
     network_mode: host
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Vienna
-      - VERSION=docker
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Vienna}
+      - VERSION=${VERSION:-docker}
     ports:
       - "32400:32400"
     volumes:
-      - /opt/upservx/data/plex/config:/config
-      - /opt/upservx/data/plex/transcode:/transcode
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/plex/config:/config
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/plex/transcode:/transcode
       - /mnt/media:/media
     restart: unless-stopped

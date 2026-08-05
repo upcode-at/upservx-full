@@ -1,21 +1,106 @@
 {
+  "schema_version": 1,
+  "id": "vaultwarden",
   "name": "Vaultwarden",
   "description": "Unofficial Bitwarden compatible server. Self-hosted password manager with web vault and browser extensions. Secure, lightweight alternative to cloud password managers.",
-  "version": "latest",
+  "version": "1.34.3",
   "category": "security",
   "icon": "🔐",
   "author": "Vaultwarden",
   "ports": [
-    "8080:80"
+    {
+      "host": 8080,
+      "container": 80,
+      "protocol": "tcp",
+      "description": ""
+    }
   ],
   "volumes": [
-    "/opt/upservx/data/vaultwarden:/data"
+    {
+      "host": "/opt/upservx/data/vaultwarden",
+      "container": "/data",
+      "mode": "rw",
+      "description": ""
+    }
   ],
-  "environment": {
-    "WEBSOCKET_ENABLED": "true",
-    "SIGNUPS_ALLOWED": "true",
-    "INVITATIONS_ALLOWED": "true",
-    "SHOW_PASSWORD_HINT": "false",
-    "DOMAIN": "https://localhost:8080"
+  "environment": [
+    {
+      "name": "ADMIN_TOKEN",
+      "label": "Admin Token",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "APP_DATA_DIR",
+      "label": "App Data Dir",
+      "description": "Managed per-installation data directory.",
+      "default": "",
+      "required": true,
+      "secret": false,
+      "generate": false,
+      "managed": true
+    },
+    {
+      "name": "DOMAIN",
+      "label": "Domain",
+      "description": "",
+      "default": "https://localhost:8080",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "INVITATIONS_ALLOWED",
+      "label": "Invitations Allowed",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "SHOW_PASSWORD_HINT",
+      "label": "Show Password Hint",
+      "description": "",
+      "default": "false",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "SIGNUPS_ALLOWED",
+      "label": "Signups Allowed",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    },
+    {
+      "name": "SMTP_PASSWORD",
+      "label": "Smtp Password",
+      "description": "",
+      "default": "",
+      "required": true,
+      "secret": true,
+      "generate": true,
+      "min_length": 24
+    },
+    {
+      "name": "WEBSOCKET_ENABLED",
+      "label": "Websocket Enabled",
+      "description": "",
+      "default": "true",
+      "required": false,
+      "secret": false,
+      "generate": false
+    }
+  ],
+  "update": {
+    "strategy": "compose-pull-recreate"
   }
 }

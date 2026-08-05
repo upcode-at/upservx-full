@@ -1,17 +1,14 @@
-version: '3.8'
-
 services:
   stirling-pdf:
-    image: stirlingtools/stirling-pdf:latest
-    container_name: stirling-pdf
+    image: stirlingtools/stirling-pdf:0.46.2
     restart: unless-stopped
     environment:
-      - DOCKER_ENABLE_SECURITY=false
-      - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=false
-      - LANGS=en_GB
+      - DOCKER_ENABLE_SECURITY=${DOCKER_ENABLE_SECURITY:-false}
+      - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=${INSTALL_BOOK_AND_ADVANCED_HTML_OPS:-false}
+      - LANGS=${LANGS:-en_GB}
     volumes:
-      - /opt/upservx/data/stirling-pdf/configs:/configs
-      - /opt/upservx/data/stirling-pdf/logs:/logs
-      - /opt/upservx/data/stirling-pdf/customFiles:/customFiles
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/stirling-pdf/configs:/configs
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/stirling-pdf/logs:/logs
+      - ${APP_DATA_DIR:?APP_DATA_DIR is required}/stirling-pdf/customFiles:/customFiles
     ports:
       - "8080:8080"
