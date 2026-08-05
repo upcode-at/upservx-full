@@ -273,16 +273,20 @@ async def container_terminal(websocket: WebSocket, name: str):
     """Provide interactive shell access to a container via websocket."""
     # Authenticate before accepting — middleware bypasses all WS upgrades
     from lib.ws_tickets import consume_ticket
-    from handlers.settings import load_settings
+    from lib.api_tokens import verify_api_token
+    from lib.permissions import check_api_token_capability
     authenticated = False
-    raw_token = websocket.query_params.get("token")
-    if raw_token:
-        if consume_ticket(raw_token):
+    ticket = websocket.query_params.get("token")
+    if ticket and consume_ticket(ticket):
+        authenticated = True
+    authorization = websocket.headers.get("Authorization", "")
+    if not authenticated and authorization.lower().startswith("bearer "):
+        api_token = verify_api_token(authorization.split(" ", 1)[1].strip())
+        if api_token and check_api_token_capability(
+            api_token,
+            "containers:write",
+        ):
             authenticated = True
-        else:
-            settings = load_settings()
-            if settings.api_key and raw_token == settings.api_key:
-                authenticated = True
     if not authenticated:
         await websocket.accept()
         await websocket.close(code=4401)

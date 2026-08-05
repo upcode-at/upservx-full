@@ -78,7 +78,7 @@ The user file takes precedence. Environment variables override everything.
 |-------|---------|-------------|
 | `api_url` | `http://127.0.0.1:9500` | UpservX backend URL |
 | `credentials` | *(empty)* | `base64(username:password)` — set by `auth login` |
-| `token` | *(empty)* | Bearer API key — takes priority over credentials |
+| `token` | *(empty)* | Revocable Bearer API token — takes priority over credentials |
 
 ### Environment Variables
 
@@ -86,14 +86,14 @@ The user file takes precedence. Environment variables override everything.
 |----------|-------------|
 | `UPSERVX_API_URL` | Override the backend URL |
 | `UPSERVX_CREDENTIALS` | Override stored Basic Auth credentials |
-| `UPSERVX_TOKEN` | Override stored Bearer API key |
+| `UPSERVX_TOKEN` | Override stored Bearer API token |
 
 ### Example Config File
 
 ```json
 {
-  "api_url": "http://192.168.1.10:9500",
-  "token": "your-api-key-here"
+  "api_url": "https://upservx.example.com/api",
+  "token": "your-api-token-here"
 }
 ```
 

@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from lib.api_tokens import ApiTokenPrincipal
 
 # ---------------------------------------------------------------------------
 # Register stub modules that only exist on the real server
@@ -64,7 +65,6 @@ def app(tmp_path_factory):
         patch("lib.vnc_proxy.ensure_proxy_running"),           # do not start VNC process
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
-            api_key="test-api-key",
         )),
         patch("pam.pam", return_value=_pam_instance),
     ):
@@ -74,6 +74,24 @@ def app(tmp_path_factory):
         else:
             import main as _main_mod  # noqa: PLC0415
             _app = _main_mod.app
+        _main_module = sys.modules["main"]
+        _main_module.verify_api_token = lambda token: (
+            ApiTokenPrincipal(
+                token_id="test",
+                name="Test administrator token",
+                role="admin",
+                scopes=frozenset({"*"}),
+                expires_at=None,
+            )
+            if token == "test-api-key"
+            else None
+        )
+        # Startup migration is covered against isolated stores by unit tests.
+        # The shared integration app must never mutate the host's /etc/upservx.
+        _main_module.enforce_config_permissions = lambda _root: {}
+        _main_module.migrate_legacy_api_key = lambda _path: False
+        import lib.totp as _totp_module  # noqa: PLC0415
+        _totp_module.migrate_login_token_store = lambda: None
         yield _app
 
 
@@ -99,5 +117,5 @@ def auth_headers():
 
 @pytest.fixture()
 def api_key_headers():
-    """Bearer token for API key authentication (test-api-key)."""
+    """Bearer header for a mocked hashed administrator API token."""
     return {"Authorization": "Bearer test-api-key"}

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 import json
-import shutil
+from lib.secure_store import ensure_config_directory, secure_write_bytes, secure_write_json
 
 router = APIRouter(prefix="/settings/customization", tags=["customization"])
 
@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
 
 
 def _ensure_dir():
-    os.makedirs(CUSTOMIZATION_DIR, mode=0o755, exist_ok=True)
+    ensure_config_directory(CUSTOMIZATION_DIR)
 
 
 def _read_config() -> dict:
@@ -51,8 +51,7 @@ def _read_config() -> dict:
 
 def _write_config(config: dict):
     _ensure_dir()
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=2)
+    secure_write_json(CONFIG_FILE, config)
 
 
 def _find_file(prefix: str) -> Optional[str]:
@@ -123,8 +122,7 @@ async def upload_logo(file: UploadFile = File(...)):
             os.remove(old)
 
     dest = os.path.join(CUSTOMIZATION_DIR, f"logo{ext}")
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    secure_write_bytes(dest, await file.read())
 
     return {"detail": "Logo uploaded", "filename": f"logo{ext}"}
 
@@ -165,8 +163,7 @@ async def upload_banner(file: UploadFile = File(...)):
             os.remove(old)
 
     dest = os.path.join(CUSTOMIZATION_DIR, f"banner{ext}")
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    secure_write_bytes(dest, await file.read())
 
     return {"detail": "Banner uploaded", "filename": f"banner{ext}"}
 

@@ -8,11 +8,20 @@ Note: Tests build a lightweight test app that includes the auth router
 without the full PAM middleware.
 """
 
-import base64
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def isolated_auth_security_state(monkeypatch):
+    """Keep route tests away from the host configuration directory."""
+    import api.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "create_session_token", lambda *_args, **_kwargs: "signed-session")
+    monkeypatch.setattr(auth_mod, "revoke_session_token", lambda _token: True)
+    monkeypatch.setattr(auth_mod.totp_lib, "is_enabled", lambda _username: False)
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +47,6 @@ def _make_auth_app(pam_ok: bool = True):
         patch("api.auth.pam.pam", return_value=_pam_inst),
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
-            api_key="test-api-key",
         )),
         patch("lib.permissions.pwd.getpwnam", side_effect=KeyError),
         patch("lib.permissions.grp.getgrall", return_value=[]),
@@ -71,13 +79,26 @@ class TestAuthLogin:
             resp = client.post("/auth/login", json={"username": "alice", "password": "pw"})
         assert "auth" in resp.cookies
 
-    def test_cookie_contains_base64_credentials(self):
+    def test_cookie_is_https_only_and_hidden_from_javascript(self):
         app, _ = _make_auth_app(pam_ok=True)
-        with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.post("/auth/login", json={"username": "alice", "password": "pw"})
-        cookie_value = resp.cookies.get("auth", "")
-        decoded = base64.b64decode(cookie_value).decode()
-        assert decoded == "alice:pw"
+        with TestClient(
+            app,
+            base_url="https://testserver",
+            raise_server_exceptions=False,
+        ) as client:
+            resp = client.post(
+                "/auth/login",
+                json={"username": "alice", "password": "pw"},
+            )
+        cookie = resp.headers["set-cookie"]
+        assert "signed-session" in cookie
+        assert "Secure" in cookie
+        assert "HttpOnly" in cookie
+        assert "SameSite=strict" in cookie
+        assert "Path=/" in cookie
+        assert "Max-Age=3600" in cookie
+        assert "expires=" in cookie.lower()
+        assert "session_token" not in resp.json()
 
     def test_invalid_credentials_returns_401(self):
         app, pam_inst = _make_auth_app(pam_ok=True)
@@ -112,7 +133,6 @@ class TestAuthLogin:
             patch("api.auth.pam_auth", pam_inst),
             patch("api.auth.load_settings", return_value=MagicMock(
                 deny_root_login=True,
-                api_key=None,
             )),
         ):
             with TestClient(app, raise_server_exceptions=False) as client:

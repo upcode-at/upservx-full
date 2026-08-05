@@ -125,7 +125,7 @@ Top bar. Shows the instance name, connected user, and logout button.
 | `backup/` | Job list, job editor, result history |
 | `services/` | Systemd services with log viewer |
 | `logs/` | Activity log viewer, system log viewer |
-| `settings/` | Settings form, API key management |
+| `settings/` | Settings form and scoped API-token management |
 | `notifications/` | Notification channel configuration |
 | `proxy/` | Reverse proxy route management |
 | `cluster/` | Cluster topology, node management |

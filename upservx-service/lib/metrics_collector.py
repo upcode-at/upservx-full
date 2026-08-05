@@ -11,6 +11,7 @@ import json
 import os
 import psutil
 import socket
+from lib.secure_store import ensure_config_directory, secure_write_json
 
 UPSERVX_CONFIG_DIR = "/etc/upservx"
 METRICS_DIR = os.path.join(UPSERVX_CONFIG_DIR, "metrics")
@@ -207,7 +208,7 @@ class MetricsCollector:
     
     def ensure_metrics_dir(self):
         """Ensure metrics directory exists"""
-        os.makedirs(METRICS_DIR, exist_ok=True)
+        ensure_config_directory(METRICS_DIR)
     
     def load_alerts(self):
         """Load alerts from file"""
@@ -222,11 +223,10 @@ class MetricsCollector:
     def save_alerts(self):
         """Save alerts to file"""
         try:
-            with open(ALERTS_FILE, 'w') as f:
-                data = {
-                    "alerts": [a.to_dict() for a in self.alerts]
-                }
-                json.dump(data, f, indent=2)
+            secure_write_json(
+                ALERTS_FILE,
+                {"alerts": [a.to_dict() for a in self.alerts]},
+            )
         except Exception as e:
             print(f"Error saving alerts: {e}")
     

@@ -2,21 +2,31 @@
 
 import os
 import subprocess
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from lib.models import SettingsModel, NotificationConfig
 from lib.logger import log_vpn
 from handlers.settings import (
-    load_settings, save_settings, apply_system_settings, generate_api_key,
+    load_settings, save_settings, apply_system_settings,
     save_vpn_ovpn, start_vpn, stop_vpn, get_vpn_status,
 )
+from lib.api_tokens import create_api_token, list_api_tokens, revoke_api_token
 from handlers.notifications import (
     load_notifications, save_notifications, test_email, test_webhook,
 )
 
 router = APIRouter()
+
+
+class ApiTokenCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    role: Literal["admin", "operator", "read-only"] = "admin"
+    scopes: list[str] = Field(default_factory=lambda: ["*"])
+    expires_in: int | None = Field(default=None, ge=300, le=31_536_000)
 
 
 # ---------------------------------------------------------------------------
@@ -39,9 +49,42 @@ def update_settings(payload: SettingsModel):
 
 @router.post("/settings/api-key")
 def generate_api_key_endpoint():
-    """Generate a new API key."""
-    api_key = generate_api_key()
-    return {"api_key": api_key}
+    """Compatibility endpoint that creates a revocable admin API token."""
+    token, metadata = create_api_token(
+        "Generated API token",
+        "admin",
+        ["*"],
+    )
+    return {"api_key": token, "token": token, **metadata}
+
+
+@router.get("/settings/api-tokens")
+def get_api_tokens():
+    """List token metadata without returning token hashes or plaintext."""
+    return {"tokens": list_api_tokens()}
+
+
+@router.post("/settings/api-tokens")
+def add_api_token(payload: ApiTokenCreate):
+    """Create a scoped token and return its plaintext exactly once."""
+    try:
+        token, metadata = create_api_token(
+            payload.name,
+            payload.role,
+            payload.scopes,
+            expires_in=payload.expires_in,
+        )
+        return {"token": token, **metadata}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/settings/api-tokens/{token_id}")
+def delete_api_token(token_id: str):
+    """Revoke a token immediately."""
+    if not revoke_api_token(token_id):
+        raise HTTPException(status_code=404, detail="API token not found")
+    return {"detail": "API token revoked", "id": token_id}
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +173,7 @@ def update_notification_settings(payload: NotificationConfig):
 @router.post("/settings/notifications/test/email")
 def test_notification_email():
     """Send a test email using the stored configuration."""
-    config = load_notifications()
+    config = load_notifications(include_secrets=True)
     result = test_email(config.email)
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
@@ -140,7 +183,7 @@ def test_notification_email():
 @router.post("/settings/notifications/test/webhook")
 def test_notification_webhook():
     """Send a test webhook payload using the stored configuration."""
-    config = load_notifications()
+    config = load_notifications(include_secrets=True)
     result = test_webhook(config.webhook)
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))

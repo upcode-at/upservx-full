@@ -7,13 +7,14 @@ import json
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
+from lib.secure_store import ensure_config_directory
 
 PROGRESS_FILE = "/etc/upservx/progress.json"
 VALID_SCOPES = {"backup_jobs", "replications"}
 
 
 def _ensure_parent_dir() -> None:
-    os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
+    ensure_config_directory(os.path.dirname(PROGRESS_FILE))
 
 
 def _read_data_locked(fp) -> Dict[str, Any]:
@@ -65,7 +66,9 @@ def set_progress(
     now = datetime.now().isoformat()
     safe_progress = _sanitize_progress(progress)
 
-    with open(PROGRESS_FILE, "a+", encoding="utf-8") as fp:
+    descriptor = os.open(PROGRESS_FILE, os.O_RDWR | os.O_CREAT, 0o600)
+    os.chmod(PROGRESS_FILE, 0o600)
+    with os.fdopen(descriptor, "r+", encoding="utf-8") as fp:
         fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
         try:
             data = _read_data_locked(fp)
@@ -102,6 +105,7 @@ def get_progress(scope: str, key: str) -> Optional[Dict[str, Any]]:
     if not os.path.exists(PROGRESS_FILE):
         return None
 
+    os.chmod(PROGRESS_FILE, 0o600)
     with open(PROGRESS_FILE, "r", encoding="utf-8") as fp:
         fcntl.flock(fp.fileno(), fcntl.LOCK_SH)
         try:

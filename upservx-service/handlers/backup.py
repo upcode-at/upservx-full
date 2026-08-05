@@ -8,6 +8,7 @@ import subprocess
 import paramiko
 import asyncio
 import logging
+import threading
 from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 import base64
 from lib.logger import log_backup
+from lib.secure_store import ensure_config_directory, secure_write_bytes
 
 try:
     logging.basicConfig(
@@ -371,7 +373,7 @@ class BackupManager:
         backup_dir = '/etc/upservx/backup'
         key_file = os.path.join(backup_dir, 'backup_key')
         try:
-            os.makedirs(backup_dir, exist_ok=True)
+            ensure_config_directory(backup_dir)
             
             # Migrate old key file if it exists in old location
             old_key_file = '/etc/upservx/backup_key'
@@ -379,39 +381,46 @@ class BackupManager:
                 import shutil
                 try:
                     shutil.move(old_key_file, key_file)
-                except Exception:
-                    pass
+                except Exception as error:
+                    raise RuntimeError("Unable to migrate the backup encryption key") from error
             
             if os.path.exists(key_file):
+                if os.path.islink(key_file):
+                    raise RuntimeError("Unsafe backup encryption key path")
                 with open(key_file, 'rb') as f:
-                    return f.read()
+                    key = f.read().strip()
+                os.chmod(key_file, 0o600)
+                Fernet(key)
+                return key
             else:
                 key = Fernet.generate_key()
-                with open(key_file, 'wb') as f:
-                    f.write(key)
-                os.chmod(key_file, 0o600)
+                secure_write_bytes(key_file, key)
                 return key
-        except Exception:
-            return Fernet.generate_key()
+        except Exception as error:
+            raise RuntimeError("Backup encryption key is unavailable") from error
             
     def encrypt_sensitive_data(self, data: str) -> str:
         """Encrypt sensitive data like passwords."""
+        if not data:
+            return ""
         try:
             fernet = Fernet(self.encryption_key)
             encrypted = fernet.encrypt(data.encode())
             return base64.b64encode(encrypted).decode()
-        except Exception:
-            return data  # Fallback to unencrypted
+        except Exception as error:
+            raise RuntimeError("Failed to encrypt backup credentials") from error
             
     def decrypt_sensitive_data(self, encrypted_data: str) -> str:
         """Decrypt sensitive data."""
+        if not encrypted_data:
+            return ""
         try:
             fernet = Fernet(self.encryption_key)
-            decoded = base64.b64decode(encrypted_data.encode())
+            decoded = base64.b64decode(encrypted_data.encode(), validate=True)
             decrypted = fernet.decrypt(decoded)
             return decrypted.decode()
-        except Exception:
-            return encrypted_data  # Assume it's not encrypted
+        except Exception as error:
+            raise ValueError("Failed to decrypt backup credentials") from error
             
     def add_storage_backend(self, 
                            storage_id: str, 
@@ -573,9 +582,12 @@ class BackupManager:
             print("BACKUP DEBUG: Starting backup execution")
             print(f"BACKUP DEBUG: Job data: {job}")
             
-            # Mask sensitive data for logging
-            masked_server = {k: '***' if any(s in k.lower() for s in ['password', 'key', 'passphrase']) else v for k, v in server.items()}
-            print(f"BACKUP DEBUG: Server data: {masked_server}")
+            print(
+                "BACKUP DEBUG: Server: "
+                f"id={server.get('id', 'unknown')}, "
+                f"name={server.get('name', 'unknown')}, "
+                f"type={server.get('type', 'unknown')}"
+            )
             
             logger.info(f"Starting backup execution for job: {job['name']}")
             log_backup(f"Starting backup job [{job['name']}]")
@@ -985,4 +997,24 @@ class BackupManager:
             log_backup(f"SSH upload failed to [{server.get('host', 'unknown')}]: {e}", error=True)
             return False
 
-backup_manager = BackupManager()
+_backup_manager_instance: Optional[BackupManager] = None
+_backup_manager_lock = threading.Lock()
+
+
+def get_backup_manager() -> BackupManager:
+    """Initialize credential encryption on first backup operation."""
+
+    global _backup_manager_instance
+    if _backup_manager_instance is None:
+        with _backup_manager_lock:
+            if _backup_manager_instance is None:
+                _backup_manager_instance = BackupManager()
+    return _backup_manager_instance
+
+
+class _LazyBackupManager:
+    def __getattr__(self, name):
+        return getattr(get_backup_manager(), name)
+
+
+backup_manager = _LazyBackupManager()

@@ -10,6 +10,8 @@ from datetime import datetime
 import json
 import logging
 
+from lib.secure_store import ensure_config_directory
+
 logger = logging.getLogger(__name__)
 
 BACKUP_DIR = "/etc/upservx/backup"
@@ -25,7 +27,7 @@ class BackupDatabase:
     def init_database(self):
         """Initialize database with required tables."""
         # Ensure backup directory exists
-        os.makedirs(BACKUP_DIR, mode=0o755, exist_ok=True)
+        ensure_config_directory(BACKUP_DIR)
         
         # Migrate old database if it exists in old location
         old_db_path = "/etc/upservx/backup.db"
@@ -126,12 +128,14 @@ class BackupDatabase:
             """)
             
             conn.commit()
+            os.chmod(self.db_path, 0o600)
             logger.info("Database initialized successfully")
     
     @contextmanager
     def get_connection(self):
         """Get database connection with proper error handling."""
         conn = sqlite3.connect(self.db_path)
+        os.chmod(self.db_path, 0o600)
         conn.row_factory = sqlite3.Row  # Enable dict-like access
         try:
             yield conn
@@ -191,7 +195,12 @@ class BackupDatabase:
             
             return servers
     
-    def get_backup_server(self, server_id: int) -> Optional[Dict[str, Any]]:
+    def get_backup_server(
+        self,
+        server_id: int,
+        *,
+        include_secrets: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         """Get a specific backup server by ID."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -200,9 +209,9 @@ class BackupDatabase:
             row = cursor.fetchone()
             if row:
                 server = dict(row)
-                # Don't return encrypted passwords
-                server.pop('password_encrypted', None)
-                server.pop('ssh_key_passphrase_encrypted', None)
+                if not include_secrets:
+                    server.pop('password_encrypted', None)
+                    server.pop('ssh_key_passphrase_encrypted', None)
                 return server
             return None
     

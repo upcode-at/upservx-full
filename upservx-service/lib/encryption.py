@@ -7,6 +7,8 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from typing import Optional
 
+from lib.secure_store import secure_write_bytes
+
 class EncryptionManager:
     """Manages encryption and decryption of sensitive data using a device-specific key."""
     
@@ -20,42 +22,24 @@ class EncryptionManager:
     def _load_or_generate_key(self):
         """Load existing key or generate a new one if it doesn't exist."""
         key_path = Path(self.KEY_FILE)
-        print(f"[ENCRYPTION] Checking for key at: {self.KEY_FILE}")
         
         if key_path.exists():
-            print("[ENCRYPTION] Loading existing key...")
             try:
+                if key_path.is_symlink() or not key_path.is_file():
+                    raise RuntimeError("Unsafe encryption key path")
                 with open(key_path, 'rb') as f:
-                    key = f.read().strip()  # Remove any whitespace/newlines
-                print(f"[ENCRYPTION] Key length: {len(key)} bytes")
+                    key = f.read().strip()
+                os.chmod(key_path, 0o600)
                 self._cipher = Fernet(key)
-                print("[ENCRYPTION] Key loaded successfully")
-            except Exception as e:
-                print(f"[ENCRYPTION] ERROR loading key: {e}")
-                print(f"[ENCRYPTION] Key content (first 20 chars): {key[:20] if key else 'empty'}")
-                raise
+            except Exception as error:
+                raise RuntimeError("Unable to load the encryption key") from error
         else:
-            print("[ENCRYPTION] Key not found, generating new key...")
             self._generate_and_save_key()
     
     def _generate_and_save_key(self):
         """Generate a new encryption key and save it securely."""
-        key_dir = Path(self.KEY_FILE).parent
-        key_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(key_dir, 0o755)
-        
         key = Fernet.generate_key()
-        
-        temp_file = f"{self.KEY_FILE}.tmp"
-        with open(temp_file, 'wb') as f:
-            f.write(key)
-        
-        # Set restrictive permissions (only root can read)
-        os.chmod(temp_file, 0o600)
-        
-        # Atomic move
-        os.rename(temp_file, self.KEY_FILE)
-        
+        secure_write_bytes(self.KEY_FILE, key)
         self._cipher = Fernet(key)
     
     def encrypt(self, plaintext: str) -> str:
@@ -71,15 +55,11 @@ class EncryptionManager:
         if not plaintext:
             return ""
         
-        print(f"[ENCRYPTION] Encrypting plaintext of length: {len(plaintext)}")
         try:
             encrypted_bytes = self._cipher.encrypt(plaintext.encode('utf-8'))
-            result = encrypted_bytes.decode('utf-8')
-            print(f"[ENCRYPTION] Encryption successful, result length: {len(result)}")
-            return result
-        except Exception as e:
-            print(f"[ENCRYPTION] ERROR during encryption: {e}")
-            raise
+            return encrypted_bytes.decode('utf-8')
+        except Exception as error:
+            raise RuntimeError("Failed to encrypt sensitive data") from error
     
     def decrypt(self, encrypted_text: str) -> str:
         """
@@ -97,8 +77,8 @@ class EncryptionManager:
         try:
             decrypted_bytes = self._cipher.decrypt(encrypted_text.encode('utf-8'))
             return decrypted_bytes.decode('utf-8')
-        except Exception as e:
-            raise ValueError(f"Failed to decrypt data: {str(e)}")
+        except Exception as error:
+            raise ValueError("Failed to decrypt data") from error
     
     @staticmethod
     def ensure_key_exists():

@@ -70,6 +70,13 @@ Two systemd services are typically configured:
 | `upservx-backend.service` | FastAPI API on port 9500 and cluster HTTPS transport on port 9501 |
 | `upservx-frontend.service` | Next.js frontend on port 9200 |
 
+The browser-facing frontend and `/api` proxy must be served over HTTPS. Port
+9200 and the backend's port 9500 are upstream listeners, not production browser
+entry points. The default secure session cookie is intentionally not sent over
+plain HTTP. Terminate TLS at Nginx or another trusted reverse proxy and forward
+`/` to port 9200, `/api/` to port 9500, and WebSocket upgrades under `/ws/`.
+Do not disable `UPSERVX_COOKIE_SECURE` in production.
+
 ---
 
 ## Configuration Files
@@ -77,6 +84,9 @@ Two systemd services are typically configured:
 | File / Path | Content |
 |---|---|
 | `/etc/upservx/encryption.key` | Fernet encryption key (chmod 600) |
+| `/etc/upservx/.session_secret` | Session-signing secret (chmod 600) |
+| `/etc/upservx/sessions.json` | Hashed, revocable session records (chmod 600) |
+| `/etc/upservx/api_tokens.json` | Hashed API-token records (chmod 600) |
 | `/etc/upservx/notifications.json` | Email & webhook configuration |
 | `/etc/upservx/alerts.json` | Alert thresholds |
 | `/etc/upservx/metrics/` | Historical metrics (JSON) |
@@ -88,7 +98,7 @@ Two systemd services are typically configured:
 | `/var/log/upservx/activity.log` | Structured activity log |
 | `/opt/upservx/app-store/` | App store templates |
 | `/opt/upservx/compose/` | Installed Docker Compose projects |
-| `upservx-service/settings.json` | Application settings (hostname, timezone, API key) |
+| `/etc/upservx/settings.json` | Application settings (hostname, timezone, SSH and monitoring options) |
 | `upservx-service/proxy_config.json` | Nginx proxy configurations |
 | `upservx-service/network_settings.json` | Network settings |
 
@@ -108,6 +118,14 @@ chmod +x update.sh
 | Variable | Description | Default |
 |---|---|---|
 | `FRONTEND_ORIGINS` | Comma-separated list of allowed CORS origins | All server IPs auto-detected |
+| `UPSERVX_SESSION_TTL_SECONDS` | User-session lifetime in seconds | `3600` |
+| `UPSERVX_COOKIE_SECURE` | Require HTTPS for the session cookie | `true` |
+| `UPSERVX_COOKIE_SAMESITE` | Session-cookie SameSite policy | `strict` |
+| `UPSERVX_COOKIE_DOMAIN` | Optional explicit session-cookie domain | unset |
+
+All directories under `/etc/upservx` are enforced as `0700` and all regular
+files as `0600` at startup. Symlinks in the configuration tree fail the
+security initialization rather than being followed.
 
 ---
 

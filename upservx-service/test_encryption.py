@@ -42,8 +42,6 @@ def test_encryption():
     test_password = "MySecureP@ssw0rd123!"
     try:
         encrypted = encryption.encrypt(test_password)
-        print(f"   Original:  {test_password}")
-        print(f"   Encrypted: {encrypted[:50]}..." if len(encrypted) > 50 else f"   Encrypted: {encrypted}")
         print("   ✓ Password encrypted successfully")
     except Exception as e:
         print(f"   ✗ Failed to encrypt password: {e}")
@@ -53,7 +51,6 @@ def test_encryption():
     print("\n4. Testing password decryption...")
     try:
         decrypted = encryption.decrypt(encrypted)
-        print(f"   Decrypted: {decrypted}")
         if decrypted == test_password:
             print("   ✓ Password decrypted correctly - matches original")
         else:
@@ -80,7 +77,7 @@ def test_encryption():
             'password': 'TestPassword123!'
         }
         
-        print(f"   Adding test server with password: {test_server['password']}")
+        print("   Adding test server with a test credential")
         created_server = config.add_backup_server(test_server)
         server_id = created_server['id']
         print(f"   ✓ Server created with ID: {server_id}")
@@ -93,11 +90,11 @@ def test_encryption():
             return False
         
         # Retrieve server and check password is decrypted
-        retrieved_server = config.get_backup_server(server_id)
+        retrieved_server = config.get_backup_server(server_id, include_secret=True)
         if retrieved_server['password'] == 'TestPassword123!':
             print("   ✓ Retrieved password matches original (decryption works)")
         else:
-            print(f"   ✗ Retrieved password doesn't match: {retrieved_server['password']}")
+            print("   ✗ Retrieved password does not match")
             return False
         
         # Check list doesn't expose passwords

@@ -13,7 +13,7 @@ Welcome to the complete technical documentation for the **UpservX** project.
 ### Backend (`upservx-service/`)
 | Document | Description |
 |---|---|
-| [Authentication & Middleware](./backend/authentication.md) | PAM auth, API key, rate limiting, middleware |
+| [Authentication & Middleware](./backend/authentication.md) | PAM login, revocable sessions, scoped API tokens, cluster signatures |
 | [Permission System](./backend/permissions.md) | Linux groups → subsystem mapping |
 | [Container Management](./backend/containers.md) | Docker, LXC, Kubernetes |
 | [Virtual Machines](./backend/virtual-machines.md) | QEMU/KVM, libvirt, snapshots |
@@ -26,7 +26,7 @@ Welcome to the complete technical documentation for the **UpservX** project.
 | [Notifications](./backend/notifications.md) | Email (SMTP), webhooks |
 | [Metrics & Monitoring](./backend/metrics.md) | CPU, RAM, disk, network, alerting |
 | [App Store](./backend/app-store.md) | Docker Compose templates, installation |
-| [Settings](./backend/settings.md) | Hostname, timezone, VPN, API key |
+| [Settings](./backend/settings.md) | Hostname, timezone, VPN, API-token management |
 | [Logging](./backend/logging.md) | Activity log, structured logging |
 | [Cluster Management](./backend/cluster.md) | Master/child nodes, replication, load balancing |
 | [SystemD Services](./backend/services.md) | Service management |

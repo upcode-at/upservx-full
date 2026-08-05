@@ -21,6 +21,7 @@ from lib.metrics_collector import get_metrics_collector
 from lib.logger import log_system
 from lib.progress_tracker import get_progress, set_progress
 from lib.crontab_manager import CrontabManager
+from lib.secure_store import ensure_config_directory
 from lib.cluster_security import (
     CLUSTER_TLS_PORT,
     DEFAULT_KEY_OVERLAP_SECONDS,
@@ -107,8 +108,8 @@ class ClusterInfo(BaseModel):
 def ensure_config_dir():
     """Ensure configuration directory exists"""
     try:
-        os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
-        os.makedirs(NODES_DIR, exist_ok=True)
+        ensure_config_directory(UPSERVX_CONFIG_DIR)
+        ensure_config_directory(NODES_DIR)
         _clog(f"[CLUSTER] Config directories ensured: {UPSERVX_CONFIG_DIR}, {NODES_DIR}")
         _clog(f"[CLUSTER] NODES_DIR exists: {os.path.exists(NODES_DIR)}")
         _clog(f"[CLUSTER] NODES_DIR is writable: {os.access(NODES_DIR, os.W_OK)}")
@@ -635,8 +636,7 @@ async def test_write_permissions():
     test_data = {"test": "data", "timestamp": datetime.now().isoformat()}
     
     try:
-        with open(test_file, 'w') as f:
-            json.dump(test_data, f, indent=2)
+        write_cluster_json(test_file, test_data)
         
         with open(test_file, 'r') as f:
             read_data = json.load(f)
@@ -1882,8 +1882,7 @@ def write_replications(replications: list):
     """Write replication rules to config file"""
     ensure_config_dir()
     try:
-        with open(REPLICATIONS_FILE, 'w') as f:
-            json.dump(replications, f, indent=2)
+        write_cluster_json(REPLICATIONS_FILE, replications)
         _clog(f"[REPLICATION] Saved {len(replications)} replication rules")
     except Exception as e:
         _clog(f"[REPLICATION] Error writing replications: {e}", error=True)

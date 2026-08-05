@@ -25,7 +25,16 @@ export function Settings() {
     monitoring: boolean
     ssh_port: number
     deny_root_login: boolean
-    api_key?: string
+  }
+
+  interface ApiTokenMetadata {
+    id: string
+    name: string
+    role: "admin" | "operator" | "read-only"
+    scopes: string[]
+    created_at: string
+    expires_at: number | null
+    revoked_at: string | null
   }
 
   const [settings, setSettings] = useState<SettingsData>({
@@ -35,7 +44,6 @@ export function Settings() {
     monitoring: false,
     ssh_port: 22,
     deny_root_login: false,
-    api_key: "",
   })
   interface NotificationEmailConfig {
     enabled: boolean
@@ -120,6 +128,12 @@ export function Settings() {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [updateOutput, setUpdateOutput] = useState<string>("")
   const [updateStatus, setUpdateStatus] = useState<"running" | "success" | "error">("running")
+  const [generatedApiToken, setGeneratedApiToken] = useState("")
+  const [apiTokens, setApiTokens] = useState<ApiTokenMetadata[]>([])
+  const [apiTokenName, setApiTokenName] = useState("Dashboard token")
+  const [apiTokenRole, setApiTokenRole] = useState<ApiTokenMetadata["role"]>("admin")
+  const [apiTokenScopes, setApiTokenScopes] = useState("*")
+  const [apiTokenExpiryDays, setApiTokenExpiryDays] = useState("")
 
   // Customization
   const [customBannerTitle, setCustomBannerTitle] = useState("Welcome to UpServX")
@@ -143,7 +157,6 @@ export function Settings() {
           monitoring: data.monitoring,
           ssh_port: data.ssh_port,
           deny_root_login: data.deny_root_login ?? false,
-          api_key: data.api_key || "",
         })
       }
     } catch (e) {
@@ -169,6 +182,18 @@ export function Settings() {
       if (res.ok) {
         const data = await res.json()
         setNotifications({ ...defaultNotifications, ...data, email: { ...defaultNotifications.email, ...data.email }, webhook: { ...defaultNotifications.webhook, ...data.webhook }, events: { ...defaultNotifications.events, ...data.events } })
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const loadApiTokens = async () => {
+    try {
+      const res = await fetch(apiUrl("/settings/api-tokens"))
+      if (res.ok) {
+        const data = await res.json()
+        setApiTokens(Array.isArray(data.tokens) ? data.tokens : [])
       }
     } catch (e) {
       console.error(e)
@@ -345,6 +370,7 @@ export function Settings() {
     loadSettings()
     loadVpnStatus()
     loadNotifications()
+    loadApiTokens()
     loadCustomization()
   }, [])
 
@@ -367,20 +393,51 @@ export function Settings() {
     }
   }
 
-  const generateApiKey = async () => {
+  const generateApiToken = async () => {
     try {
       setError(null)
       setSuccess(null)
-      const res = await fetch(apiUrl("/settings/generate-api-key"), { method: "POST" })
+      const res = await fetch(apiUrl("/settings/api-tokens"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: apiTokenName.trim(),
+          role: apiTokenRole,
+          scopes: apiTokenScopes.split(",").map((scope) => scope.trim()).filter(Boolean),
+          expires_in: apiTokenExpiryDays
+            ? Math.round(Number(apiTokenExpiryDays) * 86_400)
+            : null,
+        }),
+      })
       if (res.ok) {
         const data = await res.json()
-        setSettings({ ...settings, api_key: data.api_key })
-        setSuccess("API key generated successfully")
+        setGeneratedApiToken(data.token)
+        await loadApiTokens()
+        setSuccess("API token generated. Copy it now; it will not be shown again.")
       } else {
-        setError("Failed to generate API key")
+        const data = await res.json().catch(() => ({}))
+        setError(data.detail || "Failed to generate API token")
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to generate API key")
+      setError(e instanceof Error ? e.message : "Failed to generate API token")
+    }
+  }
+
+  const revokeApiToken = async (tokenId: string) => {
+    try {
+      setError(null)
+      setSuccess(null)
+      const res = await fetch(apiUrl(`/settings/api-tokens/${encodeURIComponent(tokenId)}`), {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        setError("Failed to revoke API token")
+        return
+      }
+      await loadApiTokens()
+      setSuccess("API token revoked")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to revoke API token")
     }
   }
 
@@ -606,13 +663,89 @@ export function Settings() {
                 <Label htmlFor="deny-root-login">Deny root login</Label>
               </div>
               <div className="space-y-2 pt-4">
-                <Label htmlFor="api-key">API Key</Label>
+                <Label>API Tokens</Label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="api-token-name">Name</Label>
+                    <Input
+                      id="api-token-name"
+                      value={apiTokenName}
+                      onChange={(event) => setApiTokenName(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="api-token-role">Role</Label>
+                    <Select
+                      value={apiTokenRole}
+                      onValueChange={(value) => setApiTokenRole(value as ApiTokenMetadata["role"])}
+                    >
+                      <SelectTrigger id="api-token-role"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Administrator</SelectItem>
+                        <SelectItem value="operator">Operator</SelectItem>
+                        <SelectItem value="read-only">Read only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="api-token-scopes">Scopes</Label>
+                    <Input
+                      id="api-token-scopes"
+                      value={apiTokenScopes}
+                      onChange={(event) => setApiTokenScopes(event.target.value)}
+                      placeholder="containers:read, containers:write"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="api-token-expiry">Expiry in days</Label>
+                    <Input
+                      id="api-token-expiry"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={apiTokenExpiryDays}
+                      onChange={(event) => setApiTokenExpiryDays(event.target.value)}
+                      placeholder="No expiry"
+                    />
+                  </div>
+                </div>
                 <div className="flex space-x-2">
-                  <Input id="api-key" value={settings.api_key} readOnly />
-                  <Button onClick={generateApiKey}>
+                  <Input
+                    id="api-token"
+                    value={generatedApiToken}
+                    placeholder="Tokens are shown only once after creation"
+                    readOnly
+                  />
+                  <Button onClick={generateApiToken}>
                     <Key className="h-4 w-4 mr-2" />
-                    Generate
+                    Generate token
                   </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Separate scopes with commas. Use * only when the token genuinely needs unrestricted access.
+                </p>
+                <div className="space-y-2 pt-2">
+                  {apiTokens.map((token) => (
+                    <div key={token.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                      <div>
+                        <p className="font-medium">{token.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {token.role} · {token.scopes.join(", ")}
+                          {token.expires_at ? ` · expires ${new Date(token.expires_at * 1000).toLocaleString()}` : ""}
+                          {token.revoked_at ? " · revoked" : ""}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={Boolean(token.revoked_at)}
+                        onClick={() => revokeApiToken(token.id)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Revoke
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>

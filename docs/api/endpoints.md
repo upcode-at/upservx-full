@@ -236,10 +236,11 @@
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/settings` | Admin | All settings |
-| `PUT` | `/settings` | Admin | Update settings |
+| `POST` | `/settings` | Admin | Update settings |
 | `GET` | `/settings/customization` | None | Public branding |
-| `POST` | `/settings/api-key/generate` | Admin | Generate API key |
-| `DELETE` | `/settings/api-key` | Admin | Revoke API key |
+| `GET` | `/settings/api-tokens` | Admin | List API token metadata |
+| `POST` | `/settings/api-tokens` | Admin | Create scoped API token |
+| `DELETE` | `/settings/api-tokens/{token_id}` | Admin | Revoke API token |
 | `GET` | `/settings/version` | Any | Version info |
 
 ---
@@ -277,10 +278,10 @@
 
 | Value | Description |
 |---|---|
-| `Basic base64(user:pass)` | PAM login |
-| `Bearer <api-key>` | API key access |
-| `Bearer <cluster-token>` | Cluster node access |
-| Cookie `auth` | Cookie fallback |
+| `Bearer <session-token>` | User API session |
+| `Bearer <api-token>` | Role- and scope-bound automation token |
+| Signed cluster headers | Internal cluster node access over HTTPS |
+| Cookie `auth` | Secure, HttpOnly browser session |
 
 ---
 

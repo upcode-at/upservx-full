@@ -17,6 +17,7 @@ from lib.cluster_security import (
     signed_cluster_request,
 )
 from lib.load_balancer import get_load_balancer, LoadBalancingStrategy
+from lib.secure_store import secure_write_json
 
 UPSERVX_CONFIG_DIR = "/etc/upservx"
 SYNC_STATE_FILE = os.path.join(UPSERVX_CONFIG_DIR, "sync_state.json")
@@ -103,14 +104,12 @@ class ContainerSyncManager:
     
     def save_sync_rules(self):
         """Save synchronization rules to file"""
-        os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
         try:
-            with open(SYNC_RULES_FILE, 'w') as f:
-                data = {
-                    name: rule.to_dict()
-                    for name, rule in self.sync_rules.items()
-                }
-                json.dump(data, f, indent=2)
+            data = {
+                name: rule.to_dict()
+                for name, rule in self.sync_rules.items()
+            }
+            secure_write_json(SYNC_RULES_FILE, data)
         except Exception as e:
             print(f"Error saving sync rules: {e}")
     
@@ -133,14 +132,12 @@ class ContainerSyncManager:
     
     def save_sync_state(self):
         """Save container synchronization state"""
-        os.makedirs(UPSERVX_CONFIG_DIR, exist_ok=True)
         try:
-            with open(SYNC_STATE_FILE, 'w') as f:
-                data = {
-                    key: state.to_dict()
-                    for key, state in self.container_states.items()
-                }
-                json.dump(data, f, indent=2)
+            data = {
+                key: state.to_dict()
+                for key, state in self.container_states.items()
+            }
+            secure_write_json(SYNC_STATE_FILE, data)
         except Exception as e:
             print(f"Error saving sync state: {e}")
     

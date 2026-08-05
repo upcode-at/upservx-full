@@ -5,7 +5,6 @@ Handles email (SMTP) and webhook notifications.
 Notification configuration is persisted to notifications.json.
 """
 
-import os
 import json
 import socket
 import smtplib
@@ -16,6 +15,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from lib.models import NotificationConfig, NotificationEmailConfig, NotificationWebhookConfig, NotificationEvents
 from lib.logger import log_system
+from lib.secure_store import SecureStoreError, secure_read_json, secure_write_json
+from lib.encryption import get_encryption_manager
 
 NOTIFICATIONS_FILE = "/etc/upservx/notifications.json"
 
@@ -36,23 +37,87 @@ def _get_node_name() -> str:
 # Persistence
 # ---------------------------------------------------------------------------
 
-def load_notifications() -> NotificationConfig:
-    """Load notification configuration from file, returning defaults if missing."""
-    if os.path.exists(NOTIFICATIONS_FILE):
-        try:
-            with open(NOTIFICATIONS_FILE) as f:
-                data = json.load(f)
-            return NotificationConfig(**data)
-        except Exception:
-            pass
-    return NotificationConfig()
+def _read_notification_data() -> dict:
+    try:
+        data = secure_read_json(NOTIFICATIONS_FILE, missing={})
+    except SecureStoreError as error:
+        raise RuntimeError("Notification configuration is invalid") from error
+    if not isinstance(data, dict):
+        raise RuntimeError("Notification configuration is invalid")
+    return data
+
+
+def load_notifications(*, include_secrets: bool = False) -> NotificationConfig:
+    """Load notification settings without exposing stored secrets by default."""
+
+    data = _read_notification_data()
+    if not data:
+        return NotificationConfig()
+    encryption = get_encryption_manager()
+    email = dict(data.get("email") or {})
+    webhook = dict(data.get("webhook") or {})
+    migrated = False
+
+    legacy_password = email.pop("smtp_password", "")
+    encrypted_password = email.get("smtp_password_encrypted", "")
+    if legacy_password and not encrypted_password:
+        encrypted_password = encryption.encrypt(legacy_password)
+        email["smtp_password_encrypted"] = encrypted_password
+        migrated = True
+    decrypted_password = (
+        encryption.decrypt(encrypted_password) if encrypted_password else ""
+    )
+    email["smtp_password"] = decrypted_password if include_secrets else ""
+
+    legacy_secret = webhook.pop("secret", "")
+    encrypted_secret = webhook.get("secret_encrypted", "")
+    if legacy_secret and not encrypted_secret:
+        encrypted_secret = encryption.encrypt(legacy_secret)
+        webhook["secret_encrypted"] = encrypted_secret
+        migrated = True
+    decrypted_secret = encryption.decrypt(encrypted_secret) if encrypted_secret else ""
+    webhook["secret"] = decrypted_secret if include_secrets else ""
+
+    if migrated:
+        stored = dict(data)
+        stored["email"] = {key: value for key, value in email.items() if key != "smtp_password"}
+        stored["webhook"] = {key: value for key, value in webhook.items() if key != "secret"}
+        secure_write_json(NOTIFICATIONS_FILE, stored)
+
+    return NotificationConfig(**{**data, "email": email, "webhook": webhook})
 
 
 def save_notifications(config: NotificationConfig) -> None:
     """Persist notification configuration to file."""
-    os.makedirs(os.path.dirname(NOTIFICATIONS_FILE), exist_ok=True)
-    with open(NOTIFICATIONS_FILE, "w") as f:
-        json.dump(config.dict(), f, indent=2)
+    existing = _read_notification_data()
+    existing_email = dict(existing.get("email") or {})
+    existing_webhook = dict(existing.get("webhook") or {})
+    data = config.model_dump()
+    email = data["email"]
+    webhook = data["webhook"]
+    encryption = get_encryption_manager()
+
+    password = email.pop("smtp_password", "")
+    if password:
+        email["smtp_password_encrypted"] = encryption.encrypt(password)
+    elif existing_email.get("smtp_password_encrypted"):
+        encryption.decrypt(existing_email["smtp_password_encrypted"])
+        email["smtp_password_encrypted"] = existing_email["smtp_password_encrypted"]
+    elif existing_email.get("smtp_password"):
+        email["smtp_password_encrypted"] = encryption.encrypt(
+            existing_email["smtp_password"]
+        )
+
+    secret = webhook.pop("secret", "")
+    if secret:
+        webhook["secret_encrypted"] = encryption.encrypt(secret)
+    elif existing_webhook.get("secret_encrypted"):
+        encryption.decrypt(existing_webhook["secret_encrypted"])
+        webhook["secret_encrypted"] = existing_webhook["secret_encrypted"]
+    elif existing_webhook.get("secret"):
+        webhook["secret_encrypted"] = encryption.encrypt(existing_webhook["secret"])
+
+    secure_write_json(NOTIFICATIONS_FILE, data)
     log_system("Notification configuration saved")
 
 
@@ -165,12 +230,12 @@ def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> No
             if resp.status not in range(200, 300):
                 raise RuntimeError(f"Webhook returned HTTP {resp.status}")
     except urllib.error.URLError as e:
-        log_system(f"Notification webhook error: {e.reason}", error=True)
-        raise RuntimeError(f"Webhook request failed: {e.reason}")
+        log_system("Notification webhook connection failed", error=True)
+        raise RuntimeError("Webhook request failed") from e
     except Exception as e:
-        log_system(f"Notification webhook error: {e}", error=True)
-        raise RuntimeError(f"Webhook error: {e}")
-    log_system(f"Notification webhook sent to {cfg.url} – event: {event}")
+        log_system("Notification webhook request failed", error=True)
+        raise RuntimeError("Webhook request failed") from e
+    log_system(f"Notification webhook sent – event: {event}")
 
 
 def test_webhook(cfg: NotificationWebhookConfig) -> dict:
@@ -197,7 +262,7 @@ def notify(event: str, message: str) -> None:
     try:
         node = _get_node_name()
         full_message = f"[Node: {node}] {message}"
-        config = load_notifications()
+        config = load_notifications(include_secrets=True)
 
         # Check whether this event type is enabled
         events = config.events

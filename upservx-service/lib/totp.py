@@ -5,7 +5,7 @@ Secrets are stored encrypted in /etc/upservx/2fa.json using the existing
 EncryptionManager. Each entry maps a Linux username to its encrypted TOTP secret.
 """
 
-import json
+import hashlib
 import os
 import secrets
 import threading
@@ -15,6 +15,7 @@ from typing import Optional
 import pyotp
 
 from lib.encryption import get_encryption_manager
+from lib.secure_store import secure_read_json, secure_write_json
 
 _2FA_FILE = "/etc/upservx/2fa.json"
 _lock = threading.Lock()
@@ -29,27 +30,30 @@ _PENDING_TTL = 300  # 5 minutes
 
 
 def _load_pending() -> dict:
-    if not os.path.exists(_SETUP_FILE):
-        return {}
-    try:
-        with open(_SETUP_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    value = secure_read_json(_SETUP_FILE, missing={})
+    if not isinstance(value, dict):
+        raise ValueError("Invalid pending 2FA setup store")
+    return value
 
 
 def _save_pending(store: dict) -> None:
-    os.makedirs(os.path.dirname(_SETUP_FILE), exist_ok=True)
-    tmp = _SETUP_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(store, f)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, _SETUP_FILE)
+    secure_write_json(_SETUP_FILE, store)
 
 
 def _cleanup_pending_store(store: dict) -> dict:
     now = time.time()
-    return {t: e for t, e in store.items() if e.get("expires", 0) > now}
+    cleaned = {}
+    for token_or_hash, entry in store.items():
+        if not isinstance(entry, dict) or entry.get("expires", 0) <= now:
+            continue
+        token_hash = (
+            token_or_hash
+            if len(token_or_hash) == 64
+            and all(character in "0123456789abcdef" for character in token_or_hash)
+            else hashlib.sha256(token_or_hash.encode("utf-8")).hexdigest()
+        )
+        cleaned[token_hash] = entry
+    return cleaned
 
 def create_pending_setup(username: str) -> tuple[str, str]:
     """
@@ -66,7 +70,11 @@ def create_pending_setup(username: str) -> tuple[str, str]:
     with _pending_lock:
         store = _load_pending()
         store = _cleanup_pending_store(store)
-        store[token] = {"username": username, "secret": secret, "expires": expires}
+        store[hashlib.sha256(token.encode("utf-8")).hexdigest()] = {
+            "username": username,
+            "encrypted_secret": get_encryption_manager().encrypt(secret),
+            "expires": expires,
+        }
         _save_pending(store)
 
     totp = pyotp.TOTP(secret)
@@ -85,17 +93,24 @@ def verify_and_activate(token: str, code: str) -> bool:
     with _pending_lock:
         store = _load_pending()
         store = _cleanup_pending_store(store)
-        entry = store.get(token)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        entry = store.get(token_hash)
         if not entry:
+            _save_pending(store)
             return False
 
-        totp = pyotp.TOTP(entry["secret"])
+        encrypted_secret = entry.get("encrypted_secret")
+        if not encrypted_secret:
+            raise ValueError("Pending 2FA secret is not encrypted")
+        secret = get_encryption_manager().decrypt(encrypted_secret)
+        totp = pyotp.TOTP(secret)
         if not totp.verify(code, valid_window=1):
+            _save_pending(store)
             return False
 
         # Valid – persist the secret, remove the pending entry
-        _save_secret(entry["username"], entry["secret"])
-        del store[token]
+        _save_secret(entry["username"], secret)
+        del store[token_hash]
         _save_pending(store)
         return True
 
@@ -104,7 +119,8 @@ def cancel_pending(token: str) -> None:
     """Discard a pending setup session."""
     with _pending_lock:
         store = _load_pending()
-        store.pop(token, None)
+        store = _cleanup_pending_store(store)
+        store.pop(hashlib.sha256(token.encode("utf-8")).hexdigest(), None)
         _save_pending(store)
 
 
@@ -113,24 +129,16 @@ def cancel_pending(token: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _load_store() -> dict:
-    """Load the encrypted 2FA store. Returns {} if not found or corrupt."""
-    if not os.path.exists(_2FA_FILE):
-        return {}
-    try:
-        with open(_2FA_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    """Load the encrypted 2FA store and fail closed if it is corrupt."""
+    value = secure_read_json(_2FA_FILE, missing={})
+    if not isinstance(value, dict):
+        raise ValueError("Invalid 2FA store")
+    return value
 
 
 def _save_store(store: dict) -> None:
     """Persist the 2FA store atomically."""
-    os.makedirs(os.path.dirname(_2FA_FILE), exist_ok=True)
-    tmp = _2FA_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(store, f)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, _2FA_FILE)
+    secure_write_json(_2FA_FILE, store)
 
 
 def _save_secret(username: str, secret: str) -> None:
@@ -149,10 +157,7 @@ def get_secret(username: str) -> Optional[str]:
     encrypted = store.get(username)
     if not encrypted:
         return None
-    try:
-        return get_encryption_manager().decrypt(encrypted)
-    except Exception:
-        return None
+    return get_encryption_manager().decrypt(encrypted)
 
 
 def disable_2fa(username: str) -> None:
@@ -187,7 +192,7 @@ def verify_code(username: str, code: str) -> bool:
 # ---------------------------------------------------------------------------
 # Persistent store for login temp-tokens (pending 2FA after password auth).
 # Persisted to disk so all uvicorn worker processes share the same state.
-#   /etc/upservx/login_tokens.json  ->  {token: {username, enc_password, expires}}
+#   /etc/upservx/login_tokens.json  ->  {token_hash: {username, expires, attempts}}
 # ---------------------------------------------------------------------------
 _LOGIN_TOKENS_FILE = "/etc/upservx/login_tokens.json"
 _login_tokens_lock = threading.Lock()
@@ -195,22 +200,14 @@ _LOGIN_TOKEN_TTL = 120  # 2 minutes
 
 
 def _load_login_tokens() -> dict:
-    if not os.path.exists(_LOGIN_TOKENS_FILE):
-        return {}
-    try:
-        with open(_LOGIN_TOKENS_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    value = secure_read_json(_LOGIN_TOKENS_FILE, missing={})
+    if not isinstance(value, dict):
+        raise ValueError("Invalid 2FA login token store")
+    return value
 
 
 def _save_login_tokens(store: dict) -> None:
-    os.makedirs(os.path.dirname(_LOGIN_TOKENS_FILE), exist_ok=True)
-    tmp = _LOGIN_TOKENS_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(store, f)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, _LOGIN_TOKENS_FILE)
+    secure_write_json(_LOGIN_TOKENS_FILE, store)
 
 
 def _cleanup_login_tokens(store: dict) -> dict:
@@ -219,49 +216,83 @@ def _cleanup_login_tokens(store: dict) -> dict:
     return {t: e for t, e in store.items() if e.get("expires", 0) > now}
 
 
-def create_login_token(username: str, password: str) -> str:
+def _login_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _sanitize_login_tokens(store: dict) -> dict:
+    """Drop legacy passwords and hash legacy plaintext token identifiers."""
+
+    cleaned = _cleanup_login_tokens(store)
+    sanitized = {}
+    for token_or_hash, entry in cleaned.items():
+        if not isinstance(entry, dict) or not entry.get("username"):
+            continue
+        token_hash = (
+            token_or_hash
+            if len(token_or_hash) == 64
+            and all(character in "0123456789abcdef" for character in token_or_hash)
+            else _login_token_hash(token_or_hash)
+        )
+        sanitized[token_hash] = {
+            "username": entry["username"],
+            "expires": entry.get("expires", 0),
+            "attempts": int(entry.get("attempts", 0)),
+            "first_factor_at": entry.get("first_factor_at", time.time()),
+        }
+    return sanitized
+
+
+def migrate_login_token_store() -> None:
+    """Remove any password-bearing legacy entries immediately at startup."""
+
+    if not os.path.exists(_LOGIN_TOKENS_FILE):
+        return
+    with _login_tokens_lock:
+        _save_login_tokens(_sanitize_login_tokens(_load_login_tokens()))
+
+
+def create_login_token(username: str) -> str:
     """
     Issue a short-lived token after successful password verification
-    when 2FA is required. The password is stored encrypted so the auth cookie
-    can be constructed once 2FA is verified.
+    when 2FA is required. Successful PAM authentication is represented only by
+    the username, issuance time, and an expiring random token hash.
     """
-    enc = get_encryption_manager()
     token = secrets.token_urlsafe(48)
     expires = time.time() + _LOGIN_TOKEN_TTL
-    enc_password = enc.encrypt(password)
     with _login_tokens_lock:
-        store = _load_login_tokens()
-        store = _cleanup_login_tokens(store)
-        store[token] = {"username": username, "enc_password": enc_password, "expires": expires}
+        store = _sanitize_login_tokens(_load_login_tokens())
+        store[_login_token_hash(token)] = {
+            "username": username,
+            "expires": expires,
+            "attempts": 0,
+            "first_factor_at": time.time(),
+        }
         _save_login_tokens(store)
     return token
 
 
-def consume_login_token(token: str, code: str) -> Optional[tuple[str, str]]:
+def consume_login_token(token: str, code: str) -> Optional[str]:
     """
     Verify the TOTP code for a login token.
 
-    Returns (username, password) on success so the caller can set the auth
-    cookie, or None if the token is invalid/expired or the code is wrong.
+    Returns the username on success, or None if the token is invalid, expired,
+    over its attempt limit, or accompanied by the wrong code.
     """
-    enc = get_encryption_manager()
     with _login_tokens_lock:
-        store = _load_login_tokens()
-        store = _cleanup_login_tokens(store)
-        entry = store.get(token)
+        store = _sanitize_login_tokens(_load_login_tokens())
+        token_hash = _login_token_hash(token)
+        entry = store.get(token_hash)
         if not entry:
+            _save_login_tokens(store)
             return None
         username = entry["username"]
-        enc_password = entry["enc_password"]
-        # Verify TOTP before consuming
         if not verify_code(username, code):
+            entry["attempts"] = int(entry.get("attempts", 0)) + 1
+            if entry["attempts"] >= 5:
+                del store[token_hash]
+            _save_login_tokens(store)
             return None
-        # Consume – remove token immediately
-        del store[token]
+        del store[token_hash]
         _save_login_tokens(store)
-
-    try:
-        password = enc.decrypt(enc_password)
-    except Exception:
-        return None
-    return username, password
+    return username

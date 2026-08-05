@@ -13,6 +13,7 @@ from typing import List
 from datetime import datetime
 from lib.models import VirtualMachine
 from lib.logger import log_vm
+from lib.secure_store import ensure_config_directory, secure_write_json
 from handlers.notifications import notify
 
 import time
@@ -152,8 +153,7 @@ def load_vms() -> List[VirtualMachine]:
 
 def save_vms(vms: List[VirtualMachine]) -> None:
     """Save virtual machines to the JSON file."""
-    with open(VM_FILE, "w") as f:
-        json.dump([vm.dict() for vm in vms], f)
+    secure_write_json(VM_FILE, [vm.model_dump() for vm in vms])
 
 def parse_virsh_list() -> dict[str, str]:
     """Parse virsh list output to get VM statuses."""
@@ -1110,7 +1110,7 @@ def export_vm_ova(name: str, export_format: str = "ova") -> str:
     if not source_disks:
         raise Exception("No disk images found for this VM")
 
-    os.makedirs(EXPORT_DIR, exist_ok=True)
+    ensure_config_directory(EXPORT_DIR)
     work_dir = tempfile.mkdtemp(prefix=f"ovf_export_{name}_", dir=EXPORT_DIR)
 
     try:
@@ -1317,9 +1317,8 @@ def import_vm_ova(
     if any(v.name == name for v in existing):
         raise Exception(f"A VM named '{name}' already exists")
 
+    ensure_config_directory(IMPORT_DIR)
     work_dir = tempfile.mkdtemp(prefix=f"ovf_import_{name}_", dir=IMPORT_DIR)
-    os.makedirs(IMPORT_DIR, exist_ok=True)
-    work_dir = tempfile.mkdtemp(prefix=f"ovf_import_{name}_")
 
     try:
         ext = os.path.splitext(source_path)[1].lower()

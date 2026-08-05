@@ -25,6 +25,7 @@ from lib.cluster_security import (
     normalize_cluster_port,
     signed_cluster_request_sync,
 )
+from lib.secure_store import secure_write_json
 
 HA_CONFIG_FILE = "/etc/upservx/ha.json"
 HA_HEARTBEATS_FILE = "/etc/upservx/ha_heartbeats.json"
@@ -210,9 +211,7 @@ class HAManager:
         return {**DEFAULT_CONFIG}
 
     def _save_config(self):
-        os.makedirs(os.path.dirname(HA_CONFIG_FILE), exist_ok=True)
-        with open(HA_CONFIG_FILE, "w") as f:
-            json.dump(self.config, f, indent=2)
+        secure_write_json(HA_CONFIG_FILE, self.config)
 
     def _load_heartbeats(self) -> dict:
         if os.path.exists(HA_HEARTBEATS_FILE):
@@ -224,9 +223,7 @@ class HAManager:
         return {}
 
     def _save_heartbeats(self):
-        os.makedirs(os.path.dirname(HA_HEARTBEATS_FILE), exist_ok=True)
-        with open(HA_HEARTBEATS_FILE, "w") as f:
-            json.dump(self.heartbeats, f, indent=2)
+        secure_write_json(HA_HEARTBEATS_FILE, self.heartbeats)
 
     # ------------------------------------------------------------------
     # Public API

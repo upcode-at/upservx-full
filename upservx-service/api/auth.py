@@ -8,15 +8,26 @@ import platform
 import subprocess
 import threading
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from starlette.websockets import WebSocketDisconnect
 
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket
-from lib.permissions import get_user_groups, get_permission_summary, has_shell_access
-from lib.session_tokens import create_session_token, verify_session_token
+from lib.permissions import (
+    check_api_token_capability,
+    get_user_groups,
+    get_permission_summary,
+    has_shell_access,
+)
+from lib.session_tokens import (
+    create_session_token,
+    revoke_session_token,
+    revoke_user_sessions,
+    verify_session_token,
+)
+from lib.api_tokens import verify_api_token
 from lib.logger import log_auth
 from handlers.settings import load_settings
 import lib.totp as totp_lib
@@ -24,6 +35,66 @@ import lib.totp as totp_lib
 router = APIRouter()
 
 pam_auth = pam.pam()
+SESSION_TTL_SECONDS = int(os.getenv("UPSERVX_SESSION_TTL_SECONDS", "3600"))
+if not 300 <= SESSION_TTL_SECONDS <= 86_400:
+    raise RuntimeError("UPSERVX_SESSION_TTL_SECONDS must be between 300 and 86400")
+COOKIE_NAME = "auth"
+COOKIE_PATH = "/"
+COOKIE_DOMAIN = os.getenv("UPSERVX_COOKIE_DOMAIN") or None
+COOKIE_SECURE = os.getenv("UPSERVX_COOKIE_SECURE", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
+COOKIE_SAMESITE = os.getenv("UPSERVX_COOKIE_SAMESITE", "strict").lower()
+if COOKIE_SAMESITE not in {"strict", "lax", "none"}:
+    raise RuntimeError("UPSERVX_COOKIE_SAMESITE must be strict, lax, or none")
+if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
+    raise RuntimeError("SameSite=None requires a Secure session cookie")
+
+
+def _session_response(username: str) -> JSONResponse:
+    token = create_session_token(username, ttl_seconds=SESSION_TTL_SECONDS)
+    expires = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TTL_SECONDS)
+    response = JSONResponse(
+        {
+            "detail": "logged_in",
+            "expires_in": SESSION_TTL_SECONDS,
+        }
+    )
+    response.set_cookie(
+        COOKIE_NAME,
+        token,
+        max_age=SESSION_TTL_SECONDS,
+        expires=expires,
+        path=COOKIE_PATH,
+        domain=COOKIE_DOMAIN,
+        secure=COOKIE_SECURE,
+        httponly=True,
+        samesite=COOKIE_SAMESITE,
+    )
+    return response
+
+
+def _request_session_token(request: Request) -> str | None:
+    authorization = request.headers.get("Authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip()
+    cookie = request.cookies.get(COOKIE_NAME)
+    if cookie and cookie.lower().startswith("bearer "):
+        return cookie[7:].strip()
+    return cookie
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        COOKIE_NAME,
+        path=COOKIE_PATH,
+        domain=COOKIE_DOMAIN,
+        secure=COOKIE_SECURE,
+        httponly=True,
+        samesite=COOKIE_SAMESITE,
+    )
 
 # ---------------------------------------------------------------------------
 # Generic in-memory rate limiter
@@ -73,19 +144,14 @@ async def auth_login(payload: dict, request: Request):
         if pam_auth.authenticate(username, password):
             # Check if 2FA is enabled for this user
             if totp_lib.is_enabled(username):
-                login_token = totp_lib.create_login_token(username, password)
+                login_token = totp_lib.create_login_token(username)
                 log_auth(f"2FA required for user [{username}] from {client_ip}")
                 return Response(
                     content=f'{{"2fa_required": true, "login_token": "{login_token}"}}',
                     media_type="application/json",
                     status_code=200,
                 )
-            token = create_session_token(username, ttl_seconds=3600)
-            resp = Response(
-                content=f'{{"detail": "logged_in", "session_token": "{token}", "expires_in": 3600}}',
-                media_type="application/json",
-            )
-            resp.set_cookie("auth", token, httponly=True, samesite="Lax", max_age=3600)
+            resp = _session_response(username)
             log_auth(f"Login successful for user [{username}] from {client_ip}")
             return resp
         else:
@@ -113,21 +179,19 @@ async def auth_2fa_complete(payload: dict, request: Request):
         log_auth(f"2FA verification failed from {client_ip}", error=True)
         raise HTTPException(status_code=401, detail="invalid or expired 2FA code")
 
-    username, _password = result
-    auth_token = create_session_token(username, ttl_seconds=3600)
-    resp = Response(
-        content=f'{{"detail": "logged_in", "session_token": "{auth_token}", "expires_in": 3600}}',
-        media_type="application/json",
-    )
-    resp.set_cookie("auth", auth_token, httponly=True, samesite="Lax", max_age=3600)
+    username = result
+    resp = _session_response(username)
     log_auth(f"2FA login successful for user [{username}] from {client_ip}")
     return resp
 
 
 @router.post("/auth/logout")
-async def auth_logout():
+async def auth_logout(request: Request):
+    token = _request_session_token(request)
+    if token:
+        revoke_session_token(token)
     resp = Response(content='{"detail": "logged_out"}', media_type="application/json")
-    resp.delete_cookie("auth")
+    _clear_session_cookie(resp)
     return resp
 
 
@@ -138,6 +202,8 @@ async def get_ws_ticket(request: Request):
     if not _check_ws_ticket_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="too many ticket requests")
     username = getattr(request.state, "user", None) or "authenticated"
+    if hasattr(request.state, "api_token"):
+        raise HTTPException(status_code=403, detail="API tokens cannot issue WebSocket tickets")
     try:
         ticket = _create_ws_ticket(username)
     except RuntimeError:
@@ -163,7 +229,7 @@ def auth_me(request: Request):
 def auth_2fa_status(request: Request):
     """Return whether 2FA is enabled for the current user."""
     username = getattr(request.state, "user", None)
-    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+    if not username or username.startswith("api-token:") or username in ("api-key", "cluster-node", "cluster-master"):
         raise HTTPException(status_code=403, detail="not allowed for this auth method")
     return {"enabled": totp_lib.is_enabled(username)}
 
@@ -172,7 +238,7 @@ def auth_2fa_status(request: Request):
 def auth_2fa_setup(request: Request):
     """Begin 2FA setup: generate a new TOTP secret and return the provisioning URI."""
     username = getattr(request.state, "user", None)
-    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+    if not username or username.startswith("api-token:") or username in ("api-key", "cluster-node", "cluster-master"):
         raise HTTPException(status_code=403, detail="not allowed for this auth method")
     if totp_lib.is_enabled(username):
         raise HTTPException(status_code=400, detail="2FA is already enabled")
@@ -184,7 +250,7 @@ def auth_2fa_setup(request: Request):
 def auth_2fa_verify_setup(payload: dict, request: Request):
     """Confirm 2FA setup by verifying the first TOTP code."""
     username = getattr(request.state, "user", None)
-    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+    if not username or username.startswith("api-token:") or username in ("api-key", "cluster-node", "cluster-master"):
         raise HTTPException(status_code=403, detail="not allowed for this auth method")
     setup_token = payload.get("setup_token", "")
     code = payload.get("code", "")
@@ -200,7 +266,7 @@ def auth_2fa_verify_setup(payload: dict, request: Request):
 def auth_2fa_disable(payload: dict, request: Request):
     """Disable 2FA for the current user (requires current password + TOTP code)."""
     username = getattr(request.state, "user", None)
-    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+    if not username or username.startswith("api-token:") or username in ("api-key", "cluster-node", "cluster-master"):
         raise HTTPException(status_code=403, detail="not allowed for this auth method")
     if not totp_lib.is_enabled(username):
         raise HTTPException(status_code=400, detail="2FA is not enabled")
@@ -216,6 +282,10 @@ def auth_2fa_disable(payload: dict, request: Request):
     if not totp_lib.verify_code(username, code):
         raise HTTPException(status_code=401, detail="invalid 2FA code")
     totp_lib.disable_2fa(username)
+    revoke_user_sessions(
+        username,
+        except_token=_request_session_token(request),
+    )
     log_auth(f"2FA disabled for user [{username}]")
     return {"detail": "2FA disabled successfully"}
 
@@ -224,7 +294,7 @@ def auth_2fa_disable(payload: dict, request: Request):
 async def change_password(payload: dict, request: Request):
     """Change the current user's own password via PAM verification + chpasswd."""
     username = getattr(request.state, "user", None)
-    if not username or username in ("api-key", "cluster-node", "cluster-master"):
+    if not username or username.startswith("api-token:") or username in ("api-key", "cluster-node", "cluster-master"):
         raise HTTPException(status_code=403, detail="not allowed for this auth method")
 
     current_password = payload.get("current_password", "")
@@ -257,7 +327,10 @@ async def change_password(payload: dict, request: Request):
         raise HTTPException(status_code=500, detail="password change timed out")
 
     log_auth(f"Password changed successfully for user [{username}]")
-    return {"detail": "password changed successfully"}
+    revoke_user_sessions(username)
+    response = JSONResponse({"detail": "password changed successfully; log in again"})
+    _clear_session_cookie(response)
+    return response
 
 
 @router.get("/info")
@@ -276,18 +349,31 @@ async def system_shell_websocket(websocket: WebSocket):
     """Interactive shell access via WebSocket."""
     authenticated = False
     shell_username: str | None = None
+    api_token_principal = None
 
-    raw_token = websocket.query_params.get("token")
-    if raw_token:
-        ticket_user = _consume_ws_ticket(raw_token)
+    ticket = websocket.query_params.get("token")
+    if ticket:
+        ticket_user = _consume_ws_ticket(ticket)
         if ticket_user:
             authenticated = True
             shell_username = ticket_user
-        else:
-            settings = load_settings()
-            if settings.api_key and raw_token == settings.api_key:
+
+    if not authenticated:
+        authorization = websocket.headers.get("Authorization", "")
+        if authorization.lower().startswith("bearer "):
+            bearer_token = authorization.split(" ", 1)[1].strip()
+            api_token_principal = verify_api_token(bearer_token)
+            if api_token_principal and check_api_token_capability(
+                api_token_principal,
+                "shell:access",
+            ):
                 authenticated = True
-                shell_username = "api-key"
+                shell_username = api_token_principal.username
+            else:
+                session_username = verify_session_token(bearer_token)
+                if session_username:
+                    authenticated = True
+                    shell_username = session_username
 
     if not authenticated:
         auth_token = websocket.cookies.get("auth")
@@ -308,7 +394,14 @@ async def system_shell_websocket(websocket: WebSocket):
         return
 
     _shell_groups = get_user_groups(shell_username or "")
-    if not has_shell_access(shell_username or "", _shell_groups):
+    if api_token_principal:
+        shell_allowed = check_api_token_capability(
+            api_token_principal,
+            "shell:access",
+        )
+    else:
+        shell_allowed = has_shell_access(shell_username or "", _shell_groups)
+    if not shell_allowed:
         await websocket.accept()
         await websocket.close(code=4403)
         return

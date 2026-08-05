@@ -33,6 +33,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from lib.secure_store import ensure_config_directory
+
 
 CLUSTER_TLS_PORT = int(os.getenv("UPSERVX_CLUSTER_TLS_PORT", "9501"))
 CLUSTER_SECURITY_DIR = Path(
@@ -227,8 +229,8 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _write_json_atomic(path: Path, value: Any) -> None:
+    ensure_config_directory(path.parent)
     fd, temporary_path = tempfile.mkstemp(
         prefix=f".{path.name}.",
         dir=str(path.parent),
@@ -241,6 +243,7 @@ def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
             file.flush()
             os.fsync(file.fileno())
         os.replace(temporary_path, path)
+        os.chmod(path, 0o600)
     finally:
         try:
             os.unlink(temporary_path)
@@ -248,7 +251,7 @@ def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
             pass
 
 
-def write_cluster_json(path: str | Path, value: dict[str, Any]) -> None:
+def write_cluster_json(path: str | Path, value: Any) -> None:
     """Persist cluster configuration atomically with owner-only permissions."""
 
     _write_json_atomic(Path(path), value)
@@ -257,7 +260,7 @@ def write_cluster_json(path: str | Path, value: dict[str, Any]) -> None:
 def _write_bytes_atomic(path: Path, value: bytes, mode: int) -> None:
     """Replace a certificate or key without a permissive creation window."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_config_directory(path.parent)
     fd, temporary_path = tempfile.mkstemp(
         prefix=f".{path.name}.",
         dir=str(path.parent),
@@ -269,6 +272,7 @@ def _write_bytes_atomic(path: Path, value: bytes, mode: int) -> None:
             file.flush()
             os.fsync(file.fileno())
         os.replace(temporary_path, path)
+        os.chmod(path, mode)
     finally:
         try:
             os.unlink(temporary_path)
@@ -363,9 +367,10 @@ def _record_nonce_once(
     """Persist a nonce atomically and reject an existing nonce."""
 
     try:
-        NONCE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with NONCE_LOCK_FILE.open("a+", encoding="utf-8") as lock_file:
-            os.chmod(NONCE_LOCK_FILE, 0o600)
+        ensure_config_directory(NONCE_LOCK_FILE.parent)
+        descriptor = os.open(NONCE_LOCK_FILE, os.O_RDWR | os.O_CREAT, 0o600)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "a+", encoding="utf-8") as lock_file:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             cache = _read_json(NONCE_CACHE_FILE) or {}
             seen = cache.get("seen", {})
@@ -904,7 +909,7 @@ def ensure_node_tls() -> NodeTLSMaterial:
         _write_bytes_atomic(
             NODE_CA_CERT_FILE,
             ca_cert.public_bytes(serialization.Encoding.PEM),
-            0o644,
+            0o600,
         )
 
     if (
@@ -959,7 +964,7 @@ def ensure_node_tls() -> NodeTLSMaterial:
         _write_bytes_atomic(
             NODE_CERT_FILE,
             node_cert.public_bytes(serialization.Encoding.PEM),
-            0o644,
+            0o600,
         )
 
     return NodeTLSMaterial(

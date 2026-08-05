@@ -64,8 +64,9 @@ class TestRolePredicates:
         with patch("lib.permissions.pwd.getpwnam", return_value=account):
             assert is_admin("root", set()) is True
 
-    def test_api_key_is_an_administrator(self):
-        assert is_admin("api-key", set()) is True
+    def test_legacy_api_key_principal_is_not_an_administrator(self):
+        with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
+            assert is_admin("api-key", set()) is False
 
     @pytest.mark.parametrize("principal", ["cluster-node", "cluster-master"])
     def test_cluster_principals_are_not_administrators(self, principal):
@@ -244,8 +245,20 @@ class TestSystemPrincipals:
             ("POST", "/vm-networks"),
         ],
     )
-    def test_api_key_can_access_known_admin_routes(self, method, path):
-        assert check_path_permission("api-key", set(), path, method) is True
+    def test_legacy_api_key_principal_cannot_access_admin_routes(self, method, path):
+        with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
+            assert check_path_permission("api-key", set(), path, method) is False
+
+    @pytest.mark.parametrize("principal", ["administrator", "api-key"])
+    def test_non_cluster_principals_cannot_access_internal_routes(self, principal):
+        groups = {"sudo"} if principal == "administrator" else set()
+        with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
+            assert check_path_permission(
+                principal,
+                groups,
+                "/cluster/ha/heartbeat",
+                "POST",
+            ) is False
 
     @pytest.mark.parametrize("principal", ["cluster-node", "cluster-master"])
     @pytest.mark.parametrize(

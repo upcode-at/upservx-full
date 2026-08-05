@@ -23,7 +23,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from lib.system_utils import get_server_addresses
 from lib.vnc_proxy import ensure_proxy_running
 from lib.ws_tickets import create_ticket as _create_ws_ticket, consume_ticket as _consume_ws_ticket  # noqa: F401 – re-exported for routers
-from lib.permissions import check_path_permission, get_user_groups, is_public_request
+from lib.permissions import (
+    check_api_token_permission,
+    check_path_permission,
+    get_user_groups,
+    is_public_request,
+)
 from lib.cluster_security import (
     CLUSTER_TLS_PORT,
     ClusterSecurityError,
@@ -32,8 +37,16 @@ from lib.cluster_security import (
     verify_cluster_signature,
 )
 from lib.session_tokens import verify_session_token
+from lib.api_tokens import migrate_legacy_api_key, verify_api_token
+from lib.secure_store import (
+    CONFIG_ROOT,
+    apply_secure_umask,
+    enforce_config_permissions,
+)
 from handlers.settings import load_settings
 from lib.logger import log_system
+
+apply_secure_umask()
 
 # ---------------------------------------------------------------------------
 # Logging – tee stdout/stderr to log file
@@ -121,6 +134,18 @@ app = FastAPI(
     version="0.6.0",
 )
 
+
+@app.on_event("startup")
+def initialize_security_stores() -> None:
+    """Migrate legacy secrets and enforce the centralized file-mode policy."""
+
+    enforce_config_permissions(CONFIG_ROOT)
+    migrate_legacy_api_key(CONFIG_ROOT / "settings.json")
+    from lib.totp import migrate_login_token_store
+
+    migrate_login_token_store()
+    enforce_config_permissions(CONFIG_ROOT)
+
 log_system("UpservX API starting up")
 
 # Configure CORS. For development/production, set FRONTEND_ORIGINS env to a
@@ -173,7 +198,7 @@ def _check_rate_limit(key: str, max_attempts: int, window_seconds: int) -> bool:
 
 @app.middleware("http")
 async def pam_auth_middleware(request: Request, call_next):
-    """Authentication middleware using PAM or API key."""
+    """Authenticate signed sessions, scoped API tokens, or cluster peers."""
     if request.method == "OPTIONS":
         return await call_next(request)
 
@@ -232,15 +257,16 @@ async def pam_auth_middleware(request: Request, call_next):
             scheme = scheme.lower()
 
             if scheme == "bearer":
-                settings = load_settings()
                 token = credentials.strip()
-
-                if settings.api_key and token == settings.api_key:
-                    request.state.user = "api-key"
+                api_token = verify_api_token(token)
+                if api_token:
+                    request.state.user = api_token.username
+                    request.state.api_token = api_token
                 else:
                     username = verify_session_token(token)
                     if not username:
                         return Response(status_code=401)
+                    settings = load_settings()
                     if settings.deny_root_login and username == "root":
                         return Response(status_code=403)
                     request.state.user = username
@@ -253,12 +279,20 @@ async def pam_auth_middleware(request: Request, call_next):
     _username = request.state.user
     _groups = get_user_groups(_username)
     request.state.groups = _groups
-    if not check_path_permission(
-        _username,
-        _groups,
-        request.url.path,
-        request.method,
-    ):
+    if hasattr(request.state, "api_token"):
+        allowed = check_api_token_permission(
+            request.state.api_token,
+            request.url.path,
+            request.method,
+        )
+    else:
+        allowed = check_path_permission(
+            _username,
+            _groups,
+            request.url.path,
+            request.method,
+        )
+    if not allowed:
         return Response(status_code=403)
 
     response = await call_next(request)

@@ -1,143 +1,87 @@
-# Permission System
+# Permission system
 
-**File:** `upservx-service/permissions.py`
+**File:** `upservx-service/lib/permissions.py`
 
----
+## Deny-by-default route policy
 
-## Concept
+Every HTTP method and FastAPI route template is registered in
+`ROUTE_POLICIES` with an explicit action. A path with the wrong method, a newly
+added route without a policy, and an unknown path are denied before any
+administrator check. CI compares every registered FastAPI route with this
+table.
 
-UpservX uses a **group-based access control system** built directly on top of **Linux system groups**. There is no separate user/role model in a database — instead, the Linux group memberships of the user (as defined in `/etc/group`) are read at runtime.
+Read and mutation actions are separate, including:
 
-**Principle:** Which Linux groups a user belongs to determines which API endpoints they can access.
+- `containers:read` and `containers:write`
+- `vms:read`, `vms:write`, and dedicated VM-network actions
+- `storage:read` and `storage:write`
+- `admin:read` and `admin:write`
+- `cluster:read`, `cluster:write`, and internal cluster actions
 
----
+## Linux user roles
 
-## Group Mapping
+PAM authenticates the user; current Linux group membership determines access.
 
-| Linux Group(s) | Access To |
+| Linux group | Access |
 |---|---|
-| `sudo`, `wheel` | **Full access (admin)** to all endpoints |
-| `docker` | Container management (Docker), Docker images, app store |
-| `lxd`, `lxc` | Container management (LXC), LXC images |
-| `libvirt`, `kvm` | Virtual machines, ISO management |
-| `disk`, `storage` | Physical storage management (drives, ZFS) |
-| `tty` | System shell access (terminal) |
-| `adm`, `log` | Read-only log access |
-| None of the above | Read-only metadata only (`/metrics`, `/`, auth endpoints) |
+| `sudo`, `wheel`, or UID 0 | All known user-facing routes |
+| `docker`, `lxd`, `lxc` | Container inventory, read, and mutation routes |
+| `libvirt`, `kvm` | VM, ISO, and VM-network routes |
+| `disk`, `storage` | Physical-storage routes |
+| `adm`, `log` | Log reads |
+| `tty` | Interactive system shell capability |
 
----
+Administrator status does not grant access to internal cluster transport
+routes. Those require a verified signed cluster principal.
 
-## System Principals (Special Case)
+## API-token roles and scopes
 
-Non-PAM principals receive **implicit admin access** and bypass the group check:
+API tokens do not inherit Linux groups. Authorization first checks the token
+role and then its scopes:
 
-| Principal | Description |
+| Role | Maximum access before scopes are applied |
 |---|---|
-| `api-key` | Requests via API key authentication |
-| `cluster-node` | Cluster child node |
-| `cluster-master` | Cluster master node |
+| `admin` | Every known user-facing action |
+| `operator` | Container, VM, storage, log, and general system actions |
+| `read-only` | Safe reads, including explicitly scoped admin and cluster reads |
 
----
+Scopes can match one action (`containers:read`), one subsystem
+(`containers:*`), or all user-facing actions (`*`). Both the role and a scope
+must allow the request. No API-token role can access `cluster-internal:*`.
 
-## URL Prefix → Permission Mapping
+## Cluster principals
 
-| URL Prefix | Required Permission |
-|---|---|
-| `/containers` | `docker` or `lxd`/`lxc` group (or admin) |
-| `/images` | `docker` or `lxd`/`lxc` group (or admin) |
-| `/vms` | `libvirt` or `kvm` group (or admin) |
-| `/isos` | `libvirt` or `kvm` group (or admin) |
-| `/drives` | `disk` or `storage` group (or admin) |
-| `/system/shell` | `tty` or admin |
-| `/logs` | `adm` or `log` group (or admin) |
-| `/activity-log` | `adm` or `log` group (or admin) |
-| `/firewall` | **Admin** (`sudo`/`wheel`) |
-| `/network` | **Admin** |
-| `/users` | **Admin** |
-| `/groups` | **Admin** |
-| `/services` | **Admin** |
-| `/settings` | **Admin** |
-| `/backup` | **Admin** |
-| `/proxy` | **Admin** |
+`cluster-node` and `cluster-master` are not administrators. After HMAC, peer,
+TLS-listener, time-window, and replay validation, they may call only explicitly
+classified internal cluster routes plus the limited container and VM inventory
+routes required for resource discovery.
 
----
+## Public and self-service routes
 
-## Implementation
+Public access is limited to exact method/path pairs such as login and public
+branding assets. Session self-service routes cover logout, current-user
+metadata, 2FA, password changes, and WebSocket tickets. Prefixes are never used
+as an implicit authorization fallback.
 
-### Reading Groups
+## Permission summary
 
-```python
-def get_user_groups(username: str) -> Set[str]:
-    """Reads all Linux groups of the user from /etc/group."""
-    pw = pwd.getpwnam(username)
-    groups = set()
-    for g in grp.getgrall():
-        if username in g.gr_mem or g.gr_gid == pw.pw_gid:
-            groups.add(g.gr_name)
-    return groups
-```
-
-### Permission Check
-
-```python
-def check_path_permission(username: str, groups: Set[str], path: str) -> bool:
-    """Single source of truth for access checks."""
-    # Checks URL prefix against group sets
-    # Returns: True = access allowed, False = 403
-```
-
-### Helper Functions
-
-| Function | Description |
-|---|---|
-| `is_admin(username, groups)` | True if `sudo`/`wheel` or system principal |
-| `has_container_access(username, groups)` | Docker/LXC group or admin |
-| `has_vm_access(username, groups)` | libvirt/kvm group or admin |
-| `has_storage_access(username, groups)` | disk/storage group or admin |
-| `has_shell_access(username, groups)` | tty group or admin |
-| `has_log_access(username, groups)` | adm/log group or admin |
-| `get_permission_summary(username)` | Dict with all permissions (for frontend) |
-
----
-
-## Permission Summary API
-
-The frontend calls `GET /auth/permissions` and receives:
+`GET /auth/me` returns the current Linux username, groups, and a UI-oriented
+summary:
 
 ```json
 {
-  "is_admin": true,
-  "has_container_access": true,
-  "has_vm_access": true,
-  "has_storage_access": true,
-  "has_shell_access": true,
-  "has_log_access": true,
-  "groups": ["sudo", "docker", "libvirt", "tty"]
+  "username": "alice",
+  "groups": ["docker", "adm"],
+  "permissions": {
+    "admin": false,
+    "containers": true,
+    "vms": false,
+    "storage": false,
+    "shell": false,
+    "logs": true
+  }
 }
 ```
 
-This information controls the visibility of UI elements in the frontend.
-
----
-
-## Typical User Configurations
-
-### Container Management Only
-```bash
-useradd -m -G docker containeradmin
-```
-
-### VM Management Only
-```bash
-useradd -m -G libvirt,kvm vmadmin
-```
-
-### Full Admin
-```bash
-useradd -m -G sudo sysadmin
-```
-
-### Monitoring Only (read logs)
-```bash
-useradd -m -G adm monitor
-```
+This summary controls navigation visibility; backend route authorization
+remains the security boundary.

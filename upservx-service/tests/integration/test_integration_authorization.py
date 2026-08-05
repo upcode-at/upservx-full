@@ -7,6 +7,7 @@ import pytest
 from fastapi.routing import APIRoute
 
 from lib.cluster_security import VerifiedClusterRequest
+from lib.api_tokens import ApiTokenPrincipal
 from lib.permissions import has_route_policy
 
 
@@ -57,6 +58,72 @@ async def test_wrong_method_is_denied_before_router_dispatch(app, api_key_header
         "/security/packages/upgrade",
         headers=api_key_headers,
     )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("role", "scopes", "method", "path"),
+    [
+        ("operator", {"admin:*"}, "GET", "/security/packages"),
+        ("read-only", {"admin:*"}, "POST", "/security/packages/upgrade"),
+        ("admin", {"admin:read"}, "POST", "/security/packages/upgrade"),
+        ("admin", {"containers:*"}, "POST", "/cluster/create"),
+    ],
+)
+async def test_api_token_role_and_scope_denials_are_enforced(
+    app, role, scopes, method, path
+):
+    principal = ApiTokenPrincipal(
+        token_id="limited",
+        name="Limited token",
+        role=role,
+        scopes=frozenset(scopes),
+        expires_at=None,
+    )
+    with patch("main.verify_api_token", return_value=principal):
+        response = await _request(
+            app,
+            method,
+            path,
+            headers={"Authorization": "Bearer limited-token"},
+            json={} if method != "GET" else None,
+        )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_revoked_or_unknown_api_token_is_rejected(app):
+    with (
+        patch("main.verify_api_token", return_value=None),
+        patch("main.verify_session_token", return_value=None),
+    ):
+        response = await _request(
+            app,
+            "GET",
+            "/security/packages",
+            headers={"Authorization": "Bearer revoked-token"},
+        )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_api_token_cannot_replace_a_signed_cluster_peer(app):
+    principal = ApiTokenPrincipal(
+        token_id="admin",
+        name="Administrator token",
+        role="admin",
+        scopes=frozenset({"*"}),
+        expires_at=None,
+    )
+    with patch("main.verify_api_token", return_value=principal):
+        response = await _request(
+            app,
+            "POST",
+            "/cluster/ha/heartbeat",
+            headers={"Authorization": "Bearer admin-token"},
+            json={},
+        )
     assert response.status_code == 403
 
 

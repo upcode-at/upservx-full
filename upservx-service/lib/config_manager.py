@@ -4,12 +4,18 @@ Handles persistent storage of backup servers and other system configurations.
 """
 
 import os
-import json
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from lib.encryption import get_encryption_manager
+from lib.secure_store import (
+    SecureStoreError,
+    ensure_config_directory,
+    secure_read_json,
+    secure_write_json,
+    secure_write_text,
+)
 
 CONFIG_DIR = "/etc/upservx"
 BACKUP_DIR = os.path.join(CONFIG_DIR, "backup")
@@ -18,27 +24,28 @@ SSH_KEYS_DIR = os.path.join(CONFIG_DIR, "ssh_keys")
 
 class ConfigManager:
     """Manage /etc/upservx configuration files."""
-    
+
     def __init__(self):
         """Initialize config manager and ensure directories exist."""
         self._ensure_directories()
         self._migrate_backup_files()
-    
+
     def _ensure_directories(self):
         """Create necessary directories if they don't exist."""
         try:
-            os.makedirs(CONFIG_DIR, mode=0o755, exist_ok=True)
-            os.makedirs(SSH_KEYS_DIR, mode=0o700, exist_ok=True)
-            os.makedirs(BACKUP_DIR, mode=0o755, exist_ok=True)
+            ensure_config_directory(CONFIG_DIR)
+            ensure_config_directory(SSH_KEYS_DIR)
+            ensure_config_directory(BACKUP_DIR)
         except Exception as e:
             print(f"Warning: Could not create config directories: {e}")
-    
+
     def _migrate_backup_files(self):
         """Migrate old backup_servers.json from root config dir to backup subdir."""
         old_backup_servers = os.path.join(CONFIG_DIR, "backup_servers.json")
         if old_backup_servers != BACKUP_SERVERS_FILE and os.path.exists(old_backup_servers) and not os.path.exists(BACKUP_SERVERS_FILE):
             try:
                 shutil.move(old_backup_servers, BACKUP_SERVERS_FILE)
+                os.chmod(BACKUP_SERVERS_FILE, 0o600)
                 print(f"Migrated backup_servers.json to {BACKUP_SERVERS_FILE}")
             except Exception as e:
                 print(f"Warning: Could not migrate backup_servers.json: {e}")
@@ -46,105 +53,90 @@ class ConfigManager:
     def _read_json_file(self, filepath: str, default: Any = None) -> Any:
         """Read and parse JSON file."""
         try:
-            if os.path.exists(filepath):
-                with open(filepath, 'r') as f:
-                    return json.load(f)
-        except Exception as e:
-            print(f"Error reading {filepath}: {e}")
-        return default if default is not None else {}
+            return secure_read_json(
+                filepath,
+                missing=default if default is not None else {},
+            )
+        except SecureStoreError as error:
+            raise RuntimeError("Configuration file is invalid") from error
     
     def _write_json_file(self, filepath: str, data: Any) -> bool:
         """Write data to JSON file."""
         try:
-            temp_file = f"{filepath}.tmp"
-            with open(temp_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            
-            # Atomic rename
-            shutil.move(temp_file, filepath)
-            os.chmod(filepath, 0o644)
+            secure_write_json(filepath, data)
             return True
         except Exception as e:
             print(f"Error writing {filepath}: {e}")
             return False
     
     # Backup Servers
-    
+
+    def _get_backup_servers_raw(self) -> List[Dict[str, Any]]:
+        data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
+        servers = data.get("servers", [])
+        if not isinstance(servers, list):
+            raise ValueError("Invalid backup server configuration")
+        return servers
+
+    @staticmethod
+    def _without_password(server: Dict[str, Any]) -> Dict[str, Any]:
+        sanitized = server.copy()
+        sanitized["password"] = None
+        return sanitized
+
     def get_backup_servers(self) -> List[Dict[str, Any]]:
         """Get all configured backup servers."""
-        data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
-        servers = data.get("servers", [])
-        
-        # Return servers without exposing encrypted passwords
-        return [{**server, 'password': None} if server.get('password_encrypted') else server 
-                for server in servers]
-    
-    def get_backup_server(self, server_id: int) -> Optional[Dict[str, Any]]:
-        """Get specific backup server by ID with decrypted password."""
-        # Read directly from file to get encrypted password
-        data = self._read_json_file(BACKUP_SERVERS_FILE, {"servers": []})
-        servers = data.get("servers", [])
+        return [self._without_password(server) for server in self._get_backup_servers_raw()]
+
+    def get_backup_server(
+        self,
+        server_id: int,
+        *,
+        include_secret: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Get a backup server, decrypting credentials only for internal use."""
+        servers = self._get_backup_servers_raw()
         
         for server in servers:
             if server.get("id") == server_id:
-                # Decrypt password if encrypted
-                if server.get("password_encrypted") and server.get("password"):
-                    print(f"[CONFIG] Decrypting password for server {server_id}...")
-                    try:
-                        encryption = get_encryption_manager()
-                        server_copy = server.copy()
-                        encrypted_password = server["password"]
-                        print(f"[CONFIG] Encrypted password: {encrypted_password[:20]}...")
-                        decrypted = encryption.decrypt(encrypted_password)
-                        server_copy["password"] = decrypted
-                        print(f"[CONFIG] Password decrypted successfully")
-                        return server_copy
-                    except Exception as e:
-                        print(f"[CONFIG] ERROR decrypting password: {e}")
-                        raise
-                return server
+                if not include_secret:
+                    return self._without_password(server)
+                server_copy = server.copy()
+                encrypted_password = server.get("password")
+                if encrypted_password:
+                    if not server.get("password_encrypted"):
+                        raise ValueError("Refusing plaintext backup password")
+                    server_copy["password"] = get_encryption_manager().decrypt(
+                        encrypted_password
+                    )
+                return server_copy
         return None
     
     def add_backup_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
         """Add new backup server configuration."""
-        print("[CONFIG] add_backup_server called")
-        print(f"[CONFIG] Input server_data: {server_data}")
-        
-        servers = self.get_backup_servers()
-        print(f"[CONFIG] Current servers count: {len(servers)}")
+        server_data = server_data.copy()
+        servers = self._get_backup_servers_raw()
         
         max_id = max([s.get("id", 0) for s in servers], default=0)
         server_data["id"] = max_id + 1
         server_data["created"] = datetime.now().isoformat()
         server_data["status"] = "active"
-        print(f"[CONFIG] Generated ID: {server_data['id']}")
-        
         if "password" in server_data and server_data["password"]:
-            print("[CONFIG] Encrypting password...")
-            try:
-                encryption = get_encryption_manager()
-                print("[CONFIG] Encryption manager obtained")
-                encrypted_password = encryption.encrypt(server_data["password"])
-                print(f"[CONFIG] Password encrypted: {encrypted_password[:20]}...")
-                server_data["password"] = encrypted_password
-                server_data["password_encrypted"] = True
-            except Exception as e:
-                print(f"[CONFIG] ERROR encrypting password: {e}")
-                import traceback
-                traceback.print_exc()
-                raise
+            encrypted_password = get_encryption_manager().encrypt(server_data["password"])
+            server_data["password"] = encrypted_password
+            server_data["password_encrypted"] = True
         
         servers.append(server_data)
-        print("[CONFIG] Server appended to list")
         
         if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-            return server_data
+            return self._without_password(server_data)
         else:
             raise Exception("Failed to save backup server configuration")
     
     def update_backup_server(self, server_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update existing backup server."""
-        servers = self.get_backup_servers()
+        servers = self._get_backup_servers_raw()
+        updates = updates.copy()
         
         if "password" in updates and updates["password"]:
             encryption = get_encryption_manager()
@@ -158,7 +150,7 @@ class ConfigManager:
                 servers[i] = server
                 
                 if self._write_json_file(BACKUP_SERVERS_FILE, {"servers": servers}):
-                    return server
+                    return self._without_password(server)
                 else:
                     raise Exception("Failed to update backup server configuration")
         
@@ -166,7 +158,7 @@ class ConfigManager:
     
     def delete_backup_server(self, server_id: int) -> bool:
         """Delete backup server configuration."""
-        servers = self.get_backup_servers()
+        servers = self._get_backup_servers_raw()
         original_count = len(servers)
         
         servers = [s for s in servers if s.get("id") != server_id]
@@ -180,14 +172,12 @@ class ConfigManager:
     
     def save_ssh_key(self, key_name: str, key_content: str) -> str:
         """Save SSH private key to secure directory."""
+        if not key_name or os.path.basename(key_name) != key_name:
+            raise ValueError("Invalid SSH key name")
         key_path = os.path.join(SSH_KEYS_DIR, key_name)
         
         try:
-            with open(key_path, 'w') as f:
-                f.write(key_content)
-            
-            # Set restrictive permissions
-            os.chmod(key_path, 0o600)
+            secure_write_text(key_path, key_content)
             return key_path
         except Exception as e:
             raise Exception(f"Failed to save SSH key: {e}")

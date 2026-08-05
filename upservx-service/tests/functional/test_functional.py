@@ -56,14 +56,20 @@ def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = Non
         patch("api.auth.pam_auth", _pam),
         patch("api.auth.pam.pam", return_value=_pam),
         patch("handlers.settings.load_settings", return_value=MagicMock(
-            deny_root_login=False, api_key="test-api-key",
+            deny_root_login=False,
         )),
         patch("lib.permissions.pwd.getpwnam", side_effect=KeyError),
         patch("lib.permissions.grp.getgrall", return_value=[]),
     ):
         from api.auth import router as auth_router        # noqa: PLC0415
+        import api.auth as auth_module                    # noqa: PLC0415
         from api.users import router as users_router      # noqa: PLC0415
         from api.containers import router as cont_router  # noqa: PLC0415
+
+        auth_module.pam_auth = _pam
+        auth_module.create_session_token = lambda *_args, **_kwargs: "signed-session"
+        auth_module.revoke_session_token = lambda _token: True
+        auth_module.totp_lib.is_enabled = lambda _username: False
 
         app.include_router(auth_router)
         app.include_router(users_router)

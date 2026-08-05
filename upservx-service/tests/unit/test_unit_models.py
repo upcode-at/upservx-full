@@ -184,7 +184,7 @@ class TestSettingsModel:
         )
         assert s.ssh_port == 22
         assert s.deny_root_login is False
-        assert s.api_key is None
+        assert "api_key" not in s.model_dump()
 
     def test_full_settings(self):
         s = SettingsModel(
@@ -198,6 +198,7 @@ class TestSettingsModel:
         )
         assert s.ssh_port == 2222
         assert s.deny_root_login is True
+        assert "api_key" not in s.model_dump()
 
 
 # ---------------------------------------------------------------------------

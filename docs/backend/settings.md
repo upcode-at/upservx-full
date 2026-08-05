@@ -26,10 +26,6 @@ class Settings(BaseModel):
     favicon_url: str            # Custom favicon
     accent_color: str           # Hex color code
 
-    # Authentication
-    api_key: str                # Bearer API key (hashed)
-    session_timeout_minutes: int  # Default: 60
-
     # Notifications
     notification_channels: List[dict]  # Embedded channel configs
 
@@ -91,19 +87,12 @@ This allows the login screen to display branding without requiring login first.
 
 ---
 
-## API Key Management
+## API token management
 
-```python
-# Generate API key
-import secrets
-api_key = secrets.token_urlsafe(32)
-
-# Store hashed
-import hashlib
-settings.api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
-```
-
-The raw key is only shown once when generated and is not stored in plaintext.
+API tokens are not part of `settings.json`. They are held in the owner-only
+`/etc/upservx/api_tokens.json` token store as hashes with role, scopes, expiry,
+and revocation metadata. The raw token is shown exactly once at creation. See
+[Authentication and sessions](./authentication.md#api-tokens).
 
 ---
 
@@ -112,9 +101,10 @@ The raw key is only shown once when generated and is not stored in plaintext.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/settings` | All settings (admin only) |
-| `PUT` | `/settings` | Update settings |
+| `POST` | `/settings` | Update settings |
 | `GET` | `/settings/customization` | Public branding info |
-| `POST` | `/settings/api-key/generate` | Generate new API key |
-| `DELETE` | `/settings/api-key` | Revoke API key |
+| `GET` | `/settings/api-tokens` | List token metadata |
+| `POST` | `/settings/api-tokens` | Create a scoped API token |
+| `DELETE` | `/settings/api-tokens/{token_id}` | Revoke an API token |
 | `POST` | `/settings/test-notification` | Send test notification |
 | `GET` | `/settings/version` | UpservX version info |

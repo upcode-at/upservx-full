@@ -115,14 +115,14 @@ Module Logic (containers.py, vms.py, ...)
 ## Authentication Flow
 
 ```
-Client sends Authorization header
+Client authenticates
         │
-        ├── "Basic base64(user:pass)" → PAM authentication against Linux PAM
-        ├── "Bearer <api-key>"        → Comparison with stored API key
-        └── "Bearer <cluster-key>"   → Cluster token verification
+        ├── POST /auth/login → PAM, optional TOTP, revocable signed session
+        ├── "Bearer <api-token>" → hash, revocation, expiry, role, and scope checks
+        └── Signed cluster headers → peer identity, time window, and replay checks
 
 No Authorization header?
-  → Fallback: Cookie named "auth" (contains the base64 token)
+  → Secure HttpOnly cookie named "auth" containing the signed session
 ```
 
 ---

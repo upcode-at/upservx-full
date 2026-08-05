@@ -1,124 +1,90 @@
-# Authentication & Middleware
+# Authentication and sessions
 
-**File:** `upservx-service/main.py`
+**Primary files:** `upservx-service/main.py`, `api/auth.py`,
+`lib/session_tokens.py`, `lib/api_tokens.py`, and `lib/totp.py`
 
----
+## Authentication mechanisms
 
-## Overview
-
-UpservX uses three authentication mechanisms:
-
-| Mechanism | Header Format | Description |
+| Mechanism | Transport | Purpose |
 |---|---|---|
-| **PAM Basic Auth** | `Authorization: Basic base64(user:pass)` | Linux PAM against local user accounts |
-| **API Key** | `Authorization: Bearer <api-key>` | Static API key from `settings.json` |
-| **Cluster Token** | `Authorization: Bearer <cluster-key>` | Token for cluster node communication |
-| **Cookie Fallback** | Cookie `auth` | Contains the base64 token or full header value |
+| User session | HTTPS-only `auth` cookie or `Authorization: Bearer <session>` | Browser and user API sessions created after PAM login |
+| API token | `Authorization: Bearer upx_...` | Automation with an explicit role and scopes |
+| Cluster signature | HMAC signature headers over the complete request | Internal node-to-node routes on the dedicated TLS listener |
 
----
+Passwords are accepted only by `POST /auth/login` and verified with Linux PAM.
+They are never placed in cookies or session files. If 2FA is enabled, the
+short-lived first-factor record contains only the username, timestamps, an
+attempt counter, and a hash of the random login token.
 
-## PAM Authentication
+## User sessions
 
-The middleware uses `python-pam` via `pam.pam().authenticate(username, password)`.
+Successful login creates a signed session containing the username, issue and
+expiry timestamps, and a random session ID. `/etc/upservx/sessions.json` stores
+only the SHA-256 hash of that session ID. A valid signature is therefore not
+enough: the server-side record must still exist and be unexpired.
 
-This means:
-- Any Linux user on the host system with a valid password can log in.
-- Access rights are determined **not** by the password, but by the user's **Linux groups** (see [Permissions](./permissions.md)).
+Logout revokes the current record immediately. Password changes revoke every
+session for the user; disabling 2FA revokes the user's other sessions. Legacy
+stateless session tokens are rejected and require a new login.
 
-```python
-pam_auth = pam.pam()
-if not pam_auth.authenticate(username, password):
-    return Response(status_code=401)
-request.state.user = username
-```
+The cookie defaults are:
 
----
+- `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`
+- one-hour `Max-Age` and an explicit expiry timestamp
+- no `Domain` attribute unless one is configured
+- deletion with the same path, domain, secure, and SameSite attributes
 
-## API Key Authentication
+The response body does not expose the session token. Configure deployments
+with HTTPS before login; `UPSERVX_COOKIE_SECURE=false` is intended only for an
+explicit local development environment.
 
-An API key can be generated in the settings. Bearer token requests are validated against this key.
+| Environment variable | Default | Constraint |
+|---|---|---|
+| `UPSERVX_SESSION_TTL_SECONDS` | `3600` | 300 to 86400 seconds |
+| `UPSERVX_COOKIE_SECURE` | `true` | Must remain true with `SameSite=None` |
+| `UPSERVX_COOKIE_SAMESITE` | `strict` | `strict`, `lax`, or `none` |
+| `UPSERVX_COOKIE_DOMAIN` | unset | Optional explicit cookie domain |
+| `UPSERVX_SESSION_SECRET` | generated on disk | At least 32 bytes when supplied |
 
-```python
-settings = load_settings()
-if settings.api_key and token == settings.api_key:
-    request.state.user = "api-key"
-```
+## API tokens
 
-The principal `"api-key"` is treated as a **system principal** with full admin access (no group check required).
+API tokens replace the former single plaintext key in `settings.json`. Token
+records in `/etc/upservx/api_tokens.json` contain only SHA-256 hashes plus
+names, roles, scopes, expiry, and revocation metadata. Plaintext is returned
+once when a token is created.
 
----
+Roles are `admin`, `operator`, and `read-only`. A request must be allowed by
+both its role and its exact action scope, such as `containers:read`,
+`containers:*`, or `*`. Unknown routes are denied. Even an administrator token
+cannot call internal cluster routes; those require a verified cluster
+signature.
 
-## Cluster Token Authentication
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/settings/api-tokens` | List safe token metadata |
+| `POST` | `/settings/api-tokens` | Create a role- and scope-bound token |
+| `DELETE` | `/settings/api-tokens/{token_id}` | Revoke a token immediately |
+| `POST` | `/settings/api-key` | Compatibility alias that creates a revocable admin token |
 
-Cluster nodes communicate using a shared `cluster_key`:
+At startup, a legacy `settings.json` `api_key` is hashed into a revocable token
+record and removed from the settings file.
 
-```python
-cluster_key = get_cluster_key()
-if cluster_key and token == cluster_key:
-    request.state.user = "cluster-node"  # Admin rights
-```
+## Cluster authentication
 
-Master nodes use a separate `master_config["key"]`:
+Internal cluster and HA requests use HMAC-SHA256 signatures with node identity,
+key ID, timestamp, nonce, method, exact target, and body digest. Replay nonces
+are persisted under a cross-process file lock. These requests are accepted only
+on the dedicated HTTPS listener, and peers pin the authenticated node CA.
 
-```python
-master_config = read_master_config()
-if master_config and master_config.get("key") == token:
-    request.state.user = "cluster-master"  # Admin rights
-```
+## WebSockets
 
-Both are treated as **system principals** with full access.
+Browser WebSockets use short-lived, one-time tickets obtained from
+`GET /auth/ws-ticket`. API tokens may be supplied in an `Authorization` header
+by non-browser clients, but are not accepted in query strings where access
+tokens could leak into URLs and logs.
 
----
+## Rate limiting
 
-## Auth Middleware Flow
-
-```
-HTTP Request
-    │
-    ├── OPTIONS (CORS preflight) → pass through directly
-    ├── WebSocket upgrade → pass through (WS handler authenticates itself)
-    ├── /app-store/apps/*/icon (GET) → public, no auth
-    ├── /isos/*/file (GET) → public, no auth
-    ├── /settings/customization (GET) → public (login screen)
-    ├── /auth/login (POST) → public
-    ├── /cluster/register (POST) → authenticated internally
-    ├── /cluster/export|download|upload|import → authenticated internally
-    │
-    └── All other endpoints:
-          │
-          ├── Authorization header present?
-          │     No → check Cookie "auth"
-          │          No cookie → 401
-          │
-          ├── "Basic ..." → PAM → 401 on failure
-          ├── "Bearer ..." → API key or cluster key → 401 on failure
-          └── Other scheme → 401
-```
-
----
-
-## Rate Limiting
-
-In-memory rate limiter (no Redis, per-process):
-
-| Endpoint | Limit |
-|---|---|
-| `/auth/login` | 10 attempts / 60 seconds per IP |
-| WebSocket ticket creation | 20 tickets / 60 seconds per IP |
-
-Implemented via `_check_rate_limit(key, max_attempts, window_seconds)`.
-
-**Note:** These rate limits are purely in-memory. They reset on process restart. For production environments, an external rate limiter (e.g. Nginx `limit_req`) should be added upstream.
-
----
-
-## WebSocket Tickets
-
-To open WebSocket connections (terminal, VNC), a one-time ticket is used:
-
-```
-POST /system/ws-ticket   → returns a short-lived ticket
-WebSocket connect with ?ticket=<ticket>   → ticket is consumed
-```
-
-The ticket system prevents WS connections from being opened without prior HTTP authentication. Implemented in `ws_tickets.py`.
+Login is limited to 10 attempts per IP per minute and WebSocket-ticket creation
+to 20 requests per IP per minute. This limiter is currently process-local; the
+multi-worker limitation remains tracked in the project TODO.

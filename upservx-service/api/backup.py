@@ -137,7 +137,7 @@ async def delete_backup_server(server_id: int):
 async def test_backup_server(server_id: int):
     """Test connection to a backup server."""
     try:
-        server = backup_db.get_backup_server(server_id)
+        server = backup_db.get_backup_server(server_id, include_secrets=True)
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
 
@@ -284,7 +284,7 @@ async def execute_backup_job(job_id: int):
             raise HTTPException(status_code=404, detail="Backup job not found")
 
         config = get_config_manager()
-        server = config.get_backup_server(job["server_id"])
+        server = config.get_backup_server(job["server_id"], include_secret=True)
         if not server:
             raise HTTPException(status_code=404, detail="Backup server not found")
 

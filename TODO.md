@@ -39,21 +39,24 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
   - `/cluster/info` no longer contains the cluster token. The create and rotate
     operations return their new enrollment token only in the mutation response.
 
-- [ ] Harden secrets and sessions.
-  - Backup configuration must not log passwords through debug output; remove
-    previews of encryption keys and ciphertext.
-  - Encryption must fail closed. Never store or return plaintext as a silent
-    fallback.
-  - Stop storing Linux passwords temporarily in
-    `/etc/upservx/login_tokens.json` during 2FA login; the username and a
-    successfully completed first authentication step are sufficient.
-  - Configure the session cookie for HTTPS with `Secure`, suitable
-    `SameSite`/domain/path behavior, and a clear expiry and revocation
-    strategy.
-  - Replace the single global API key with revocable, hashed API tokens bound to
-    roles and scopes.
-  - Centrally define and test file permissions for all files under
-    `/etc/upservx`.
+- [x] Harden secrets and sessions.
+  - Backup and encryption diagnostics no longer print credential objects,
+    encryption-key previews, or ciphertext previews. Backup, notification,
+    TOTP, and general secret encryption now raise on failure instead of
+    storing or returning plaintext.
+  - Pending 2FA login records contain only a hashed random token, username,
+    first-factor timestamp, expiry, and attempt count. Startup migration
+    removes password fields from legacy records.
+  - User sessions are signed, expiring, and backed by hashed server-side
+    records for immediate logout, password-change, and security-change
+    revocation. Browser cookies default to `Secure`, `HttpOnly`,
+    `SameSite=Strict`, `Path=/`, and explicit `Max-Age`/expiry attributes.
+  - The global plaintext API key has been replaced with hashed, individually
+    revocable API tokens with roles, scopes, and optional expiry. Legacy keys
+    migrate into revocable hashed records and are removed from `settings.json`.
+  - One central storage policy atomically writes configuration files as `0600`,
+    creates directories as `0700`, rejects symlinks, and repairs the complete
+    `/etc/upservx` tree at startup. Regression tests cover every behavior above.
 
 ### Process model and persistent state
 
@@ -148,8 +151,6 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 ### Broken API contracts and cluster synchronization
 
 - [ ] Align the frontend, CLI, and backend with a shared API contract.
-  - The frontend calls `/settings/generate-api-key`, while the backend exposes
-    `/settings/api-key`.
   - The TypeScript client includes `/backup/servers/{id}/info` and complete
     `/ssh-keys/*` APIs for which no routes are registered.
   - The CLI offers container `restart` and `inspect`, although the
@@ -398,7 +399,7 @@ current code and need testing or hardening rather than reimplementation:
 - Cloud-init user data during VM creation
 - VLAN support and internal libvirt networks
 - VM cloning, snapshots, and OVA/OVF import and export
-- Basic Linux-group-based permissions, API key, and TOTP 2FA
+- Linux-group permissions, revocable scoped API tokens, sessions, and TOTP 2FA
 - Basic cluster, replication, placement, and HA/VIP interfaces
 - Basic local and SSH-based backup functionality
 - nftables firewall, reverse proxy, certificates, VPN, and security dashboard

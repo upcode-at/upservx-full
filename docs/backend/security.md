@@ -226,4 +226,5 @@ Results are sorted: Critical → High → Medium → Low → Unknown, then by CV
 
 All `/security/*` endpoints are protected by the standard admin permission check (`sudo` / `wheel` group). The Security tab in the frontend sidebar is hidden from non-admin users via the `requires: "admin"` attribute on the sidebar entry.
 
-API keys and cluster tokens also receive implicit admin access as with all other admin-only endpoints.
+API tokens require an appropriate role and matching `admin:read` or
+`admin:write` scope. Cluster principals cannot access these routes.

@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 from cryptography.fernet import Fernet
+from lib.secure_store import ensure_config_directory, secure_write_bytes
 
 KEY_FILE = "/etc/upservx/encryption.key"
 KEY_DIR = "/etc/upservx"
@@ -23,9 +24,8 @@ def generate_key():
     if not key_dir.exists():
         print(f"\nCreating directory: {KEY_DIR}")
         try:
-            key_dir.mkdir(parents=True, exist_ok=True)
-            os.chmod(KEY_DIR, 0o755)
-            print(f"✓ Directory created with permissions 0755")
+            ensure_config_directory(KEY_DIR)
+            print(f"✓ Directory created with permissions 0700")
         except PermissionError:
             print(f"✗ Permission denied. Please run with sudo:")
             print(f"  sudo python3 {sys.argv[0]}")
@@ -48,16 +48,11 @@ def generate_key():
     print(f"\nGenerating new Fernet encryption key...")
     key = Fernet.generate_key()
     print(f"✓ Key generated: {len(key)} bytes")
-    print(f"  Preview: {key[:20].decode()}...")
     
     # Save key with restricted permissions
     print(f"\nSaving key to: {KEY_FILE}")
     try:
-        with open(KEY_FILE, 'wb') as f:
-            f.write(key)
-        
-        # Set restrictive permissions (only owner can read)
-        os.chmod(KEY_FILE, 0o600)
+        secure_write_bytes(KEY_FILE, key)
         print(f"✓ Key saved successfully")
         print(f"✓ Permissions set to 0600 (owner read/write only)")
         

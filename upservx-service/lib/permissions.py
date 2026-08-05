@@ -14,7 +14,7 @@ Linux groups map to subsystem actions:
 * adm / log: log read actions
 * tty: shell access (no shell HTTP route is currently registered)
 
-The global API key retains administrator access for backwards compatibility.
+API tokens are authorized separately by their explicit role and scopes.
 Cluster principals are deliberately not administrators and can use only the
 explicit inter-node routes plus the two inventory routes needed by cluster
 resource discovery.
@@ -41,7 +41,7 @@ STORAGE_GROUPS: Set[str] = {"disk", "storage"}
 SHELL_GROUPS: Set[str] = {"tty"}
 LOG_GROUPS: Set[str] = {"adm", "log"}
 
-API_PRINCIPALS: Set[str] = {"api-key"}
+API_PRINCIPALS: Set[str] = set()
 CLUSTER_PRINCIPALS: Set[str] = {"cluster-node", "cluster-master"}
 SYSTEM_PRINCIPALS: Set[str] = API_PRINCIPALS | CLUSTER_PRINCIPALS
 
@@ -266,6 +266,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/settings/vpn/file",
         "/settings/vpn/status",
         "/settings/notifications",
+        "/settings/api-tokens",
         "/backup/servers",
         "/backup/servers/{server_id}",
         "/backup/jobs",
@@ -305,6 +306,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/services/{name}/disable",
         "/settings",
         "/settings/api-key",
+        "/settings/api-tokens",
         "/settings/vpn/upload",
         "/settings/vpn/start",
         "/settings/vpn/stop",
@@ -346,6 +348,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/groups/{name}",
         "/settings/customization/logo",
         "/settings/customization/banner",
+        "/settings/api-tokens/{token_id}",
         "/backup/servers/{server_id}",
         "/backup/jobs/{job_id}",
         "/backup/instances/{instance_id}",
@@ -491,7 +494,7 @@ def is_public_request(method: str, path: str) -> bool:
 def get_user_groups(username: str) -> Set[str]:
     """Return all Linux groups to which username belongs."""
 
-    if username in SYSTEM_PRINCIPALS:
+    if username in SYSTEM_PRINCIPALS or username.startswith("api-token:"):
         return set()
     try:
         pw = pwd.getpwnam(username)
@@ -512,7 +515,7 @@ def is_admin(username: str, groups: Set[str]) -> bool:
             return True
     except KeyError:
         pass
-    return username in API_PRINCIPALS or bool(groups & ADMIN_GROUPS)
+    return bool(groups & ADMIN_GROUPS)
 
 
 def has_container_access(username: str, groups: Set[str]) -> bool:
@@ -568,6 +571,12 @@ def check_path_permission(
     }:
         return True
 
+    if action in {
+        PermissionAction.CLUSTER_INTERNAL_READ,
+        PermissionAction.CLUSTER_INTERNAL_WRITE,
+    }:
+        return username in CLUSTER_PRINCIPALS
+
     if is_admin(username, groups):
         return True
 
@@ -605,6 +614,80 @@ def check_path_permission(
         return bool(groups & LOG_GROUPS)
 
     return False
+
+
+_TOKEN_OPERATOR_ACTIONS = {
+    PermissionAction.AUTH_SELF,
+    PermissionAction.SYSTEM_READ,
+    PermissionAction.CONTAINER_INVENTORY,
+    PermissionAction.CONTAINER_READ,
+    PermissionAction.CONTAINER_WRITE,
+    PermissionAction.VM_INVENTORY,
+    PermissionAction.VM_READ,
+    PermissionAction.VM_WRITE,
+    PermissionAction.VM_NETWORK_READ,
+    PermissionAction.VM_NETWORK_WRITE,
+    PermissionAction.STORAGE_READ,
+    PermissionAction.STORAGE_WRITE,
+    PermissionAction.LOG_READ,
+}
+
+_TOKEN_READ_ONLY_ACTIONS = {
+    PermissionAction.AUTH_SELF,
+    PermissionAction.SYSTEM_READ,
+    PermissionAction.CONTAINER_INVENTORY,
+    PermissionAction.CONTAINER_READ,
+    PermissionAction.VM_INVENTORY,
+    PermissionAction.VM_READ,
+    PermissionAction.VM_NETWORK_READ,
+    PermissionAction.STORAGE_READ,
+    PermissionAction.LOG_READ,
+    PermissionAction.ADMIN_READ,
+    PermissionAction.CLUSTER_READ,
+}
+
+
+def api_token_scope_allows(scopes: Set[str] | frozenset[str], action: str) -> bool:
+    """Match one permission action against exact or subsystem wildcard scopes."""
+
+    if "*" in scopes or action in scopes:
+        return True
+    subsystem = action.split(":", 1)[0]
+    return f"{subsystem}:*" in scopes
+
+
+def check_api_token_permission(token, path: str, method: str = "GET") -> bool:
+    """Apply both token role and token scope to an explicit route policy."""
+
+    action = get_route_action(method, path)
+    if action is None:
+        return False
+    if action in {
+        PermissionAction.CLUSTER_INTERNAL_READ,
+        PermissionAction.CLUSTER_INTERNAL_WRITE,
+    }:
+        return False
+    role = getattr(token, "role", "")
+    scopes = getattr(token, "scopes", frozenset())
+    if role == "admin":
+        role_allowed = True
+    elif role == "operator":
+        role_allowed = action in _TOKEN_OPERATOR_ACTIONS
+    elif role == "read-only":
+        role_allowed = action in _TOKEN_READ_ONLY_ACTIONS
+    else:
+        return False
+    return role_allowed and api_token_scope_allows(scopes, action.value)
+
+
+def check_api_token_capability(token, capability: str) -> bool:
+    """Authorize a non-HTTP capability such as an interactive terminal."""
+
+    role = getattr(token, "role", "")
+    scopes = getattr(token, "scopes", frozenset())
+    if role == "read-only":
+        return False
+    return api_token_scope_allows(scopes, capability)
 
 
 def get_permission_summary(username: str, groups: Set[str]) -> dict:

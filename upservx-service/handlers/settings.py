@@ -5,21 +5,20 @@ Settings and configuration management utilities.
 import os
 import json
 import subprocess
-import secrets
 import platform
 from lib.models import SettingsModel
+from lib.secure_store import ensure_config_directory, secure_write_json, secure_write_bytes
 
 SETTINGS_FILE = "/etc/upservx/settings.json"
 LOG_DIR = "/var/log"
 MAX_LOG_SCAN_DEPTH = 1
-os.makedirs("/etc/upservx", exist_ok=True)
 VPN_DIR = "/etc/upservx/vpn"
 VPN_PIDFILE = "/var/run/upservx_vpn.pid"
 VPN_OVPN_NAME = "client.ovpn"
 
 def _ensure_vpn_dir() -> None:
     """Ensure VPN_DIR exists."""
-    os.makedirs(VPN_DIR, exist_ok=True)
+    ensure_config_directory(VPN_DIR)
 
 def _system_hostname() -> str:
     """Return the system hostname from /etc/hostname or platform.node()."""
@@ -65,13 +64,11 @@ def load_settings() -> SettingsModel:
         monitoring=data.get("monitoring", True),
         ssh_port=data.get("ssh_port", _system_ssh_port()),
         deny_root_login=data.get("deny_root_login", False),
-        api_key=data.get("api_key"),
     )
 
 def save_settings(settings: SettingsModel) -> None:
     """Save settings to file."""
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings.dict(), f)
+    secure_write_json(SETTINGS_FILE, settings.model_dump())
 
 def apply_system_settings(settings: SettingsModel) -> None:
     """Apply settings to the actual system configuration."""
@@ -120,13 +117,6 @@ def apply_system_settings(settings: SettingsModel) -> None:
         subprocess.run(["systemctl", "restart", "sshd"], capture_output=True)
     except Exception:
         pass
-
-def generate_api_key() -> str:
-    """Generate a new API key and save it to settings."""
-    settings = load_settings()
-    settings.api_key = secrets.token_hex(16)
-    save_settings(settings)
-    return settings.api_key
 
 def _resolve_log_path(name: str) -> str:
     """Resolve a log path inside LOG_DIR and block traversal outside of it."""
@@ -213,13 +203,7 @@ def save_vpn_ovpn(content: bytes, filename: str | None = None) -> str:
     safe_name = os.path.basename(name)
     path = os.path.join(VPN_DIR, safe_name)
 
-    with open(path, "wb") as f:
-        f.write(content)
-
-    try:
-        os.chmod(path, 0o600)
-    except Exception:
-        pass
+    secure_write_bytes(path, content)
 
     return path
 
