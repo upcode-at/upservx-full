@@ -18,6 +18,7 @@ WITH_POSTGRESQL=0
 WITH_FTP=0
 WITH_OPENVPN=0
 WITH_ZFS=0
+INSTALL_SELECTION_MADE=0
 UPDATES_ENABLED=0
 UPDATE_PUBLIC_KEY=
 RELEASE_VERSION=
@@ -29,8 +30,8 @@ CORE_PACKAGES=(
   build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
   libpq-dev libpam-modules libpam-modules-bin libpam-runtime pamtester
   nginx certbot python3-certbot python3-certbot-nginx
-  git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo
-  nftables fail2ban cron openssh-client iproute2 isc-dhcp-client util-linux
+  git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo debian-archive-keyring
+  nftables fail2ban cron openssh-client openssh-server iproute2 isc-dhcp-client util-linux
   e2fsprogs xfsprogs btrfs-progs dosfstools exfatprogs ntfs-3g parted
 )
 
@@ -38,15 +39,15 @@ usage() {
   cat <<'EOF'
 Usage: sudo ./install.sh [OPTIONS]
 
-The default core profile installs only the API, frontend, worker, nginx,
-fail2ban, and their build/runtime dependencies.
+The default full profile installs every supported UpservX platform component.
+Use --profile core only for an explicitly minimal installation.
 
 Profiles:
-  --profile core             No optional platform components (default)
+  --profile core             No optional platform components
   --profile containers       Docker and LXD
   --profile virtualization   libvirt/KVM and websockify
   --profile cluster          Docker and K3s/kubectl
-  --profile full             All optional profiles
+  --profile full             All supported components (default)
 
 Individual options:
   --with-docker --with-lxd --with-libvirt --with-k3s
@@ -67,6 +68,14 @@ EOF
 }
 
 enable_profile() {
+  WITH_DOCKER=0
+  WITH_LXD=0
+  WITH_LIBVIRT=0
+  WITH_K3S=0
+  WITH_POSTGRESQL=0
+  WITH_FTP=0
+  WITH_OPENVPN=0
+  WITH_ZFS=0
   case "$1" in
     core) ;;
     containers) WITH_DOCKER=1; WITH_LXD=1 ;;
@@ -78,6 +87,7 @@ enable_profile() {
       ;;
     *) printf 'Unknown profile: %s\n' "$1" >&2; exit 2 ;;
   esac
+  INSTALL_SELECTION_MADE=1
 }
 
 primary_server_ip() {
@@ -183,17 +193,40 @@ backup_broken_installation() {
   printf 'Existing UpservX installation backed up to: %s\n' "$REINSTALL_BACKUP_DIR"
 }
 
+load_recorded_profile() {
+  local profile_file=/var/lib/upservx/install-profile
+  [[ -f $profile_file && ! -L $profile_file ]] || return 1
+  [[ $(stat -c '%U:%a' "$profile_file") == root:640 ]] || {
+    printf 'Refusing unsafe recorded install profile: %s\n' "$profile_file" >&2
+    return 2
+  }
+
+  local key value
+  while IFS='=' read -r key value; do
+    case "$key" in
+      WITH_DOCKER|WITH_LXD|WITH_LIBVIRT|WITH_K3S|WITH_POSTGRESQL|WITH_FTP|WITH_OPENVPN|WITH_ZFS)
+        [[ $value == 0 || $value == 1 ]] || {
+          printf 'Invalid recorded install profile value for %s.\n' "$key" >&2
+          return 2
+        }
+        printf -v "$key" '%s' "$value"
+        ;;
+    esac
+  done <"$profile_file"
+  INSTALL_SELECTION_MADE=1
+}
+
 while (($#)); do
   case "$1" in
     --profile) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; enable_profile "$2"; shift 2 ;;
-    --with-docker) WITH_DOCKER=1; shift ;;
-    --with-lxd) WITH_LXD=1; shift ;;
-    --with-libvirt) WITH_LIBVIRT=1; shift ;;
-    --with-k3s) WITH_K3S=1; shift ;;
-    --with-postgresql) WITH_POSTGRESQL=1; shift ;;
-    --with-ftp) WITH_FTP=1; shift ;;
-    --with-openvpn) WITH_OPENVPN=1; shift ;;
-    --with-zfs) WITH_ZFS=1; shift ;;
+    --with-docker) WITH_DOCKER=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-lxd) WITH_LXD=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-libvirt) WITH_LIBVIRT=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-k3s) WITH_K3S=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-postgresql) WITH_POSTGRESQL=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-ftp) WITH_FTP=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-openvpn) WITH_OPENVPN=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-zfs) WITH_ZFS=1; INSTALL_SELECTION_MADE=1; shift ;;
     --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; UPDATES_ENABLED=1; shift 2 ;;
     --disable-updates) UPDATES_ENABLED=0; shift ;;
     --resume) RESUME_INSTALLATION=1; shift ;;
@@ -203,6 +236,16 @@ while (($#)); do
     *) printf 'Unknown installer option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ $RESUME_INSTALLATION == 1 && $INSTALL_SELECTION_MADE == 0 ]]; then
+  load_recorded_profile || status=$?
+  if [[ ${status:-0} == 2 ]]; then
+    exit 2
+  fi
+fi
+if [[ $INSTALL_SELECTION_MADE == 0 ]]; then
+  enable_profile full
+fi
 
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   printf 'This installer must run as root. Use sudo ./install.sh.\n' >&2
@@ -325,6 +368,34 @@ step_install_core_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y "${CORE_PACKAGES[@]}"
+  systemctl enable --now ssh.service
+
+  if [[ $WITH_ZFS == 1 ]] && ! apt-cache show zfsutils-linux >/dev/null 2>&1; then
+    # zfsutils-linux is shipped in Debian's contrib component. Minimal Debian
+    # images commonly enable only main, so add a narrowly scoped, Debian-signed
+    # source instead of silently omitting ZFS from the full profile.
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    [[ ${ID:-} == debian && ${VERSION_CODENAME:-} =~ ^[a-z0-9][a-z0-9_-]*$ ]] || {
+      printf 'ZFS packages are unavailable from the configured APT sources.\n' >&2
+      return 1
+    }
+    install -d -o root -g root -m 0755 /etc/apt/sources.list.d
+    cat > /etc/apt/sources.list.d/upservx-zfs.sources <<EOF
+Types: deb
+URIs: https://deb.debian.org/debian
+Suites: ${VERSION_CODENAME}
+Components: contrib
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+    chmod 0644 /etc/apt/sources.list.d/upservx-zfs.sources
+    apt-get update
+    apt-cache show zfsutils-linux >/dev/null 2>&1 || {
+      printf 'ZFS packages remain unavailable after enabling Debian contrib.\n' >&2
+      return 1
+    }
+  fi
+
   local packages=()
   [[ $WITH_LXD == 0 ]] || packages+=(lxd)
   [[ $WITH_LIBVIRT == 0 ]] || packages+=(qemu-kvm qemu-utils libvirt-daemon-system bridge-utils dnsmasq virt-install libvirt-clients websockify sshfs cloud-image-utils genisoimage)
@@ -419,6 +490,9 @@ step_create_service_accounts() {
   [[ $WITH_LXD == 0 ]] || usermod -aG lxd "$SERVICE_USER"
   if [[ $WITH_LIBVIRT == 1 ]]; then
     usermod -aG libvirt,kvm "$SERVICE_USER"
+    if getent group libvirt-qemu >/dev/null; then
+      usermod -aG libvirt-qemu "$SERVICE_USER"
+    fi
   fi
   install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /etc/upservx
   if find /etc/upservx -xdev -type l -print -quit | grep -q .; then
@@ -475,7 +549,11 @@ step_configure_mutable_state() {
   cp -a "$RELEASE_DIR/app-store-templates/." /var/lib/upservx/app-store/
   chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/upservx/app-store
   if [[ $WITH_LIBVIRT == 1 ]]; then
-    install -d -o libvirt-qemu -g libvirt-qemu -m 0755 /var/lib/libvirt/isos
+    local iso_group=libvirt
+    getent group libvirt-qemu >/dev/null && iso_group=libvirt-qemu
+    install -d -o "$SERVICE_USER" -g "$iso_group" -m 2770 /var/lib/libvirt/isos
+    find /var/lib/libvirt/isos -maxdepth 1 -xdev -type f -iname '*.iso' \
+      -exec chown "$SERVICE_USER:$iso_group" {} + -exec chmod 0640 {} +
   fi
   if [[ $WITH_K3S == 1 ]]; then
     install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0600 /etc/rancher/k3s/k3s.yaml /etc/upservx/kubeconfig
@@ -627,9 +705,9 @@ run_step 'Validate locked source and noVNC submodule' step_validate_source
 if [[ $REINSTALL == 1 ]]; then
   backup_broken_installation
 fi
-run_step 'Install minimal and selected profile packages' step_install_core_packages
+run_step 'Install core and selected platform packages' step_install_core_packages
 run_step "Install or verify Node.js ${NODE_REQUIRED_MAJOR}" step_install_node
-run_step 'Install selected optional platforms' step_install_optional_platforms
+run_step 'Install selected platform services' step_install_optional_platforms
 run_step 'Create dedicated service accounts and data roots' step_create_service_accounts
 run_step "Copy immutable release ${RELEASE_VERSION}" step_copy_release
 run_step 'Install locked dependencies and build the release' step_build_release

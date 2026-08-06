@@ -7,7 +7,7 @@
 | Operating System | Linux Debian |
 | Python | 3.11 or higher |
 | Node.js | 20 or higher |
-| Docker, LXD, libvirt/KVM, K3s | Optional profiles |
+| Docker, LXD, libvirt/KVM, K3s, ZFS | Installed by default; optional minimal profiles |
 | Root Access | Required to run the installer and signed updater |
 
 ---
@@ -22,7 +22,7 @@ sudo ./install.sh
 
 The `install.sh` script handles:
 
-- Installing a minimal core package set and only explicitly selected profiles
+- Installing the full supported platform stack by default, or an explicit smaller profile
 - Creating dedicated `upservx` backend/worker and `upservx-web` accounts
 - Installing an immutable root-owned release below `/opt/upservx/releases`
 - Installing locked dependencies with `npm ci` and `requirements.lock`
@@ -91,19 +91,21 @@ when `install.sh` itself is located below `/opt/upservx`.
 To enable signed updates, supply the release public key:
 
 ```bash
-sudo ./install.sh --profile containers \
+sudo ./install.sh \
   --update-public-key /secure/release-public.pem
 ```
 
-Available profiles are `core` (the default), `containers`, `virtualization`,
-`cluster`, and `full`. Individual `--with-*` flags are listed by
+Available profiles are `full` (the default), `core`, `containers`,
+`virtualization`, and `cluster`. Individual `--with-*` flags are listed by
 `./install.sh --help`. No keys or checksum environment variables are required.
 Without `--update-public-key`, the update facility stays disabled. NodeSource,
 Docker, and K3s use their official HTTPS sources by default; optional SHA-256
 environment variables add explicit pinning. K3s installs its compatible
 `kubectl` by default. If `KUBECTL_VERSION` selects a separate version, the
 installer fetches and validates its official checksum when `KUBECTL_SHA256` is
-not supplied.
+not supplied. When ZFS is selected and unavailable from the configured APT
+sources, the installer adds a Debian-signed `contrib` source for the current
+Debian release because Debian distributes `zfsutils-linux` in that component.
 
 ---
 

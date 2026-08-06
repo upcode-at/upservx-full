@@ -69,7 +69,7 @@ then runs the frontend ESLint and production build gates.
 - **Operating System**: Linux Debian
 - **Python**: 3.11 or higher
 - **Node.js**: 20 or higher
-- **Docker/LXD/libvirt/K3s**: Optional installer profiles
+- **Docker/LXD/libvirt/K3s/ZFS**: Installed by default; minimal profiles remain available
 - **Root Access**: Required only to run the installer and signed updater
 
 ## ⚡ Installation
@@ -81,18 +81,22 @@ then runs the frontend ESLint and production build gates.
 git clone --recurse-submodules https://github.com/upcode-at/upservx.git
 cd upservx
 
-# Minimal install (no keys required)
+# Full install (no keys required)
 sudo ./install.sh
 
-# Example production install with containers and signed updates
-sudo ./install.sh --profile containers \
+# Explicit minimal install
+sudo ./install.sh --profile core
+
+# Full install with signed updates
+sudo ./install.sh \
   --update-public-key /secure/release-public.pem
 ```
 
 The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
 versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
-entry point, and a post-install privilege/health smoke test. Optional platform
-components are installed only when their profile is selected. Without
+entry point, and a post-install privilege/health smoke test. Docker, LXD,
+libvirt/KVM, K3s/kubectl, ZFS, and the SSH server are included by default;
+`--profile core` opts into a minimal deployment. Without
 `--update-public-key`, the update facility stays disabled. Optional SHA-256
 environment variables can additionally pin remote installation material. See
 [`docs/installation.md`](docs/installation.md) for optional checksum pinning and

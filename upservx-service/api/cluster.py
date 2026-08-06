@@ -1804,6 +1804,8 @@ def write_replications(replications: list):
 @router.get("/cluster/replications")
 async def get_replications():
     """Get all replication rules"""
+    if not is_master_node() and not is_child_node():
+        return []
     if not is_master_node():
         raise HTTPException(status_code=403, detail="Only master node can manage replications")
     

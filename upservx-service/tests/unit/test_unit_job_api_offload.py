@@ -11,6 +11,17 @@ PERSISTENT_JOB = {"id": "persistent-id", "status": "queued"}
 
 
 @pytest.mark.asyncio
+async def test_standalone_node_has_no_replications_instead_of_forbidden_response():
+    from api import cluster
+
+    with (
+        patch.object(cluster, "is_master_node", return_value=False),
+        patch.object(cluster, "is_child_node", return_value=False),
+    ):
+        assert await cluster.get_replications() == []
+
+
+@pytest.mark.asyncio
 async def test_package_scan_and_upgrade_routes_enqueue_jobs():
     from api import security
 

@@ -12,6 +12,9 @@ from lib.models import ISOInfo
 from lib.logger import log_iso
 
 
+ISO_DIR = os.getenv("UPSERVX_ISO_DIR", "/var/lib/libvirt/isos")
+
+
 def _safe_iso_path(name: str, iso_dir: str) -> str:
     """Return a validated path that is guaranteed to be inside iso_dir."""
     # Strip path separators so names like '../../etc/passwd' are rejected
@@ -23,9 +26,17 @@ def _safe_iso_path(name: str, iso_dir: str) -> str:
 
 
 def get_iso_dir() -> str:
-    """Get the ISO directory path."""
-    iso_dir = "/var/lib/libvirt/isos"
-    os.makedirs(iso_dir, exist_ok=True)
+    """Return the installer-managed ISO directory without mutating the host."""
+
+    return ISO_DIR
+
+
+def _get_writable_iso_dir() -> str:
+    iso_dir = get_iso_dir()
+    if not os.path.isdir(iso_dir) or not os.access(iso_dir, os.W_OK):
+        raise RuntimeError(
+            "ISO storage is unavailable; install the virtualization profile"
+        )
     return iso_dir
 
 
@@ -94,7 +105,7 @@ def download_iso(url: str, name: str = None) -> ISOInfo:
     if not filename.lower().endswith(".iso"):
         filename += ".iso"
     
-    iso_dir = get_iso_dir()
+    iso_dir = _get_writable_iso_dir()
     dest = _safe_iso_path(filename, iso_dir)
     
     try:
@@ -107,6 +118,7 @@ def download_iso(url: str, name: str = None) -> ISOInfo:
         raise Exception(str(e))
     
     stat = os.stat(dest)
+    os.chmod(dest, 0o640)
     typ, version, arch = guess_iso_info(filename)
     log_iso(f"Downloaded ISO [{filename}] from [{url}] ({round(stat.st_size / (1024**3), 1)} GB)")
     
@@ -128,11 +140,12 @@ def save_uploaded_iso(file_content: bytes, filename: str) -> ISOInfo:
     if not filename.lower().endswith(".iso"):
         raise Exception("invalid iso file")
     
-    iso_dir = get_iso_dir()
+    iso_dir = _get_writable_iso_dir()
     dest = _safe_iso_path(filename, iso_dir)
     
     with open(dest, "wb") as f:
         f.write(file_content)
+    os.chmod(dest, 0o640)
     
     stat = os.stat(dest)
     typ, version, arch = guess_iso_info(filename)
@@ -153,7 +166,7 @@ def save_uploaded_iso(file_content: bytes, filename: str) -> ISOInfo:
 
 def delete_iso(name: str) -> None:
     """Delete an ISO file."""
-    iso_dir = get_iso_dir()
+    iso_dir = _get_writable_iso_dir()
     path = _safe_iso_path(name, iso_dir)
     
     if not os.path.isfile(path):

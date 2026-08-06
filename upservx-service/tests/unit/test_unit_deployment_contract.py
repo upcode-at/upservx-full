@@ -57,6 +57,29 @@ def test_installer_defaults_to_keyless_installation():
     assert 'command -v kubectl' in installer
 
 
+def test_installer_defaults_to_all_supported_platform_components():
+    installer = (ROOT / "install.sh").read_text()
+    smoke = (ROOT / "deploy/upservx-post-install-smoke").read_text()
+
+    assert "INSTALL_SELECTION_MADE=0" in installer
+    assert "if [[ $INSTALL_SELECTION_MADE == 0 ]]; then\n  enable_profile full" in installer
+    assert "openssh-client openssh-server" in installer
+    assert "systemctl enable --now ssh.service" in installer
+    assert "upservx-zfs.sources" in installer
+    assert "Components: contrib" in installer
+    assert "Docker service is active" in smoke
+    assert "LXC client is installed" in smoke
+    assert "K3s service is active" in smoke
+    assert "ZFS CLI is installed" in smoke
+
+
+def test_iso_listing_does_not_try_to_create_a_privileged_host_directory():
+    handler = (ROOT / "upservx-service/handlers/isos.py").read_text()
+    assert 'ISO_DIR = os.getenv("UPSERVX_ISO_DIR", "/var/lib/libvirt/isos")' in handler
+    assert "os.makedirs(iso_dir" not in handler
+    assert "if not os.path.isdir(iso_dir):\n        return files" in handler
+
+
 def test_installer_can_import_encryption_module_when_initializing_secrets():
     installer = (ROOT / "install.sh").read_text()
     assert 'PYTHONPATH="$RELEASE_DIR/upservx-service"' in installer
@@ -69,6 +92,8 @@ def test_installer_can_import_encryption_module_when_initializing_secrets():
 def test_installer_can_safely_resume_after_release_creation():
     installer = (ROOT / "install.sh").read_text()
     assert "--resume) RESUME_INSTALLATION=1" in installer
+    assert "load_recorded_profile" in installer
+    assert "stat -c '%U:%a'" in installer
     assert '[[ -L $APP_ROOT/current ]]' in installer
     assert 'RELEASE_DIR=$(readlink -f "$APP_ROOT/current")' in installer
     assert '[[ ${RELEASE_DIR%/*} == "$APP_ROOT/releases"' in installer

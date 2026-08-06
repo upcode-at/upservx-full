@@ -34,6 +34,8 @@ check 'dedicated PAM policy is installed' test "$(stat -c '%U:%G %a' /etc/pam.d/
 check 'dedicated PAM policy delegates authentication' grep -Fxq '@include common-auth' /etc/pam.d/upservx
 check 'root PAM broker dependency is installed' test -x /usr/bin/pamtester
 check 'service can invoke only its helper' runuser -u upservx -- sudo -n /usr/local/libexec/upservx-privileged self-test
+check 'SSH server is installed' test -x /usr/sbin/sshd
+check 'SSH server is active' systemctl is-active --quiet ssh.service
 check 'API unit is active' systemctl is-active --quiet upservx-api.service
 check 'worker unit is active' systemctl is-active --quiet upservx-worker.service
 check 'frontend unit is active' systemctl is-active --quiet upservx-web.service
@@ -45,11 +47,29 @@ check 'noVNC assets are present' test -f /opt/upservx/current/upservx/public/nov
 if [[ -r $profile_file ]]; then
   # shellcheck source=/dev/null
   . "$profile_file"
-  [[ ${WITH_DOCKER:-0} == 0 ]] || check 'Docker group is configured' has_group docker
-  [[ ${WITH_LXD:-0} == 0 ]] || check 'LXD group is configured' has_group lxd
+  if [[ ${WITH_DOCKER:-0} == 1 ]]; then
+    check 'Docker CLI is installed' command -v docker
+    check 'Docker service is active' systemctl is-active --quiet docker.service
+    check 'Docker group is configured' has_group docker
+  fi
+  if [[ ${WITH_LXD:-0} == 1 ]]; then
+    check 'LXC client is installed' command -v lxc
+    check 'LXD group is configured' has_group lxd
+  fi
   if [[ ${WITH_LIBVIRT:-0} == 1 ]]; then
+    check 'libvirt CLI is installed' command -v virsh
     check 'libvirt group is configured' has_group libvirt
     check 'KVM group is configured' has_group kvm
+    check 'ISO storage is writable by the backend' runuser -u upservx -- test -w /var/lib/libvirt/isos
+  fi
+  if [[ ${WITH_K3S:-0} == 1 ]]; then
+    check 'K3s is installed' command -v k3s
+    check 'kubectl is installed' command -v kubectl
+    check 'K3s service is active' systemctl is-active --quiet k3s.service
+  fi
+  if [[ ${WITH_ZFS:-0} == 1 ]]; then
+    check 'ZFS CLI is installed' command -v zfs
+    check 'ZFS pool CLI is installed' command -v zpool
   fi
   [[ ${UPDATES_ENABLED:-0} == 0 ]] || check 'update verification key is installed' test -f /usr/share/upservx/update-public.pem
 fi
