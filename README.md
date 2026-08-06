@@ -34,7 +34,6 @@ Upcode Harbor includes 62 pre-configured app templates for quick deployments:
 - Jellyfin, Emby, Plex
 
 **Development:**
-
 - Gitea, n8n
 
 **Databases:**

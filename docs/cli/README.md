@@ -293,7 +293,7 @@ upcode-harbor system services
 Browse and install applications from the integrated App Store.
 
 ```
-upcode-harbor apps <action> [app] 
+upcode-harbor apps <action> [app]
 ```
 
 | Action | Arguments | Description |
