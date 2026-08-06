@@ -111,10 +111,10 @@ select_optional_components() {
   local selection component
   if ! selection=$(whiptail \
     --title 'UpservX-Installation' \
-    --ok-button 'Weiter' \
-    --cancel-button 'Abbrechen' \
+    --ok-button 'Continue' \
+    --cancel-button 'Cancel' \
     --separate-output \
-    --checklist $'Optionale Komponenten auswählen.\n\nPfeiltasten: Navigation | Leertaste: Auswahl | Tab: Schaltfläche\n\nOpenSSH wird immer installiert und kann nicht abgewählt werden.' \
+    --checklist $'Select optional components.\n\nArrow keys: Navigate | Space: Toggle | Tab: Select button\n\nOpenSSH is always installed and cannot be deselected.' \
     20 82 8 \
     docker 'Docker Container Runtime' OFF \
     k3s 'K3s Kubernetes' OFF \

@@ -66,7 +66,8 @@ def test_installer_has_space_toggle_checklist_and_always_installs_ssh():
     assert "apt-get install -y whiptail" in installer
     assert "--separate-output" in installer
     assert "--checklist" in installer
-    assert "Leertaste: Auswahl" in installer
+    assert "Arrow keys: Navigate | Space: Toggle | Tab: Select button" in installer
+    assert "OpenSSH is always installed and cannot be deselected" in installer
     assert "docker 'Docker Container Runtime' OFF" in installer
     assert "k3s 'K3s Kubernetes' OFF" in installer
     assert "lxc 'LXC/LXD Systemcontainer' OFF" in installer
