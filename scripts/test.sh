@@ -62,6 +62,8 @@ find . \
   -path ./.git -prune -o \
   -path ./upservx/node_modules -prune -o \
   -path ./upservx/public/novnc -prune -o \
+  -path ./upservx-service/ssh_keys -prune -o \
+  -path ./upservx-service/authorized_keys -prune -o \
   -type f -name '*.sh' -print0 \
   | xargs -0 -r bash -n
 

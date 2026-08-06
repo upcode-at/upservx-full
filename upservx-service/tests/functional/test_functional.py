@@ -11,7 +11,6 @@ Tests complete user scenarios spanning multiple components:
   6. Permission scenarios: unprivileged user accesses restricted routes
 """
 
-import base64
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import FastAPI, Request
@@ -25,8 +24,8 @@ from fastapi.testclient import TestClient
 def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = None):
     """
     Creates a FastAPI test app with auth and additional routers.
-    The PAM middleware is replaced by a simple BasicAuth parser
-    that calls the mocked PAM handler.
+    The production middleware is replaced by a signed-session check while PAM
+    itself remains mocked for the login route.
     """
     if groups is None:
         groups = {"sudo"}
@@ -38,37 +37,36 @@ def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = Non
 
     @app.middleware("http")
     async def fake_auth_middleware(request: Request, call_next):
-        # Pass auth endpoints through without credential check
-        if request.url.path in ("/auth/login", "/auth/logout") and request.method == "POST":
-            return await call_next(request)
-
-        auth = request.headers.get("Authorization", "")
-        if auth.lower().startswith("basic "):
-            creds = base64.b64decode(auth[6:]).decode()
-            user, pw = creds.split(":", 1)
-            if _pam.authenticate(user, pw):
-                request.state.user = user
-                request.state.groups = groups
+        async def dispatch_with_auth_dependencies():
+            with (
+                patch("api.auth.pam_auth", _pam),
+                patch("api.auth.create_session_token", return_value="signed-session"),
+                patch("api.auth.revoke_session_token", return_value=True),
+                patch("api.auth.totp_lib.is_enabled", return_value=False),
+                patch("api.auth.load_settings", return_value=MagicMock(
+                    deny_root_login=False,
+                )),
+            ):
                 return await call_next(request)
+
+        if request.url.path in ("/auth/login", "/auth/logout") and request.method == "POST":
+            return await dispatch_with_auth_dependencies()
+
+        authorization = request.headers.get("Authorization", "")
+        bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
+        if bearer == "signed-session" or request.cookies.get("auth") == "signed-session":
+            request.state.user = username
+            request.state.groups = groups
+            return await dispatch_with_auth_dependencies()
         return __import__("fastapi").Response(status_code=401)
 
     with (
-        patch("api.auth.pam_auth", _pam),
-        patch("handlers.settings.load_settings", return_value=MagicMock(
-            deny_root_login=False,
-        )),
         patch("lib.permissions.pwd.getpwnam", side_effect=KeyError),
         patch("lib.permissions.grp.getgrall", return_value=[]),
     ):
         from api.auth import router as auth_router        # noqa: PLC0415
-        import api.auth as auth_module                    # noqa: PLC0415
         from api.users import router as users_router      # noqa: PLC0415
         from api.containers import router as cont_router  # noqa: PLC0415
-
-        auth_module.pam_auth = _pam
-        auth_module.create_session_token = lambda *_args, **_kwargs: "signed-session"
-        auth_module.revoke_session_token = lambda _token: True
-        auth_module.totp_lib.is_enabled = lambda _username: False
 
         app.include_router(auth_router)
         app.include_router(users_router)
@@ -77,9 +75,8 @@ def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = Non
     return app, _pam
 
 
-def _basic_header(username="testuser", password="testpass"):
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    return {"Authorization": f"Basic {token}"}
+def _session_header():
+    return {"Authorization": "Bearer signed-session"}
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +91,11 @@ class TestLoginFlow:
 
         app, _ = _full_app()
 
-        with TestClient(app, raise_server_exceptions=False) as client:
+        with TestClient(
+            app,
+            base_url="https://testserver",
+            raise_server_exceptions=False,
+        ) as client:
             # Login
             login_resp = client.post(
                 "/auth/login",
@@ -104,7 +105,7 @@ class TestLoginFlow:
             assert "auth" in login_resp.cookies
 
             # Authenticated request
-            me_resp = client.get("/auth/me", headers=_basic_header())
+            me_resp = client.get("/auth/me")
             assert me_resp.status_code == 200
 
             # Logout
@@ -118,9 +119,12 @@ class TestLoginFlow:
         assert resp.status_code == 401
 
     def test_wrong_credentials_denied(self):
-        app, pam = _full_app(pam_ok=False)
+        app, _ = _full_app(pam_ok=False)
         with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.get("/auth/me", headers=_basic_header("user", "wrong"))
+            resp = client.post(
+                "/auth/login",
+                json={"username": "user", "password": "wrong"},
+            )
         assert resp.status_code == 401
 
 
@@ -153,7 +157,7 @@ class TestContainerLifecycle:
         )
 
         app, _ = _full_app()
-        headers = _basic_header()
+        headers = _session_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             # CREATE
@@ -209,7 +213,7 @@ class TestContainerLifecycle:
     def test_create_failure_stops_lifecycle(self):
         """If CREATE fails, no further steps are executed."""
         app, _ = _full_app()
-        headers = _basic_header()
+        headers = _session_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             with (
@@ -232,7 +236,7 @@ class TestUserLifecycle:
 
     def test_user_creation_and_deletion(self):
         app, _ = _full_app()
-        headers = _basic_header()
+        headers = _session_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             # Create user
@@ -281,7 +285,7 @@ class TestWsTicketFlow:
         auth_mod._rl_buckets.clear()
 
         app, _ = _full_app()
-        headers = _basic_header()
+        headers = _session_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             # Ticket holen
@@ -303,7 +307,7 @@ class TestWsTicketFlow:
             wst._tickets.clear()
 
         app, _ = _full_app()
-        headers = _basic_header()
+        headers = _session_header()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             ticket_resp = client.get("/auth/ws-ticket", headers=headers)
@@ -335,14 +339,14 @@ class TestPermissionScenarios:
                     image="img", cpu=0.1, memory=64, created="2025-01-01")
         with patch("api.containers.list_all_containers", return_value=[mock_c]):
             with TestClient(app, raise_server_exceptions=False) as client:
-                resp = client.get("/containers", headers=_basic_header())
+                resp = client.get("/containers", headers=_session_header())
         assert resp.status_code == 200
 
     def test_admin_can_list_users(self):
         app, _ = _full_app(groups={"sudo"})
         with patch("api.users.list_system_users", return_value=[]):
             with TestClient(app, raise_server_exceptions=False) as client:
-                resp = client.get("/users", headers=_basic_header())
+                resp = client.get("/users", headers=_session_header())
         assert resp.status_code == 200
 
     def test_docker_user_cannot_list_users(self):
@@ -358,6 +362,6 @@ class TestPermissionScenarios:
             return await call_next(request)
 
         with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.get("/users", headers=_basic_header())
+            resp = client.get("/users", headers=_session_header())
         # Either 401 (no auth in this app variant) or 403
         assert resp.status_code in (401, 403)

@@ -6,7 +6,7 @@ Structure
 - `app`          – FastAPI test application with mocked PAM and disabled
                    side effects (TeeWriter, VNC proxy, …).
 - `client`       – synchronous httpx test client for integration/functional tests.
-- `auth_headers` – Basic Auth header representing a logged-in user.
+- `auth_headers` – Bearer session header representing a logged-in user.
 """
 
 import os
@@ -109,14 +109,9 @@ def client(app):
 @pytest.fixture()
 def auth_headers():
     """
-    Basic Auth header for a fictional user `testuser`.
-
-    In integration tests, PAM is mocked so that any password is accepted.
-    The header uses the format expected by the middleware.
+    Bearer header for a fictional signed user session.
     """
-    import base64
-    token = base64.b64encode(b"testuser:testpassword").decode()
-    return {"Authorization": f"Basic {token}"}
+    return {"Authorization": "Bearer test-session-token"}
 
 
 @pytest.fixture()

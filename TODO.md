@@ -6,7 +6,7 @@ take precedence over general ideas.
 
 **Last full repository audit:** August 5, 2026
 
-**Audited version:** `0.6.0`
+**Release target:** `0.7.0`
 
 **Priorities:** P0 = release blocker, P1 = required before stable production
 use, P2 = next feature phase, P3 = long-term/enterprise roadmap
@@ -22,8 +22,6 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 - [ ] Expand backend test coverage to all critical modules: backup, cluster/HA,
   VM/LXC/KVM, App Store/Compose, firewall, networking, reverse proxy, security,
   settings/VPN, notifications, and updates.
-- [ ] Update stale tests to use Bearer/cookie authentication; fixtures still
-  document Basic Auth even though the middleware accepts only Bearer tokens.
 - [ ] Add real system tests in isolated VMs:
   - Fresh installation and updates on supported Debian and Ubuntu versions
   - Docker and Compose, LXD/LXC, KVM/libvirt, and noVNC
@@ -93,16 +91,6 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
     match the registered routers.
   - The architecture claims PostgreSQL/Alembic and an old file structure,
     although the active code primarily uses JSON and SQLite.
-  - App Store documentation lists 49 apps; there are 61 complete templates plus
-    an empty Kafka directory.
-  - `upservx/README.md` is still the generic Create Next App README.
-- [ ] Define supported versions unambiguously.
-  - Because it uses `X | None`, the code requires at least Python 3.10, while
-    the README and documentation promise Python 3.8.
-  - The installer and CI use Node 20, while the README names Node 18; the
-    Next.js version in the badge is also incorrect.
-- [ ] Extend `.gitignore` for local virtual environments, runtime key
-  directories, test/build caches, and temporary backend data.
 - [ ] Convert debug/helper scripts (`debug_backup_test.py`,
   `test_encryption.py`) into real tests or remove them from the product source
   tree.

@@ -102,6 +102,10 @@ class TestRoutePolicy:
             get_route_action("POST", "/security/packages/upgrade")
             == PermissionAction.ADMIN_WRITE
         )
+        assert (
+            get_route_action("POST", "/containers/app-store/apps/demo/update")
+            == PermissionAction.CONTAINER_WRITE
+        )
         assert get_route_action("GET", "/vm-networks") == PermissionAction.VM_NETWORK_READ
         assert (
             get_route_action("POST", "/vm-networks")

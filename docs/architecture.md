@@ -7,7 +7,7 @@ UpservX is a two-part web application:
 ```
 ┌─────────────────────────────┐         ┌─────────────────────────────────┐
 │         upservx/            │         │        upservx-service/          │
-│  Next.js 16 Frontend        │ ◄─────► │  FastAPI Backend (Python 3.8+)  │
+│  Next.js 16 Frontend        │ ◄─────► │  FastAPI Backend (Python 3.11+) │
 │  React 19 · TypeScript      │  HTTP   │  Uvicorn · SQLAlchemy · Alembic  │
 │  Tailwind CSS v4 · Radix UI │  REST   │  PAM Auth · PostgreSQL          │
 │  Port 9200                  │  WS     │  API 9500 · Cluster TLS 9501   │
@@ -28,7 +28,7 @@ UpservX is a two-part web application:
 
 ```
 upservx/                        ← Full repository
-├── app-store-templates/        ← 49 Docker Compose app templates
+├── app-store-templates/        ← 62 Docker Compose app templates
 ├── docs/                       ← This documentation
 ├── releases/                   ← Release notes
 ├── upservx/                    ← Next.js frontend
@@ -36,13 +36,13 @@ upservx/                        ← Full repository
 │   │   ├── layout.tsx          ← Root layout (fonts, theme provider)
 │   │   ├── page.tsx            ← Main SPA page
 │   │   └── login/             
-│   ├── components/             ← 29 React components
+│   ├── components/             ← 31 React components
 │   ├── lib/                    ← Utility functions
 │   └── public/                 ← Static assets (logo, images)
 └── upservx-service/            ← FastAPI backend
-    ├── main.py                 ← FastAPI app, routers, auth middleware (1539 lines)
-    ├── permissions.py          ← Group-based access control
-    ├── models.py               ← Pydantic data models (440 lines)
+    ├── main.py                 ← FastAPI app, routers, auth middleware
+    ├── lib/permissions.py      ← Route/action authorization policy
+    ├── lib/models.py           ← Pydantic data models
     ├── api/                    ← API sub-modules (routers)
     │   ├── cluster.py          ← Cluster management (2312 lines)
     │   ├── containers.py       ← Container API (images, compose)
@@ -159,15 +159,15 @@ read/modify/write sections use cross-process locks plus atomic file replacement.
 | **Frontend** | Tailwind CSS | 4.x |
 | **Frontend** | Radix UI | various |
 | **Frontend** | xterm.js | 5.5 |
-| **Backend** | Python | 3.8+ |
-| **Backend** | FastAPI | 0.128 |
+| **Backend** | Python | 3.11+ |
+| **Backend** | FastAPI | 0.128.5 |
 | **Backend** | Uvicorn | 0.32 |
-| **Backend** | Pydantic | 2.x |
+| **Backend** | Pydantic | 2.13 |
 | **Backend** | SQLAlchemy | 2.0 |
 | **Backend** | Alembic | 1.14 |
-| **Backend** | Paramiko | 3.5 (SSH) |
+| **Backend** | Paramiko | 5.0 (SSH) |
 | **Backend** | cryptography | 46.x (Fernet) |
-| **Backend** | psutil | 6.1 (metrics) |
+| **Backend** | psutil | 7.2 (metrics) |
 | **Auth** | Linux PAM via root-owned pamtester broker | system package |
 | **DB** | PostgreSQL | via psycopg2 |
 | **System** | Docker | CLI |

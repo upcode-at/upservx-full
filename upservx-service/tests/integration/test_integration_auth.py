@@ -28,7 +28,7 @@ def isolated_auth_security_state(monkeypatch):
 # Minimal test app (auth router only, without PAM middleware)
 # ---------------------------------------------------------------------------
 
-def _make_auth_app(pam_ok: bool = True):
+def _make_auth_app(pam_ok: bool = True, deny_root_login: bool = False):
     """Creates an isolated FastAPI app with auth router and mocked PAM."""
     app = FastAPI()
 
@@ -37,23 +37,22 @@ def _make_auth_app(pam_ok: bool = True):
     async def inject_user(request: Request, call_next):
         request.state.user = "testuser"
         request.state.groups = set()
-        return await call_next(request)
+        with (
+            patch("api.auth.pam_auth", _pam_inst),
+            patch("api.auth.load_settings", return_value=MagicMock(
+                deny_root_login=deny_root_login,
+            )),
+        ):
+            return await call_next(request)
 
     _pam_inst = MagicMock()
     _pam_inst.authenticate.return_value = pam_ok
 
     with (
-        patch("api.auth.pam_auth", _pam_inst),
-        patch("handlers.settings.load_settings", return_value=MagicMock(
-            deny_root_login=False,
-        )),
         patch("lib.permissions.pwd.getpwnam", side_effect=KeyError),
         patch("lib.permissions.grp.getgrall", return_value=[]),
     ):
         from api.auth import router as auth_router  # noqa: PLC0415
-        import api.auth as auth_module  # noqa: PLC0415
-
-        auth_module.pam_auth = _pam_inst
         app.include_router(auth_router)
 
     return app, _pam_inst
@@ -146,15 +145,9 @@ class TestAuthLogin:
         assert resp.status_code == 400
 
     def test_root_login_blocked_when_denied(self):
-        app, pam_inst = _make_auth_app(pam_ok=True)
-        with (
-            patch("api.auth.pam_auth", pam_inst),
-            patch("api.auth.load_settings", return_value=MagicMock(
-                deny_root_login=True,
-            )),
-        ):
-            with TestClient(app, raise_server_exceptions=False) as client:
-                resp = client.post("/auth/login", json={"username": "root", "password": "pw"})
+        app, _ = _make_auth_app(pam_ok=True, deny_root_login=True)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.post("/auth/login", json={"username": "root", "password": "pw"})
         assert resp.status_code == 403
 
     def test_rate_limit_after_too_many_attempts(self):

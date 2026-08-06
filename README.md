@@ -5,16 +5,16 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Next.js](https://img.shields.io/badge/Next.js-18.0+-black.svg)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.x-black.svg)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.128.x-009688.svg)](https://fastapi.tiangolo.com/)
 
 A comprehensive web-based server management platform with Docker container management, integrated app store, backup system, and system monitoring. UpservX simplifies managing your server infrastructure with a modern, user-friendly interface.
 
 ## 🚀 Features
 
 - 📦 **Container and VM Management** - Container lifecycle, logs, image management
-- 🏪 **Integrated App Store** - 20+ pre-configured apps (WordPress, TYPO3, Nextcloud, Jellyfin, MySQL, PostgreSQL, MongoDB, Redis, Grafana, Prometheus, Pi-hole, and more)
+- 🏪 **Integrated App Store** - 62 validated, versioned templates (WordPress, TYPO3, Nextcloud, Jellyfin, MySQL, PostgreSQL, MongoDB, Redis, Grafana, Prometheus, Pi-hole, and more)
 - 💾 **Automated Backup System** - Scheduled backups with Cron, local and SSH remote storage
 - 👥 **User & Group Management** - System users, SSH keys, permissions
 - 🌐 **Network Management** - Interface configuration, IP management
@@ -25,7 +25,7 @@ A comprehensive web-based server management platform with Docker container manag
 
 ## 📦 App Store Templates
 
-UpservX includes over 20 pre-configured app templates for quick deployments:
+UpservX includes 62 pre-configured app templates for quick deployments:
 
 **CMS & Web:**
 - WordPress, TYPO3, Nextcloud, Jitsi

@@ -169,6 +169,7 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/containers/compose-projects/{project_name}/start",
         "/containers/compose-projects/{project_name}/stop",
         "/containers/app-store/apps/{app_id}/install",
+        "/containers/app-store/apps/{project_name}/update",
         "/containers/storages",
         "/containers/volumes",
         "/images/pull",

@@ -1,50 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UpservX Frontend
 
-## Getting Started
+The UpservX web interface is a Next.js 16 application using React 19,
+TypeScript, Tailwind CSS 4, Radix UI, and xterm.js.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20 or newer
+- The locked dependencies from `package-lock.json`
+- An UpservX API reachable through the same-origin `/api` proxy
+
+## Development
+
+From this directory:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:9200) with your browser to see the result.
+The development server listens on port 9200. Authentication uses the secure
+UpservX session cookie; configure HTTPS through the repository's nginx setup
+when testing the production login flow.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Quality Gates
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+The repository-level `make test` command additionally runs backend, CLI,
+contract, App Store, and shell checks before executing these frontend gates.
 
-To learn more about Next.js, take a look at the following resources:
+## Production Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Do not deploy this directory independently with a generic Next.js hosting
+provider. The supported installer builds it into an immutable UpservX release,
+runs it as the unprivileged `upservx-web` service on loopback port 9200, and
+exposes it through the managed HTTPS nginx endpoint.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Storage Management
-
-The backend supports formatting drives with ZFS. To create a ZFS pool, send a
-POST request to `/drives/zfs` with a pool name, a list of devices and the desired
-RAID level (`mirror`, `raidz`, `raidz2`, `raidz3` or `stripe`).
-Pools can be listed via `GET /drives/zfs`. Devices that belong to a pool are not
-returned by `/drives`; instead the pool entry contains the device list and RAID
-type. You can also create pools from the **Storage** tab in the dashboard,
-which provides a form to pick devices and RAID level.
-
-ZFS management commands typically require root privileges. Ensure that the
-backend service runs with sufficient permissions or execute the API calls using
-`sudo` so the `zpool` command can create and list pools successfully.
+See [the installation guide](../docs/installation.md) and
+[the architecture documentation](../docs/architecture.md) for the complete
+deployment and authentication contract.

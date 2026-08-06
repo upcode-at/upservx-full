@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-06
+
+> Full release notes: [releases/0.7.0.md](releases/0.7.0.md)
+
+### Added
+- **Recoverable immutable deployment**: Root-owned versioned releases, separate API/frontend/worker systemd services, recurring health checks, an HTTPS nginx entry point, and an allowlisted root helper replace in-place Git updates and broad backend privilege
+- **Signed atomic updater**: Reproducible release artifacts now carry a version manifest, SHA-256 checksum, and detached signature; configuration is backed up before activation and readiness failures roll back to the previous release
+- **Installer recovery modes**: `--resume` finishes interrupted installations and `--reinstall` moves a broken installation into a recoverable backup before starting cleanly
+- **Interactive component selection**: Docker, K3s, LXC/LXD, and ZFS can be selected with a terminal checklist; automation profiles remain available and OpenSSH is always installed
+- **Linux/PAM-only web authentication**: Existing Linux accounts authenticate through a dedicated PAM service and a root-owned, stdin-only `pamtester` broker; the installer no longer creates application login accounts
+- **Revocable API tokens**: Named API tokens support admin, operator, and read-only roles, exact or subsystem scopes, optional expiry, one-time plaintext display, and immediate revocation
+- **Persistent job execution**: Backups, replications, exports, scans, upgrades, and updates run through a durable SQLite queue with worker heartbeats, progress, timeout handling, cancellation, retry, recovery, and process-group termination
+- **Secured cluster transport**: Internal cluster traffic uses a dedicated TLS listener with pinned node CA trust plus HMAC-signed requests, timestamps, nonces, body digests, replay protection, and explicit peer identities
+- **Validated App Store catalog**: All 62 bundled templates use the versioned manifest schema, pinned image releases, generated secret metadata, managed data paths, and mandatory JSON Schema and Docker Compose validation
+- **Advanced reverse proxy editor**: Each managed proxy entry exposes its Nginx site configuration to Linux administrators; saves are size-limited, tested with `nginx -t`, atomically applied, and rolled back on validation or reload failure
+
+### Changed
+- **Deny-by-default authorization**: Every HTTP method and route has an explicit permission action; Linux groups, API-token roles/scopes, and cluster principals are evaluated separately, and unclassified routes fail closed
+- **Hardened sessions and secrets**: Browser sessions are revocable server-side records, legacy plaintext API keys migrate to hashed tokens, sensitive files use owner-only atomic storage, and unsafe symlinked configuration paths are rejected
+- **Keyless installation default**: Node-local encryption, session, cluster, and TLS keys are generated automatically; signed updates remain disabled unless the matching external public key is supplied
+- **Backup lifecycle and SSH key APIs**: Backup configuration, execution, verification, restore, retention, scheduling, remote targets, and SSH-key operations now use explicit request models and generated OpenAPI client contracts
+- **Network navigation**: Reverse Proxy & SSL and VPN management moved from Settings into Network, with VPN behavior extracted into its own component
+- **Runtime isolation**: Frontend and API listeners bind to loopback and are reached remotely through nginx on HTTPS port 443; backend host mutations use only the fixed privileged helper
+- **Terminal and logs UX**: System and container terminals resize with xterm FitAddon and PTY size propagation; shell environment handling and log layout/readability were improved
+- **Dependencies and quality gates**: Frontend and backend security dependencies were updated, dependencies are locked, and CI now runs syntax, lint, backend/CLI, OpenAPI contract, App Store, shell, frontend lint, and production-build gates
+
+### Fixed
+- **Installer finalization**: Encryption imports use the release Python path, missing keys are generated during finalization, interrupted state can resume safely, and broken installations can be replaced without losing the previous state backup
+- **Remote access**: Installation reports the reachable HTTPS server address instead of the loopback frontend listener
+- **PAM authentication failures**: Linux users that can authenticate over SSH can now be checked through `pam_unix` despite the unprivileged API service account
+- **VM network errors**: Missing libvirt tooling and command failures return actionable responses instead of unhandled 500 errors, while permissions cover dedicated VM-network read/write actions
+- **Storage requests**: Mount and unmount routes consume the correct payload properties and report invalid requests consistently
+- **Terminal behavior**: PTY working directory, environment, initial sizing, and live resize propagation were corrected
+- **Reverse proxy deletion**: Successful removal is now recognized from the HTTP response and no longer displays `Failed to delete: undefined`
+- **Direct-IP development access**: CORS and Next.js development-origin handling support server IP access without hard-coded browser origins
+
+### Security
+- **Privilege boundary**: The backend service may invoke only the root-owned UpservX helper, whose operations and arguments are independently allowlisted and tested
+- **Host configuration protection**: Raw Nginx configuration access is limited to Linux administrators; API tokens and cluster principals cannot read or write it
+- **Cluster endpoint isolation**: Browser sessions and even admin API tokens cannot access internal cluster routes; those routes require verified cluster identity on the TLS listener
+- **App Store secret safety**: Floating image tags and known default credentials are rejected, generated secrets are never written back to manifests, and installed project state lives outside immutable releases
+- **Dependency remediation**: Next.js, PostCSS, Sharp, multipart, dotenv, Paramiko, and test/runtime dependency updates include the security fixes accumulated since 0.6.0
+
 ## [0.6.0] - 2026-06-06
 
 > Full release notes: [releases/0.6.0.md](releases/0.6.0.md)

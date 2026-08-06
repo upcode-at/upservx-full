@@ -135,7 +135,7 @@ def _wait_for_cluster_listener(process: subprocess.Popen, timeout: float = 10.0)
 app = FastAPI(
     title="UpservX API",
     description="Server Management API",
-    version="0.6.0",
+    version="0.7.0",
 )
 
 

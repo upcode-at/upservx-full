@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_release_version_is_consistent_across_all_shipped_surfaces():
+    version = (ROOT / "VERSION.md").read_text().strip()
+    package = json.loads((ROOT / "upservx/package.json").read_text())
+    package_lock = json.loads((ROOT / "upservx/package-lock.json").read_text())
+    api = (ROOT / "upservx-service/main.py").read_text()
+    cli = (ROOT / "upservx-cli/cli/main.py").read_text()
+    sidebar = (ROOT / "upservx/components/sidebar.tsx").read_text()
+
+    assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)
+    assert package["version"] == version
+    assert package_lock["version"] == version
+    assert package_lock["packages"][""]["version"] == version
+    assert f'version="{version}"' in api
+    assert f'VERSION = "{version}"' in cli
+    assert f">v{version}<" in sidebar
+    assert (ROOT / f"releases/{version}.md").is_file()
+    assert f"## [{version}]" in (ROOT / "CHANGELOG.md").read_text()
+    assert f"Release v{version}" in (ROOT / "RELEASE.md").read_text()
 
 
 def test_installer_is_profile_based_and_does_not_patch_distribution_pam_or_pull_git():
