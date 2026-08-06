@@ -21,6 +21,7 @@ WITH_ZFS=0
 UPDATES_ENABLED=0
 UPDATE_PUBLIC_KEY=
 RELEASE_VERSION=
+RESUME_INSTALLATION=0
 
 CORE_PACKAGES=(
   build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
@@ -49,6 +50,7 @@ Individual options:
   --with-postgresql --with-ftp --with-openvpn --with-zfs
   --update-public-key PATH   Enable signed updates with this public key
   --disable-updates          Install without the update facility (default)
+  --resume                   Finish an installation interrupted during finalization
   --release-version VERSION  Override the local initial release version
   -h, --help
 
@@ -87,6 +89,7 @@ while (($#)); do
     --with-zfs) WITH_ZFS=1; shift ;;
     --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; UPDATES_ENABLED=1; shift 2 ;;
     --disable-updates) UPDATES_ENABLED=0; shift ;;
+    --resume) RESUME_INSTALLATION=1; shift ;;
     --release-version) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; RELEASE_VERSION=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown installer option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -116,11 +119,42 @@ fi
 
 RELEASE_DIR="$APP_ROOT/releases/$RELEASE_VERSION"
 RELEASE_STAGING="$APP_ROOT/releases/.${RELEASE_VERSION}.$$"
-if [[ -e $APP_ROOT/current || -L $APP_ROOT/current ]]; then
-  printf 'An UpservX installation already exists. Use the signed updater instead of reinstalling.\n' >&2
+if [[ $RESUME_INSTALLATION == 1 ]]; then
+  [[ -L $APP_ROOT/current ]] || {
+    printf 'No interrupted UpservX installation is available to resume.\n' >&2
+    exit 1
+  }
+  RELEASE_DIR=$(readlink -f "$APP_ROOT/current")
+  [[ ${RELEASE_DIR%/*} == "$APP_ROOT/releases" && -d $RELEASE_DIR ]] || {
+    printf 'The current UpservX release link is invalid; refusing to resume.\n' >&2
+    exit 1
+  }
+  RELEASE_VERSION=${RELEASE_DIR##*/}
+  [[ $RELEASE_VERSION =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
+    printf 'The current UpservX release version is invalid; refusing to resume.\n' >&2
+    exit 1
+  }
+  [[ -x $RELEASE_DIR/upservx-service/venv/bin/python3 ]] || {
+    printf 'The current UpservX backend environment is incomplete; refusing to resume.\n' >&2
+    exit 1
+  }
+  for prerequisite in \
+    /etc/upservx/service.env \
+    /etc/systemd/system/upservx-api.service \
+    /etc/systemd/system/upservx-web.service \
+    /etc/systemd/system/upservx-worker.service \
+    /usr/local/libexec/upservx-health-check \
+    /usr/local/libexec/upservx-post-install-smoke; do
+    [[ -e $prerequisite ]] || {
+      printf 'Installation finalization cannot resume; missing prerequisite: %s\n' "$prerequisite" >&2
+      exit 1
+    }
+  done
+  RELEASE_STAGING=
+elif [[ -e $APP_ROOT/current || -L $APP_ROOT/current ]]; then
+  printf 'An UpservX installation already exists. Use the signed updater, or --resume if finalization was interrupted.\n' >&2
   exit 1
-fi
-if [[ -e $RELEASE_DIR || -e $RELEASE_STAGING ]]; then
+elif [[ -e $RELEASE_DIR || -e $RELEASE_STAGING ]]; then
   printf 'Release already exists: %s\n' "$RELEASE_DIR" >&2
   exit 1
 fi
@@ -472,6 +506,17 @@ step_start_and_verify() {
 
 : >"$LOG_FILE"
 printf 'UpservX installer log: %s\n' "$LOG_FILE"
+if [[ $RESUME_INSTALLATION == 1 ]]; then
+  TOTAL_STEPS=3
+  run_step 'Initialize application secrets as the service account' step_initialize_secrets
+  run_step 'Install the CLI launcher' step_install_cli
+  run_step 'Start services and run the post-install smoke test' step_start_and_verify
+  trap - EXIT
+  printf 'Installation resumed successfully. Release: %s\n' "$RELEASE_VERSION"
+  printf 'Status: systemctl status upservx.target\n'
+  printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
+  exit 0
+fi
 run_step 'Validate locked source and noVNC submodule' step_validate_source
 run_step 'Install minimal and selected profile packages' step_install_core_packages
 run_step "Install or verify Node.js ${NODE_REQUIRED_MAJOR}" step_install_node

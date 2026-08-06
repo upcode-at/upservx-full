@@ -39,6 +39,17 @@ def test_installer_can_import_encryption_module_when_initializing_secrets():
     assert "from lib.encryption import EncryptionManager" in installer
 
 
+def test_installer_can_safely_resume_late_installation_steps():
+    installer = (ROOT / "install.sh").read_text()
+    assert "--resume) RESUME_INSTALLATION=1" in installer
+    assert '[[ -L $APP_ROOT/current ]]' in installer
+    assert 'RELEASE_DIR=$(readlink -f "$APP_ROOT/current")' in installer
+    assert '[[ ${RELEASE_DIR%/*} == "$APP_ROOT/releases"' in installer
+    assert "/usr/local/libexec/upservx-post-install-smoke" in installer
+    assert "TOTAL_STEPS=3" in installer
+    assert "Installation resumed successfully" in installer
+
+
 def test_frontend_api_worker_and_update_have_separate_units():
     units = ROOT / "deploy" / "systemd"
     api = (units / "upservx-api.service").read_text()

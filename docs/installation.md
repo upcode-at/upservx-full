@@ -31,6 +31,14 @@ The `install.sh` script handles:
 - Exposing loopback-only application ports through an HTTPS nginx proxy
 - Running the post-install privilege and health smoke test
 
+If a run was interrupted during finalization after the deployment files were
+installed, finish the remaining initialization without reinstalling packages
+or overwriting the release:
+
+```bash
+sudo ./install.sh --resume
+```
+
 To enable signed updates, supply the release public key:
 
 ```bash
