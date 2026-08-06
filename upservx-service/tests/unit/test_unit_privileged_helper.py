@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -68,3 +71,36 @@ def test_unsafe_or_out_of_scope_operations_are_denied(helper, command, arguments
 def test_update_versions_reject_unit_and_path_injection(helper):
     for value in ("../release", "release@evil", "release/name", "", "a" * 65):
         assert not helper.VERSION_RE.fullmatch(value)
+
+
+def test_pam_broker_passes_password_only_via_stdin(helper, monkeypatch):
+    password = b"correct horse battery staple\n"
+    stdin = io.TextIOWrapper(io.BytesIO(password), encoding="utf-8")
+    monkeypatch.setattr(helper.sys, "stdin", stdin)
+    completed = SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+
+    with (
+        patch.object(helper, "_absolute_command", return_value="/usr/bin/pamtester"),
+        patch.object(helper.subprocess, "run", return_value=completed) as run,
+    ):
+        assert helper.authenticate_pam_user("alice") == 0
+
+    command = run.call_args.args[0]
+    assert command == [
+        "/usr/bin/pamtester",
+        "upservx",
+        "alice",
+        "authenticate",
+        "acct_mgmt",
+    ]
+    assert password.decode().strip() not in command
+    assert run.call_args.kwargs["input"] == password
+    assert run.call_args.kwargs["capture_output"] is True
+
+
+@pytest.mark.parametrize("password", [b"", b"unterminated", b"two\nlines\n", b"nul\x00byte\n"])
+def test_pam_broker_rejects_malformed_password_input(helper, monkeypatch, password):
+    stdin = io.TextIOWrapper(io.BytesIO(password), encoding="utf-8")
+    monkeypatch.setattr(helper.sys, "stdin", stdin)
+    with pytest.raises(helper.PolicyError, match="invalid PAM password input"):
+        helper.authenticate_pam_user("alice")

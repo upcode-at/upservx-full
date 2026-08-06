@@ -3,7 +3,6 @@
 import asyncio
 import os
 import pty
-import pam
 import platform
 import subprocess
 import threading
@@ -29,13 +28,13 @@ from lib.session_tokens import (
 )
 from lib.api_tokens import verify_api_token
 from lib.logger import log_auth
+from lib.pam_auth import PAM_SERVICE, PrivilegedPamAuthenticator
 from handlers.settings import load_settings
 import lib.totp as totp_lib
 
 router = APIRouter()
 
-pam_auth = pam.pam()
-PAM_SERVICE = "upservx"
+pam_auth = PrivilegedPamAuthenticator()
 SESSION_TTL_SECONDS = int(os.getenv("UPSERVX_SESSION_TTL_SECONDS", "3600"))
 if not 300 <= SESSION_TTL_SECONDS <= 86_400:
     raise RuntimeError("UPSERVX_SESSION_TTL_SECONDS must be between 300 and 86400")
@@ -304,7 +303,7 @@ def auth_2fa_disable(payload: dict, request: Request):
     if not password or not code:
         raise HTTPException(status_code=400, detail="password and code required")
     # Verify password
-    _pam = pam.pam()
+    _pam = PrivilegedPamAuthenticator()
     if not _authenticate_linux_user(_pam, username, password):
         raise HTTPException(status_code=401, detail="password is incorrect")
     # Verify current TOTP code
@@ -335,7 +334,7 @@ async def change_password(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail="new password must be at least 8 characters")
 
     # Verify current password via PAM
-    _pam = pam.pam()
+    _pam = PrivilegedPamAuthenticator()
     if not _authenticate_linux_user(_pam, username, current_password):
         log_auth(f"Password change failed (wrong current password) for user [{username}]", error=True)
         raise HTTPException(status_code=401, detail="current password is incorrect")

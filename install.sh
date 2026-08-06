@@ -27,7 +27,8 @@ REINSTALL_BACKUP_DIR=
 
 CORE_PACKAGES=(
   build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
-  libpq-dev libpam0g-dev nginx certbot python3-certbot python3-certbot-nginx
+  libpq-dev libpam-modules libpam-modules-bin libpam-runtime pamtester
+  nginx certbot python3-certbot python3-certbot-nginx
   git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo
   nftables fail2ban cron openssh-client iproute2 isc-dhcp-client util-linux
   e2fsprogs xfsprogs btrfs-progs dosfstools exfatprogs ntfs-3g parted

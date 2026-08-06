@@ -14,7 +14,12 @@
 Passwords are accepted only by `POST /auth/login` and verified with Linux PAM.
 All password checks explicitly use the `/etc/pam.d/upservx` service, which the
 installer configures to include Debian's `common-auth` and `common-account`
-policies. PAM failures are logged server-side with their code and reason, while
+policies. Because `pam_unix` cannot verify an arbitrary account from the
+unprivileged `upservx` process, authentication crosses the existing root-owned
+allowlist helper and invokes `pamtester` for only `authenticate` and
+`acct_mgmt`. The password is supplied only on standard input; it is never a
+command argument, environment variable, or helper output. PAM failures are
+logged server-side with their code and reason, while
 the API returns only a generic credential error. Passwords are never placed in
 cookies, session files, or diagnostic logs. If 2FA is enabled, the
 short-lived first-factor record contains only the username, timestamps, an

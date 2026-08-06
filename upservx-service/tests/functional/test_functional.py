@@ -54,7 +54,6 @@ def _full_app(pam_ok: bool = True, username: str = "testuser", groups: set = Non
 
     with (
         patch("api.auth.pam_auth", _pam),
-        patch("api.auth.pam.pam", return_value=_pam),
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
         )),

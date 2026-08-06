@@ -17,6 +17,7 @@ def test_installer_is_profile_based_and_does_not_patch_distribution_pam_or_pull_
     assert "--with-postgresql" in installer
     assert "npm ci" in installer
     assert "requirements.lock" in installer
+    assert "libpam-modules libpam-modules-bin libpam-runtime pamtester" in installer
     assert "NODESOURCE_KEY_SHA256" in installer
     assert "K3S_INSTALL_SHA256" in installer
     assert "DOCKER_GPG_SHA256" in installer
@@ -25,6 +26,8 @@ def test_installer_is_profile_based_and_does_not_patch_distribution_pam_or_pull_
 def test_linux_login_uses_a_dedicated_managed_pam_service():
     installer = (ROOT / "install.sh").read_text()
     auth = (ROOT / "upservx-service/api/auth.py").read_text()
+    pam_client = (ROOT / "upservx-service/lib/pam_auth.py").read_text()
+    privileged = (ROOT / "deploy/upservx-privileged").read_text()
     updater = (ROOT / "deploy/upservx-updater").read_text()
     pam_policy = (ROOT / "deploy/pam/upservx").read_text()
 
@@ -33,8 +36,12 @@ def test_linux_login_uses_a_dedicated_managed_pam_service():
         '"$RELEASE_DIR/deploy/pam/upservx" /etc/pam.d/upservx'
     ) in installer
     assert "/etc/pam.d/upservx" in updater
-    assert 'PAM_SERVICE = "upservx"' in auth
+    assert "from lib.pam_auth import PAM_SERVICE" in auth
+    assert 'PAM_SERVICE = "upservx"' in pam_client
     assert "service=PAM_SERVICE" in auth
+    assert 'run_privileged(\n                "pam-authenticate"' in pam_client
+    assert '"authenticate",\n                "acct_mgmt",' in privileged
+    assert "input=password_input" in privileged
     assert "@include common-auth" in pam_policy
     assert "@include common-account" in pam_policy
 

@@ -32,6 +32,7 @@ check 'privileged helper is root-owned and immutable to the service' test "$(sta
 check 'sudo policy is syntactically valid' visudo -cf /etc/sudoers.d/upservx
 check 'dedicated PAM policy is installed' test "$(stat -c '%U:%G %a' /etc/pam.d/upservx)" = 'root:root 644'
 check 'dedicated PAM policy delegates authentication' grep -Fxq '@include common-auth' /etc/pam.d/upservx
+check 'root PAM broker dependency is installed' test -x /usr/bin/pamtester
 check 'service can invoke only its helper' runuser -u upservx -- sudo -n /usr/local/libexec/upservx-privileged self-test
 check 'API unit is active' systemctl is-active --quiet upservx-api.service
 check 'worker unit is active' systemctl is-active --quiet upservx-worker.service

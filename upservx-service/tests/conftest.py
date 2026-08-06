@@ -22,7 +22,7 @@ from lib.api_tokens import ApiTokenPrincipal
 
 # ---------------------------------------------------------------------------
 # Register stub modules that only exist on the real server
-# (pam, uvicorn, etc.) – must be set BEFORE the first `import main`.
+# (uvicorn, etc.) – must be set BEFORE the first `import main`.
 # ---------------------------------------------------------------------------
 
 def _register_stub(name: str, **attrs):
@@ -32,12 +32,6 @@ def _register_stub(name: str, **attrs):
         setattr(mod, k, v)
     sys.modules.setdefault(name, mod)
 
-
-# pam – PAM authentication (not available in CI)
-_pam_instance = MagicMock()
-_pam_instance.authenticate.return_value = True
-_pam_class = MagicMock(return_value=_pam_instance)
-_register_stub("pam", pam=_pam_class)
 
 # uvicorn – only used in main.py under __main__
 _register_stub("uvicorn")
@@ -66,7 +60,6 @@ def app(tmp_path_factory):
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
         )),
-        patch("pam.pam", return_value=_pam_instance),
     ):
         # main einmal importieren (oder aus dem Cache holen)
         if "main" in sys.modules:
@@ -75,6 +68,9 @@ def app(tmp_path_factory):
             import main as _main_mod  # noqa: PLC0415
             _app = _main_mod.app
     _main_module = sys.modules["main"]
+    _pam_authenticator = MagicMock()
+    _pam_authenticator.authenticate.return_value = True
+    sys.modules["api.auth"].pam_auth = _pam_authenticator
     _main_module.verify_api_token = lambda token: (
         ApiTokenPrincipal(
             token_id="test",

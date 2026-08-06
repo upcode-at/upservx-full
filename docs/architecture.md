@@ -168,7 +168,7 @@ read/modify/write sections use cross-process locks plus atomic file replacement.
 | **Backend** | Paramiko | 3.5 (SSH) |
 | **Backend** | cryptography | 46.x (Fernet) |
 | **Backend** | psutil | 6.1 (metrics) |
-| **Auth** | python-pam | 2.0 |
+| **Auth** | Linux PAM via root-owned pamtester broker | system package |
 | **DB** | PostgreSQL | via psycopg2 |
 | **System** | Docker | CLI |
 | **System** | LXC/LXD | CLI |

@@ -78,6 +78,7 @@ def _absolute_command(name: str) -> str:
         "nft": ("/usr/sbin/nft",),
         "nginx": ("/usr/sbin/nginx",),
         "openvpn": ("/usr/sbin/openvpn",),
+        "pamtester": ("/usr/bin/pamtester",),
         "systemctl": ("/usr/bin/systemctl",),
         "timedatectl": ("/usr/bin/timedatectl",),
         "umount": ("/usr/bin/umount", "/bin/umount"),
@@ -324,6 +325,52 @@ def _validate_exec(command: str, args: list[str]) -> None:
 def execute_command(command: str, args: list[str]) -> int:
     _validate_exec(command, args)
     return subprocess.run([_absolute_command(command), *args], check=False).returncode
+
+
+def authenticate_pam_user(username: str) -> int:
+    """Authenticate one existing Linux user as root without exposing its password."""
+
+    _safe_name(username)
+    if username in {SERVICE_USER, WEB_USER}:
+        raise PolicyError("service accounts cannot use interactive login")
+
+    password_input = sys.stdin.buffer.read(4098)
+    if (
+        not password_input
+        or len(password_input) > 4097
+        or not password_input.endswith(b"\n")
+        or b"\n" in password_input[:-1]
+        or b"\r" in password_input
+        or b"\x00" in password_input
+    ):
+        raise PolicyError("invalid PAM password input")
+
+    try:
+        completed = subprocess.run(
+            [
+                _absolute_command("pamtester"),
+                "upservx",
+                username,
+                "authenticate",
+                "acct_mgmt",
+            ],
+            input=password_input,
+            capture_output=True,
+            check=False,
+            timeout=20,
+            env={
+                "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG": "C.UTF-8",
+            },
+        )
+    except subprocess.TimeoutExpired:
+        return 1
+    finally:
+        password_input = b""
+
+    # Never forward PAM conversation output: custom modules must not be able
+    # to reflect credentials or other sensitive prompts into application logs.
+    return 0 if completed.returncode == 0 else 1
 
 
 def _atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
@@ -647,8 +694,11 @@ def main(argv: list[str]) -> int:
             raise PolicyError("missing privileged action")
         action, *args = argv
         if action == "self-test" and not args:
+            _absolute_command("pamtester")
             print("upservx privilege helper: ok")
             return 0
+        if action == "pam-authenticate" and len(args) == 1:
+            return authenticate_pam_user(args[0])
         if action == "exec" and args:
             return execute_command(args[0], args[1:])
         if action == "install-cron" and len(args) == 1:

@@ -44,7 +44,6 @@ def _make_auth_app(pam_ok: bool = True):
 
     with (
         patch("api.auth.pam_auth", _pam_inst),
-        patch("api.auth.pam.pam", return_value=_pam_inst),
         patch("handlers.settings.load_settings", return_value=MagicMock(
             deny_root_login=False,
         )),
@@ -52,6 +51,9 @@ def _make_auth_app(pam_ok: bool = True):
         patch("lib.permissions.grp.getgrall", return_value=[]),
     ):
         from api.auth import router as auth_router  # noqa: PLC0415
+        import api.auth as auth_module  # noqa: PLC0415
+
+        auth_module.pam_auth = _pam_inst
         app.include_router(auth_router)
 
     return app, _pam_inst

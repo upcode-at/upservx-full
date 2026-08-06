@@ -41,6 +41,9 @@ UpservX never creates application login users or assigns their passwords. Sign
 in with an existing Linux username and its PAM password. The installer creates
 the dedicated `/etc/pam.d/upservx` service policy, which delegates password and
 account checks to Debian's managed `common-auth` and `common-account` stacks.
+The unprivileged API passes password input over a pipe to the root-owned,
+allowlisted authentication operation; the password never appears in a process
+argument or environment variable.
 UpservX permissions
 derive from Linux groups such as `sudo`, `docker`, `libvirt`, and `adm`. On a
 host configured exclusively for SSH-key authentication, assign a password to
@@ -52,7 +55,10 @@ A `401` response from `GET /api/auth/me` before a session exists is expected.
 If `POST /api/auth/login` also returns `401`, PAM rejected the Linux account or
 password. Confirm that the user exists and has an unlocked password, then check
 the PAM code and reason in `/var/log/upservx/activity.log`. UpservX never sends
-that diagnostic detail to the browser.
+that diagnostic detail to the browser. A journal entry from `unix_chkpwd` with
+the `upservx` service UID and `user unknown` for a real user indicates an old
+unprivileged PAM implementation; reinstall the current release so the
+root-owned PAM broker and its `pamtester` dependency are deployed.
 
 If a run was interrupted after the immutable release was created, rebuild its
 configuration and finish the remaining initialization without reinstalling
