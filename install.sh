@@ -446,7 +446,9 @@ step_configure_https() {
 
 step_initialize_secrets() {
   cd /var/lib/upservx
-  runuser -u "$SERVICE_USER" -- env HOME=/var/lib/upservx UPSERVX_LOG_FILE=/var/log/upservx/api.log \
+  runuser -u "$SERVICE_USER" -- env HOME=/var/lib/upservx \
+    PYTHONPATH="$RELEASE_DIR/upservx-service" \
+    UPSERVX_LOG_FILE=/var/log/upservx/api.log \
     "$RELEASE_DIR/upservx-service/venv/bin/python3" -c \
     "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists()"
 }

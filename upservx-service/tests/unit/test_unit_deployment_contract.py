@@ -33,6 +33,12 @@ def test_installer_defaults_to_keyless_installation():
     assert 'command -v kubectl' in installer
 
 
+def test_installer_can_import_encryption_module_when_initializing_secrets():
+    installer = (ROOT / "install.sh").read_text()
+    assert 'PYTHONPATH="$RELEASE_DIR/upservx-service"' in installer
+    assert "from lib.encryption import EncryptionManager" in installer
+
+
 def test_frontend_api_worker_and_update_have_separate_units():
     units = ROOT / "deploy" / "systemd"
     api = (units / "upservx-api.service").read_text()
