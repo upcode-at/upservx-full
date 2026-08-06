@@ -81,8 +81,8 @@ then runs the frontend ESLint and production build gates.
 git clone --recurse-submodules https://github.com/upcode-at/upservx.git
 cd upservx
 
-# Minimal install without the update facility
-sudo ./install.sh --disable-updates
+# Minimal install (no keys required)
+sudo ./install.sh
 
 # Example production install with containers and signed updates
 sudo ./install.sh --profile containers \
@@ -92,8 +92,10 @@ sudo ./install.sh --profile containers \
 The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
 versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
 entry point, and a post-install privilege/health smoke test. Optional platform
-components are installed only when their profile is selected. See
-[`docs/installation.md`](docs/installation.md) for checksum requirements and
+components are installed only when their profile is selected. Without
+`--update-public-key`, the update facility stays disabled. Optional SHA-256
+environment variables can additionally pin remote installation material. See
+[`docs/installation.md`](docs/installation.md) for optional checksum pinning and
 the signed update workflow.
 
 

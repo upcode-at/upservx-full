@@ -17,7 +17,7 @@
 ```bash
 git clone --recurse-submodules https://github.com/upcode-at/upservx.git
 cd upservx
-sudo ./install.sh --disable-updates
+sudo ./install.sh
 ```
 
 The `install.sh` script handles:
@@ -31,7 +31,7 @@ The `install.sh` script handles:
 - Exposing loopback-only application ports through an HTTPS nginx proxy
 - Running the post-install privilege and health smoke test
 
-For signed updates, supply the release public key instead of disabling updates:
+To enable signed updates, supply the release public key:
 
 ```bash
 sudo ./install.sh --profile containers \
@@ -40,8 +40,13 @@ sudo ./install.sh --profile containers \
 
 Available profiles are `core` (the default), `containers`, `virtualization`,
 `cluster`, and `full`. Individual `--with-*` flags are listed by
-`./install.sh --help`. NodeSource, Docker, K3s, and kubectl downloads are
-disabled unless their documented SHA-256 environment variables are supplied.
+`./install.sh --help`. No keys or checksum environment variables are required.
+Without `--update-public-key`, the update facility stays disabled. NodeSource,
+Docker, and K3s use their official HTTPS sources by default; optional SHA-256
+environment variables add explicit pinning. K3s installs its compatible
+`kubectl` by default. If `KUBECTL_VERSION` selects a separate version, the
+installer fetches and validates its official checksum when `KUBECTL_SHA256` is
+not supplied.
 
 ---
 

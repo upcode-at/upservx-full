@@ -18,7 +18,7 @@ WITH_POSTGRESQL=0
 WITH_FTP=0
 WITH_OPENVPN=0
 WITH_ZFS=0
-UPDATES_ENABLED=1
+UPDATES_ENABLED=0
 UPDATE_PUBLIC_KEY=
 RELEASE_VERSION=
 
@@ -41,21 +41,22 @@ Profiles:
   --profile core             No optional platform components (default)
   --profile containers       Docker and LXD
   --profile virtualization   libvirt/KVM and websockify
-  --profile cluster          Docker and checksum-pinned K3s/kubectl
+  --profile cluster          Docker and K3s/kubectl
   --profile full             All optional profiles
 
 Individual options:
   --with-docker --with-lxd --with-libvirt --with-k3s
   --with-postgresql --with-ftp --with-openvpn --with-zfs
-  --update-public-key PATH   Required public key for signed updates
-  --disable-updates          Explicitly install without the update facility
+  --update-public-key PATH   Enable signed updates with this public key
+  --disable-updates          Install without the update facility (default)
   --release-version VERSION  Override the local initial release version
   -h, --help
 
-Remote repository/install material is fail-closed. Set NODESOURCE_KEY_SHA256
-when Node.js 20 is not already installed. Docker requires
-DOCKER_GPG_SHA256. K3s requires K3S_INSTALL_SHA256, KUBECTL_VERSION, and
-KUBECTL_SHA256.
+No keys or checksum variables are required for installation. Official HTTPS
+repositories and their package signatures are used by default. For additional
+pinning, set NODESOURCE_KEY_SHA256, DOCKER_GPG_SHA256, K3S_INSTALL_SHA256,
+and/or KUBECTL_SHA256. Set KUBECTL_VERSION only to override the version that
+K3s installs automatically.
 EOF
 }
 
@@ -84,7 +85,7 @@ while (($#)); do
     --with-ftp) WITH_FTP=1; shift ;;
     --with-openvpn) WITH_OPENVPN=1; shift ;;
     --with-zfs) WITH_ZFS=1; shift ;;
-    --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; shift 2 ;;
+    --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; UPDATES_ENABLED=1; shift 2 ;;
     --disable-updates) UPDATES_ENABLED=0; shift ;;
     --release-version) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; RELEASE_VERSION=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -98,7 +99,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
 fi
 if [[ $UPDATES_ENABLED == 1 ]]; then
   [[ -n $UPDATE_PUBLIC_KEY && -f $UPDATE_PUBLIC_KEY ]] || {
-    printf 'Signed updates require --update-public-key PATH (or explicitly use --disable-updates).\n' >&2
+    printf '%s\n' '--update-public-key must reference a readable public-key file.' >&2
     exit 2
   }
 fi
@@ -158,6 +159,16 @@ verify_sha256() {
   printf '%s  %s\n' "$expected" "$file" | sha256sum -c -
 }
 
+verify_optional_sha256() {
+  local expected=$1
+  local file=$2
+  if [[ -n $expected ]]; then
+    verify_sha256 "$expected" "$file"
+  else
+    printf 'No pinned SHA-256 supplied for %s; relying on HTTPS and upstream signatures.\n' "$file"
+  fi
+}
+
 step_validate_source() {
   [[ -f $SCRIPT_DIR/.gitmodules ]]
   grep -Fq 'path = upservx/public/novnc' "$SCRIPT_DIR/.gitmodules"
@@ -197,14 +208,10 @@ step_install_node() {
     major=$(/usr/bin/node --version | sed 's/^v//' | cut -d. -f1)
   fi
   if ((major < NODE_REQUIRED_MAJOR)); then
-    [[ -n ${NODESOURCE_KEY_SHA256:-} ]] || {
-      printf 'Node.js %d is required; set NODESOURCE_KEY_SHA256 to enable the verified NodeSource repository.\n' "$NODE_REQUIRED_MAJOR" >&2
-      return 1
-    }
     local key_tmp
     key_tmp=$(mktemp)
     curl -fsSL -o "$key_tmp" https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
-    verify_sha256 "$NODESOURCE_KEY_SHA256" "$key_tmp"
+    verify_optional_sha256 "${NODESOURCE_KEY_SHA256:-}" "$key_tmp"
     install -d -m 0755 /etc/apt/keyrings
     gpg --batch --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg "$key_tmp"
     rm -f -- "$key_tmp"
@@ -223,11 +230,11 @@ step_install_optional_platforms() {
     # shellcheck source=/dev/null
     . /etc/os-release
     [[ ${ID:-} == debian || ${ID:-} == ubuntu ]]
-    [[ -n ${VERSION_CODENAME:-} && -n ${DOCKER_GPG_SHA256:-} ]]
+    [[ -n ${VERSION_CODENAME:-} ]]
     local docker_key
     docker_key=$(mktemp)
     curl -fsSL -o "$docker_key" "https://download.docker.com/linux/${ID}/gpg"
-    verify_sha256 "$DOCKER_GPG_SHA256" "$docker_key"
+    verify_optional_sha256 "${DOCKER_GPG_SHA256:-}" "$docker_key"
     install -d -m 0755 /etc/apt/keyrings
     install -o root -g root -m 0644 "$docker_key" /etc/apt/keyrings/docker.asc
     rm -f -- "$docker_key"
@@ -240,16 +247,31 @@ step_install_optional_platforms() {
     lxd init --auto
   fi
   if [[ $WITH_K3S == 1 ]]; then
-    [[ -n ${K3S_INSTALL_SHA256:-} && -n ${KUBECTL_VERSION:-} && -n ${KUBECTL_SHA256:-} ]]
-    local download_dir
+    local download_dir kubectl_version kubectl_sha256
     download_dir=$(mktemp -d)
-    curl -fsSL -o "$download_dir/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-    verify_sha256 "$KUBECTL_SHA256" "$download_dir/kubectl"
-    install -o root -g root -m 0755 "$download_dir/kubectl" /usr/local/bin/kubectl
     curl -fsSL -o "$download_dir/k3s-install.sh" https://get.k3s.io
-    verify_sha256 "$K3S_INSTALL_SHA256" "$download_dir/k3s-install.sh"
+    verify_optional_sha256 "${K3S_INSTALL_SHA256:-}" "$download_dir/k3s-install.sh"
     chmod 0700 "$download_dir/k3s-install.sh"
     INSTALL_K3S_EXEC='server --disable traefik --disable servicelb' sh "$download_dir/k3s-install.sh"
+    if [[ -n ${KUBECTL_VERSION:-} ]]; then
+      kubectl_version=$KUBECTL_VERSION
+      [[ $kubectl_version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+        printf 'Invalid kubectl version: %s\n' "$kubectl_version" >&2
+        return 1
+      }
+      curl -fsSL -o "$download_dir/kubectl" "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
+      if [[ -n ${KUBECTL_SHA256:-} ]]; then
+        kubectl_sha256=$KUBECTL_SHA256
+      else
+        kubectl_sha256=$(curl -fsSL "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl.sha256")
+      fi
+      verify_sha256 "$kubectl_sha256" "$download_dir/kubectl"
+      install -o root -g root -m 0755 "$download_dir/kubectl" /usr/local/bin/kubectl
+    elif [[ -n ${KUBECTL_SHA256:-} ]]; then
+      printf 'KUBECTL_SHA256 requires KUBECTL_VERSION.\n' >&2
+      return 1
+    fi
+    command -v kubectl
     rm -rf -- "$download_dir"
   fi
 }

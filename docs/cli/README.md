@@ -28,7 +28,7 @@ The UpservX CLI (`upservx`) lets you manage your server directly from any termin
 The CLI is installed automatically by `install.sh` as part of the standard UpservX setup.
 
 ```bash
-sudo ./install.sh --disable-updates
+sudo ./install.sh
 ```
 
 After installation, the `upservx` command is available system-wide:

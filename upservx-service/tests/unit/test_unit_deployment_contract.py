@@ -22,6 +22,17 @@ def test_installer_is_profile_based_and_does_not_edit_pam_or_pull_git():
     assert "DOCKER_GPG_SHA256" in installer
 
 
+def test_installer_defaults_to_keyless_installation():
+    installer = (ROOT / "install.sh").read_text()
+    assert "UPDATES_ENABLED=0" in installer
+    assert "UPDATE_PUBLIC_KEY=$2; UPDATES_ENABLED=1" in installer
+    assert 'verify_optional_sha256 "${NODESOURCE_KEY_SHA256:-}"' in installer
+    assert 'verify_optional_sha256 "${DOCKER_GPG_SHA256:-}"' in installer
+    assert 'verify_optional_sha256 "${K3S_INSTALL_SHA256:-}"' in installer
+    assert "if [[ -n ${KUBECTL_VERSION:-} ]]" in installer
+    assert 'command -v kubectl' in installer
+
+
 def test_frontend_api_worker_and_update_have_separate_units():
     units = ROOT / "deploy" / "systemd"
     api = (units / "upservx-api.service").read_text()
