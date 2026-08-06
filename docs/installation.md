@@ -45,6 +45,20 @@ signing secret, and the cluster CA/certificate/private key. A release public key
 cannot be generated locally because it must match the external update signer;
 signed updates therefore remain disabled unless `--update-public-key` is used.
 
+For a clean restart after a broken installation, use `--reinstall`. The
+installer stops UpservX, moves the existing release, secrets, state, web state,
+logs, update trust, and managed system integration files into a mode-`0700`
+recovery directory below
+`/var/backups/upservx/`, and then performs a fresh installation with newly
+generated local keys:
+
+```bash
+sudo ./install.sh --reinstall
+```
+
+Run this command from a separate source checkout. It is intentionally rejected
+when `install.sh` itself is located below `/opt/upservx`.
+
 To enable signed updates, supply the release public key:
 
 ```bash

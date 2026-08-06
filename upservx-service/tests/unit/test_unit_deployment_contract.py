@@ -55,6 +55,21 @@ def test_installer_can_safely_resume_after_release_creation():
     assert "Installation resumed successfully" in installer
 
 
+def test_installer_can_recoverably_reinstall_a_broken_installation():
+    installer = (ROOT / "install.sh").read_text()
+    assert "--reinstall) REINSTALL=1" in installer
+    assert "--resume and --reinstall cannot be used together" in installer
+    assert 'REINSTALL_BACKUP_DIR="/var/backups/upservx/$backup_id"' in installer
+    assert '"$APP_ROOT"\n    /etc/upservx\n    /var/lib/upservx' in installer
+    assert "/usr/local/libexec/upservx-bin" in installer
+    assert "/etc/systemd/system/upservx.target" in installer
+    assert 'mv -- "$source" "$REINSTALL_BACKUP_DIR/${labels[$index]}"' in installer
+    assert installer.index(
+        "run_step 'Validate locked source and noVNC submodule'"
+    ) < installer.index("if [[ $REINSTALL == 1 ]]; then\n  backup_broken_installation")
+    assert "Previous installation backup" in installer
+
+
 def test_frontend_api_worker_and_update_have_separate_units():
     units = ROOT / "deploy" / "systemd"
     api = (units / "upservx-api.service").read_text()

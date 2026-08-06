@@ -22,6 +22,8 @@ UPDATES_ENABLED=0
 UPDATE_PUBLIC_KEY=
 RELEASE_VERSION=
 RESUME_INSTALLATION=0
+REINSTALL=0
+REINSTALL_BACKUP_DIR=
 
 CORE_PACKAGES=(
   build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
@@ -51,6 +53,7 @@ Individual options:
   --update-public-key PATH   Enable signed updates with this public key
   --disable-updates          Install without the update facility (default)
   --resume                   Rebuild configuration and finish an interrupted install
+  --reinstall                Back up a broken installation and install from scratch
   --release-version VERSION  Override the local initial release version
   -h, --help
 
@@ -76,6 +79,76 @@ enable_profile() {
   esac
 }
 
+backup_broken_installation() {
+  [[ $SCRIPT_DIR != "$APP_ROOT" && $SCRIPT_DIR != "$APP_ROOT"/* ]] || {
+    printf 'Run --reinstall from a separate source checkout, not from %s.\n' "$APP_ROOT" >&2
+    return 1
+  }
+  [[ ! -L /var/backups/upservx ]] || {
+    printf 'Refusing to use a symlinked reinstall backup root.\n' >&2
+    return 1
+  }
+
+  local backup_id
+  backup_id="reinstall-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  REINSTALL_BACKUP_DIR="/var/backups/upservx/$backup_id"
+  install -d -o root -g root -m 0700 /var/backups/upservx "$REINSTALL_BACKUP_DIR"
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now upservx.target upservx-health.timer >/dev/null 2>&1 || true
+    systemctl stop upservx-api.service upservx-web.service upservx-worker.service >/dev/null 2>&1 || true
+  fi
+
+  local -a sources=(
+    "$APP_ROOT"
+    /etc/upservx
+    /var/lib/upservx
+    /var/lib/upservx-web
+    /var/log/upservx
+    /usr/share/upservx
+    /usr/local/libexec/upservx-bin
+    /usr/local/libexec/upservx-privileged
+    /usr/local/libexec/upservx-command
+    /usr/local/libexec/upservx-updater
+    /usr/local/libexec/upservx-health-check
+    /usr/local/libexec/upservx-post-install-smoke
+    /usr/local/bin/upservx
+    /etc/sudoers.d/upservx
+    /etc/tmpfiles.d/upservx.conf
+    /etc/nginx/sites-enabled/upservx
+    /etc/nginx/sites-available/upservx
+    /etc/systemd/system/upservx-api.service
+    /etc/systemd/system/upservx-health-recover.service
+    /etc/systemd/system/upservx-health.service
+    /etc/systemd/system/upservx-health.timer
+    /etc/systemd/system/upservx-update@.service
+    /etc/systemd/system/upservx-web.service
+    /etc/systemd/system/upservx-worker.service
+    /etc/systemd/system/upservx.target
+  )
+  local -a labels=(
+    app-root config state web-state logs update-trust command-links
+    privileged-helper command-helper updater health-check post-install-smoke
+    cli-launcher sudoers tmpfiles nginx-enabled nginx-available
+    systemd-api systemd-health-recover systemd-health systemd-health-timer
+    systemd-update systemd-web systemd-worker systemd-target
+  )
+  local backed_up=0 index source
+  for index in "${!sources[@]}"; do
+    source=${sources[$index]}
+    if [[ -e $source || -L $source ]]; then
+      mv -- "$source" "$REINSTALL_BACKUP_DIR/${labels[$index]}"
+      backed_up=1
+    fi
+  done
+
+  [[ $backed_up == 1 ]] || {
+    printf 'No existing UpservX installation was found to reinstall.\n' >&2
+    return 1
+  }
+  printf 'Existing UpservX installation backed up to: %s\n' "$REINSTALL_BACKUP_DIR"
+}
+
 while (($#)); do
   case "$1" in
     --profile) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; enable_profile "$2"; shift 2 ;;
@@ -90,6 +163,7 @@ while (($#)); do
     --update-public-key) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; UPDATE_PUBLIC_KEY=$2; UPDATES_ENABLED=1; shift 2 ;;
     --disable-updates) UPDATES_ENABLED=0; shift ;;
     --resume) RESUME_INSTALLATION=1; shift ;;
+    --reinstall) REINSTALL=1; shift ;;
     --release-version) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; RELEASE_VERSION=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown installer option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -100,13 +174,16 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   printf 'This installer must run as root. Use sudo ./install.sh.\n' >&2
   exit 1
 fi
+if [[ $RESUME_INSTALLATION == 1 && $REINSTALL == 1 ]]; then
+  printf '%s\n' '--resume and --reinstall cannot be used together.' >&2
+  exit 2
+fi
 if [[ $UPDATES_ENABLED == 1 ]]; then
   [[ -n $UPDATE_PUBLIC_KEY && -f $UPDATE_PUBLIC_KEY ]] || {
     printf '%s\n' '--update-public-key must reference a readable public-key file.' >&2
     exit 2
   }
 fi
-
 if [[ -z $RELEASE_VERSION ]]; then
   base_version=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/upservx/package.json" | head -n 1)
   [[ -n $base_version ]] || base_version=0.0.0
@@ -139,10 +216,10 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
     exit 1
   }
   RELEASE_STAGING=
-elif [[ -e $APP_ROOT/current || -L $APP_ROOT/current ]]; then
+elif [[ $REINSTALL == 0 && ( -e $APP_ROOT/current || -L $APP_ROOT/current ) ]]; then
   printf 'An UpservX installation already exists. Use the signed updater, or --resume if installation stopped after release creation.\n' >&2
   exit 1
-elif [[ -e $RELEASE_DIR || -e $RELEASE_STAGING ]]; then
+elif [[ $REINSTALL == 0 && ( -e $RELEASE_DIR || -e $RELEASE_STAGING ) ]]; then
   printf 'Release already exists: %s\n' "$RELEASE_DIR" >&2
   exit 1
 fi
@@ -510,6 +587,9 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
   exit 0
 fi
 run_step 'Validate locked source and noVNC submodule' step_validate_source
+if [[ $REINSTALL == 1 ]]; then
+  backup_broken_installation
+fi
 run_step 'Install minimal and selected profile packages' step_install_core_packages
 run_step "Install or verify Node.js ${NODE_REQUIRED_MAJOR}" step_install_node
 run_step 'Install selected optional platforms' step_install_optional_platforms
@@ -526,5 +606,6 @@ run_step 'Start services and run the post-install smoke test' step_start_and_ver
 
 trap - EXIT
 printf 'Installation complete. Release: %s\n' "$RELEASE_VERSION"
+[[ -z $REINSTALL_BACKUP_DIR ]] || printf 'Previous installation backup: %s\n' "$REINSTALL_BACKUP_DIR"
 printf 'Status: systemctl status upservx.target\n'
 printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
