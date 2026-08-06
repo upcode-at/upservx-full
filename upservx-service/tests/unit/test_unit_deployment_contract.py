@@ -37,16 +37,21 @@ def test_installer_can_import_encryption_module_when_initializing_secrets():
     installer = (ROOT / "install.sh").read_text()
     assert 'PYTHONPATH="$RELEASE_DIR/upservx-service"' in installer
     assert "from lib.encryption import EncryptionManager" in installer
+    assert "from lib.session_tokens import _get_secret" in installer
+    assert "from lib.cluster_security import ensure_node_tls" in installer
+    assert "EncryptionManager.ensure_key_exists(); _get_secret(); ensure_node_tls()" in installer
 
 
-def test_installer_can_safely_resume_late_installation_steps():
+def test_installer_can_safely_resume_after_release_creation():
     installer = (ROOT / "install.sh").read_text()
     assert "--resume) RESUME_INSTALLATION=1" in installer
     assert '[[ -L $APP_ROOT/current ]]' in installer
     assert 'RELEASE_DIR=$(readlink -f "$APP_ROOT/current")' in installer
     assert '[[ ${RELEASE_DIR%/*} == "$APP_ROOT/releases"' in installer
-    assert "/usr/local/libexec/upservx-post-install-smoke" in installer
-    assert "TOTAL_STEPS=3" in installer
+    assert "TOTAL_STEPS=7" in installer
+    assert "run_step 'Configure mutable state and update trust'" in installer
+    assert "run_step 'Configure the local HTTPS reverse proxy'" in installer
+    assert "run_step 'Generate application, session, and cluster keys'" in installer
     assert "Installation resumed successfully" in installer
 
 

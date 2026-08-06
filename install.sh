@@ -50,7 +50,7 @@ Individual options:
   --with-postgresql --with-ftp --with-openvpn --with-zfs
   --update-public-key PATH   Enable signed updates with this public key
   --disable-updates          Install without the update facility (default)
-  --resume                   Finish an installation interrupted during finalization
+  --resume                   Rebuild configuration and finish an interrupted install
   --release-version VERSION  Override the local initial release version
   -h, --help
 
@@ -138,21 +138,9 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
     printf 'The current UpservX backend environment is incomplete; refusing to resume.\n' >&2
     exit 1
   }
-  for prerequisite in \
-    /etc/upservx/service.env \
-    /etc/systemd/system/upservx-api.service \
-    /etc/systemd/system/upservx-web.service \
-    /etc/systemd/system/upservx-worker.service \
-    /usr/local/libexec/upservx-health-check \
-    /usr/local/libexec/upservx-post-install-smoke; do
-    [[ -e $prerequisite ]] || {
-      printf 'Installation finalization cannot resume; missing prerequisite: %s\n' "$prerequisite" >&2
-      exit 1
-    }
-  done
   RELEASE_STAGING=
 elif [[ -e $APP_ROOT/current || -L $APP_ROOT/current ]]; then
-  printf 'An UpservX installation already exists. Use the signed updater, or --resume if finalization was interrupted.\n' >&2
+  printf 'An UpservX installation already exists. Use the signed updater, or --resume if installation stopped after release creation.\n' >&2
   exit 1
 elif [[ -e $RELEASE_DIR || -e $RELEASE_STAGING ]]; then
   printf 'Release already exists: %s\n' "$RELEASE_DIR" >&2
@@ -484,7 +472,7 @@ step_initialize_secrets() {
     PYTHONPATH="$RELEASE_DIR/upservx-service" \
     UPSERVX_LOG_FILE=/var/log/upservx/api.log \
     "$RELEASE_DIR/upservx-service/venv/bin/python3" -c \
-    "from lib.encryption import EncryptionManager; EncryptionManager.ensure_key_exists()"
+    "from lib.cluster_security import ensure_node_tls; from lib.encryption import EncryptionManager; from lib.session_tokens import _get_secret; EncryptionManager.ensure_key_exists(); _get_secret(); ensure_node_tls()"
 }
 
 step_install_cli() {
@@ -507,8 +495,12 @@ step_start_and_verify() {
 : >"$LOG_FILE"
 printf 'UpservX installer log: %s\n' "$LOG_FILE"
 if [[ $RESUME_INSTALLATION == 1 ]]; then
-  TOTAL_STEPS=3
-  run_step 'Initialize application secrets as the service account' step_initialize_secrets
+  TOTAL_STEPS=7
+  run_step 'Configure mutable state and update trust' step_configure_mutable_state
+  run_step 'Install the privileged helper boundary' step_install_privilege_boundary
+  run_step 'Install separate systemd units and probes' step_install_systemd_units
+  run_step 'Configure the local HTTPS reverse proxy' step_configure_https
+  run_step 'Generate application, session, and cluster keys' step_initialize_secrets
   run_step 'Install the CLI launcher' step_install_cli
   run_step 'Start services and run the post-install smoke test' step_start_and_verify
   trap - EXIT
@@ -528,7 +520,7 @@ run_step 'Configure mutable state and update trust' step_configure_mutable_state
 run_step 'Install the privileged helper boundary' step_install_privilege_boundary
 run_step 'Install separate systemd units and probes' step_install_systemd_units
 run_step 'Configure the local HTTPS reverse proxy' step_configure_https
-run_step 'Initialize application secrets as the service account' step_initialize_secrets
+run_step 'Generate application, session, and cluster keys' step_initialize_secrets
 run_step 'Install the CLI launcher' step_install_cli
 run_step 'Start services and run the post-install smoke test' step_start_and_verify
 

@@ -31,13 +31,19 @@ The `install.sh` script handles:
 - Exposing loopback-only application ports through an HTTPS nginx proxy
 - Running the post-install privilege and health smoke test
 
-If a run was interrupted during finalization after the deployment files were
-installed, finish the remaining initialization without reinstalling packages
-or overwriting the release:
+If a run was interrupted after the immutable release was created, rebuild its
+configuration and finish the remaining initialization without reinstalling
+packages or overwriting the release:
 
 ```bash
 sudo ./install.sh --resume
 ```
+
+The installer generates all node-local key material automatically: the nginx
+TLS certificate and private key, the application encryption key, the session
+signing secret, and the cluster CA/certificate/private key. A release public key
+cannot be generated locally because it must match the external update signer;
+signed updates therefore remain disabled unless `--update-public-key` is used.
 
 To enable signed updates, supply the release public key:
 
