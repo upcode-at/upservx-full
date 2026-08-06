@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from "@/components/ui/switch"
 import { apiUrl } from "@/lib/api"
 import { NotificationContainer } from "@/components/ui/notification"
+import ReverseProxyManagement from "@/components/reverse-proxy-management"
+import { VpnManagement } from "@/components/vpn-management"
 
 interface NetworkInterface {
   name: string
@@ -90,13 +92,15 @@ export function NetworkManagement() {
       <NotificationContainer success={success} error={null} onClearSuccess={() => setSuccess(null)} onClearError={() => {}} />
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Network Management</h2>
-        <p className="text-muted-foreground">Manage network interfaces</p>
+        <p className="text-muted-foreground">Manage interfaces, connectivity, proxies, SSL, and VPN</p>
       </div>
 
       <Tabs defaultValue="interfaces" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid h-auto w-full grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="interfaces">Network Interfaces</TabsTrigger>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="proxy">Reverse Proxy & SSL</TabsTrigger>
+          <TabsTrigger value="vpn">VPN</TabsTrigger>
         </TabsList>
 
         <TabsContent value="interfaces" className="space-y-4">
@@ -222,6 +226,14 @@ export function NetworkManagement() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="proxy" className="space-y-6">
+          <ReverseProxyManagement />
+        </TabsContent>
+
+        <TabsContent value="vpn" className="space-y-6">
+          <VpnManagement />
         </TabsContent>
       </Tabs>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

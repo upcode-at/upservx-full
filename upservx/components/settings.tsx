@@ -10,10 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
-import { Save, Key, Play, Square, Download, RefreshCw, Bell, Mail, Webhook, Send, Plus, X, Paintbrush, Upload, Trash2 } from "lucide-react"
+import { Save, Key, RefreshCw, Bell, Mail, Webhook, Send, Plus, X, Paintbrush, Upload, Trash2 } from "lucide-react"
 import { apiUrl, waitForJob } from "@/lib/api"
 import { useAuth } from "@/components/auth-provider"
-import ReverseProxyManagement from "./reverse-proxy-management"
 
 export function Settings() {
   const { permissions } = useAuth()
@@ -123,7 +122,6 @@ export function Settings() {
   const [notifToInput, setNotifToInput] = useState("")
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [vpnStatus, setVpnStatus] = useState<{ running: boolean; pid?: number | null; ovpn_path?: string | null } | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [updateOutput, setUpdateOutput] = useState<string>("")
@@ -158,18 +156,6 @@ export function Settings() {
           ssh_port: data.ssh_port,
           deny_root_login: data.deny_root_login ?? false,
         })
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  const loadVpnStatus = async () => {
-    try {
-      const res = await fetch(apiUrl("/settings/vpn/status"))
-      if (res.ok) {
-        const data = await res.json()
-        setVpnStatus(data)
       }
     } catch (e) {
       console.error(e)
@@ -368,7 +354,6 @@ export function Settings() {
 
   useEffect(() => {
     loadSettings()
-    loadVpnStatus()
     loadNotifications()
     loadApiTokens()
     loadCustomization()
@@ -439,65 +424,6 @@ export function Settings() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to revoke API token")
     }
-  }
-
-  const handleUploadVpn = async (file: File | null) => {
-    if (!file) return
-    try {
-      setError(null)
-      setSuccess(null)
-      const fd = new FormData()
-      fd.append("file", file)
-      const res = await fetch(apiUrl("/settings/vpn/upload"), {
-        method: "POST",
-        body: fd,
-      })
-      if (res.ok) {
-        setSuccess("VPN configuration uploaded successfully")
-        await loadVpnStatus()
-      } else {
-        const txt = await res.text()
-        setError("Upload failed: " + txt)
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to upload VPN configuration")
-    }
-  }
-
-  const handleStartVpn = async () => {
-    try {
-      setError(null)
-      setSuccess(null)
-      const res = await fetch(apiUrl("/settings/vpn/start"), { method: "POST" })
-      if (res.ok) {
-        setSuccess("VPN started successfully")
-        await loadVpnStatus()
-      } else {
-        setError("Failed to start VPN")
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start VPN")
-    }
-  }
-
-  const handleStopVpn = async () => {
-    try {
-      setError(null)
-      setSuccess(null)
-      const res = await fetch(apiUrl("/settings/vpn/stop"), { method: "POST" })
-      if (res.ok) {
-        setSuccess("VPN stopped successfully")
-        await loadVpnStatus()
-      } else {
-        setError("Failed to stop VPN")
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to stop VPN")
-    }
-  }
-
-  const handleDownloadVpn = () => {
-    window.location.href = apiUrl("/settings/vpn/file")
   }
 
   const handleUpdate = async () => {
@@ -586,10 +512,8 @@ export function Settings() {
       </Dialog>
 
       <Tabs defaultValue="system" className="space-y-6">
-        <TabsList className={`grid w-full ${permissions.admin ? "grid-cols-5" : "grid-cols-4"}`}>
+        <TabsList className={`grid w-full ${permissions.admin ? "grid-cols-3" : "grid-cols-2"}`}>
           <TabsTrigger value="system">System</TabsTrigger>
-          <TabsTrigger value="vpn">VPN</TabsTrigger>
-          <TabsTrigger value="proxy">Reverse Proxy & SSL</TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-2" />
             Notifications
@@ -784,57 +708,6 @@ export function Settings() {
               Save Settings
             </Button>
           </div>
-        </TabsContent>
-
-        <TabsContent value="vpn" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>OpenVPN</CardTitle>
-              <CardDescription>Upload and control an OpenVPN client profile</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>OVPN File</Label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    id="ovpn-file"
-                    type="file"
-                    accept=".ovpn"
-                    onChange={(e) => handleUploadVpn(e.target.files ? e.target.files[0] : null)}
-                    className="rounded"
-                  />
-                  <Button 
-                    variant="outline" 
-                    onClick={handleDownloadVpn} 
-                    disabled={!vpnStatus || !vpnStatus.ovpn_path}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <div>Status: {vpnStatus ? (vpnStatus.running ? "Running" : "Stopped") : "Unknown"}</div>
-                {vpnStatus && vpnStatus.ovpn_path && <div className="text-muted-foreground">{vpnStatus.ovpn_path.split('/').pop()}</div>}
-              </div>
-
-              <div className="flex space-x-2">
-                <Button onClick={handleStartVpn} disabled={vpnStatus?.running}>
-                  <Play className="h-4 w-4 mr-2" />
-                  Start VPN
-                </Button>
-                <Button variant="destructive" onClick={handleStopVpn} disabled={!vpnStatus?.running}>
-                  <Square className="h-4 w-4 mr-2" />
-                  Stop VPN
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="proxy" className="space-y-6">
-          <ReverseProxyManagement />
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">
