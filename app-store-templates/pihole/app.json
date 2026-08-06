@@ -29,13 +29,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/pihole/etc",
+      "host": "/opt/upcode-harbor/data/pihole/etc",
       "container": "/etc/pihole",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/pihole/dnsmasq",
+      "host": "/opt/upcode-harbor/data/pihole/dnsmasq",
       "container": "/etc/dnsmasq.d",
       "mode": "rw",
       "description": ""

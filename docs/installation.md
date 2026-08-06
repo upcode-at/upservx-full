@@ -15,6 +15,11 @@
 
 ## Quick Installation
 
+Version 0.7.0 begins a completely renamed technical deployment contract. It
+does not provide an in-place update or compatibility aliases for installations
+from 0.6.x or older. Back up the existing host separately and install 0.7.0
+from a clean checkout or on a clean host.
+
 ```bash
 git clone --recurse-submodules https://github.com/upcode-at/upcode-harbor.git
 cd upcode-harbor
@@ -25,8 +30,8 @@ The `install.sh` script handles:
 
 - Selecting Docker, K3s, LXC/LXD, and ZFS in a terminal checklist
 - Always installing and enabling the OpenSSH server
-- Creating dedicated `upservx` backend/worker and `upservx-web` accounts
-- Installing an immutable root-owned release below `/opt/upservx/releases`
+- Creating dedicated `upcode-harbor` backend/worker and `upcode-harbor-web` accounts
+- Installing an immutable root-owned release below `/opt/upcode-harbor/releases`
 - Installing locked dependencies with `npm ci` and `requirements.lock`
 - Creating separate API, frontend, worker, health, and update systemd units
 - Installing a backend-only, allowlisted root helper and sudoers rule
@@ -41,7 +46,7 @@ URLs. nginx accepts remote HTTPS connections on port `443`.
 
 Upcode Harbor never creates application login users or assigns their passwords. Sign
 in with an existing Linux username and its PAM password. The installer creates
-the dedicated `/etc/pam.d/upservx` service policy, which delegates password and
+the dedicated `/etc/pam.d/upcode-harbor` service policy, which delegates password and
 account checks to Debian's managed `common-auth` and `common-account` stacks.
 The unprivileged API passes password input over a pipe to the root-owned,
 allowlisted authentication operation; the password never appears in a process
@@ -50,15 +55,15 @@ Upcode Harbor permissions
 derive from Linux groups such as `sudo`, `docker`, `libvirt`, and `adm`. On a
 host configured exclusively for SSH-key authentication, assign a password to
 the existing Linux user if that account should also authenticate through the
-web login. The `upservx` and `upservx-web` accounts created by the installer are
+web login. The `upcode-harbor` and `upcode-harbor-web` accounts created by the installer are
 non-login service identities and cannot be used for the web login.
 
 A `401` response from `GET /api/auth/me` before a session exists is expected.
 If `POST /api/auth/login` also returns `401`, PAM rejected the Linux account or
 password. Confirm that the user exists and has an unlocked password, then check
-the PAM code and reason in `/var/log/upservx/activity.log`. Upcode Harbor never sends
+the PAM code and reason in `/var/log/upcode-harbor/activity.log`. Upcode Harbor never sends
 that diagnostic detail to the browser. A journal entry from `unix_chkpwd` with
-the `upservx` service UID and `user unknown` for a real user indicates an old
+the `upcode-harbor` service UID and `user unknown` for a real user indicates an old
 unprivileged PAM implementation; reinstall the current release so the
 root-owned PAM broker and its `pamtester` dependency are deployed.
 
@@ -80,7 +85,7 @@ For a clean restart after a broken installation, use `--reinstall`. The
 installer stops Upcode Harbor, moves the existing release, secrets, state, web state,
 logs, update trust, and managed system integration files into a mode-`0700`
 recovery directory below
-`/var/backups/upservx/`, and then performs a fresh installation with newly
+`/var/backups/upcode-harbor/`, and then performs a fresh installation with newly
 generated local keys:
 
 ```bash
@@ -88,7 +93,7 @@ sudo ./install.sh --reinstall
 ```
 
 Run this command from a separate source checkout. It is intentionally rejected
-when `install.sh` itself is located below `/opt/upservx`.
+when `install.sh` itself is located below `/opt/upcode-harbor`.
 
 To enable signed updates non-interactively, select a profile and supply the
 release public key:
@@ -119,10 +124,10 @@ Debian release because Debian distributes `zfsutils-linux` in that component.
 
 ## Manual Installation
 
-### Backend (`upservx-service`)
+### Backend (`upcode-harbor-service`)
 
 ```bash
-cd upservx-service
+cd upcode-harbor-service
 pip install --no-deps -r requirements.lock
 
 # Initialize database
@@ -135,10 +140,10 @@ python generate_encryption_key.py
 python main.py
 ```
 
-### Frontend (`upservx`)
+### Frontend (`upcode-harbor`)
 
 ```bash
-cd upservx
+cd upcode-harbor
 npm ci
 npm run build
 npm start      # Production mode on port 9200
@@ -154,18 +159,18 @@ The installer configures these systemd units:
 
 | Service | Description |
 |---|---|
-| `upservx-api.service` | Loopback FastAPI API on port 9500 and cluster TLS transport on port 9501 |
-| `upservx-web.service` | Loopback Next.js frontend on port 9200 |
-| `upservx-worker.service` | Persistent transactional job worker |
-| `upservx-health.timer` | Recurring liveness probe and recovery trigger |
-| `upservx-update@.service` | Independent root unit for one signed release |
+| `upcode-harbor-api.service` | Loopback FastAPI API on port 9500 and cluster TLS transport on port 9501 |
+| `upcode-harbor-web.service` | Loopback Next.js frontend on port 9200 |
+| `upcode-harbor-worker.service` | Persistent transactional job worker |
+| `upcode-harbor-health.timer` | Recurring liveness probe and recovery trigger |
+| `upcode-harbor-update@.service` | Independent root unit for one signed release |
 
 The browser-facing frontend and `/api` proxy must be served over HTTPS. Port
 9200 and the backend's port 9500 are upstream listeners, not production browser
 entry points. The default secure session cookie is intentionally not sent over
 plain HTTP. Terminate TLS at Nginx or another trusted reverse proxy and forward
 `/` to port 9200, `/api/` to port 9500, and WebSocket upgrades under `/ws/`.
-Do not disable `UPSERVX_COOKIE_SECURE` in production.
+Do not disable `UPCODE_HARBOR_COOKIE_SECURE` in production.
 
 ---
 
@@ -173,47 +178,47 @@ Do not disable `UPSERVX_COOKIE_SECURE` in production.
 
 | File / Path | Content |
 |---|---|
-| `/etc/upservx/encryption.key` | Fernet encryption key (chmod 600) |
-| `/etc/upservx/.session_secret` | Session-signing secret (chmod 600) |
-| `/etc/upservx/sessions.json` | Hashed, revocable session records (chmod 600) |
-| `/etc/upservx/api_tokens.json` | Hashed API-token records (chmod 600) |
-| `/etc/upservx/notifications.json` | Email & webhook configuration |
-| `/etc/upservx/alerts.json` | Alert thresholds |
-| `/etc/upservx/metrics/` | Historical metrics (JSON) |
-| `/etc/upservx/nodes/` | Cluster node configurations |
-| `/etc/upservx/master` | Cluster master configuration |
-| `/etc/upservx/child` | Cluster child configuration |
-| `/etc/upservx/cluster-security/` | Node-local CA, certificate, and private keys (private files chmod 600) |
-| `/var/log/upservx/api.log` | API log |
-| `/var/log/upservx/worker.log` | Worker log |
-| `/var/log/upservx/activity.log` | Structured activity log |
-| `/var/lib/upservx/app-store/` | Mutable app store templates (`/opt/upservx/app-store` is a compatibility link) |
-| `/var/lib/upservx/compose/` | Installed Docker Compose projects (`/opt/upservx/compose` is a compatibility link) |
-| `/var/lib/upservx/app-data/` | Per-project managed App Store bind data |
-| `/etc/upservx/settings.json` | Application settings (hostname, timezone, SSH and monitoring options) |
-| `/etc/upservx/proxy_config.json` | Nginx proxy metadata |
-| `upservx-service/network_settings.json` | Network settings |
+| `/etc/upcode-harbor/encryption.key` | Fernet encryption key (chmod 600) |
+| `/etc/upcode-harbor/.session_secret` | Session-signing secret (chmod 600) |
+| `/etc/upcode-harbor/sessions.json` | Hashed, revocable session records (chmod 600) |
+| `/etc/upcode-harbor/api_tokens.json` | Hashed API-token records (chmod 600) |
+| `/etc/upcode-harbor/notifications.json` | Email & webhook configuration |
+| `/etc/upcode-harbor/alerts.json` | Alert thresholds |
+| `/etc/upcode-harbor/metrics/` | Historical metrics (JSON) |
+| `/etc/upcode-harbor/nodes/` | Cluster node configurations |
+| `/etc/upcode-harbor/master` | Cluster master configuration |
+| `/etc/upcode-harbor/child` | Cluster child configuration |
+| `/etc/upcode-harbor/cluster-security/` | Node-local CA, certificate, and private keys (private files chmod 600) |
+| `/var/log/upcode-harbor/api.log` | API log |
+| `/var/log/upcode-harbor/worker.log` | Worker log |
+| `/var/log/upcode-harbor/activity.log` | Structured activity log |
+| `/var/lib/upcode-harbor/app-store/` | Mutable app store templates (`/opt/upcode-harbor/app-store` is a compatibility link) |
+| `/var/lib/upcode-harbor/compose/` | Installed Docker Compose projects (`/opt/upcode-harbor/compose` is a compatibility link) |
+| `/var/lib/upcode-harbor/app-data/` | Per-project managed App Store bind data |
+| `/etc/upcode-harbor/settings.json` | Application settings (hostname, timezone, SSH and monitoring options) |
+| `/etc/upcode-harbor/proxy_config.json` | Nginx proxy metadata |
+| `upcode-harbor-service/network_settings.json` | Network settings |
 
 ---
 
 ## Update
 
-Updates never use Git inside `/opt/upservx`. Build a versioned artifact on the
+Updates never use Git inside `/opt/upcode-harbor`. Build a versioned artifact on the
 release system and sign it with the offline/private release key:
 
 ```bash
-deploy/build-release-artifact 1.2.3 /secure/release-private.pem /tmp/upservx-1.2.3
+deploy/build-release-artifact 1.2.3 /secure/release-private.pem /tmp/upcode-harbor-1.2.3
 ```
 
 Copy the three output files into
-`/var/lib/upservx/updates/1.2.3/` as root, make them root-owned and not writable
+`/var/lib/upcode-harbor/updates/1.2.3/` as root, make them root-owned and not writable
 by group/other, and write `1.2.3` to the root-owned mode-`0640`
-`/var/lib/upservx/updates/latest` marker. The Settings update action then queues
-the external `upservx-update@1.2.3.service` unit.
+`/var/lib/upcode-harbor/updates/latest` marker. The Settings update action then queues
+the external `upcode-harbor-update@1.2.3.service` unit.
 
 The updater verifies the SHA-256 and detached signature, backs up
-`/etc/upservx`, builds the new immutable release, switches
-`/opt/upservx/current` atomically, performs readiness checks, and rolls back on
+`/etc/upcode-harbor`, builds the new immutable release, switches
+`/opt/upcode-harbor/current` atomically, performs readiness checks, and rolls back on
 failure. Its non-zero exit code and error are preserved in the persistent job.
 See [`../deploy/README.md`](../deploy/README.md) for the exact artifact names.
 
@@ -224,12 +229,12 @@ See [`../deploy/README.md`](../deploy/README.md) for the exact artifact names.
 | Variable | Description | Default |
 |---|---|---|
 | `FRONTEND_ORIGINS` | Comma-separated list of allowed CORS origins | All server IPs auto-detected |
-| `UPSERVX_SESSION_TTL_SECONDS` | User-session lifetime in seconds | `3600` |
-| `UPSERVX_COOKIE_SECURE` | Require HTTPS for the session cookie | `true` |
-| `UPSERVX_COOKIE_SAMESITE` | Session-cookie SameSite policy | `strict` |
-| `UPSERVX_COOKIE_DOMAIN` | Optional explicit session-cookie domain | unset |
+| `UPCODE_HARBOR_SESSION_TTL_SECONDS` | User-session lifetime in seconds | `3600` |
+| `UPCODE_HARBOR_COOKIE_SECURE` | Require HTTPS for the session cookie | `true` |
+| `UPCODE_HARBOR_COOKIE_SAMESITE` | Session-cookie SameSite policy | `strict` |
+| `UPCODE_HARBOR_COOKIE_DOMAIN` | Optional explicit session-cookie domain | unset |
 
-All directories under `/etc/upservx` are enforced as `0700` and all regular
+All directories under `/etc/upcode-harbor` are enforced as `0700` and all regular
 files as `0600` at startup. Symlinks in the configuration tree fail the
 security initialization rather than being followed.
 
@@ -237,8 +242,8 @@ security initialization rather than being followed.
 
 ## Paths Requiring Root Privileges
 
-- `/etc/upservx/` – Owner-only configuration (`upservx`)
-- `/var/log/upservx/` – Backend logs (`upservx`)
+- `/etc/upcode-harbor/` – Owner-only configuration (`upcode-harbor`)
+- `/var/log/upcode-harbor/` – Backend logs (`upcode-harbor`)
 - `/etc/nginx/` – Nginx configuration
 - `/etc/letsencrypt/` – SSL certificates
 - `/etc/ssh/sshd_config` – Read SSH configuration
@@ -250,9 +255,9 @@ security initialization rather than being followed.
 
 The web process has no privileged access. Docker, LXD, and libvirt/KVM groups
 are added to the backend account only for selected profiles. All other host
-mutations go through `/usr/local/libexec/upservx-privileged`; the sudoers policy
+mutations go through `/usr/local/libexec/upcode-harbor-privileged`; the sudoers policy
 permits that helper and no other root command. Run the installed audit with:
 
 ```bash
-sudo /usr/local/libexec/upservx-post-install-smoke
+sudo /usr/local/libexec/upcode-harbor-post-install-smoke
 ```

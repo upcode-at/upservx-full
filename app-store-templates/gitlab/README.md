@@ -34,7 +34,7 @@ docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
 
 ## Configuration
 
-All configuration is done via `GITLAB_OMNIBUS_CONFIG` or by editing `/opt/upservx/data/gitlab/config/gitlab.rb` directly, then running:
+All configuration is done via `GITLAB_OMNIBUS_CONFIG` or by editing `/opt/upcode-harbor/data/gitlab/config/gitlab.rb` directly, then running:
 
 ```bash
 docker exec -it gitlab gitlab-ctl reconfigure
@@ -82,7 +82,7 @@ To enable CI/CD pipelines, deploy a GitLab Runner and register it:
 
 ```bash
 docker run -d --name gitlab-runner --restart always \
-  -v /opt/upservx/data/gitlab-runner/config:/etc/gitlab-runner \
+  -v /opt/upcode-harbor/data/gitlab-runner/config:/etc/gitlab-runner \
   -v /var/run/docker.sock:/var/run/docker.sock \
   gitlab/gitlab-runner:latest
 
@@ -98,7 +98,7 @@ docker exec -it gitlab-runner gitlab-runner register
 ```bash
 docker exec -t gitlab gitlab-backup create
 # Backup stored in /var/opt/gitlab/backups inside the container
-# = /opt/upservx/data/gitlab/data/backups on the host
+# = /opt/upcode-harbor/data/gitlab/data/backups on the host
 ```
 
 ### Restore a backup
@@ -147,5 +147,5 @@ gitlab_rails['omniauth_providers'] = [
 - GitLab requires at least **4 GB RAM** (8 GB recommended for comfortable use)
 - First startup takes **3–5 minutes** while Omnibus configures all services
 - Port 22 maps SSH — if your host already uses port 22, change the host-side port (e.g. `"2222:22"`) and adjust `gitlab_shell_ssh_port` accordingly
-- All data persists in `/opt/upservx/data/gitlab/`
+- All data persists in `/opt/upcode-harbor/data/gitlab/`
 - Pairs well with Harbor (container registry), Keycloak (SSO), and Traefik (reverse proxy)

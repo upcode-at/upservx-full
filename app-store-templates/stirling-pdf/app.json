@@ -17,19 +17,19 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/stirling-pdf/configs",
+      "host": "/opt/upcode-harbor/data/stirling-pdf/configs",
       "container": "/configs",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/stirling-pdf/logs",
+      "host": "/opt/upcode-harbor/data/stirling-pdf/logs",
       "container": "/logs",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/stirling-pdf/customFiles",
+      "host": "/opt/upcode-harbor/data/stirling-pdf/customFiles",
       "container": "/customFiles",
       "mode": "rw",
       "description": ""

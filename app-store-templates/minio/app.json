@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/minio",
+      "host": "/opt/upcode-harbor/data/minio",
       "container": "/data",
       "mode": "rw",
       "description": ""

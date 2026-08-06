@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/ollama",
+      "host": "/opt/upcode-harbor/data/ollama",
       "container": "/root/.ollama",
       "mode": "rw",
       "description": ""

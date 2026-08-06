@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/jupyter",
+      "host": "/opt/upcode-harbor/data/jupyter",
       "container": "/home/jovyan/work",
       "mode": "rw",
       "description": ""

@@ -1,7 +1,7 @@
 # Container Management
 
-**File:** `upservx-service/containers.py`
-**API sub-module:** `upservx-service/api/containers.py`
+**File:** `upcode-harbor-service/containers.py`
+**API sub-module:** `upcode-harbor-service/api/containers.py`
 
 **Required permission:** `docker` group or `lxd`/`lxc` group (or admin)
 

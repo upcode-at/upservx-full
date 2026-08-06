@@ -1,6 +1,6 @@
 # Cluster Management
 
-**File:** `upservx-service/api/cluster.py` (2312 lines)
+**File:** `upcode-harbor-service/api/cluster.py` (2312 lines)
 
 **Required permission:** Admin for configuration; signed cluster principal for inter-node communication
 
@@ -26,11 +26,11 @@ Upcode Harbor supports a **master-child cluster** architecture. One instance act
 
 | File | Description |
 |---|---|
-| `/etc/upservx/master` | Present if this instance is the master |
-| `/etc/upservx/child` | Present if this instance is a child |
-| `/etc/upservx/nodes/<id>.json` | Node info on the master (one file per child) |
-| `/etc/upservx/cluster-security/` | Node-local CA, TLS certificate, and private keys |
-| `/etc/upservx/cluster-nonces.json` | Persistent replay-protection cache |
+| `/etc/upcode-harbor/master` | Present if this instance is the master |
+| `/etc/upcode-harbor/child` | Present if this instance is a child |
+| `/etc/upcode-harbor/nodes/<id>.json` | Node info on the master (one file per child) |
+| `/etc/upcode-harbor/cluster-security/` | Node-local CA, TLS certificate, and private keys |
+| `/etc/upcode-harbor/cluster-nonces.json` | Persistent replay-protection cache |
 
 ### master config
 ```json
@@ -82,8 +82,8 @@ Upcode Harbor supports a **master-child cluster** architecture. One instance act
      "port": 9501,
      "token": "join-token"
    }
-4. The master pins the child's CA in `/etc/upservx/nodes/<id>.json`.
-5. The child pins the master's CA in `/etc/upservx/child`.
+4. The master pins the child's CA in `/etc/upcode-harbor/nodes/<id>.json`.
+5. The child pins the master's CA in `/etc/upcode-harbor/child`.
 ```
 
 ---

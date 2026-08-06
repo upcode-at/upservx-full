@@ -53,10 +53,10 @@ curl http://localhost:5000/v2/myimage/tags/list
 1. Generate an `htpasswd` file:
 
 ```bash
-mkdir -p /opt/upservx/data/registry/auth
+mkdir -p /opt/upcode-harbor/data/registry/auth
 docker run --rm --entrypoint htpasswd httpd:2 \
   -Bbn myuser mysecretpassword \
-  > /opt/upservx/data/registry/auth/htpasswd
+  > /opt/upcode-harbor/data/registry/auth/htpasswd
 ```
 
 2. Uncomment the auth environment variables in `docker-compose.yml`:
@@ -81,7 +81,7 @@ docker login localhost:5000
 
 ## Custom Configuration File
 
-Place a `config.yml` in `/opt/upservx/data/registry/config/` for full control:
+Place a `config.yml` in `/opt/upcode-harbor/data/registry/config/` for full control:
 
 ```yaml
 version: 0.1
@@ -154,7 +154,7 @@ build:
 
 ## Notes
 
-- All images are persisted in `/opt/upservx/data/registry/data/`
+- All images are persisted in `/opt/upcode-harbor/data/registry/data/`
 - Change `REGISTRY_HTTP_SECRET` to a unique random string before deployment
 - The Registry UI is configured to proxy API calls through Nginx — no CORS issues
 - Image deletion via the UI requires `REGISTRY_STORAGE_DELETE_ENABLED=true` (enabled by default in this setup via the UI's delete capability)

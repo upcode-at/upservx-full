@@ -22,7 +22,7 @@ Web-based interactive computing platform that allows you to create and share doc
 
 - **Port**: 8888
 - **Token**: changeme (please change this!)
-- **Data Directory**: /opt/upservx/data/jupyter
+- **Data Directory**: /opt/upcode-harbor/data/jupyter
 - **Image**: jupyter/datascience-notebook (includes Python, R, Julia)
 
 ## Official Documentation

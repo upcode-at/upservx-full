@@ -29,7 +29,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/teamspeak",
+      "host": "/opt/upcode-harbor/data/teamspeak",
       "container": "/var/ts3server",
       "mode": "rw",
       "description": ""

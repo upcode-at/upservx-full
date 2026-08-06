@@ -1,6 +1,6 @@
 # Logging
 
-**File:** `upservx-service/upservx_logger.py`
+**File:** `upcode-harbor-service/upcode_harbor_logger.py`
 
 **Required permission:** `adm` or `log` group (or admin) for log access
 
@@ -17,7 +17,7 @@ Upcode Harbor uses two parallel logging systems:
 
 ## Activity Log
 
-**File:** `/var/log/upservx/activity.log`
+**File:** `/var/log/upcode-harbor/activity.log`
 
 All user actions are logged as structured JSON entries:
 
@@ -69,11 +69,11 @@ class _TeeWriter:
         self.original.write(data)
         self.file.write(data)
 
-sys.stdout = _TeeWriter(sys.stdout, "/etc/upservx.log")
-sys.stderr = _TeeWriter(sys.stderr, "/etc/upservx.log")
+sys.stdout = _TeeWriter(sys.stdout, "/etc/upcode-harbor.log")
+sys.stderr = _TeeWriter(sys.stderr, "/etc/upcode-harbor.log")
 ```
 
-**File:** `/etc/upservx.log`
+**File:** `/etc/upcode-harbor.log`
 
 This log captures all startup messages, Python exceptions, and `print()` output.
 
@@ -109,8 +109,8 @@ This log captures all startup messages, Python exceptions, and `print()` output.
 The activity log should be rotated externally via `logrotate`:
 
 ```
-# /etc/logrotate.d/upservx
-/var/log/upservx/activity.log {
+# /etc/logrotate.d/upcode-harbor
+/var/log/upcode-harbor/activity.log {
     daily
     rotate 30
     compress
@@ -118,7 +118,7 @@ The activity log should be rotated externally via `logrotate`:
     missingok
     notifempty
     postrotate
-        pkill -HUP -f "upservx-service"
+        pkill -HUP -f "upcode-harbor-service"
     endscript
 }
 ```

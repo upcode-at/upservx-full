@@ -165,7 +165,7 @@ And mount your certificates into the container.
 
 ## Notes
 
-- Data and schema are persisted in `/opt/upservx/data/openldap/`
+- Data and schema are persisted in `/opt/upcode-harbor/data/openldap/`
 - phpLDAPadmin is included for easy browser-based administration
 - For production, enable TLS and use strong passwords
 - When integrating with other services, use the container hostname `openldap` as the LDAP host (within the same Docker network)

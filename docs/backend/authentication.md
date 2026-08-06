@@ -1,6 +1,6 @@
 # Authentication and sessions
 
-**Primary files:** `upservx-service/main.py`, `api/auth.py`,
+**Primary files:** `upcode-harbor-service/main.py`, `api/auth.py`,
 `lib/session_tokens.py`, `lib/api_tokens.py`, and `lib/totp.py`
 
 ## Authentication mechanisms
@@ -12,10 +12,10 @@
 | Cluster signature | HMAC signature headers over the complete request | Internal node-to-node routes on the dedicated TLS listener |
 
 Passwords are accepted only by `POST /auth/login` and verified with Linux PAM.
-All password checks explicitly use the `/etc/pam.d/upservx` service, which the
+All password checks explicitly use the `/etc/pam.d/upcode-harbor` service, which the
 installer configures to include Debian's `common-auth` and `common-account`
 policies. Because `pam_unix` cannot verify an arbitrary account from the
-unprivileged `upservx` process, authentication crosses the existing root-owned
+unprivileged `upcode-harbor` process, authentication crosses the existing root-owned
 allowlist helper and invokes `pamtester` for only `authenticate` and
 `acct_mgmt`. The password is supplied only on standard input; it is never a
 command argument, environment variable, or helper output. PAM failures are
@@ -28,7 +28,7 @@ attempt counter, and a hash of the random login token.
 ## User sessions
 
 Successful login creates a signed session containing the username, issue and
-expiry timestamps, and a random session ID. `/etc/upservx/sessions.json` stores
+expiry timestamps, and a random session ID. `/etc/upcode-harbor/sessions.json` stores
 only the SHA-256 hash of that session ID. A valid signature is therefore not
 enough: the server-side record must still exist and be unexpired.
 
@@ -44,21 +44,21 @@ The cookie defaults are:
 - deletion with the same path, domain, secure, and SameSite attributes
 
 The response body does not expose the session token. Configure deployments
-with HTTPS before login; `UPSERVX_COOKIE_SECURE=false` is intended only for an
+with HTTPS before login; `UPCODE_HARBOR_COOKIE_SECURE=false` is intended only for an
 explicit local development environment.
 
 | Environment variable | Default | Constraint |
 |---|---|---|
-| `UPSERVX_SESSION_TTL_SECONDS` | `3600` | 300 to 86400 seconds |
-| `UPSERVX_COOKIE_SECURE` | `true` | Must remain true with `SameSite=None` |
-| `UPSERVX_COOKIE_SAMESITE` | `strict` | `strict`, `lax`, or `none` |
-| `UPSERVX_COOKIE_DOMAIN` | unset | Optional explicit cookie domain |
-| `UPSERVX_SESSION_SECRET` | generated on disk | At least 32 bytes when supplied |
+| `UPCODE_HARBOR_SESSION_TTL_SECONDS` | `3600` | 300 to 86400 seconds |
+| `UPCODE_HARBOR_COOKIE_SECURE` | `true` | Must remain true with `SameSite=None` |
+| `UPCODE_HARBOR_COOKIE_SAMESITE` | `strict` | `strict`, `lax`, or `none` |
+| `UPCODE_HARBOR_COOKIE_DOMAIN` | unset | Optional explicit cookie domain |
+| `UPCODE_HARBOR_SESSION_SECRET` | generated on disk | At least 32 bytes when supplied |
 
 ## API tokens
 
 API tokens replace the former single plaintext key in `settings.json`. Token
-records in `/etc/upservx/api_tokens.json` contain only SHA-256 hashes plus
+records in `/etc/upcode-harbor/api_tokens.json` contain only SHA-256 hashes plus
 names, roles, scopes, expiry, and revocation metadata. Plaintext is returned
 once when a token is created.
 

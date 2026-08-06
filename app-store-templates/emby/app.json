@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/emby/config",
+      "host": "/opt/upcode-harbor/data/emby/config",
       "container": "/config",
       "mode": "rw",
       "description": ""

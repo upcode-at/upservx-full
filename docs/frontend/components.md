@@ -1,6 +1,6 @@
 # Frontend Components
 
-**Directory:** `upservx/components/`
+**Directory:** `upcode-harbor/components/`
 
 ---
 

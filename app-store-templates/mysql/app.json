@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/mysql/data",
+      "host": "/opt/upcode-harbor/data/mysql/data",
       "container": "/var/lib/mysql",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mysql/conf",
+      "host": "/opt/upcode-harbor/data/mysql/conf",
       "container": "/etc/mysql/conf.d",
       "mode": "rw",
       "description": ""

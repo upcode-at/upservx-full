@@ -1,6 +1,6 @@
 # Notification System
 
-**File:** `upservx-service/notifications.py`
+**File:** `upcode-harbor-service/notifications.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 

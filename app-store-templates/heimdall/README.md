@@ -21,7 +21,7 @@ Heimdall is an elegant solution to organise all your web applications. It provid
 
 ## Data
 
-Configuration and app data are stored in `/opt/upservx/data/heimdall`.
+Configuration and app data are stored in `/opt/upcode-harbor/data/heimdall`.
 
 ## Links
 

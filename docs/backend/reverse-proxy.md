@@ -1,7 +1,7 @@
 # Reverse Proxy Management
 
-**File:** `upservx-service/reverse_proxy.py`
-**API sub-module:** `upservx-service/api/reverse_proxy.py`
+**File:** `upcode-harbor-service/reverse_proxy.py`
+**API sub-module:** `upcode-harbor-service/api/reverse_proxy.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 
@@ -49,7 +49,7 @@ class ProxyRoute(BaseModel):
 
 ## Nginx Integration
 
-Configs are written to `/etc/nginx/sites-available/upservx-<name>.conf` and symlinked into `sites-enabled/`.
+Configs are written to `/etc/nginx/sites-available/upcode-harbor-<name>.conf` and symlinked into `sites-enabled/`.
 
 Template:
 ```nginx
@@ -75,7 +75,7 @@ After changes: `nginx -t && systemctl reload nginx`
 
 ## Caddy Integration
 
-Routes are written to a JSON file at `/etc/caddy/upservx.json` and loaded via `caddy reload`.
+Routes are written to a JSON file at `/etc/caddy/upcode-harbor.json` and loaded via `caddy reload`.
 
 Template:
 ```json

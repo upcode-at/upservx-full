@@ -24,7 +24,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/apache-kafka",
+      "host": "/opt/upcode-harbor/data/apache-kafka",
       "container": "/var/lib/kafka/data",
       "mode": "rw",
       "description": "Kafka log data"

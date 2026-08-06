@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/typo3/html",
+      "host": "/opt/upcode-harbor/data/typo3/html",
       "container": "/var/www/html",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/typo3/db",
+      "host": "/opt/upcode-harbor/data/typo3/db",
       "container": "/var/lib/mysql",
       "mode": "rw",
       "description": ""

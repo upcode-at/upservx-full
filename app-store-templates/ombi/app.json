@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/ombi/config",
+      "host": "/opt/upcode-harbor/data/ombi/config",
       "container": "/config",
       "mode": "rw",
       "description": ""

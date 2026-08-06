@@ -63,7 +63,7 @@ Configure any S3 client with:
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/minio` | All bucket data and objects |
+| `/opt/upcode-harbor/data/minio` | All bucket data and objects |
 
 ## Ports
 

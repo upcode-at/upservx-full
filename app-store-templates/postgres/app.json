@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/postgres/data",
+      "host": "/opt/upcode-harbor/data/postgres/data",
       "container": "/var/lib/postgresql/data",
       "mode": "rw",
       "description": ""

@@ -27,7 +27,7 @@ Professional domain and DNS management platform with advanced security features 
 - **Web Port**: 8081
 - **DNS Port**: 53 (TCP/UDP)
 - **Admin User**: admin
-- **Data Directory**: /opt/upservx/data/domain-locker
+- **Data Directory**: /opt/upcode-harbor/data/domain-locker
 - **Database**: PostgreSQL 15
 
 ## Security Recommendations

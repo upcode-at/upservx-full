@@ -22,13 +22,13 @@ Before starting the containers for the first time, the database schema must be i
 
 **Step 1 – Create the init directory:**
 ```bash
-mkdir -p /opt/upservx/data/apache-guacamole/init
+mkdir -p /opt/upcode-harbor/data/apache-guacamole/init
 ```
 
 **Step 2 – Generate the SQL init script:**
 ```bash
 docker run --rm guacamole/guacamole:latest /opt/guacamole/bin/initdb.sh --postgresql \
-  > /opt/upservx/data/apache-guacamole/init/initdb.sql
+  > /opt/upcode-harbor/data/apache-guacamole/init/initdb.sql
 ```
 
 **Step 3 – Install the app via the Upcode Harbor App Store**, then start the containers. PostgreSQL will automatically execute `initdb.sql` on first run.

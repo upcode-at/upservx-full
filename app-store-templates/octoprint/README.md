@@ -82,7 +82,7 @@ Install plugins via **Settings → Plugin Manager → Get More**:
 
 All OctoPrint data (config, uploads, timelapse videos, logs) is stored in:
 ```
-/opt/upservx/data/octoprint/
+/opt/upcode-harbor/data/octoprint/
 ```
 
 ## More Information

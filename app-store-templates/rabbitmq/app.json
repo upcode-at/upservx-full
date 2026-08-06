@@ -23,13 +23,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/rabbitmq/data",
+      "host": "/opt/upcode-harbor/data/rabbitmq/data",
       "container": "/var/lib/rabbitmq",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/rabbitmq/logs",
+      "host": "/opt/upcode-harbor/data/rabbitmq/logs",
       "container": "/var/log/rabbitmq",
       "mode": "rw",
       "description": ""

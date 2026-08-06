@@ -1,7 +1,7 @@
 # Service Management
 
-**File:** `upservx-service/services.py`
-**API sub-module:** `upservx-service/api/services.py`
+**File:** `upcode-harbor-service/services.py`
+**API sub-module:** `upcode-harbor-service/api/services.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 

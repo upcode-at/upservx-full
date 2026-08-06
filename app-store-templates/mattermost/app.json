@@ -17,31 +17,31 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/mattermost/config",
+      "host": "/opt/upcode-harbor/data/mattermost/config",
       "container": "/mattermost/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mattermost/data",
+      "host": "/opt/upcode-harbor/data/mattermost/data",
       "container": "/mattermost/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mattermost/logs",
+      "host": "/opt/upcode-harbor/data/mattermost/logs",
       "container": "/mattermost/logs",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mattermost/plugins",
+      "host": "/opt/upcode-harbor/data/mattermost/plugins",
       "container": "/mattermost/plugins",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mattermost-db",
+      "host": "/opt/upcode-harbor/data/mattermost-db",
       "container": "/var/lib/postgresql/data",
       "mode": "rw",
       "description": ""

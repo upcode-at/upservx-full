@@ -8,7 +8,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
 fi
 if [[ $# -ne 1 ]]; then
   printf 'Usage: sudo update.sh VERSION\n' >&2
-  printf 'Stage the signed artifact under /var/lib/upservx/updates/VERSION first.\n' >&2
+  printf 'Stage the signed artifact under /var/lib/upcode-harbor/updates/VERSION first.\n' >&2
   exit 2
 fi
-exec /usr/local/libexec/upservx-updater apply "$1"
+exec /usr/local/libexec/upcode-harbor-updater apply "$1"

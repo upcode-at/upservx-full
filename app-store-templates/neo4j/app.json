@@ -23,25 +23,25 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/neo4j/data",
+      "host": "/opt/upcode-harbor/data/neo4j/data",
       "container": "/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/neo4j/logs",
+      "host": "/opt/upcode-harbor/data/neo4j/logs",
       "container": "/logs",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/neo4j/import",
+      "host": "/opt/upcode-harbor/data/neo4j/import",
       "container": "/var/lib/neo4j/import",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/neo4j/plugins",
+      "host": "/opt/upcode-harbor/data/neo4j/plugins",
       "container": "/plugins",
       "mode": "rw",
       "description": ""

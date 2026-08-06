@@ -1,7 +1,7 @@
 # Storage Management
 
-**File:** `upservx-service/storage.py`
-**API sub-module:** `upservx-service/api/storage.py`
+**File:** `upcode-harbor-service/storage.py`
+**API sub-module:** `upcode-harbor-service/api/storage.py`
 
 **Required permission:** `disk` or `storage` group (or admin)
 

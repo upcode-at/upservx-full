@@ -1,0 +1,3 @@
+# The helper is root-owned and implements the operation and argument allowlist.
+Defaults:upcode-harbor !requiretty
+upcode-harbor ALL=(root) NOPASSWD: /usr/local/libexec/upcode-harbor-privileged

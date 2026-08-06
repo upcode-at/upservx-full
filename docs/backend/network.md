@@ -1,7 +1,7 @@
 # Network Management
 
-**File:** `upservx-service/network.py`
-**API sub-module:** `upservx-service/api/network.py`
+**File:** `upcode-harbor-service/network.py`
+**API sub-module:** `upcode-harbor-service/api/network.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 

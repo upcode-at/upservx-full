@@ -23,13 +23,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/openldap/data",
+      "host": "/opt/upcode-harbor/data/openldap/data",
       "container": "/var/lib/ldap",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/openldap/config",
+      "host": "/opt/upcode-harbor/data/openldap/config",
       "container": "/etc/ldap/slapd.d",
       "mode": "rw",
       "description": ""

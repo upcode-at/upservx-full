@@ -1,7 +1,7 @@
 # Security Module
 
-**File:** `upservx-service/handlers/security.py`  
-**Router:** `upservx-service/api/security.py`  
+**File:** `upcode-harbor-service/handlers/security.py`  
+**Router:** `upcode-harbor-service/api/security.py`  
 **Prefix:** `/security`  
 **Access:** Admin group (`sudo` / `wheel`) required for all endpoints
 

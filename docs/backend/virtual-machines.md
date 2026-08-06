@@ -1,7 +1,7 @@
 # Virtual Machine Management
 
-**File:** `upservx-service/vms.py`
-**API sub-module:** `upservx-service/api/vms.py`
+**File:** `upcode-harbor-service/vms.py`
+**API sub-module:** `upcode-harbor-service/api/vms.py`
 
 **Required permission:** `libvirt` or `kvm` group (or admin)
 
@@ -70,7 +70,7 @@ class VM(BaseModel):
 
 ## ISO Management
 
-**File:** `upservx-service/isos.py`
+**File:** `upcode-harbor-service/isos.py`
 
 | Method | Path | Description |
 |---|---|---|

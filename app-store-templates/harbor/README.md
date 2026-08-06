@@ -60,7 +60,7 @@ harbor_admin_password: YourSecurePassword
 database:
   password: YourDBPassword
 
-data_volume: /opt/upservx/data/harbor/data
+data_volume: /opt/upcode-harbor/data/harbor/data
 ```
 
 ## Logging in via Docker CLI
@@ -98,6 +98,6 @@ docker push localhost/myproject/myimage:latest
 
 - The compose file in this template uses Harbor `v2.11.0` images — update the image tags to match your desired release
 - For production, use the official installer for a fully pre-configured setup
-- All persistent data is stored under `/opt/upservx/data/harbor/`
+- All persistent data is stored under `/opt/upcode-harbor/data/harbor/`
 - Change `CORE_SECRET` and `JOBSERVICE_SECRET` to unique random strings before deployment
 - Harbor pairs excellently with Keycloak (OIDC SSO) and Trivy (vulnerability scanning)

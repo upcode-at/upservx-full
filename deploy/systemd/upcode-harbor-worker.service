@@ -1,0 +1,30 @@
+[Unit]
+Description=Upcode Harbor persistent job worker
+After=network-online.target upcode-harbor-api.service
+Wants=network-online.target
+PartOf=upcode-harbor.target
+
+[Service]
+Type=simple
+User=upcode-harbor
+Group=upcode-harbor
+WorkingDirectory=/var/lib/upcode-harbor
+Environment=HOME=/var/lib/upcode-harbor
+Environment=PYTHONUNBUFFERED=1
+Environment=UPCODE_HARBOR_SERVICE_USER=upcode-harbor
+Environment=UPCODE_HARBOR_LOG_FILE=/var/log/upcode-harbor/worker.log
+Environment=PATH=/usr/local/libexec/upcode-harbor-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/etc/upcode-harbor/service.env
+ExecStart=/opt/upcode-harbor/current/upcode-harbor-service/venv/bin/python3 /opt/upcode-harbor/current/upcode-harbor-service/job_worker.py
+Restart=always
+RestartSec=3
+TimeoutStopSec=45
+KillMode=mixed
+UMask=0077
+PrivateTmp=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=false
+
+[Install]
+WantedBy=upcode-harbor.target

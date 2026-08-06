@@ -38,9 +38,9 @@ Download the **Immich** app and point it to `http://<your-server>:2283`.
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/immich/upload` | All uploaded photos and videos |
-| `/opt/upservx/data/immich/model-cache` | Downloaded AI model files |
-| `/opt/upservx/data/immich-db` | PostgreSQL database |
+| `/opt/upcode-harbor/data/immich/upload` | All uploaded photos and videos |
+| `/opt/upcode-harbor/data/immich/model-cache` | Downloaded AI model files |
+| `/opt/upcode-harbor/data/immich-db` | PostgreSQL database |
 
 ## External Library (optional)
 

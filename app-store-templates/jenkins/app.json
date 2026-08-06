@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/jenkins",
+      "host": "/opt/upcode-harbor/data/jenkins",
       "container": "/var/jenkins_home",
       "mode": "rw",
       "description": ""

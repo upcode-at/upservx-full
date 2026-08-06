@@ -1,9 +1,9 @@
 # App Store backend
 
 The runtime is implemented in
-`upservx-service/handlers/app_store.py`, exposed under
+`upcode-harbor-service/handlers/app_store.py`, exposed under
 `/containers/app-store`, and validated by
-`upservx-service/lib/app_store_validation.py`.
+`upcode-harbor-service/lib/app_store_validation.py`.
 
 Available routes are:
 

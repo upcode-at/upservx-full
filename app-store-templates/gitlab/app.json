@@ -29,19 +29,19 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/gitlab/config",
+      "host": "/opt/upcode-harbor/data/gitlab/config",
       "container": "/etc/gitlab",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/gitlab/logs",
+      "host": "/opt/upcode-harbor/data/gitlab/logs",
       "container": "/var/log/gitlab",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/gitlab/data",
+      "host": "/opt/upcode-harbor/data/gitlab/data",
       "container": "/var/opt/gitlab",
       "mode": "rw",
       "description": ""

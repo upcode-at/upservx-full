@@ -1,15 +1,15 @@
 # Backup System
 
-**Core files:** `upservx-service/api/backup.py`,
-`upservx-service/handlers/backup.py`, `upservx-service/lib/backup_db.py`, and
-`upservx-service/handlers/execute_backup.py`
+**Core files:** `upcode-harbor-service/api/backup.py`,
+`upcode-harbor-service/handlers/backup.py`, `upcode-harbor-service/lib/backup_db.py`, and
+`upcode-harbor-service/handlers/execute_backup.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 
 ## Architecture
 
 Backup servers, jobs, credentials, and archive metadata use the single SQLite
-database `/etc/upservx/backup/backup.db`. On first startup, the former
+database `/etc/upcode-harbor/backup/backup.db`. On first startup, the former
 `backup_servers.json` store is imported and renamed with a `.migrated` suffix.
 Credential ciphertext uses the application encryption key and is never returned
 by public API responses.

@@ -1,6 +1,6 @@
 # Permission system
 
-**File:** `upservx-service/lib/permissions.py`
+**File:** `upcode-harbor-service/lib/permissions.py`
 
 ## Deny-by-default route policy
 

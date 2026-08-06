@@ -1,0 +1,7 @@
+[Unit]
+Description=Upcode Harbor application services
+Wants=upcode-harbor-api.service upcode-harbor-worker.service upcode-harbor-web.service
+After=upcode-harbor-api.service upcode-harbor-web.service
+
+[Install]
+WantedBy=multi-user.target

@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/keycloak/data",
+      "host": "/opt/upcode-harbor/data/keycloak/data",
       "container": "/opt/keycloak/data",
       "mode": "rw",
       "description": ""

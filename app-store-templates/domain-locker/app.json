@@ -29,7 +29,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/domain-locker",
+      "host": "/opt/upcode-harbor/data/domain-locker",
       "container": "/data",
       "mode": "rw",
       "description": ""

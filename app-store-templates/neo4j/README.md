@@ -77,7 +77,7 @@ Rule of thumb: heap + pagecache should not exceed 60–70 % of total RAM.
 
 ## Importing Data
 
-Place CSV or other import files in `/opt/upservx/data/neo4j/import/` – they will be accessible inside the container at `/var/lib/neo4j/import/`.
+Place CSV or other import files in `/opt/upcode-harbor/data/neo4j/import/` – they will be accessible inside the container at `/var/lib/neo4j/import/`.
 
 ```cypher
 LOAD CSV WITH HEADERS FROM 'file:///mydata.csv' AS row

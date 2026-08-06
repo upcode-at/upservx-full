@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/roundcube/www",
+      "host": "/opt/upcode-harbor/data/roundcube/www",
       "container": "/var/www/html",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/roundcube/db",
+      "host": "/opt/upcode-harbor/data/roundcube/db",
       "container": "/var/roundcube/db",
       "mode": "rw",
       "description": ""

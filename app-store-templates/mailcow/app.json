@@ -71,25 +71,25 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/mailcow/vmail",
+      "host": "/opt/upcode-harbor/data/mailcow/vmail",
       "container": "/var/vmail",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mailcow/mysql",
+      "host": "/opt/upcode-harbor/data/mailcow/mysql",
       "container": "/var/lib/mysql",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mailcow/redis",
+      "host": "/opt/upcode-harbor/data/mailcow/redis",
       "container": "/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mailcow/ssl",
+      "host": "/opt/upcode-harbor/data/mailcow/ssl",
       "container": "/etc/ssl/mail",
       "mode": "rw",
       "description": ""

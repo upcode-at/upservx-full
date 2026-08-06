@@ -21,7 +21,7 @@ Traefik is a modern HTTP reverse proxy and load balancer designed for deploying 
 
 ## Configuration
 
-Traefik can be configured via environment variables (as set above) or a static config file. Place `traefik.yml` in `/opt/upservx/data/traefik/config/`:
+Traefik can be configured via environment variables (as set above) or a static config file. Place `traefik.yml` in `/opt/upcode-harbor/data/traefik/config/`:
 
 ```yaml
 # traefik.yml
@@ -72,7 +72,7 @@ networks:
 
 ## HTTP to HTTPS Redirect
 
-Add a dynamic config file at `/opt/upservx/data/traefik/config/dynamic/redirect.yml`:
+Add a dynamic config file at `/opt/upcode-harbor/data/traefik/config/dynamic/redirect.yml`:
 
 ```yaml
 http:
@@ -106,5 +106,5 @@ http:
 
 - The Docker socket mount (`/var/run/docker.sock`) is required for automatic service discovery
 - For production, disable `api.insecure` and protect the dashboard with middleware (e.g., BasicAuth or ForwardAuth)
-- Ensure the `acme.json` file has permissions `600` when using Let's Encrypt: `chmod 600 /opt/upservx/data/traefik/acme/acme.json`
+- Ensure the `acme.json` file has permissions `600` when using Let's Encrypt: `chmod 600 /opt/upcode-harbor/data/traefik/acme/acme.json`
 - All services that should be routed through Traefik must share the same Docker network (`traefik_proxy`)

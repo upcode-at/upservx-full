@@ -90,14 +90,14 @@ Feature suggestions are welcome! Please provide:
 
 **Backend (Python/FastAPI):**
 ```bash
-cd upservx-service
+cd upcode-harbor-service
 pip install -r requirements.txt
 python main.py
 ```
 
 **Frontend (Next.js):**
 ```bash
-cd upservx
+cd upcode-harbor
 npm install
 npm run dev
 ```
@@ -198,7 +198,7 @@ To contribute a new app template:
      "icon": "🎬",
      "author": "Your Name",
      "ports": ["8080:8080"],
-     "volumes": ["/opt/upservx/data/yourapp:/data"],
+     "volumes": ["/opt/upcode-harbor/data/yourapp:/data"],
      "environment": {
        "PUID": "1000",
        "PGID": "1000",
@@ -221,7 +221,7 @@ To contribute a new app template:
          - PGID=1000
          - TZ=Europe/Vienna
        volumes:
-         - /opt/upservx/data/yourapp:/data
+         - /opt/upcode-harbor/data/yourapp:/data
        ports:
          - "8080:8080"
    ```

@@ -83,8 +83,8 @@ Get your enroll key at https://app.crowdsec.net/
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/crowdsec/config` | Parsers, scenarios, acquis config |
-| `/opt/upservx/data/crowdsec/data` | SQLite database, blocklists |
+| `/opt/upcode-harbor/data/crowdsec/config` | Parsers, scenarios, acquis config |
+| `/opt/upcode-harbor/data/crowdsec/data` | SQLite database, blocklists |
 
 ## Ports
 

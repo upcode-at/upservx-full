@@ -53,37 +53,37 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/logs",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/logs",
       "container": "/var/log/onlyoffice",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/data",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/data",
       "container": "/var/www/onlyoffice/Data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/lib",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/lib",
       "container": "/var/lib/onlyoffice",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/community/data",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/community/data",
       "container": "/var/www/onlyoffice/Data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/mail/vmail",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/mail/vmail",
       "container": "/var/vmail",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/onlyoffice-docs/mysql",
+      "host": "/opt/upcode-harbor/data/onlyoffice-docs/mysql",
       "container": "/var/lib/mysql",
       "mode": "rw",
       "description": ""

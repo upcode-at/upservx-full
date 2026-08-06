@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICE = ROOT / "upservx-service"
+SERVICE = ROOT / "upcode-harbor-service"
 TEMPLATES = ROOT / "app-store-templates"
 
 

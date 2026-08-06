@@ -288,9 +288,9 @@ def migrate(directory: Path) -> None:
     compose_text = re.sub(
         r"^\s*container_name:\s*[^\n]+\n", "", compose_text, flags=re.MULTILINE
     )
-    if "/opt/upservx/data" in compose_text:
+    if "/opt/upcode-harbor/data" in compose_text:
         compose_text = compose_text.replace(
-            "/opt/upservx/data",
+            "/opt/upcode-harbor/data",
             "${APP_DATA_DIR:?APP_DATA_DIR is required}",
         )
     compose = yaml.safe_load(compose_text)

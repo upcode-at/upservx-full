@@ -100,7 +100,7 @@ For production use, switch from SQLite to PostgreSQL:
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/woodpecker-server` | SQLite database and server data |
+| `/opt/upcode-harbor/data/woodpecker-server` | SQLite database and server data |
 
 ## Ports
 

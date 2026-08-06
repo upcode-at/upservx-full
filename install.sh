@@ -2,13 +2,13 @@
 # Reproducible, profile-based Upcode Harbor installer.
 set -euo pipefail
 
-APP_ROOT=/opt/upservx
-SERVICE_USER=upservx
-WEB_USER=upservx-web
+APP_ROOT=/opt/upcode-harbor
+SERVICE_USER=upcode-harbor
+WEB_USER=upcode-harbor-web
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 NODE_REQUIRED_MAJOR=20
-LOG_FILE=/tmp/upservx-install.log
-LAST_STEP_LOG=/tmp/upservx-install-last.log
+LOG_FILE=/tmp/upcode-harbor-install.log
+LAST_STEP_LOG=/tmp/upcode-harbor-install-last.log
 
 WITH_DOCKER=0
 WITH_LXD=0
@@ -189,48 +189,48 @@ backup_broken_installation() {
     printf 'Run --reinstall from a separate source checkout, not from %s.\n' "$APP_ROOT" >&2
     return 1
   }
-  [[ ! -L /var/backups/upservx ]] || {
+  [[ ! -L /var/backups/upcode-harbor ]] || {
     printf 'Refusing to use a symlinked reinstall backup root.\n' >&2
     return 1
   }
 
   local backup_id
   backup_id="reinstall-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  REINSTALL_BACKUP_DIR="/var/backups/upservx/$backup_id"
-  install -d -o root -g root -m 0700 /var/backups/upservx "$REINSTALL_BACKUP_DIR"
+  REINSTALL_BACKUP_DIR="/var/backups/upcode-harbor/$backup_id"
+  install -d -o root -g root -m 0700 /var/backups/upcode-harbor "$REINSTALL_BACKUP_DIR"
 
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl disable --now upservx.target upservx-health.timer >/dev/null 2>&1 || true
-    systemctl stop upservx-api.service upservx-web.service upservx-worker.service >/dev/null 2>&1 || true
+    systemctl disable --now upcode-harbor.target upcode-harbor-health.timer >/dev/null 2>&1 || true
+    systemctl stop upcode-harbor-api.service upcode-harbor-web.service upcode-harbor-worker.service >/dev/null 2>&1 || true
   fi
 
   local -a sources=(
     "$APP_ROOT"
-    /etc/upservx
-    /var/lib/upservx
-    /var/lib/upservx-web
-    /var/log/upservx
-    /usr/share/upservx
-    /usr/local/libexec/upservx-bin
-    /usr/local/libexec/upservx-privileged
-    /usr/local/libexec/upservx-command
-    /usr/local/libexec/upservx-updater
-    /usr/local/libexec/upservx-health-check
-    /usr/local/libexec/upservx-post-install-smoke
-    /usr/local/bin/upservx
-    /etc/sudoers.d/upservx
-    /etc/tmpfiles.d/upservx.conf
-    /etc/pam.d/upservx
-    /etc/nginx/sites-enabled/upservx
-    /etc/nginx/sites-available/upservx
-    /etc/systemd/system/upservx-api.service
-    /etc/systemd/system/upservx-health-recover.service
-    /etc/systemd/system/upservx-health.service
-    /etc/systemd/system/upservx-health.timer
-    /etc/systemd/system/upservx-update@.service
-    /etc/systemd/system/upservx-web.service
-    /etc/systemd/system/upservx-worker.service
-    /etc/systemd/system/upservx.target
+    /etc/upcode-harbor
+    /var/lib/upcode-harbor
+    /var/lib/upcode-harbor-web
+    /var/log/upcode-harbor
+    /usr/share/upcode-harbor
+    /usr/local/libexec/upcode-harbor-bin
+    /usr/local/libexec/upcode-harbor-privileged
+    /usr/local/libexec/upcode-harbor-command
+    /usr/local/libexec/upcode-harbor-updater
+    /usr/local/libexec/upcode-harbor-health-check
+    /usr/local/libexec/upcode-harbor-post-install-smoke
+    /usr/local/bin/upcode-harbor
+    /etc/sudoers.d/upcode-harbor
+    /etc/tmpfiles.d/upcode-harbor.conf
+    /etc/pam.d/upcode-harbor
+    /etc/nginx/sites-enabled/upcode-harbor
+    /etc/nginx/sites-available/upcode-harbor
+    /etc/systemd/system/upcode-harbor-api.service
+    /etc/systemd/system/upcode-harbor-health-recover.service
+    /etc/systemd/system/upcode-harbor-health.service
+    /etc/systemd/system/upcode-harbor-health.timer
+    /etc/systemd/system/upcode-harbor-update@.service
+    /etc/systemd/system/upcode-harbor-web.service
+    /etc/systemd/system/upcode-harbor-worker.service
+    /etc/systemd/system/upcode-harbor.target
   )
   local -a labels=(
     app-root config state web-state logs update-trust command-links
@@ -256,7 +256,7 @@ backup_broken_installation() {
 }
 
 load_recorded_profile() {
-  local profile_file=/var/lib/upservx/install-profile
+  local profile_file=/var/lib/upcode-harbor/install-profile
   [[ -f $profile_file && ! -L $profile_file ]] || return 1
   [[ $(stat -c '%U:%a' "$profile_file") == root:640 ]] || {
     printf 'Refusing unsafe recorded install profile: %s\n' "$profile_file" >&2
@@ -325,7 +325,7 @@ if [[ $UPDATES_ENABLED == 1 ]]; then
   }
 fi
 if [[ -z $RELEASE_VERSION ]]; then
-  base_version=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/upservx/package.json" | head -n 1)
+  base_version=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/upcode-harbor/package.json" | head -n 1)
   [[ -n $base_version ]] || base_version=0.0.0
   RELEASE_VERSION="${base_version}-local-$(date -u +%Y%m%d%H%M%S)"
 fi
@@ -351,7 +351,7 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
     printf 'The current Upcode Harbor release version is invalid; refusing to resume.\n' >&2
     exit 1
   }
-  [[ -x $RELEASE_DIR/upservx-service/venv/bin/python3 ]] || {
+  [[ -x $RELEASE_DIR/upcode-harbor-service/venv/bin/python3 ]] || {
     printf 'The current Upcode Harbor backend environment is incomplete; refusing to resume.\n' >&2
     exit 1
   }
@@ -367,7 +367,7 @@ fi
 CURRENT_STEP=0
 TOTAL_STEPS=14
 cleanup() {
-  if [[ -n ${RELEASE_STAGING:-} && $RELEASE_STAGING == /opt/upservx/releases/.* && -d $RELEASE_STAGING ]]; then
+  if [[ -n ${RELEASE_STAGING:-} && $RELEASE_STAGING == /opt/upcode-harbor/releases/.* && -d $RELEASE_STAGING ]]; then
     rm -rf -- "$RELEASE_STAGING"
   fi
 }
@@ -410,21 +410,21 @@ verify_optional_sha256() {
 
 step_validate_source() {
   [[ -f $SCRIPT_DIR/.gitmodules ]]
-  grep -Fq 'path = upservx/public/novnc' "$SCRIPT_DIR/.gitmodules"
+  grep -Fq 'path = upcode-harbor/public/novnc' "$SCRIPT_DIR/.gitmodules"
   grep -Fq 'url = https://github.com/novnc/noVNC.git' "$SCRIPT_DIR/.gitmodules"
-  [[ -f $SCRIPT_DIR/upservx/public/novnc/vnc.html ]]
+  [[ -f $SCRIPT_DIR/upcode-harbor/public/novnc/vnc.html ]]
   if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    expected=$(git -C "$SCRIPT_DIR" ls-files -s upservx/public/novnc | awk '{print $2}')
-    actual=$(git -C "$SCRIPT_DIR/upservx/public/novnc" rev-parse HEAD)
+    expected=$(git -C "$SCRIPT_DIR" ls-files -s upcode-harbor/public/novnc | awk '{print $2}')
+    actual=$(git -C "$SCRIPT_DIR/upcode-harbor/public/novnc" rev-parse HEAD)
     [[ -n $expected && $expected == "$actual" ]] || {
       printf 'The noVNC submodule is missing or checked out at the wrong commit.\n' >&2
       return 1
     }
-    git -C "$SCRIPT_DIR/upservx/public/novnc" diff --quiet
-    git -C "$SCRIPT_DIR/upservx/public/novnc" diff --cached --quiet
+    git -C "$SCRIPT_DIR/upcode-harbor/public/novnc" diff --quiet
+    git -C "$SCRIPT_DIR/upcode-harbor/public/novnc" diff --cached --quiet
   fi
-  [[ -f $SCRIPT_DIR/upservx/package-lock.json ]]
-  [[ -f $SCRIPT_DIR/upservx-service/requirements.lock ]]
+  [[ -f $SCRIPT_DIR/upcode-harbor/package-lock.json ]]
+  [[ -f $SCRIPT_DIR/upcode-harbor-service/requirements.lock ]]
 }
 
 step_install_core_packages() {
@@ -444,14 +444,14 @@ step_install_core_packages() {
       return 1
     }
     install -d -o root -g root -m 0755 /etc/apt/sources.list.d
-    cat > /etc/apt/sources.list.d/upservx-zfs.sources <<EOF
+    cat > /etc/apt/sources.list.d/upcode-harbor-zfs.sources <<EOF
 Types: deb
 URIs: https://deb.debian.org/debian
 Suites: ${VERSION_CODENAME}
 Components: contrib
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 EOF
-    chmod 0644 /etc/apt/sources.list.d/upservx-zfs.sources
+    chmod 0644 /etc/apt/sources.list.d/upcode-harbor-zfs.sources
     apt-get update
     apt-cache show zfsutils-linux >/dev/null 2>&1 || {
       printf 'ZFS packages remain unavailable after enabling Debian contrib.\n' >&2
@@ -545,9 +545,9 @@ step_install_optional_platforms() {
 
 step_create_service_accounts() {
   getent group "$SERVICE_USER" >/dev/null || groupadd --system "$SERVICE_USER"
-  id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --gid "$SERVICE_USER" --home-dir /var/lib/upservx --shell /usr/sbin/nologin "$SERVICE_USER"
+  id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --gid "$SERVICE_USER" --home-dir /var/lib/upcode-harbor --shell /usr/sbin/nologin "$SERVICE_USER"
   getent group "$WEB_USER" >/dev/null || groupadd --system "$WEB_USER"
-  id "$WEB_USER" >/dev/null 2>&1 || useradd --system --gid "$WEB_USER" --home-dir /var/lib/upservx-web --shell /usr/sbin/nologin "$WEB_USER"
+  id "$WEB_USER" >/dev/null 2>&1 || useradd --system --gid "$WEB_USER" --home-dir /var/lib/upcode-harbor-web --shell /usr/sbin/nologin "$WEB_USER"
   for group in adm; do getent group "$group" >/dev/null && usermod -aG "$group" "$SERVICE_USER"; done
   [[ $WITH_DOCKER == 0 ]] || usermod -aG docker "$SERVICE_USER"
   [[ $WITH_LXD == 0 ]] || usermod -aG lxd "$SERVICE_USER"
@@ -557,25 +557,25 @@ step_create_service_accounts() {
       usermod -aG libvirt-qemu "$SERVICE_USER"
     fi
   fi
-  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /etc/upservx
-  if find /etc/upservx -xdev -type l -print -quit | grep -q .; then
-    printf 'Refusing to install over symlinks below /etc/upservx.\n' >&2
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /etc/upcode-harbor
+  if find /etc/upcode-harbor -xdev -type l -print -quit | grep -q .; then
+    printf 'Refusing to install over symlinks below /etc/upcode-harbor.\n' >&2
     return 1
   fi
-  chown -R "$SERVICE_USER:$SERVICE_USER" /etc/upservx
-  find /etc/upservx -xdev -type d -exec chmod 0700 {} +
-  find /etc/upservx -xdev -type f -exec chmod 0600 {} +
+  chown -R "$SERVICE_USER:$SERVICE_USER" /etc/upcode-harbor
+  find /etc/upcode-harbor -xdev -type d -exec chmod 0700 {} +
+  find /etc/upcode-harbor -xdev -type f -exec chmod 0600 {} +
   install -d -o root -g root -m 0755 "$APP_ROOT" "$APP_ROOT/releases"
-  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /var/lib/upservx
-  install -d -o "$WEB_USER" -g "$WEB_USER" -m 0700 /var/lib/upservx-web
-  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/log/upservx
-  install -d -o root -g "$SERVICE_USER" -m 0750 /var/lib/upservx/updates /var/lib/upservx/update-state
-  install -d -o root -g root -m 0700 /var/backups/upservx
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 /var/lib/upcode-harbor
+  install -d -o "$WEB_USER" -g "$WEB_USER" -m 0700 /var/lib/upcode-harbor-web
+  install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/log/upcode-harbor
+  install -d -o root -g "$SERVICE_USER" -m 0750 /var/lib/upcode-harbor/updates /var/lib/upcode-harbor/update-state
+  install -d -o root -g root -m 0700 /var/backups/upcode-harbor
   for directory in app-store compose app-data customization; do
-    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "/var/lib/upservx/$directory"
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "/var/lib/upcode-harbor/$directory"
   done
   for directory in ssh_keys authorized_keys; do
-    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "/var/lib/upservx/$directory"
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "/var/lib/upcode-harbor/$directory"
   done
 }
 
@@ -584,19 +584,19 @@ step_copy_release() {
   tar \
     --exclude='.git' --exclude='.venv' --exclude='venv' \
     --exclude='node_modules' --exclude='.next' --exclude='__pycache__' \
-    --exclude='*.pyc' --exclude='upservx/.env.local' \
-    --exclude='upservx/tsconfig.tsbuildinfo' \
-    --exclude='upservx-service/ssh_keys' \
-    --exclude='upservx-service/authorized_keys' \
-    --exclude='upservx/public/novnc/package-lock.json' \
+    --exclude='*.pyc' --exclude='upcode-harbor/.env.local' \
+    --exclude='upcode-harbor/tsconfig.tsbuildinfo' \
+    --exclude='upcode-harbor-service/ssh_keys' \
+    --exclude='upcode-harbor-service/authorized_keys' \
+    --exclude='upcode-harbor/public/novnc/package-lock.json' \
     -C "$SCRIPT_DIR" -cf - . | tar -C "$RELEASE_STAGING" -xf -
 }
 
 step_build_release() {
-  printf 'NEXT_PUBLIC_API_BASE_URL=\nNEXT_PUBLIC_WS_BASE_URL=\n' >"$RELEASE_STAGING/upservx/.env.local"
-  (cd "$RELEASE_STAGING/upservx" && /usr/bin/npm ci && /usr/bin/npm run build)
-  (cd "$RELEASE_STAGING/upservx-service" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
-  (cd "$RELEASE_STAGING/upservx-cli" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
+  printf 'NEXT_PUBLIC_API_BASE_URL=\nNEXT_PUBLIC_WS_BASE_URL=\n' >"$RELEASE_STAGING/upcode-harbor/.env.local"
+  (cd "$RELEASE_STAGING/upcode-harbor" && /usr/bin/npm ci && /usr/bin/npm run build)
+  (cd "$RELEASE_STAGING/upcode-harbor-service" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
+  (cd "$RELEASE_STAGING/upcode-harbor-cli" && python3 -m venv venv && venv/bin/pip install --no-deps -r requirements.lock)
   chown -R root:root "$RELEASE_STAGING"
   find "$RELEASE_STAGING" -type d -exec chmod u=rwx,go=rx {} +
   find "$RELEASE_STAGING" -type f -perm /022 -exec chmod go-w {} +
@@ -606,11 +606,11 @@ step_build_release() {
 }
 
 step_configure_mutable_state() {
-  ln -sfn /var/lib/upservx/app-store "$APP_ROOT/app-store"
-  ln -sfn /var/lib/upservx/compose "$APP_ROOT/compose"
-  ln -sfn /var/lib/upservx/customization "$APP_ROOT/customization"
-  cp -a "$RELEASE_DIR/app-store-templates/." /var/lib/upservx/app-store/
-  chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/upservx/app-store
+  ln -sfn /var/lib/upcode-harbor/app-store "$APP_ROOT/app-store"
+  ln -sfn /var/lib/upcode-harbor/compose "$APP_ROOT/compose"
+  ln -sfn /var/lib/upcode-harbor/customization "$APP_ROOT/customization"
+  cp -a "$RELEASE_DIR/app-store-templates/." /var/lib/upcode-harbor/app-store/
+  chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/upcode-harbor/app-store
   if [[ $WITH_LIBVIRT == 1 ]]; then
     local iso_group=libvirt
     getent group libvirt-qemu >/dev/null && iso_group=libvirt-qemu
@@ -619,22 +619,22 @@ step_configure_mutable_state() {
       -exec chown "$SERVICE_USER:$iso_group" {} + -exec chmod 0640 {} +
   fi
   if [[ $WITH_K3S == 1 ]]; then
-    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0600 /etc/rancher/k3s/k3s.yaml /etc/upservx/kubeconfig
+    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0600 /etc/rancher/k3s/k3s.yaml /etc/upcode-harbor/kubeconfig
   fi
-  cat > /etc/upservx/service.env <<EOF
-UPSERVX_COOKIE_SECURE=true
-UPSERVX_COOKIE_SAMESITE=strict
-UPSERVX_SESSION_TTL_SECONDS=3600
-KUBECONFIG=/etc/upservx/kubeconfig
+  cat > /etc/upcode-harbor/service.env <<EOF
+UPCODE_HARBOR_COOKIE_SECURE=true
+UPCODE_HARBOR_COOKIE_SAMESITE=strict
+UPCODE_HARBOR_SESSION_TTL_SECONDS=3600
+KUBECONFIG=/etc/upcode-harbor/kubeconfig
 EOF
-  chown "$SERVICE_USER:$SERVICE_USER" /etc/upservx/service.env
-  chmod 0600 /etc/upservx/service.env
-  install -o "$WEB_USER" -g "$WEB_USER" -m 0600 /dev/null /var/lib/upservx-web/web.env
+  chown "$SERVICE_USER:$SERVICE_USER" /etc/upcode-harbor/service.env
+  chmod 0600 /etc/upcode-harbor/service.env
+  install -o "$WEB_USER" -g "$WEB_USER" -m 0600 /dev/null /var/lib/upcode-harbor-web/web.env
   if [[ $UPDATES_ENABLED == 1 ]]; then
-    install -d -o root -g root -m 0755 /usr/share/upservx
-    install -o root -g root -m 0644 "$UPDATE_PUBLIC_KEY" /usr/share/upservx/update-public.pem
+    install -d -o root -g root -m 0755 /usr/share/upcode-harbor
+    install -o root -g root -m 0644 "$UPDATE_PUBLIC_KEY" /usr/share/upcode-harbor/update-public.pem
   fi
-  cat > /var/lib/upservx/install-profile <<EOF
+  cat > /var/lib/upcode-harbor/install-profile <<EOF
 WITH_DOCKER=$WITH_DOCKER
 WITH_LXD=$WITH_LXD
 WITH_LIBVIRT=$WITH_LIBVIRT
@@ -645,40 +645,40 @@ WITH_OPENVPN=$WITH_OPENVPN
 WITH_ZFS=$WITH_ZFS
 UPDATES_ENABLED=$UPDATES_ENABLED
 EOF
-  chown root:"$SERVICE_USER" /var/lib/upservx/install-profile
-  chmod 0640 /var/lib/upservx/install-profile
+  chown root:"$SERVICE_USER" /var/lib/upcode-harbor/install-profile
+  chmod 0640 /var/lib/upcode-harbor/install-profile
 }
 
 step_install_privilege_boundary() {
-  install -d -o root -g root -m 0755 /usr/local/libexec /usr/local/libexec/upservx-bin
-  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-privileged" /usr/local/libexec/upservx-privileged
-  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-command" /usr/local/libexec/upservx-command
-  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-updater" /usr/local/libexec/upservx-updater
-  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-health-check" /usr/local/libexec/upservx-health-check
-  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upservx-post-install-smoke" /usr/local/libexec/upservx-post-install-smoke
+  install -d -o root -g root -m 0755 /usr/local/libexec /usr/local/libexec/upcode-harbor-bin
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upcode-harbor-privileged" /usr/local/libexec/upcode-harbor-privileged
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upcode-harbor-command" /usr/local/libexec/upcode-harbor-command
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upcode-harbor-updater" /usr/local/libexec/upcode-harbor-updater
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upcode-harbor-health-check" /usr/local/libexec/upcode-harbor-health-check
+  install -o root -g root -m 0755 "$RELEASE_DIR/deploy/upcode-harbor-post-install-smoke" /usr/local/libexec/upcode-harbor-post-install-smoke
   local commands=(apt-get certbot chpasswd dhclient fail2ban-client groupadd groupdel gpasswd hostnamectl ip mkfs.btrfs mkfs.exfat mkfs.ext4 mkfs.ntfs mkfs.vfat mount nft nginx openvpn systemctl timedatectl umount useradd userdel usermod zfs zpool)
   local command
   for command in "${commands[@]}"; do
-    ln -sfn /usr/local/libexec/upservx-command "/usr/local/libexec/upservx-bin/$command"
+    ln -sfn /usr/local/libexec/upcode-harbor-command "/usr/local/libexec/upcode-harbor-bin/$command"
   done
-  install -o root -g root -m 0440 "$RELEASE_DIR/deploy/sudoers/upservx" /etc/sudoers.d/upservx
-  visudo -cf /etc/sudoers.d/upservx
-  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/tmpfiles/upservx.conf" /etc/tmpfiles.d/upservx.conf
-  systemd-tmpfiles --create /etc/tmpfiles.d/upservx.conf
-  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/pam/upservx" /etc/pam.d/upservx
+  install -o root -g root -m 0440 "$RELEASE_DIR/deploy/sudoers/upcode-harbor" /etc/sudoers.d/upcode-harbor
+  visudo -cf /etc/sudoers.d/upcode-harbor
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/tmpfiles/upcode-harbor.conf" /etc/tmpfiles.d/upcode-harbor.conf
+  systemd-tmpfiles --create /etc/tmpfiles.d/upcode-harbor.conf
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/pam/upcode-harbor" /etc/pam.d/upcode-harbor
 }
 
 step_install_systemd_units() {
   install -o root -g root -m 0644 "$RELEASE_DIR"/deploy/systemd/* /etc/systemd/system/
-  if [[ -f /etc/systemd/system/upservx.service ]]; then
-    systemctl disable --now upservx.service || true
-    rm -f -- /etc/systemd/system/upservx.service
+  if [[ -f /etc/systemd/system/upcode-harbor.service ]]; then
+    systemctl disable --now upcode-harbor.service || true
+    rm -f -- /etc/systemd/system/upcode-harbor.service
   fi
   systemctl daemon-reload
 }
 
 step_configure_https() {
-  local tls_dir=/etc/upservx/tls
+  local tls_dir=/etc/upcode-harbor/tls
   local certificate=$tls_dir/server.crt
   local private_key=$tls_dir/server.key
   install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$tls_dir"
@@ -702,7 +702,7 @@ step_configure_https() {
   openssl pkey -in "$private_key" -check -noout
   chown "$SERVICE_USER:$SERVICE_USER" "$certificate" "$private_key"
   chmod 0600 "$certificate" "$private_key"
-  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/nginx/upservx.conf" /etc/nginx/sites-available/upservx
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/nginx/upcode-harbor.conf" /etc/nginx/sites-available/upcode-harbor
   if [[ -L /etc/nginx/sites-enabled/default ]]; then
     [[ $(readlink -f /etc/nginx/sites-enabled/default) == /etc/nginx/sites-available/default ]] || {
       printf 'Refusing to replace a custom nginx default-site link.\n' >&2
@@ -713,36 +713,36 @@ step_configure_https() {
     printf 'Refusing to replace a custom nginx default-site file.\n' >&2
     return 1
   fi
-  ln -sfn /etc/nginx/sites-available/upservx /etc/nginx/sites-enabled/upservx
+  ln -sfn /etc/nginx/sites-available/upcode-harbor /etc/nginx/sites-enabled/upcode-harbor
   nginx -t
   systemctl enable nginx
   systemctl reload nginx
 }
 
 step_initialize_secrets() {
-  cd /var/lib/upservx
-  runuser -u "$SERVICE_USER" -- env HOME=/var/lib/upservx \
-    PYTHONPATH="$RELEASE_DIR/upservx-service" \
-    UPSERVX_LOG_FILE=/var/log/upservx/api.log \
-    "$RELEASE_DIR/upservx-service/venv/bin/python3" -c \
+  cd /var/lib/upcode-harbor
+  runuser -u "$SERVICE_USER" -- env HOME=/var/lib/upcode-harbor \
+    PYTHONPATH="$RELEASE_DIR/upcode-harbor-service" \
+    UPCODE_HARBOR_LOG_FILE=/var/log/upcode-harbor/api.log \
+    "$RELEASE_DIR/upcode-harbor-service/venv/bin/python3" -c \
     "from lib.cluster_security import ensure_node_tls; from lib.encryption import EncryptionManager; from lib.session_tokens import _get_secret; EncryptionManager.ensure_key_exists(); _get_secret(); ensure_node_tls()"
 }
 
 step_install_cli() {
-  cat > /usr/local/bin/upservx <<'EOF'
+  cat > /usr/local/bin/upcode-harbor <<'EOF'
 #!/usr/bin/env bash
-exec /opt/upservx/current/upservx-cli/venv/bin/python /opt/upservx/current/upservx-cli/upservx "$@"
+exec /opt/upcode-harbor/current/upcode-harbor-cli/venv/bin/python /opt/upcode-harbor/current/upcode-harbor-cli/upcode-harbor "$@"
 EOF
-  chown root:root /usr/local/bin/upservx
-  chmod 0755 /usr/local/bin/upservx
+  chown root:root /usr/local/bin/upcode-harbor
+  chmod 0755 /usr/local/bin/upcode-harbor
 }
 
 step_start_and_verify() {
-  systemctl enable --now upservx.target upservx-health.timer
-  systemctl restart upservx-api.service upservx-web.service upservx-worker.service
-  /usr/local/libexec/upservx-health-check wait-api
-  /usr/local/libexec/upservx-health-check wait-web
-  /usr/local/libexec/upservx-post-install-smoke
+  systemctl enable --now upcode-harbor.target upcode-harbor-health.timer
+  systemctl restart upcode-harbor-api.service upcode-harbor-web.service upcode-harbor-worker.service
+  /usr/local/libexec/upcode-harbor-health-check wait-api
+  /usr/local/libexec/upcode-harbor-health-check wait-web
+  /usr/local/libexec/upcode-harbor-post-install-smoke
 }
 
 : >"$LOG_FILE"
@@ -759,8 +759,8 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
   trap - EXIT
   printf 'Installation resumed successfully. Release: %s\n' "$RELEASE_VERSION"
   print_access_information
-  printf 'Status: systemctl status upservx.target\n'
-  printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
+  printf 'Status: systemctl status upcode-harbor.target\n'
+  printf 'Smoke test: sudo /usr/local/libexec/upcode-harbor-post-install-smoke\n'
   exit 0
 fi
 TOTAL_STEPS=14
@@ -786,5 +786,5 @@ trap - EXIT
 printf 'Installation complete. Release: %s\n' "$RELEASE_VERSION"
 [[ -z $REINSTALL_BACKUP_DIR ]] || printf 'Previous installation backup: %s\n' "$REINSTALL_BACKUP_DIR"
 print_access_information
-printf 'Status: systemctl status upservx.target\n'
-printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
+printf 'Status: systemctl status upcode-harbor.target\n'
+printf 'Smoke test: sudo /usr/local/libexec/upcode-harbor-post-install-smoke\n'

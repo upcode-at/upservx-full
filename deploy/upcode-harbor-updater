@@ -1,0 +1,520 @@
+#!/usr/bin/env python3
+"""Install a signed Upcode Harbor release atomically from a staged artifact."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import pwd
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
+
+
+APP_ROOT = Path("/opt/upcode-harbor")
+RELEASES = APP_ROOT / "releases"
+CURRENT = APP_ROOT / "current"
+UPDATE_ROOT = Path("/var/lib/upcode-harbor/updates")
+STATE_ROOT = Path("/var/lib/upcode-harbor/update-state")
+BACKUP_ROOT = Path("/var/backups/upcode-harbor")
+CONFIG_ROOT = Path("/etc/upcode-harbor")
+PUBLIC_KEY = Path("/usr/share/upcode-harbor/update-public.pem")
+VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
+MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
+SERVICE_USER = "upcode-harbor"
+STOP_REQUESTED = False
+
+
+class UpdateError(RuntimeError):
+    pass
+
+
+def _handle_signal(_signum: int, _frame: object) -> None:
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+
+def _check_cancelled() -> None:
+    if STOP_REQUESTED:
+        raise UpdateError("update was cancelled")
+
+
+def _atomic_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    service = pwd.getpwnam(SERVICE_USER)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o640)
+        os.fchown(fd, 0, service.pw_gid)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+
+
+def _state(version: str, status: str, **extra: object) -> None:
+    _atomic_json(
+        STATE_ROOT / f"{version}.json",
+        {
+            "version": version,
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            **extra,
+        },
+    )
+
+
+def _atomic_write(path: Path, content: bytes, mode: int) -> None:
+    """Atomically replace a root-owned deployment asset."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_value = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_value)
+    fd_is_open = True
+    try:
+        os.fchmod(fd, mode)
+        os.fchown(fd, 0, 0)
+        with os.fdopen(fd, "wb") as handle:
+            fd_is_open = False
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if fd_is_open:
+            os.close(fd)
+        temporary.unlink(missing_ok=True)
+
+
+def _run(command: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subprocess.CompletedProcess[str]:
+    _check_cancelled()
+    started = time.monotonic()
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            text=True,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env={
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG": "C.UTF-8",
+                "NODE_ENV": "production",
+                "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            },
+        )
+        while process.poll() is None:
+            if STOP_REQUESTED or time.monotonic() - started >= timeout:
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    process.wait(timeout=10)
+                except (ProcessLookupError, subprocess.TimeoutExpired):
+                    if process.poll() is None:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.wait(timeout=5)
+                if STOP_REQUESTED:
+                    raise UpdateError("update was cancelled")
+                raise UpdateError(f"command timed out: {' '.join(command)}")
+            time.sleep(0.25)
+        output.seek(0)
+        combined_output = output.read()
+    result = subprocess.CompletedProcess(
+        command,
+        process.returncode,
+        stdout=combined_output,
+        stderr=None,
+    )
+    if result.returncode != 0:
+        tail = result.stdout[-12000:] if result.stdout else "no command output"
+        raise UpdateError(f"command failed ({result.returncode}): {' '.join(command)}\n{tail}")
+    return result
+
+
+def _verify_artifact(version: str) -> Path:
+    directory = UPDATE_ROOT / version
+    artifact = directory / f"upcode-harbor-{version}.tar.gz"
+    checksum_file = directory / f"upcode-harbor-{version}.sha256"
+    signature = directory / f"upcode-harbor-{version}.sig"
+    if (
+        not PUBLIC_KEY.is_file()
+        or PUBLIC_KEY.is_symlink()
+        or PUBLIC_KEY.stat().st_uid != 0
+        or PUBLIC_KEY.stat().st_mode & 0o022
+    ):
+        raise UpdateError("updates are disabled: /usr/share/upcode-harbor/update-public.pem is missing")
+    if directory.is_symlink() or not directory.is_dir() or directory.stat().st_uid != 0:
+        raise UpdateError("staged update directory must be a root-owned real directory")
+    for path in (artifact, checksum_file, signature):
+        if not path.is_file() or path.is_symlink():
+            raise UpdateError(f"required staged update file is missing or unsafe: {path.name}")
+        if path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+            raise UpdateError(f"staged update file must be root-owned and not writable by other users: {path.name}")
+    if artifact.stat().st_size > MAX_ARCHIVE_BYTES:
+        raise UpdateError("update artifact exceeds the size limit")
+    expected = checksum_file.read_text(encoding="ascii").strip().split()[0].lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise UpdateError("invalid SHA-256 checksum file")
+    digest = hashlib.sha256()
+    with artifact.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected:
+        raise UpdateError("update artifact checksum mismatch")
+    verify = subprocess.run(
+        [
+            "/usr/bin/openssl", "dgst", "-sha256",
+            "-verify", str(PUBLIC_KEY),
+            "-signature", str(signature),
+            str(artifact),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if verify.returncode != 0 or "Verified OK" not in verify.stdout:
+        raise UpdateError("update artifact signature verification failed")
+    return artifact
+
+
+def _safe_destination(root: Path, name: str) -> Path:
+    if name in {".", "./"}:
+        return root
+    member = PurePosixPath(name)
+    if member.is_absolute() or not member.parts or any(part in {"", ".", ".."} for part in member.parts):
+        raise UpdateError(f"unsafe archive path: {name}")
+    destination = root.joinpath(*member.parts)
+    if os.path.commonpath((root, destination)) != str(root):
+        raise UpdateError(f"archive path escapes the release: {name}")
+    return destination
+
+
+def _extract_release(artifact: Path, destination: Path) -> None:
+    total = 0
+    with tarfile.open(artifact, "r:gz") as archive:
+        members = archive.getmembers()
+        for member in members:
+            target = _safe_destination(destination, member.name)
+            if member.issym() or member.islnk() or member.isdev() or member.isfifo():
+                raise UpdateError(f"links and special files are not allowed in releases: {member.name}")
+            if member.size > MAX_MEMBER_BYTES:
+                raise UpdateError(f"archive member exceeds the size limit: {member.name}")
+            total += member.size
+            if total > MAX_ARCHIVE_BYTES:
+                raise UpdateError("expanded update artifact exceeds the size limit")
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                os.chmod(target, member.mode & 0o755)
+                continue
+            if not member.isfile():
+                raise UpdateError(f"unsupported archive entry: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            source = archive.extractfile(member)
+            if source is None:
+                raise UpdateError(f"unable to read archive member: {member.name}")
+            with target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            os.chmod(target, member.mode & 0o755 & ~0o022)
+
+
+def _find_release_root(staging: Path, expected_version: str | None = None) -> Path:
+    if (staging / "upcode-harbor" / "package-lock.json").is_file():
+        root = staging
+    else:
+        children = [path for path in staging.iterdir() if path.is_dir()]
+        root = children[0] if len(children) == 1 else staging
+    required = (
+        root / "upcode-harbor" / "package-lock.json",
+        root / "upcode-harbor-service" / "requirements.lock",
+        root / "upcode-harbor-service" / "main.py",
+        root / "upcode-harbor" / "public" / "novnc" / "vnc.html",
+    )
+    if not all(path.is_file() for path in required):
+        raise UpdateError("signed artifact does not contain a complete Upcode Harbor release")
+    if expected_version is not None:
+        manifest_path = root / ".upcode-harbor-release.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise UpdateError("signed artifact has no valid release manifest") from error
+        if manifest != {"format": 1, "version": expected_version}:
+            raise UpdateError("signed artifact version does not match the requested release")
+    return root
+
+
+def _build_release(root: Path) -> None:
+    frontend = root / "upcode-harbor"
+    backend = root / "upcode-harbor-service"
+    cli = root / "upcode-harbor-cli"
+    _run(["/usr/bin/npm", "ci"], cwd=frontend)
+    _run(["/usr/bin/npm", "run", "build"], cwd=frontend)
+    _run(["/usr/bin/python3", "-m", "venv", "venv"], cwd=backend)
+    _run([str(backend / "venv/bin/pip"), "install", "--no-deps", "-r", "requirements.lock"], cwd=backend)
+    if (cli / "requirements.lock").is_file():
+        _run(["/usr/bin/python3", "-m", "venv", "venv"], cwd=cli)
+        _run([str(cli / "venv/bin/pip"), "install", "--no-deps", "-r", "requirements.lock"], cwd=cli)
+
+
+def _backup_configuration(version: str) -> Path:
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    destination = BACKUP_ROOT / f"config-{stamp}-before-{version}.tar.gz"
+    with tarfile.open(destination, "w:gz") as archive:
+        if CONFIG_ROOT.exists():
+            archive.add(CONFIG_ROOT, arcname="etc-upcode-harbor", recursive=True)
+    os.chmod(destination, 0o600)
+    return destination
+
+
+def _switch_current(release: Path) -> None:
+    temporary = APP_ROOT / f".current-{os.getpid()}"
+    try:
+        temporary.symlink_to(release)
+        os.replace(temporary, CURRENT)
+        directory_fd = os.open(APP_ROOT, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _restart_public_services() -> None:
+    _run(["/usr/bin/systemctl", "restart", "upcode-harbor-api.service", "upcode-harbor-web.service"], timeout=120)
+
+
+def _health_check(attempts: int = 30) -> None:
+    helper = "/usr/local/libexec/upcode-harbor-health-check"
+    error = "health check did not run"
+    for _attempt in range(attempts):
+        _check_cancelled()
+        result = subprocess.run([helper, "all"], capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return
+        error = (result.stderr or result.stdout or error).strip()
+        time.sleep(2)
+    raise UpdateError(f"new release failed health checks: {error}")
+
+
+def _sync_templates(release: Path) -> None:
+    source = release / "app-store-templates"
+    destination = Path("/var/lib/upcode-harbor/app-store")
+    if source.is_dir():
+        shutil.copytree(source, destination, dirs_exist_ok=True)
+        service = pwd.getpwnam(SERVICE_USER)
+        for root, directories, files in os.walk(destination):
+            os.chown(root, service.pw_uid, service.pw_gid)
+            for name in directories:
+                os.chown(Path(root) / name, service.pw_uid, service.pw_gid)
+            for name in files:
+                os.chown(Path(root) / name, service.pw_uid, service.pw_gid)
+
+
+def _install_deployment_assets(release: Path) -> None:
+    """Install prevalidated root assets only after the new app is healthy."""
+
+    deploy = release / "deploy"
+    executables = {
+        "upcode-harbor-privileged": "/usr/local/libexec/upcode-harbor-privileged",
+        "upcode-harbor-command": "/usr/local/libexec/upcode-harbor-command",
+        "upcode-harbor-updater": "/usr/local/libexec/upcode-harbor-updater",
+        "upcode-harbor-health-check": "/usr/local/libexec/upcode-harbor-health-check",
+        "upcode-harbor-post-install-smoke": "/usr/local/libexec/upcode-harbor-post-install-smoke",
+    }
+    for source_name in executables:
+        if not (deploy / source_name).is_file():
+            raise UpdateError(f"release is missing deployment asset {source_name}")
+    unit_sources = sorted((deploy / "systemd").glob("upcode-harbor*"))
+    if not unit_sources:
+        raise UpdateError("release is missing systemd units")
+    sudoers_source = deploy / "sudoers/upcode-harbor"
+    tmpfiles_source = deploy / "tmpfiles/upcode-harbor.conf"
+    pam_source = deploy / "pam/upcode-harbor"
+    nginx_source = deploy / "nginx/upcode-harbor.conf"
+    if not all(
+        source.is_file()
+        for source in (sudoers_source, tmpfiles_source, pam_source, nginx_source)
+    ):
+        raise UpdateError("release is missing a managed system policy")
+
+    _run(["/usr/bin/bash", "-n", str(deploy / "upcode-harbor-command")])
+    _run(["/usr/bin/bash", "-n", str(deploy / "upcode-harbor-post-install-smoke")])
+    _run(["/usr/sbin/visudo", "-cf", str(sudoers_source)])
+    python_compile = subprocess.run(
+        [
+            "/usr/bin/python3", "-m", "py_compile",
+            str(deploy / "upcode-harbor-privileged"),
+            str(deploy / "upcode-harbor-updater"),
+            str(deploy / "upcode-harbor-health-check"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PYTHONPYCACHEPREFIX": "/tmp/upcode-harbor-update-pycache"},
+    )
+    if python_compile.returncode != 0:
+        raise UpdateError(f"invalid deployment Python asset: {python_compile.stderr}")
+
+    Path("/usr/local/libexec/upcode-harbor-bin").mkdir(parents=True, exist_ok=True)
+    for source_name, destination_value in executables.items():
+        destination = Path(destination_value)
+        temporary = destination.with_name(f".{destination.name}.{os.getpid()}")
+        shutil.copyfile(deploy / source_name, temporary)
+        os.chown(temporary, 0, 0)
+        os.chmod(temporary, 0o755)
+        os.replace(temporary, destination)
+    for command in (
+        "apt-get", "certbot", "chpasswd", "dhclient", "fail2ban-client",
+        "groupadd", "groupdel", "gpasswd", "hostnamectl", "ip",
+        "mkfs.btrfs", "mkfs.exfat", "mkfs.ext4", "mkfs.ntfs", "mkfs.vfat",
+        "mount", "nft", "nginx", "openvpn", "systemctl", "timedatectl",
+        "umount", "useradd", "userdel", "usermod", "zfs", "zpool",
+    ):
+        link = Path("/usr/local/libexec/upcode-harbor-bin") / command
+        link.unlink(missing_ok=True)
+        link.symlink_to("/usr/local/libexec/upcode-harbor-command")
+    for source in unit_sources:
+        shutil.copyfile(source, Path("/etc/systemd/system") / source.name)
+        os.chown(Path("/etc/systemd/system") / source.name, 0, 0)
+        os.chmod(Path("/etc/systemd/system") / source.name, 0o644)
+    shutil.copyfile(sudoers_source, "/etc/sudoers.d/upcode-harbor")
+    os.chown("/etc/sudoers.d/upcode-harbor", 0, 0)
+    os.chmod("/etc/sudoers.d/upcode-harbor", 0o440)
+    shutil.copyfile(tmpfiles_source, "/etc/tmpfiles.d/upcode-harbor.conf")
+    os.chown("/etc/tmpfiles.d/upcode-harbor.conf", 0, 0)
+    os.chmod("/etc/tmpfiles.d/upcode-harbor.conf", 0o644)
+    _atomic_write(Path("/etc/pam.d/upcode-harbor"), pam_source.read_bytes(), 0o644)
+    nginx_destination = Path("/etc/nginx/sites-available/upcode-harbor")
+    previous_nginx = nginx_destination.read_bytes() if nginx_destination.is_file() else None
+    _atomic_write(nginx_destination, nginx_source.read_bytes(), 0o644)
+    nginx_test = subprocess.run(
+        ["/usr/sbin/nginx", "-t"], capture_output=True, text=True, check=False
+    )
+    if nginx_test.returncode != 0:
+        if previous_nginx is None:
+            nginx_destination.unlink(missing_ok=True)
+        else:
+            _atomic_write(nginx_destination, previous_nginx, 0o644)
+        raise UpdateError(f"updated nginx configuration is invalid: {nginx_test.stderr}")
+    _run(["/usr/bin/systemctl", "daemon-reload"], timeout=60)
+    _run(["/usr/bin/systemctl", "reload", "nginx.service"], timeout=60)
+
+
+def apply(version: str) -> int:
+    if not VERSION_RE.fullmatch(version):
+        raise UpdateError("invalid release version")
+    state_path = STATE_ROOT / f"{version}.json"
+    old_release = CURRENT.resolve(strict=True) if CURRENT.exists() else None
+    release = RELEASES / version
+    if release.exists():
+        raise UpdateError("release version is already installed")
+    _state(version, "verifying", exit_code=None)
+    artifact = _verify_artifact(version)
+    backup = _backup_configuration(version)
+    staging = Path(tempfile.mkdtemp(prefix=f".{version}-", dir=RELEASES))
+    switched = False
+    try:
+        _state(version, "installing", backup=str(backup), exit_code=None)
+        _extract_release(artifact, staging)
+        extracted = _find_release_root(staging, version)
+        _build_release(extracted)
+        _check_cancelled()
+        if extracted != staging:
+            os.replace(extracted, release)
+            shutil.rmtree(staging)
+        else:
+            os.replace(staging, release)
+        for root, directories, files in os.walk(release):
+            os.chown(root, 0, 0)
+            os.chmod(root, os.stat(root).st_mode & 0o755)
+            for name in directories:
+                path = Path(root) / name
+                os.chown(path, 0, 0)
+                os.chmod(path, os.stat(path).st_mode & 0o755)
+            for name in files:
+                path = Path(root) / name
+                os.chown(path, 0, 0)
+                os.chmod(path, os.stat(path).st_mode & 0o755 & ~0o022)
+        _switch_current(release)
+        switched = True
+        _state(version, "checking", release=str(release), backup=str(backup), exit_code=None)
+        _restart_public_services()
+        _health_check()
+        _state(version, "finalizing", release=str(release), backup=str(backup), exit_code=None)
+        _install_deployment_assets(release)
+        _sync_templates(release)
+        _state(version, "completed", release=str(release), backup=str(backup), exit_code=0)
+        return 0
+    except Exception as error:
+        rollback_error = None
+        if switched and old_release is not None:
+            try:
+                _switch_current(old_release)
+                _restart_public_services()
+                _health_check(15)
+            except Exception as rollback_exception:
+                rollback_error = str(rollback_exception)
+        message = str(error)
+        if rollback_error:
+            message = f"{message}; rollback failed: {rollback_error}"
+        _state(
+            version,
+            "failed",
+            error=message[-12000:],
+            rolled_back=bool(switched and old_release is not None and rollback_error is None),
+            exit_code=1,
+        )
+        return 1
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0:
+        print("updater must run as root", file=sys.stderr)
+        return 2
+    if len(argv) != 2 or argv[0] != "apply":
+        print("usage: upcode-harbor-updater apply VERSION", file=sys.stderr)
+        return 2
+    try:
+        return apply(argv[1])
+    except Exception as error:
+        if VERSION_RE.fullmatch(argv[1]):
+            _state(argv[1], "failed", error=str(error)[-12000:], exit_code=1)
+        print(f"update failed: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+    raise SystemExit(main(sys.argv[1:]))

@@ -1,0 +1,35 @@
+[Unit]
+Description=Upcode Harbor frontend
+After=network-online.target
+Wants=network-online.target
+PartOf=upcode-harbor.target
+
+[Service]
+Type=simple
+User=upcode-harbor-web
+Group=upcode-harbor-web
+WorkingDirectory=/opt/upcode-harbor/current/upcode-harbor
+Environment=HOME=/var/lib/upcode-harbor-web
+Environment=NODE_ENV=production
+Environment=PORT=9200
+EnvironmentFile=-/var/lib/upcode-harbor-web/web.env
+ExecStart=/usr/bin/npm start -- --hostname 127.0.0.1
+ExecStartPost=/usr/local/libexec/upcode-harbor-health-check wait-web
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/upcode-harbor-web
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=upcode-harbor.target

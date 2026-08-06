@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/woodpecker-server",
+      "host": "/opt/upcode-harbor/data/woodpecker-server",
       "container": "/var/lib/woodpecker",
       "mode": "rw",
       "description": ""

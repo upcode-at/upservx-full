@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""
+upcode-harbor – Upcode Harbor CLI entry point.
+
+This file is called by /usr/local/bin/upcode-harbor via the CLI venv Python.
+The venv is located at /opt/upcode-harbor/upcode-harbor-cli/venv.
+"""
+
+import os
+import sys
+
+# Add the upcode-harbor-cli directory to sys.path so the `cli` package is importable
+# regardless of the working directory.
+_CLI_DIR = os.path.dirname(os.path.realpath(__file__))
+if _CLI_DIR not in sys.path:
+    sys.path.insert(0, _CLI_DIR)
+
+from cli.main import main
+
+if __name__ == "__main__":
+    sys.exit(main())

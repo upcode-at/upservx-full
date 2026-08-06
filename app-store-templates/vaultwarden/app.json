@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/vaultwarden",
+      "host": "/opt/upcode-harbor/data/vaultwarden",
       "container": "/data",
       "mode": "rw",
       "description": ""

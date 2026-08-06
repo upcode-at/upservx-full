@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/gitea",
+      "host": "/opt/upcode-harbor/data/gitea",
       "container": "/data",
       "mode": "rw",
       "description": ""

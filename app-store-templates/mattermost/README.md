@@ -22,11 +22,11 @@ Mattermost is a secure, open-source messaging platform designed for developer co
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/mattermost/config` | Configuration files |
-| `/opt/upservx/data/mattermost/data` | User uploads and attachments |
-| `/opt/upservx/data/mattermost/logs` | Application logs |
-| `/opt/upservx/data/mattermost/plugins` | Installed plugins |
-| `/opt/upservx/data/mattermost-db` | PostgreSQL database |
+| `/opt/upcode-harbor/data/mattermost/config` | Configuration files |
+| `/opt/upcode-harbor/data/mattermost/data` | User uploads and attachments |
+| `/opt/upcode-harbor/data/mattermost/logs` | Application logs |
+| `/opt/upcode-harbor/data/mattermost/plugins` | Installed plugins |
+| `/opt/upcode-harbor/data/mattermost-db` | PostgreSQL database |
 
 ## Configuration
 

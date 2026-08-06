@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/open-webui",
+      "host": "/opt/upcode-harbor/data/open-webui",
       "container": "/app/backend/data",
       "mode": "rw",
       "description": ""

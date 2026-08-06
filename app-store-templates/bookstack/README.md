@@ -36,8 +36,8 @@ Before starting, set `APP_URL` in `docker-compose.yml` to the public URL of your
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/bookstack` | App config, uploads, and attachments |
-| `/opt/upservx/data/bookstack-db` | MariaDB database files |
+| `/opt/upcode-harbor/data/bookstack` | App config, uploads, and attachments |
+| `/opt/upcode-harbor/data/bookstack-db` | MariaDB database files |
 
 ## Email Configuration (optional)
 

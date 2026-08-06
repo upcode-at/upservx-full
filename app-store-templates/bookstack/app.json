@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/bookstack",
+      "host": "/opt/upcode-harbor/data/bookstack",
       "container": "/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/bookstack-db",
+      "host": "/opt/upcode-harbor/data/bookstack-db",
       "container": "/config/mysql",
       "mode": "rw",
       "description": ""

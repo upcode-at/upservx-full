@@ -29,13 +29,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/synapse",
+      "host": "/opt/upcode-harbor/data/synapse",
       "container": "/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/synapse-db",
+      "host": "/opt/upcode-harbor/data/synapse-db",
       "container": "/var/lib/postgresql/data",
       "mode": "rw",
       "description": ""

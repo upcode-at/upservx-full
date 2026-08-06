@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/wordpress/html",
+      "host": "/opt/upcode-harbor/data/wordpress/html",
       "container": "/var/www/html",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/wordpress/db",
+      "host": "/opt/upcode-harbor/data/wordpress/db",
       "container": "/var/lib/mysql",
       "mode": "rw",
       "description": ""

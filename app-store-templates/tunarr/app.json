@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/tunarr/config",
+      "host": "/opt/upcode-harbor/data/tunarr/config",
       "container": "/config",
       "mode": "rw",
       "description": ""

@@ -23,19 +23,19 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/harbor/data",
+      "host": "/opt/upcode-harbor/data/harbor/data",
       "container": "/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/harbor/config",
+      "host": "/opt/upcode-harbor/data/harbor/config",
       "container": "/etc/harbor",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/harbor/log",
+      "host": "/opt/upcode-harbor/data/harbor/log",
       "container": "/var/log/harbor",
       "mode": "rw",
       "description": ""

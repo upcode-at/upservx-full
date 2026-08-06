@@ -81,4 +81,4 @@ This skips hostname checks and uses an embedded H2 database — **not suitable f
 - This setup uses **PostgreSQL** as the database backend (recommended for production)
 - Keycloak requires a healthy database before starting — the `depends_on` healthcheck handles this
 - For production, use HTTPS and set `KC_HOSTNAME` to your actual domain
-- Realm and client data are persisted in `/opt/upservx/data/keycloak/data`
+- Realm and client data are persisted in `/opt/upcode-harbor/data/keycloak/data`

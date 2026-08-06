@@ -6,7 +6,7 @@ Upcode Harbor is a two-part web application:
 
 ```
 ┌─────────────────────────────┐         ┌─────────────────────────────────┐
-│         upservx/            │         │        upservx-service/          │
+│         upcode-harbor/            │         │        upcode-harbor-service/          │
 │  Next.js 16 Frontend        │ ◄─────► │  FastAPI Backend (Python 3.11+) │
 │  React 19 · TypeScript      │  HTTP   │  Uvicorn · SQLAlchemy · Alembic  │
 │  Tailwind CSS v4 · Radix UI │  REST   │  PAM Auth · PostgreSQL          │
@@ -27,11 +27,11 @@ Upcode Harbor is a two-part web application:
 ## Directory Structure
 
 ```
-upservx/                        ← Full repository
+upcode-harbor/                        ← Full repository
 ├── app-store-templates/        ← 62 Docker Compose app templates
 ├── docs/                       ← This documentation
 ├── releases/                   ← Release notes
-├── upservx/                    ← Next.js frontend
+├── upcode-harbor/                    ← Next.js frontend
 │   ├── app/                    ← Next.js App Router
 │   │   ├── layout.tsx          ← Root layout (fonts, theme provider)
 │   │   ├── page.tsx            ← Main SPA page
@@ -39,7 +39,7 @@ upservx/                        ← Full repository
 │   ├── components/             ← 31 React components
 │   ├── lib/                    ← Utility functions
 │   └── public/                 ← Static assets (logo, images)
-└── upservx-service/            ← FastAPI backend
+└── upcode-harbor-service/            ← FastAPI backend
     ├── main.py                 ← FastAPI app, routers, auth middleware
     ├── lib/permissions.py      ← Route/action authorization policy
     ├── lib/models.py           ← Pydantic data models
@@ -69,7 +69,7 @@ upservx/                        ← Full repository
     ├── metrics_collector.py    ← Metrics & alerting (458 lines)
     ├── app_store.py            ← App store logic (194 lines)
       ├── handlers/settings.py    ← Settings, VPN
-    ├── upservx_logger.py       ← Activity log (131 lines)
+    ├── upcode_harbor_logger.py       ← Activity log (131 lines)
     ├── ssh_keys.py             ← SSH key manager
     ├── crontab_manager.py      ← Cron jobs
     ├── vnc_proxy.py            ← WebSocket VNC proxy
@@ -133,8 +133,8 @@ port 9501 process is a passive, signed-cluster-only TLS transport and cannot
 serve browser or API-token traffic.
 
 Long-running operations never execute in either HTTP process. The
-`upservx-worker` systemd unit transactionally claims records from
-`/etc/upservx/jobs.db` and starts each task in an isolated process group:
+`upcode-harbor-worker` systemd unit transactionally claims records from
+`/etc/upcode-harbor/jobs.db` and starts each task in an isolated process group:
 
 ```
 HTTP/cron -> SQLite queue -> job_worker.py -> job_runner.py -> task handler

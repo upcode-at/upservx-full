@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/prometheus/data",
+      "host": "/opt/upcode-harbor/data/prometheus/data",
       "container": "/prometheus",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/prometheus/config",
+      "host": "/opt/upcode-harbor/data/prometheus/config",
       "container": "/etc/prometheus",
       "mode": "rw",
       "description": ""

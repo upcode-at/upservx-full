@@ -1,6 +1,6 @@
 # Upcode Harbor CLI
 
-The Upcode Harbor CLI (`upservx`) lets you manage your server directly from any terminal — without opening the web interface.
+The Upcode Harbor CLI (`upcode-harbor`) lets you manage your server directly from any terminal — without opening the web interface.
 
 ---
 
@@ -31,26 +31,26 @@ The CLI is installed automatically by `install.sh` as part of the standard Upcod
 sudo ./install.sh
 ```
 
-After installation, the `upservx` command is available system-wide:
+After installation, the `upcode-harbor` command is available system-wide:
 
 ```bash
-upservx --help
-upservx --version
+upcode-harbor --help
+upcode-harbor --version
 ```
 
 The CLI lives in the active immutable release under
-`/opt/upservx/current/upservx-cli/`. The system-wide wrapper at
-`/usr/local/bin/upservx` calls its locked virtual environment automatically.
+`/opt/upcode-harbor/current/upcode-harbor-cli/`. The system-wide wrapper at
+`/usr/local/bin/upcode-harbor` calls its locked virtual environment automatically.
 
 ### Manual / Development Setup
 
 ```bash
-cd upservx-cli
+cd upcode-harbor-cli
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-python3 upservx --help
+python3 upcode-harbor --help
 ```
 
 ### Dependencies
@@ -68,8 +68,8 @@ The CLI reads configuration from two files. Both are optional JSON files:
 
 | File | Scope | Description |
 |------|-------|-------------|
-| `/etc/upservx-cli.conf` | system-wide | Written by `install.sh` |
-| `~/.upservx-cli.conf` | current user | Written by `upservx auth login` |
+| `/etc/upcode-harbor-cli.conf` | system-wide | Written by `install.sh` |
+| `~/.upcode-harbor-cli.conf` | current user | Written by `upcode-harbor auth login` |
 
 The user file takes precedence. Environment variables override everything.
 
@@ -85,15 +85,15 @@ The user file takes precedence. Environment variables override everything.
 
 | Variable | Description |
 |----------|-------------|
-| `UPSERVX_API_URL` | Override the backend URL |
-| `UPSERVX_TOKEN` | Override stored Bearer API token |
-| `UPSERVX_USERNAME` | Override the display username |
+| `UPCODE_HARBOR_API_URL` | Override the backend URL |
+| `UPCODE_HARBOR_TOKEN` | Override stored Bearer API token |
+| `UPCODE_HARBOR_USERNAME` | Override the display username |
 
 ### Example Config File
 
 ```json
 {
-  "api_url": "https://upservx.example.com/api",
+  "api_url": "https://upcode-harbor.example.com/api",
   "token": "your-api-token-here"
 }
 ```
@@ -107,30 +107,30 @@ The Upcode Harbor backend requires authentication on every request. The CLI supp
 | Method | How |
 |--------|-----|
 | **Session login** | Username/password and, when enabled, an interactive TOTP challenge |
-| **Bearer Token** | Set `token` in config or `UPSERVX_TOKEN` env var |
+| **Bearer Token** | Set `token` in config or `UPCODE_HARBOR_TOKEN` env var |
 
 The interactive login flow stores only the issued session token, never the raw
 password. The user config is written with mode `0600`.
 
 ```bash
 # One-time login
-upservx auth login
+upcode-harbor auth login
 
 # Verify session
-upservx auth whoami
+upcode-harbor auth whoami
 
 # Remove credentials
-upservx auth logout
+upcode-harbor auth logout
 ```
 
-> **Tip:** When connecting to a remote server, set `UPSERVX_API_URL` or update `api_url` in the config file first.
+> **Tip:** When connecting to a remote server, set `UPCODE_HARBOR_API_URL` or update `api_url` in the config file first.
 
 ---
 
 ## Command Overview
 
 ```
-upservx <command> <action> [options]
+upcode-harbor <command> <action> [options]
 ```
 
 | Command | Alias | Description |
@@ -152,7 +152,7 @@ upservx <command> <action> [options]
 Manage authentication and sessions.
 
 ```
-upservx auth <action>
+upcode-harbor auth <action>
 ```
 
 | Action | Description |
@@ -165,16 +165,16 @@ upservx auth <action>
 
 ```bash
 # Interactive login (prompts for username and password)
-upservx auth login
+upcode-harbor auth login
 
 # A 2FA-enabled account prompts for its TOTP code after password validation.
-upservx auth login --username admin
+upcode-harbor auth login --username admin
 
 # Check who is logged in and whether the session is still active
-upservx auth whoami
+upcode-harbor auth whoami
 
 # Remove stored credentials
-upservx auth logout
+upcode-harbor auth logout
 ```
 
 **Options for `login`**
@@ -189,10 +189,10 @@ upservx auth logout
 
 ### service
 
-Manage the Upcode Harbor systemd service (`upservx.service`).
+Manage the Upcode Harbor systemd service (`upcode-harbor.service`).
 
 ```
-upservx service <action>
+upcode-harbor service <action>
 ```
 
 | Action | Description |
@@ -205,8 +205,8 @@ upservx service <action>
 **Examples**
 
 ```bash
-upservx service status
-upservx service restart
+upcode-harbor service status
+upcode-harbor service restart
 ```
 
 > **Note:** These commands call `systemctl` directly and require root or sudo privileges.
@@ -218,7 +218,7 @@ upservx service restart
 Manage Docker containers through the Upcode Harbor API.
 
 ```
-upservx containers <action> [name] [options]
+upcode-harbor containers <action> [name] [options]
 ```
 
 | Action | Arguments | Description |
@@ -235,17 +235,17 @@ upservx containers <action> [name] [options]
 
 ```bash
 # List all containers
-upservx containers list
+upcode-harbor containers list
 
 # Alias shorthand
-upservx c list
+upcode-harbor c list
 
 # Show the last 200 log lines of a container
-upservx containers logs myapp --lines 200
+upcode-harbor containers logs myapp --lines 200
 
 # Stop and remove a container
-upservx containers stop myapp
-upservx containers remove myapp
+upcode-harbor containers stop myapp
+upcode-harbor containers remove myapp
 ```
 
 **Options for `logs`**
@@ -261,7 +261,7 @@ upservx containers remove myapp
 Show system information and resource usage.
 
 ```
-upservx system <action>
+upcode-harbor system <action>
 ```
 
 | Action | Description |
@@ -274,16 +274,16 @@ upservx system <action>
 
 ```bash
 # Full system overview
-upservx system info
+upcode-harbor system info
 
 # Alias shorthand
-upservx sys info
+upcode-harbor sys info
 
 # Current resource usage
-upservx system stats
+upcode-harbor system stats
 
 # All systemd services
-upservx system services
+upcode-harbor system services
 ```
 
 ---
@@ -293,7 +293,7 @@ upservx system services
 Browse and install applications from the integrated App Store.
 
 ```
-upservx apps <action> [app] 
+upcode-harbor apps <action> [app] 
 ```
 
 | Action | Arguments | Description |
@@ -306,14 +306,14 @@ upservx apps <action> [app]
 
 ```bash
 # Browse all available apps
-upservx apps list
+upcode-harbor apps list
 
 # Show details for a specific app
-upservx apps info wordpress
+upcode-harbor apps info wordpress
 
 # Install an app
-upservx apps install grafana
-upservx apps install nextcloud
+upcode-harbor apps install grafana
+upcode-harbor apps install nextcloud
 ```
 
 > App names correspond to the template IDs in `app-store-templates/`. Common apps: `wordpress`, `nextcloud`, `grafana`, `jellyfin`, `gitea`, `mysql`, `postgres`, `redis`, `pihole`, `vaultwarden`.
@@ -325,7 +325,7 @@ upservx apps install nextcloud
 Manage backup jobs and view backup instances.
 
 ```
-upservx backup <action> [options]
+upcode-harbor backup <action> [options]
 ```
 
 | Action | Description |
@@ -338,18 +338,18 @@ upservx backup <action> [options]
 
 ```bash
 # List all backup jobs
-upservx backup list
+upcode-harbor backup list
 
 # Create a nightly system backup and queue its first run
-upservx backup create --name nightly-etc --type system \
+upcode-harbor backup create --name nightly-etc --type system \
   --target /etc --server-id 1 --schedule "0 2 * * *" --run-now
 
 # A container target uses the canonical target prefix
-upservx backup create --name app --type container \
+upcode-harbor backup create --name app --type container \
   --target container:my-app --server-id 1
 
 # Check scheduled jobs
-upservx backup status
+upcode-harbor backup status
 ```
 
 **Options for `create`**
@@ -369,10 +369,10 @@ upservx backup status
 
 ### logs
 
-View the Upcode Harbor activity log at `/var/log/upservx/activity.log`.
+View the Upcode Harbor activity log at `/var/log/upcode-harbor/activity.log`.
 
 ```
-upservx logs <action> [options]
+upcode-harbor logs <action> [options]
 ```
 
 | Action | Description |
@@ -384,14 +384,14 @@ upservx logs <action> [options]
 
 ```bash
 # Show the last 50 lines (default)
-upservx logs show
+upcode-harbor logs show
 
 # Show the last 200 lines
-upservx logs show --lines 200
-upservx logs show -n 200
+upcode-harbor logs show --lines 200
+upcode-harbor logs show -n 200
 
 # Follow live (Ctrl+C to stop)
-upservx logs follow
+upcode-harbor logs follow
 ```
 
 **Options for `show`**
@@ -410,10 +410,10 @@ upservx logs follow
 | `--version` | `-v` | Print the CLI version |
 
 ```bash
-upservx --help
-upservx --version
-upservx containers --help
-upservx containers logs --help
+upcode-harbor --help
+upcode-harbor --version
+upcode-harbor containers --help
+upcode-harbor containers logs --help
 ```
 
 ---

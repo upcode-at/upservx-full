@@ -10,7 +10,7 @@ Welcome to the complete technical documentation for the **Upcode Harbor** projec
 - [Architecture](./architecture.md)
 - [Installation & Deployment](./installation.md)
 
-### Backend (`upservx-service/`)
+### Backend (`upcode-harbor-service/`)
 | Document | Description |
 |---|---|
 | [Authentication & Middleware](./backend/authentication.md) | PAM login, revocable sessions, scoped API tokens, cluster signatures |
@@ -33,14 +33,14 @@ Welcome to the complete technical documentation for the **Upcode Harbor** projec
 | [Security Module](./backend/security.md) | Fail2Ban, packages, certs, ports, CVE scanner |
 | [Data Models](./backend/models.md) | Pydantic models |
 
-### Frontend (`upservx/`)
+### Frontend (`upcode-harbor/`)
 - [Frontend Overview & Architecture](./frontend/README.md)
 - [Component Reference](./frontend/components.md)
 
 ### App Store
 - [App Store Templates](./app-store/README.md)
 
-### CLI (`upservx-cli/`)
+### CLI (`upcode-harbor-cli/`)
 - [CLI Overview & Installation](./cli/README.md)
 
 ### API

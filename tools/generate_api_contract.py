@@ -12,9 +12,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVICE = ROOT / "upservx-service"
-TS_PATH = ROOT / "upservx" / "lib" / "generated-api-types.ts"
-PY_PATH = ROOT / "upservx-cli" / "cli" / "generated_api_types.py"
+SERVICE = ROOT / "upcode-harbor-service"
+TS_PATH = ROOT / "upcode-harbor" / "lib" / "generated-api-types.ts"
+PY_PATH = ROOT / "upcode-harbor-cli" / "cli" / "generated_api_types.py"
 SELECTED_SCHEMAS = (
     "BackupServerCreate",
     "BackupServerUpdate",
@@ -103,14 +103,14 @@ def main() -> int:
     sys.path.insert(0, str(SERVICE))
     # Schema generation must not touch a developer's or host's live service
     # configuration merely by importing the FastAPI application.
-    with tempfile.TemporaryDirectory(prefix="upservx-openapi-") as config_dir:
-        os.environ["UPSERVX_CONFIG_DIR"] = config_dir
-        os.environ["UPSERVX_STATE_DIR"] = config_dir
-        os.environ["UPSERVX_JOB_DB"] = str(Path(config_dir) / "jobs.db")
-        os.environ["UPSERVX_LOG_FILE"] = str(Path(config_dir) / "upservx.log")
-        os.environ["UPSERVX_COMPOSE_DIR"] = str(Path(config_dir) / "compose")
-        os.environ["UPSERVX_APP_DATA_DIR"] = str(Path(config_dir) / "app-data")
-        os.environ["UPSERVX_APP_STORE_DIR"] = str(Path(config_dir) / "app-store")
+    with tempfile.TemporaryDirectory(prefix="upcode-harbor-openapi-") as config_dir:
+        os.environ["UPCODE_HARBOR_CONFIG_DIR"] = config_dir
+        os.environ["UPCODE_HARBOR_STATE_DIR"] = config_dir
+        os.environ["UPCODE_HARBOR_JOB_DB"] = str(Path(config_dir) / "jobs.db")
+        os.environ["UPCODE_HARBOR_LOG_FILE"] = str(Path(config_dir) / "upcode-harbor.log")
+        os.environ["UPCODE_HARBOR_COMPOSE_DIR"] = str(Path(config_dir) / "compose")
+        os.environ["UPCODE_HARBOR_APP_DATA_DIR"] = str(Path(config_dir) / "app-data")
+        os.environ["UPCODE_HARBOR_APP_STORE_DIR"] = str(Path(config_dir) / "app-store")
         from main import app  # noqa: PLC0415
 
         schema = app.openapi()

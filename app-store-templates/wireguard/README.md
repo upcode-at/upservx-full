@@ -60,7 +60,7 @@ docker compose up -d
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/wireguard` | WireGuard config, keys, and client configs |
+| `/opt/upcode-harbor/data/wireguard` | WireGuard config, keys, and client configs |
 
 ## Split Tunnel vs Full Tunnel
 

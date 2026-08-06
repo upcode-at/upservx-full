@@ -14,16 +14,16 @@ jobs:
     name: Backend, CLI, templates, and contracts
     runs-on: ubuntu-latest
     env:
-      PYTHONPATH: ${{ github.workspace }}/upservx-service:${{ github.workspace }}/upservx-cli
-      PYTHONPYCACHEPREFIX: /tmp/upservx-pycache
-      UPSERVX_CONFIG_DIR: /tmp/upservx-test/config
-      UPSERVX_STATE_DIR: /tmp/upservx-test/state
-      UPSERVX_JOB_DB: /tmp/upservx-test/config/jobs.db
-      UPSERVX_LOG_FILE: /tmp/upservx-test/upservx.log
-      UPSERVX_COMPOSE_DIR: /tmp/upservx-test/compose
-      UPSERVX_APP_DATA_DIR: /tmp/upservx-test/app-data
-      UPSERVX_APP_STORE_DIR: ${{ github.workspace }}/app-store-templates
-      UPSERVX_APP_SCHEMA: ${{ github.workspace }}/app-store-templates/app.schema.json
+      PYTHONPATH: ${{ github.workspace }}/upcode-harbor-service:${{ github.workspace }}/upcode-harbor-cli
+      PYTHONPYCACHEPREFIX: /tmp/upcode-harbor-pycache
+      UPCODE_HARBOR_CONFIG_DIR: /tmp/upcode-harbor-test/config
+      UPCODE_HARBOR_STATE_DIR: /tmp/upcode-harbor-test/state
+      UPCODE_HARBOR_JOB_DB: /tmp/upcode-harbor-test/config/jobs.db
+      UPCODE_HARBOR_LOG_FILE: /tmp/upcode-harbor-test/upcode-harbor.log
+      UPCODE_HARBOR_COMPOSE_DIR: /tmp/upcode-harbor-test/compose
+      UPCODE_HARBOR_APP_DATA_DIR: /tmp/upcode-harbor-test/app-data
+      UPCODE_HARBOR_APP_STORE_DIR: ${{ github.workspace }}/app-store-templates
+      UPCODE_HARBOR_APP_SCHEMA: ${{ github.workspace }}/app-store-templates/app.schema.json
 
     steps:
       - name: Checkout code
@@ -37,42 +37,42 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: |
-            upservx-service/requirements.lock
-            upservx-cli/requirements.lock
+            upcode-harbor-service/requirements.lock
+            upcode-harbor-cli/requirements.lock
             requirements-quality.lock
 
       - name: Install locked dependencies and backend linter
         run: |
-          python -m pip install -r upservx-service/requirements.lock -r upservx-cli/requirements.lock -r requirements-quality.lock
+          python -m pip install -r upcode-harbor-service/requirements.lock -r upcode-harbor-cli/requirements.lock -r requirements-quality.lock
 
       - name: Check Python syntax recursively
         run: >-
           python -m compileall -q
-          upservx-service/api
-          upservx-service/handlers
-          upservx-service/lib
-          upservx-service/tests
-          upservx-cli/cli
-          upservx-cli/tests
+          upcode-harbor-service/api
+          upcode-harbor-service/handlers
+          upcode-harbor-service/lib
+          upcode-harbor-service/tests
+          upcode-harbor-cli/cli
+          upcode-harbor-cli/tests
           tools
 
       - name: Lint backend and CLI
         run: >-
           python -m flake8
-          upservx-service/api
-          upservx-service/handlers
-          upservx-service/lib
-          upservx-service/tests
-          upservx-cli/cli
-          upservx-cli/tests
+          upcode-harbor-service/api
+          upcode-harbor-service/handlers
+          upcode-harbor-service/lib
+          upcode-harbor-service/tests
+          upcode-harbor-cli/cli
+          upcode-harbor-cli/tests
           tools
           --jobs=1 --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run backend tests
-        run: python -m pytest upservx-service/tests
+        run: python -m pytest upcode-harbor-service/tests
 
       - name: Run CLI tests
-        run: python -m pytest upservx-cli/tests
+        run: python -m pytest upcode-harbor-cli/tests
 
       - name: Validate generated OpenAPI contracts
         run: python tools/generate_api_contract.py --check
@@ -84,10 +84,10 @@ jobs:
         run: >-
           find .
           -path ./.git -prune -o
-          -path ./upservx/node_modules -prune -o
-          -path ./upservx/public/novnc -prune -o
-          -path ./upservx-service/ssh_keys -prune -o
-          -path ./upservx-service/authorized_keys -prune -o
+          -path ./upcode-harbor/node_modules -prune -o
+          -path ./upcode-harbor/public/novnc -prune -o
+          -path ./upcode-harbor-service/ssh_keys -prune -o
+          -path ./upcode-harbor-service/authorized_keys -prune -o
           -type f -name '*.sh' -print0
           | xargs -0 -r bash -n
 
@@ -106,25 +106,25 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: upservx/package-lock.json
+          cache-dependency-path: upcode-harbor/package-lock.json
 
       - name: Install locked frontend dependencies
-        working-directory: upservx
+        working-directory: upcode-harbor
         run: npm ci
 
       - name: Run ESLint
-        working-directory: upservx
+        working-directory: upcode-harbor
         run: npm run lint
 
       - name: Build frontend
-        working-directory: upservx
+        working-directory: upcode-harbor
         run: npm run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: upservx/.next
+          path: upcode-harbor/.next
           retention-days: 7
 
   quality-gates-complete:

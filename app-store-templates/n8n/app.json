@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/n8n",
+      "host": "/opt/upcode-harbor/data/n8n",
       "container": "/home/node/.n8n",
       "mode": "rw",
       "description": ""

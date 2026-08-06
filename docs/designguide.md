@@ -169,13 +169,13 @@ Defined via `--radius: 0.875rem`:
 
 These classes are defined in `app/globals.css` under `@layer components`.
 
-### `.upservx-gradient`
+### `.upcode-harbor-gradient`
 Primary red gradient for accent elements.
 ```css
 background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 ```
 
-### `.upservx-card`
+### `.upcode-harbor-card`
 Subtle card styling with a glassmorphism approach.
 ```css
 /* Tailwind */
@@ -190,7 +190,7 @@ bg-card border border-border/50 backdrop-blur-sm
 linear-gradient(to bottom right, hsl(--card) 0%, hsl(--card / 0.8) 100%)
 ```
 
-### `.upservx-glass`
+### `.upcode-harbor-glass`
 Full glassmorphism effect.
 ```css
 /* Tailwind */
@@ -201,7 +201,7 @@ bg-background/60 backdrop-blur-md border border-border/30
 0 0 0 1px rgba(255, 255, 255, 0.18) inset
 ```
 
-### `.upservx-button-primary`
+### `.upcode-harbor-button-primary`
 Custom primary button with hover-lift effect.
 ```css
 background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
@@ -217,7 +217,7 @@ box-shadow:
   0 0 0 1px rgba(255, 255, 255, 0.3) inset;
 ```
 
-### `.upservx-sidebar`
+### `.upcode-harbor-sidebar`
 Sidebar container with backdrop blur.
 ```css
 /* Tailwind */

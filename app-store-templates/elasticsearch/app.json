@@ -23,13 +23,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/elasticsearch/data",
+      "host": "/opt/upcode-harbor/data/elasticsearch/data",
       "container": "/usr/share/elasticsearch/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/elasticsearch/kibana",
+      "host": "/opt/upcode-harbor/data/elasticsearch/kibana",
       "container": "/usr/share/kibana/data",
       "mode": "rw",
       "description": ""

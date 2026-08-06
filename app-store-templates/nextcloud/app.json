@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/nextcloud",
+      "host": "/opt/upcode-harbor/data/nextcloud",
       "container": "/var/www/html",
       "mode": "rw",
       "description": ""

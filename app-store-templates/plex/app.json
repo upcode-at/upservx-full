@@ -65,13 +65,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/plex/config",
+      "host": "/opt/upcode-harbor/data/plex/config",
       "container": "/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/plex/transcode",
+      "host": "/opt/upcode-harbor/data/plex/transcode",
       "container": "/transcode",
       "mode": "rw",
       "description": ""

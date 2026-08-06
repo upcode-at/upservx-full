@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/openvpn",
+      "host": "/opt/upcode-harbor/data/openvpn",
       "container": "/etc/openvpn",
       "mode": "rw",
       "description": ""

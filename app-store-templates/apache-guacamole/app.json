@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/apache-guacamole/drive",
+      "host": "/opt/upcode-harbor/data/apache-guacamole/drive",
       "container": "/drive",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/apache-guacamole/record",
+      "host": "/opt/upcode-harbor/data/apache-guacamole/record",
       "container": "/record",
       "mode": "rw",
       "description": ""

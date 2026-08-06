@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/immich/upload",
+      "host": "/opt/upcode-harbor/data/immich/upload",
       "container": "/usr/src/app/upload",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/immich-db",
+      "host": "/opt/upcode-harbor/data/immich-db",
       "container": "/var/lib/postgresql/data",
       "mode": "rw",
       "description": ""

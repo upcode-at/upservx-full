@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/motioneye/config",
+      "host": "/opt/upcode-harbor/data/motioneye/config",
       "container": "/etc/motioneye",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/motioneye/media",
+      "host": "/opt/upcode-harbor/data/motioneye/media",
       "container": "/var/lib/motioneye",
       "mode": "rw",
       "description": ""

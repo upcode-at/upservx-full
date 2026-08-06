@@ -1,7 +1,7 @@
 # Settings
 
-**File:** `upservx-service/handlers/settings.py`
-**API sub-module:** `upservx-service/api/settings.py`
+**File:** `upcode-harbor-service/handlers/settings.py`
+**API sub-module:** `upcode-harbor-service/api/settings.py`
 
 **Required permission:** Admin for write; read access for `/settings/customization`
 
@@ -9,9 +9,9 @@
 
 ## Overview
 
-The settings module manages the globally configurable options of Upcode Harbor. Settings are stored in a JSON file at `/etc/upservx/settings.json`.
+The settings module manages the globally configurable options of Upcode Harbor. Settings are stored in a JSON file at `/etc/upcode-harbor/settings.json`.
 
-VPN/OpenVPN profiles uploaded via the Settings API are stored in `/etc/upservx/vpn` (for example `/etc/upservx/vpn/client.ovpn`).
+VPN/OpenVPN profiles uploaded via the Settings API are stored in `/etc/upcode-harbor/vpn` (for example `/etc/upcode-harbor/vpn/client.ovpn`).
 
 ---
 
@@ -40,7 +40,7 @@ class Settings(BaseModel):
     update_channel: str             # "stable", "beta"
 
     # Backup
-    backup_dir: str                 # Default: /var/backups/upservx
+    backup_dir: str                 # Default: /var/backups/upcode-harbor
 
     # Security
     allowed_origins: List[str]      # CORS whitelist
@@ -52,7 +52,7 @@ class Settings(BaseModel):
 ## Configuration File
 
 ```json
-// /etc/upservx/settings.json
+// /etc/upcode-harbor/settings.json
 {
   "instance_name": "Upcode Harbor",
   "theme": "dark",
@@ -62,7 +62,7 @@ class Settings(BaseModel):
   "alert_disk_percent": 90,
   "auto_update_check": true,
   "update_channel": "stable",
-  "backup_dir": "/var/backups/upservx",
+  "backup_dir": "/var/backups/upcode-harbor",
   "rate_limit_enabled": true
 }
 ```
@@ -90,7 +90,7 @@ This allows the login screen to display branding without requiring login first.
 ## API token management
 
 API tokens are not part of `settings.json`. They are held in the owner-only
-`/etc/upservx/api_tokens.json` token store as hashes with role, scopes, expiry,
+`/etc/upcode-harbor/api_tokens.json` token store as hashes with role, scopes, expiry,
 and revocation metadata. The raw token is shown exactly once at creation. See
 [Authentication and sessions](./authentication.md#api-tokens).
 

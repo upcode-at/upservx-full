@@ -23,13 +23,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/jellyfin/config",
+      "host": "/opt/upcode-harbor/data/jellyfin/config",
       "container": "/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jellyfin/cache",
+      "host": "/opt/upcode-harbor/data/jellyfin/cache",
       "container": "/cache",
       "mode": "rw",
       "description": ""

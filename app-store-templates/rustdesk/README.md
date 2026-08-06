@@ -27,7 +27,7 @@ RustDesk is an open-source remote desktop software that lets you host your own r
 1. Install the app via the Upcode Harbor App Store.
 2. After the containers start, retrieve the public key from the server:
    ```bash
-   cat /opt/upservx/data/rustdesk/id_ed25519.pub
+   cat /opt/upcode-harbor/data/rustdesk/id_ed25519.pub
    ```
 3. In the RustDesk client on your devices, open **Settings → Network** and enter:
    - **ID Server**: `<your-server-ip>`
@@ -38,7 +38,7 @@ RustDesk is an open-source remote desktop software that lets you host your own r
 ## Security
 
 - `ENCRYPTED_ONLY=1` forces all connections to use the server's keypair – unencrypted connections are rejected.
-- The key pair (`id_ed25519` / `id_ed25519.pub`) is auto-generated on first start and stored in `/opt/upservx/data/rustdesk`.
+- The key pair (`id_ed25519` / `id_ed25519.pub`) is auto-generated on first start and stored in `/opt/upcode-harbor/data/rustdesk`.
 
 ## More Information
 

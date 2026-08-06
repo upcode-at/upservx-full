@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/octoprint",
+      "host": "/opt/upcode-harbor/data/octoprint",
       "container": "/octoprint",
       "mode": "rw",
       "description": ""

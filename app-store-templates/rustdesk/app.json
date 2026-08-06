@@ -47,7 +47,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/rustdesk",
+      "host": "/opt/upcode-harbor/data/rustdesk",
       "container": "/data",
       "mode": "rw",
       "description": ""

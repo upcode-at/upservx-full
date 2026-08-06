@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/grafana/data",
+      "host": "/opt/upcode-harbor/data/grafana/data",
       "container": "/var/lib/grafana",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/grafana/provisioning",
+      "host": "/opt/upcode-harbor/data/grafana/provisioning",
       "container": "/etc/grafana/provisioning",
       "mode": "rw",
       "description": ""

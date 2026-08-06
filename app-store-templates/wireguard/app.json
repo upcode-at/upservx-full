@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/wireguard",
+      "host": "/opt/upcode-harbor/data/wireguard",
       "container": "/etc/wireguard",
       "mode": "rw",
       "description": ""

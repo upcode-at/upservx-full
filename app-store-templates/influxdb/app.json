@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/influxdb/data",
+      "host": "/opt/upcode-harbor/data/influxdb/data",
       "container": "/var/lib/influxdb2",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/influxdb/config",
+      "host": "/opt/upcode-harbor/data/influxdb/config",
       "container": "/etc/influxdb2",
       "mode": "rw",
       "description": ""

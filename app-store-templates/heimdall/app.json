@@ -23,7 +23,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/heimdall",
+      "host": "/opt/upcode-harbor/data/heimdall",
       "container": "/config",
       "mode": "rw",
       "description": ""

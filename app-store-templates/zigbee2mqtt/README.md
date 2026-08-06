@@ -32,8 +32,8 @@ Before the first start, create the Mosquitto config and the Zigbee2MQTT configur
 
 **1. Create Mosquitto config:**
 ```bash
-mkdir -p /opt/upservx/data/mosquitto/config
-cat > /opt/upservx/data/mosquitto/config/mosquitto.conf << 'EOF'
+mkdir -p /opt/upcode-harbor/data/mosquitto/config
+cat > /opt/upcode-harbor/data/mosquitto/config/mosquitto.conf << 'EOF'
 listener 1883
 allow_anonymous true
 persistence true
@@ -44,8 +44,8 @@ EOF
 
 **2. Create Zigbee2MQTT configuration:**
 ```bash
-mkdir -p /opt/upservx/data/zigbee2mqtt
-cat > /opt/upservx/data/zigbee2mqtt/configuration.yaml << 'EOF'
+mkdir -p /opt/upcode-harbor/data/zigbee2mqtt
+cat > /opt/upcode-harbor/data/zigbee2mqtt/configuration.yaml << 'EOF'
 homeassistant:
   enabled: false
 
@@ -97,10 +97,10 @@ Zigbee2MQTT will automatically publish devices to Home Assistant via MQTT discov
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/zigbee2mqtt` | Zigbee2MQTT config and device database |
-| `/opt/upservx/data/mosquitto/config` | Mosquitto configuration |
-| `/opt/upservx/data/mosquitto/data` | Mosquitto persistence data |
-| `/opt/upservx/data/mosquitto/log` | Mosquitto logs |
+| `/opt/upcode-harbor/data/zigbee2mqtt` | Zigbee2MQTT config and device database |
+| `/opt/upcode-harbor/data/mosquitto/config` | Mosquitto configuration |
+| `/opt/upcode-harbor/data/mosquitto/data` | Mosquitto persistence data |
+| `/opt/upcode-harbor/data/mosquitto/log` | Mosquitto logs |
 
 ## Official Documentation
 

@@ -29,13 +29,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/traefik/config",
+      "host": "/opt/upcode-harbor/data/traefik/config",
       "container": "/etc/traefik",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/traefik/acme",
+      "host": "/opt/upcode-harbor/data/traefik/acme",
       "container": "/acme",
       "mode": "rw",
       "description": ""

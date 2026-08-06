@@ -21,8 +21,8 @@ Open WebUI is a feature-rich, self-hosted web interface for interacting with lar
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/open-webui` | Chat history, users, settings |
-| `/opt/upservx/data/ollama` | Downloaded LLM model files |
+| `/opt/upcode-harbor/data/open-webui` | Chat history, users, settings |
+| `/opt/upcode-harbor/data/ollama` | Downloaded LLM model files |
 
 ## Pulling Models
 

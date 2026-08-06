@@ -1,6 +1,6 @@
 # Frontend
 
-**Directory:** `upservx/`
+**Directory:** `upcode-harbor/`
 **Framework:** Next.js 16, React 19, TypeScript 5
 **Styling:** Tailwind CSS v4, Radix UI
 **Port:** 9200
@@ -16,7 +16,7 @@ The Upcode Harbor frontend is a **Single Page Application (SPA)** built with Nex
 ## Directory Structure
 
 ```
-upservx/
+upcode-harbor/
 ├── app/
 │   ├── layout.tsx          Root layout (HTML, fonts, metadata)
 │   └── page.tsx            Entry point (auth check → Login or Dashboard)
@@ -124,7 +124,7 @@ NEXT_PUBLIC_API_URL=https://my-server.example.com:9500
 ## Development
 
 ```bash
-cd upservx
+cd upcode-harbor
 npm install
 npm run dev      # Port 9200
 ```

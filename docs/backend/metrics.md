@@ -1,7 +1,7 @@
 # Metrics & Monitoring
 
-**File:** `upservx-service/metrics_collector.py`
-**API sub-module:** `upservx-service/api/metrics.py`
+**File:** `upcode-harbor-service/metrics_collector.py`
+**API sub-module:** `upcode-harbor-service/api/metrics.py`
 
 **Required permission:** Read-only (any authenticated user)
 

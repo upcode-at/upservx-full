@@ -17,19 +17,19 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/registry/data",
+      "host": "/opt/upcode-harbor/data/registry/data",
       "container": "/var/lib/registry",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/registry/config",
+      "host": "/opt/upcode-harbor/data/registry/config",
       "container": "/etc/docker/registry",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/registry/auth",
+      "host": "/opt/upcode-harbor/data/registry/auth",
       "container": "/auth",
       "mode": "rw",
       "description": ""

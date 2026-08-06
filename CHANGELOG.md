@@ -25,10 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Product rename**: Version 0.7.0 introduces the **Upcode Harbor** name across
-  the UI, installer, API metadata, CLI output, logs, documentation, and release
-  material. The lowercase `upservx` deployment identifiers remain only where
-  required for compatibility with existing installations and the signed 0.7.0
-  update path.
+  the UI, installer, API metadata, CLI output, logs, documentation, source
+  directories, service accounts, systemd units, PAM policy, filesystem paths,
+  environment variables, helper binaries, signed manifests, and artifacts.
+  No compatibility aliases remain, making installation from 0.6.x or older an
+  explicit clean-install boundary.
 - **Branded integration headers**: Signed cluster transport uses
   `X-Upcode-Harbor-*`; outbound webhooks identify as `Upcode Harbor/1.0` and
   send configured secrets through `X-Upcode-Harbor-Secret`.
@@ -107,16 +108,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Activity Bell in Sidebar**: New activity dropdown above the theme switcher with a larger overlay panel for operational visibility
 - **Recent Status Timeline**: Activity panel now shows the latest 10 backup/replication status changes (`running`, `completed`, `failed`) with progress bars for running items
 - **Backup/Replication Start Notifications**: New notification events `backup_started` and `replication_started` added to settings, defaults and dispatch logic
-- **Signed session-token module**: New `lib/session_tokens.py` for HMAC-SHA256 signed, expiring user session tokens with server-side secret management (`/etc/upservx/session_secret` or `UPSERVX_SESSION_SECRET`)
+- **Signed session-token module**: New `lib/session_tokens.py` for HMAC-SHA256 signed, expiring user session tokens with server-side secret management (`/etc/upcode-harbor/session_secret` or `UPCODE_HARBOR_SESSION_SECRET`)
 
 ### Changed
 - **Activity Log API output**: Log content endpoint now returns plain text by default for direct readability; JSON output remains available via explicit format selection
-- **Log path handling**: Improved log file resolution to correctly support nested paths such as `upservx/activity.log`
+- **Log path handling**: Improved log file resolution to correctly support nested paths such as `upcode-harbor/activity.log`
 - **CLI log rendering**: Log output is formatted for human-readable display instead of raw JSON lines when possible
 - **Activity filtering**: Sidebar activity list now only displays events that are part of the notification event selection set
 - **Progress labels**: Backup and replication progress/status labels introduced in this cycle are standardized to English
-- **VPN config storage location**: OpenVPN profiles are now stored and read exclusively from `/etc/upservx/vpn` instead of the legacy handler-local path
-- **Settings documentation paths**: Backend docs now reference `upservx-service/handlers/settings.py` and document VPN profile storage under `/etc/upservx/vpn`
+- **VPN config storage location**: OpenVPN profiles are now stored and read exclusively from `/etc/upcode-harbor/vpn` instead of the legacy handler-local path
+- **Settings documentation paths**: Backend docs now reference `upcode-harbor-service/handlers/settings.py` and document VPN profile storage under `/etc/upcode-harbor/vpn`
 - **Authentication flow**: `POST /auth/login` and `POST /auth/2fa/complete` now issue signed session tokens (cookie + JSON `session_token`) instead of persisting Base64 credentials
 - **Auth middleware**: Request authentication now validates Bearer/API/cluster/session tokens; cookie fallback is treated as Bearer token
 - **WebSocket shell auth**: Cookie-based shell auth now validates signed session tokens instead of decoding/storing username:password credentials
@@ -176,7 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `DELETE /vm-networks/{name}` — stop (if active) and permanently delete a network
   - `POST /vm-networks/{name}/start` — activate a network (idempotent)
   - `POST /vm-networks/{name}/stop` — deactivate a network (idempotent)
-- **CLI v0.4.0**: `upservx` CLI version bumped to `0.4.0`
+- **CLI v0.4.0**: `upcode-harbor` CLI version bumped to `0.4.0`
 
 ### Changed
 - `VirtualMachineCreate.network_mode` now accepts `"internal"` in addition to `"nat"`, `"bridge"`, `"unconfigured"` and `"none"`
@@ -192,7 +193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `GET /vms/exports/{filename}` endpoint – streams the finished archive as a file download
   - SHA-256 manifest file (`.mf`) is generated automatically and included in every export
   - OVA mode: OVF descriptor + manifest + VMDKs bundled in a single TAR archive, correct OVA member order
-  - OVF mode: descriptor and VMDKs written to a named directory under `/etc/upservx/exports/`
+  - OVF mode: descriptor and VMDKs written to a named directory under `/etc/upcode-harbor/exports/`
   - VM must be stopped before export; running VMs are rejected with a clear error message
   - Export button (↓ icon) added to both Grid and List views in the Virtual Machines UI
   - Export dialog lets the user choose the format with a description of what each option does and a conversion-time warning
@@ -249,7 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Custom Logo**: Upload a PNG, JPG, SVG, GIF or WebP logo — replaces the default logo on both the login screen and the sidebar in the dashboard
   - **Custom Banner Image**: Upload a background image for the left panel of the login screen
   - Image previews shown directly in the settings UI; existing files can be removed to revert to defaults
-  - Customization files stored in `/etc/upservx/customization/`, text config in `/etc/upservx/customization/config.json`
+  - Customization files stored in `/etc/upcode-harbor/customization/`, text config in `/etc/upcode-harbor/customization/config.json`
   - **Login page** dynamically loads banner title, subtitle, logo and background image from the API at render time — falls back silently to defaults if the API is unreachable
   - **Sidebar logo** dynamically loads the custom logo when one is uploaded; falls back to `logo.png` / `logo_light.png` depending on theme
   - All `GET` customization endpoints (`/settings/customization`, `/settings/customization/logo/file`, `/settings/customization/banner/file`) are public (no authentication required) so the login screen can fetch them before a session exists
@@ -277,12 +278,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Notification System**: New push notification system that alerts on container, VM and backup events via Email (SMTP) and Webhook
-  - Configuration persisted to `/etc/upservx/notifications.json`
+  - Configuration persisted to `/etc/upcode-harbor/notifications.json`
   - **Email**: SMTP with STARTTLS (port 587) or SSL (port 465), multiple recipients, configurable From address, test button
   - **Webhook**: HTTP POST to any URL with optional `X-Upcode-Harbor-Secret` header; auto-detects endpoint type:
     - Discord → rich Embed with title, description and colour coding (green = success, red = failure/delete)
     - Slack → Incoming Webhook `{"text": "..."}` format
-    - Custom / generic → `{"event": ..., "message": ..., "source": "upservx"}`
+    - Custom / generic → `{"event": ..., "message": ..., "source": "upcode-harbor"}`
   - **Node prefix**: every notification includes the originating node hostname (`[Node: hostname]`) in both subject and body
   - **Email subject** format: `[hostname] Upcode Harbor – Event Name`
   - **12 per-event toggles** (all enabled by default): Container create/start/stop/crash/delete, VM create/start/stop/delete, Backup success/failure, System alert
@@ -297,7 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All notification operations (config save, email send, webhook post, dispatch) are written to the activity log
   - **Settings UI**: new fourth tab "Notifications" in Settings with Email card, Webhook card and Events card
   - API routes: `GET /settings/notifications`, `POST /settings/notifications`, `POST /settings/notifications/test/email`, `POST /settings/notifications/test/webhook`
-- **Structured Activity Logging**: All service modules now write human-readable activity entries to `/var/log/upservx/activity.log` via the `upservx_logger` module
+- **Structured Activity Logging**: All service modules now write human-readable activity entries to `/var/log/upcode-harbor/activity.log` via the `upcode_harbor_logger` module
   - `log_container` — container lifecycle events, Docker/LXC volume & storage pool create/delete, image pull & delete (`containers.py`, `api/images.py`)
   - `log_vm` — VM create, start, stop, delete, clone, update, snapshot create/delete/restore (`vms.py`)
   - `log_storage` — drive mount/unmount/format, ZFS pool creation (`storage.py`)
@@ -317,7 +318,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic fstab backup before modifications
 - **Cluster Replication System**: New Replication table in Cluster Management UI with columns for Origin Node, Destination Node, Name, Type and Sync Schedule
 - Replication form with dynamic resource loading from selected origin node (containers and VMs)
-- Replication configuration persisted to `/etc/upservx/replications.json`
+- Replication configuration persisted to `/etc/upcode-harbor/replications.json`
 - Manual replication trigger via green Play button per replication entry
 - Container export with full Docker image (`docker save`), volumes, port mappings, environment variables, restart policy and command
 - Container import with `docker load`, volume restoration and port mapping recreation

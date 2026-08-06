@@ -1,7 +1,7 @@
 # User Management
 
-**File:** `upservx-service/users.py`
-**API sub-module:** `upservx-service/api/users.py`
+**File:** `upcode-harbor-service/users.py`
+**API sub-module:** `upcode-harbor-service/api/users.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 
@@ -93,9 +93,9 @@ def create_user(username, password, groups, shell, home):
 
 ## SSH Key Management
 
-**File:** `upservx-service/ssh_keys.py`
+**File:** `upcode-harbor-service/ssh_keys.py`
 
-SSH public keys are stored in `upservx-service/ssh_keys/` and written to `~/.ssh/authorized_keys`.
+SSH public keys are stored in `upcode-harbor-service/ssh_keys/` and written to `~/.ssh/authorized_keys`.
 
 | Method | Path | Description |
 |---|---|---|

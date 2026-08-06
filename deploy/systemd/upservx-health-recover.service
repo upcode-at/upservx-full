@@ -1,6 +1,0 @@
-[Unit]
-Description=Restart unhealthy Upcode Harbor public services
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/systemctl try-restart upservx-api.service upservx-web.service

@@ -1,0 +1,8 @@
+[Unit]
+Description=Upcode Harbor liveness probe
+After=upcode-harbor.target
+OnFailure=upcode-harbor-health-recover.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/upcode-harbor-health-check all

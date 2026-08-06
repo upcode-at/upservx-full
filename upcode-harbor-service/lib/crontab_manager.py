@@ -1,0 +1,331 @@
+"""
+Crontab Management for Backup Jobs
+Manages automatic scheduling of backup jobs in system crontab
+"""
+
+import os
+import pwd
+import re
+import subprocess
+import sys
+import tempfile
+from typing import List, Optional
+import logging
+from lib.privileged import require_privileged
+
+logger = logging.getLogger(__name__)
+
+class CrontabManager:
+    """Manages crontab entries for backup jobs."""
+    
+    BACKUP_JOB_MARKER = "# UPCODE_HARBOR_BACKUP_JOB"
+    BACKUP_SECTION_START = "# === UPCODE_HARBOR BACKUP JOBS START ==="
+    BACKUP_SECTION_END = "# === UPCODE_HARBOR BACKUP JOBS END ==="
+    REPLICATION_JOB_MARKER = "# UPCODE_HARBOR_REPLICATION_JOB"
+    REPLICATION_SECTION_START = "# === UPCODE_HARBOR REPLICATION JOBS START ==="
+    REPLICATION_SECTION_END = "# === UPCODE_HARBOR REPLICATION JOBS END ==="
+
+    # Each cron field: digits, *, , - /  only — no spaces, semicolons, or shell chars
+    _CRON_FIELD_RE = re.compile(r'^[0-9*,\-/]+$')
+    # Allowed ranges per field position (min, max) — * and step/range also valid
+    _CRON_FIELD_RANGES = [
+        (0, 59),   # minute
+        (0, 23),   # hour
+        (1, 31),   # day-of-month
+        (1, 12),   # month
+        (0, 7),    # day-of-week (0 and 7 both = Sunday)
+    ]
+    _CRON_FIELD_NAMES = ["minute", "hour", "day-of-month", "month", "day-of-week"]
+
+    @classmethod
+    def _validate_cron_field(
+        cls, value: str, field_name: str, minimum: int, maximum: int
+    ) -> None:
+        """Raise ValueError if a cron field contains invalid characters."""
+        if not cls._CRON_FIELD_RE.match(value):
+            raise ValueError(
+                f"Invalid cron {field_name} field {value!r}: "
+                "only digits, *, , - / are allowed"
+            )
+        for expression in value.split(","):
+            base, separator, step = expression.partition("/")
+            if separator:
+                if not step.isdigit() or int(step) < 1:
+                    raise ValueError(f"Invalid cron {field_name} step: {expression!r}")
+                if "/" in step:
+                    raise ValueError(f"Invalid cron {field_name} field: {expression!r}")
+            if base == "*":
+                continue
+            if "-" in base:
+                start, dash, end = base.partition("-")
+                if not dash or not start.isdigit() or not end.isdigit() or "-" in end:
+                    raise ValueError(f"Invalid cron {field_name} range: {expression!r}")
+                start_value, end_value = int(start), int(end)
+                if not minimum <= start_value <= end_value <= maximum:
+                    raise ValueError(f"Cron {field_name} range is out of bounds")
+            elif not base.isdigit() or not minimum <= int(base) <= maximum:
+                raise ValueError(f"Cron {field_name} value is out of bounds")
+
+    @classmethod
+    def _validate_schedule(cls, schedule: str) -> list[str]:
+        """Parse and validate a 5-field cron schedule string.  Returns the five fields."""
+        parts = schedule.strip().split()
+        if len(parts) != 5:
+            raise ValueError(f"Cron schedule must have exactly 5 fields, got: {schedule!r}")
+        for part, name, limits in zip(
+            parts, cls._CRON_FIELD_NAMES, cls._CRON_FIELD_RANGES
+        ):
+            cls._validate_cron_field(part, name, *limits)
+        return parts
+
+    @staticmethod
+    def _sanitize_job_name(name: str) -> str:
+        """Strip characters that could break cron lines or inject shell commands."""
+        # Remove newlines, carriage returns, null bytes
+        sanitized = re.sub(r'[\r\n\x00]', '', name)
+        # Remove shell-significant characters that have no place in a comment
+        sanitized = re.sub(r'[;|&`$<>()\\\'"!]', '', sanitized)
+        return sanitized[:128]  # hard cap to prevent oversized lines
+    
+    def __init__(self):
+        self.crontab_path = "/etc/cron.d/upcode-harbor"
+        self.python_executable = sys.executable
+        self.service_user = os.getenv("UPCODE_HARBOR_SERVICE_USER") or pwd.getpwuid(
+            os.geteuid()
+        ).pw_name
+        # Use dynamic path based on current script location
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.backup_script_path = os.path.abspath(
+            os.path.join(current_dir, "..", "handlers", "execute_backup.py")
+        )
+        self.replication_script_path = os.path.abspath(
+            os.path.join(current_dir, "..", "handlers", "execute_replication.py")
+        )
+    
+    def read_crontab(self) -> List[str]:
+        """Read current crontab content."""
+        try:
+            if os.path.exists(self.crontab_path):
+                with open(self.crontab_path, 'r') as f:
+                    return f.readlines()
+            return []
+        except Exception as e:
+            logger.error(f"Error reading crontab: {e}")
+            return []
+    
+    def write_crontab(self, lines: List[str]) -> bool:
+        """Write lines to crontab."""
+        temp_path = None
+        try:
+            # Write to temporary file first
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
+                temp_file.writelines(lines)
+                temp_path = temp_file.name
+            
+            require_privileged("install-cron", temp_path)
+            return True
+        except Exception as e:
+            logger.error(f"Error writing crontab: {e}")
+            return False
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+    
+    def ensure_backup_section(self, lines: List[str]) -> List[str]:
+        """Ensure backup section markers exist in crontab."""
+        # Check if section already exists
+        has_start = any(self.BACKUP_SECTION_START in line for line in lines)
+        has_end = any(self.BACKUP_SECTION_END in line for line in lines)
+        
+        if has_start and has_end:
+            return lines
+        
+        # Add section markers at the end
+        if not lines or not lines[-1].endswith('\n'):
+            lines.append('\n')
+        
+        lines.extend([
+            f"\n{self.BACKUP_SECTION_START}\n",
+            f"{self.BACKUP_SECTION_END}\n"
+        ])
+        
+        return lines
+
+    def ensure_replication_section(self, lines: List[str]) -> List[str]:
+        """Ensure replication section markers exist in crontab."""
+        has_start = any(self.REPLICATION_SECTION_START in line for line in lines)
+        has_end = any(self.REPLICATION_SECTION_END in line for line in lines)
+
+        if has_start and has_end:
+            return lines
+
+        if not lines or not lines[-1].endswith('\n'):
+            lines.append('\n')
+
+        lines.extend([
+            f"\n{self.REPLICATION_SECTION_START}\n",
+            f"{self.REPLICATION_SECTION_END}\n"
+        ])
+
+        return lines
+    
+    def get_backup_job_cron_entry(self, job_id: int, schedule: str, job_name: str) -> str:
+        """Generate cron entry for a backup job."""
+        # Validate and parse the schedule — raises ValueError on bad input
+        minute, hour, day, month, weekday = self._validate_schedule(schedule)
+
+        # Sanitize the job name so it cannot inject extra cron fields or shell commands
+        safe_name = self._sanitize_job_name(job_name)
+
+        # Build cron entry with user specification for /etc/crontab
+        user = self.service_user
+        command = f"{self.python_executable} {self.backup_script_path} {job_id}"
+
+        cron_entry = f"{minute} {hour} {day} {month} {weekday} {user} {command} {self.BACKUP_JOB_MARKER}_ID_{job_id} # {safe_name}\n"
+
+        return cron_entry
+
+    def get_replication_job_cron_entry(self, replication_id: str, schedule: str, replication_name: str) -> str:
+        """Generate cron entry for a replication job."""
+        minute, hour, day, month, weekday = self._validate_schedule(schedule)
+        safe_name = self._sanitize_job_name(replication_name)
+
+        user = self.service_user
+        command = f"{self.python_executable} {self.replication_script_path} {replication_id}"
+
+        cron_entry = (
+            f"{minute} {hour} {day} {month} {weekday} {user} {command} "
+            f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id} # {safe_name}\n"
+        )
+
+        return cron_entry
+    
+    def add_backup_job(self, job_id: int, schedule: str, job_name: str) -> bool:
+        """Atomically add or replace one backup cron entry."""
+        try:
+            lines = self.read_crontab()
+            marker = f"{self.BACKUP_JOB_MARKER}_ID_{job_id}"
+            lines = [line for line in lines if marker not in line]
+            lines = self.ensure_backup_section(lines)
+            insert_index = next(
+                i for i, line in enumerate(lines) if self.BACKUP_SECTION_END in line
+            )
+            cron_entry = self.get_backup_job_cron_entry(job_id, schedule, job_name)
+            lines.insert(insert_index, cron_entry)
+            return self.write_crontab(lines)
+            
+        except Exception as e:
+            logger.error(f"Error adding backup job {job_id} to crontab: {e}")
+            return False
+
+    def add_replication_job(self, replication_id: str, schedule: str, replication_name: str) -> bool:
+        """Add replication job to crontab."""
+        try:
+            lines = self.read_crontab()
+            marker = f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id}"
+            lines = [line for line in lines if marker not in line]
+            lines = self.ensure_replication_section(lines)
+            insert_index = next(
+                i for i, line in enumerate(lines) if self.REPLICATION_SECTION_END in line
+            )
+            cron_entry = self.get_replication_job_cron_entry(replication_id, schedule, replication_name)
+            lines.insert(insert_index, cron_entry)
+
+            return self.write_crontab(lines)
+
+        except Exception as e:
+            logger.error(f"Error adding replication job {replication_id} to crontab: {e}")
+            return False
+    
+    def remove_backup_job(self, job_id: int, write_immediately: bool = True) -> bool:
+        """Remove backup job from crontab."""
+        try:
+            lines = self.read_crontab()
+            
+            # Filter out lines for this job
+            marker = f"{self.BACKUP_JOB_MARKER}_ID_{job_id}"
+            filtered_lines = [line for line in lines if marker not in line]
+            
+            if len(filtered_lines) != len(lines) and write_immediately:
+                return self.write_crontab(filtered_lines)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing backup job {job_id} from crontab: {e}")
+            return False
+    
+    def list_backup_jobs(self) -> List[dict]:
+        """List all backup jobs currently in crontab."""
+        try:
+            lines = self.read_crontab()
+            backup_jobs = []
+            
+            for line in lines:
+                if self.BACKUP_JOB_MARKER in line and "_ID_" in line:
+                    # Extract job ID from marker
+                    try:
+                        marker_start = line.find(f"{self.BACKUP_JOB_MARKER}_ID_")
+                        if marker_start != -1:
+                            id_start = marker_start + len(f"{self.BACKUP_JOB_MARKER}_ID_")
+                            id_end = line.find(" ", id_start)
+                            if id_end == -1:
+                                id_end = line.find("#", id_start)
+                            if id_end == -1:
+                                id_end = len(line.strip())
+                            
+                            job_id = int(line[id_start:id_end])
+                            
+                            # Extract schedule and name
+                            parts = line.strip().split()
+                            if len(parts) >= 8:
+                                schedule = " ".join(parts[:5])
+                                comment_start = line.find("#")
+                                job_name = line[comment_start+1:].strip() if comment_start != -1 else f"Job {job_id}"
+                                
+                                backup_jobs.append({
+                                    "job_id": job_id,
+                                    "schedule": schedule,
+                                    "name": job_name,
+                                    "cron_line": line.strip()
+                                })
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Could not parse backup job line: {line.strip()} - {e}")
+                        continue
+            
+            return backup_jobs
+            
+        except Exception as e:
+            logger.error(f"Error listing backup jobs: {e}")
+            return []
+
+    def remove_replication_job(self, replication_id: str, write_immediately: bool = True) -> bool:
+        """Remove replication job from crontab by replication ID."""
+        try:
+            lines = self.read_crontab()
+            
+            # Filter out lines for this replication
+            marker = f"{self.REPLICATION_JOB_MARKER}_ID_{replication_id}"
+            filtered_lines = [line for line in lines if marker not in line]
+            
+            if len(filtered_lines) != len(lines):
+                if write_immediately:
+                    return self.write_crontab(filtered_lines)
+                else:
+                    # Just update the file for the caller to write later
+                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.crontab') as temp_file:
+                        temp_file.writelines(filtered_lines)
+                        temp_path = temp_file.name
+                    require_privileged("install-cron", temp_path)
+                    os.unlink(temp_path)
+                    return True
+            
+            # No matching job found (this is OK)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing replication job {replication_id} from crontab: {e}")
+            return False
+
+# Global instance
+crontab_manager = CrontabManager()

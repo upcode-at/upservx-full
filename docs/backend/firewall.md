@@ -1,7 +1,7 @@
 # Firewall Management
 
-**File:** `upservx-service/firewall.py`
-**API sub-module:** `upservx-service/api/firewall.py`
+**File:** `upcode-harbor-service/firewall.py`
+**API sub-module:** `upcode-harbor-service/api/firewall.py`
 
 **Required permission:** Admin (`sudo`/`wheel`)
 

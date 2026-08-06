@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Produce the versioned artifact consumed by upservx-updater.
+# Produce the versioned artifact consumed by upcode-harbor-updater.
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
@@ -17,15 +17,15 @@ source_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
   exit 2
 }
 [[ -f $private_key ]] || { printf 'Private signing key not found.\n' >&2; exit 2; }
-[[ -f $source_directory/upservx/package-lock.json ]]
-[[ -f $source_directory/upservx-service/requirements.lock ]]
-[[ -f $source_directory/upservx/public/novnc/vnc.html ]]
+[[ -f $source_directory/upcode-harbor/package-lock.json ]]
+[[ -f $source_directory/upcode-harbor-service/requirements.lock ]]
+[[ -f $source_directory/upcode-harbor/public/novnc/vnc.html ]]
 if git -C "$source_directory" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  expected_novnc=$(git -C "$source_directory" ls-files -s upservx/public/novnc | awk '{print $2}')
-  actual_novnc=$(git -C "$source_directory/upservx/public/novnc" rev-parse HEAD)
+  expected_novnc=$(git -C "$source_directory" ls-files -s upcode-harbor/public/novnc | awk '{print $2}')
+  actual_novnc=$(git -C "$source_directory/upcode-harbor/public/novnc" rev-parse HEAD)
   [[ -n $expected_novnc && $expected_novnc == "$actual_novnc" ]]
-  git -C "$source_directory/upservx/public/novnc" diff --quiet
-  git -C "$source_directory/upservx/public/novnc" diff --cached --quiet
+  git -C "$source_directory/upcode-harbor/public/novnc" diff --quiet
+  git -C "$source_directory/upcode-harbor/public/novnc" diff --cached --quiet
 fi
 
 private_key_real=$(realpath "$private_key")
@@ -34,36 +34,36 @@ case "$private_key_real" in
   "$source_directory"/*) printf 'The private key must not be stored inside the source tree.\n' >&2; exit 2 ;;
 esac
 
-manifest_directory=$(mktemp -d /tmp/upservx-release-manifest.XXXXXX)
+manifest_directory=$(mktemp -d /tmp/upcode-harbor-release-manifest.XXXXXX)
 cleanup_manifest() {
-  if [[ $manifest_directory == /tmp/upservx-release-manifest.* && -d $manifest_directory ]]; then
+  if [[ $manifest_directory == /tmp/upcode-harbor-release-manifest.* && -d $manifest_directory ]]; then
     rm -rf -- "$manifest_directory"
   fi
 }
 trap cleanup_manifest EXIT
-printf '{"format":1,"version":"%s"}\n' "$version" >"$manifest_directory/.upservx-release.json"
-chmod 0644 "$manifest_directory/.upservx-release.json"
+printf '{"format":1,"version":"%s"}\n' "$version" >"$manifest_directory/.upcode-harbor-release.json"
+chmod 0644 "$manifest_directory/.upcode-harbor-release.json"
 case "$output_real" in
   "$source_directory"/*) printf 'The artifact output must be outside the source tree.\n' >&2; exit 2 ;;
 esac
 
 install -d -m 0700 "$output_directory"
-artifact="$output_directory/upservx-$version.tar.gz"
-checksum="$output_directory/upservx-$version.sha256"
-signature="$output_directory/upservx-$version.sig"
+artifact="$output_directory/upcode-harbor-$version.tar.gz"
+checksum="$output_directory/upcode-harbor-$version.sha256"
+signature="$output_directory/upcode-harbor-$version.sig"
 epoch=${SOURCE_DATE_EPOCH:-0}
 
 tar \
   --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner \
   --exclude='.git' --exclude='.venv' --exclude='venv' \
   --exclude='node_modules' --exclude='.next' --exclude='__pycache__' \
-  --exclude='*.pyc' --exclude='upservx/.env.local' \
-  --exclude='upservx/tsconfig.tsbuildinfo' \
-  --exclude='upservx-service/ssh_keys' \
-  --exclude='upservx-service/authorized_keys' \
-  --exclude='upservx/public/novnc/package-lock.json' \
+  --exclude='*.pyc' --exclude='upcode-harbor/.env.local' \
+  --exclude='upcode-harbor/tsconfig.tsbuildinfo' \
+  --exclude='upcode-harbor-service/ssh_keys' \
+  --exclude='upcode-harbor-service/authorized_keys' \
+  --exclude='upcode-harbor/public/novnc/package-lock.json' \
   -C "$source_directory" -czf "$artifact" . \
-  -C "$manifest_directory" .upservx-release.json
+  -C "$manifest_directory" .upcode-harbor-release.json
 sha256sum "$artifact" >"$checksum"
 openssl dgst -sha256 -sign "$private_key" -out "$signature" "$artifact"
 chmod 0600 "$artifact" "$checksum" "$signature"

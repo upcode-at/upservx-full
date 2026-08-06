@@ -17,7 +17,7 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/redis/data",
+      "host": "/opt/upcode-harbor/data/redis/data",
       "container": "/data",
       "mode": "rw",
       "description": ""

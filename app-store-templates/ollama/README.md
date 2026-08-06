@@ -44,7 +44,7 @@ curl http://<your-server>:11434/api/generate -d '{
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/ollama` | Downloaded model files |
+| `/opt/upcode-harbor/data/ollama` | Downloaded model files |
 
 ## GPU Support (NVIDIA)
 

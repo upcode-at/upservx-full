@@ -27,7 +27,7 @@ Web UI: `http://localhost:9090`
 
 ## Basic Configuration
 
-Create `/opt/upservx/data/prometheus/config/prometheus.yml`:
+Create `/opt/upcode-harbor/data/prometheus/config/prometheus.yml`:
 
 ```yaml
 global:

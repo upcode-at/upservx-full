@@ -20,7 +20,7 @@ Grafana Loki is a horizontally scalable, highly available, multi-tenant log aggr
 
 ## Configuration
 
-On first run, place your `loki-config.yml` into `/opt/upservx/data/loki/config/`. A minimal configuration example:
+On first run, place your `loki-config.yml` into `/opt/upcode-harbor/data/loki/config/`. A minimal configuration example:
 
 ```yaml
 auth_enabled: false

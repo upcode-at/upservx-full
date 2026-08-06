@@ -119,7 +119,7 @@ Important data persisted in Docker named volumes:
 - `crypt-vol-1` – Mail encryption keys
 - `rspamd-vol-1` – Rspamd data
 
-Config files and SSL certs are stored under `/opt/upservx/data/mailcow/`.
+Config files and SSL certs are stored under `/opt/upcode-harbor/data/mailcow/`.
 
 ## More Information
 

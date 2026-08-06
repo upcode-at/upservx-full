@@ -81,13 +81,13 @@ temporary virtual environment and runs this validation as a mandatory gate.
 ```
 
 The backend validates the template and submitted fields, generates omitted
-secrets, copies the template into `/var/lib/upservx/compose/{project}`, writes a
+secrets, copies the template into `/var/lib/upcode-harbor/compose/{project}`, writes a
 mode-0600 `.env`, renders `docker compose config`, pulls the pinned images, and
 runs `docker compose up -d --wait`. Any failure triggers `down --volumes`, then
 removes the incomplete project and its managed bind-data directory. Installed
 project metadata stores variable names but never their values.
 
-Custom project names are recorded in `.upservx-installation.json`; listing and
+Custom project names are recorded in `.upcode-harbor-installation.json`; listing and
 status checks use that project name rather than assuming it equals the template
 ID. Uninstall removes Compose resources, project metadata, and managed bind
 data. It does not delete anything when `docker compose down` fails.

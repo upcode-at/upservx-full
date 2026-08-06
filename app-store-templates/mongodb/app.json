@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/mongodb/data",
+      "host": "/opt/upcode-harbor/data/mongodb/data",
       "container": "/data/db",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mongodb/config",
+      "host": "/opt/upcode-harbor/data/mongodb/config",
       "container": "/data/configdb",
       "mode": "rw",
       "description": ""

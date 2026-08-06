@@ -18,16 +18,16 @@ validated App Store templates, and safer network and reverse-proxy management.
 - Version 0.7.0 is the first release under the **Upcode Harbor** name. The new
   name is used throughout the UI, installer, API metadata, CLI output, logs,
   documentation, and release communication.
-- Lowercase `upservx` identifiers are retained only for upgrade compatibility:
-  existing systemd units, service accounts, paths, environment variables, the
-  CLI command, and 0.7.0 artifact filenames continue to use them so 0.6.x
-  installations can consume this release safely.
+- The technical namespace is renamed completely: source directories, systemd
+  units, service accounts, PAM, filesystem paths, helper binaries, the CLI,
+  `UPCODE_HARBOR_*` variables, manifests, and artifacts all use the new name.
+  No compatibility aliases are installed.
 
 #### Recoverable Installation and Signed Updates
 
 - Releases are installed as immutable, root-owned directories below
-  `/opt/upservx/releases` and activated through the atomic
-  `/opt/upservx/current` symlink.
+  `/opt/upcode-harbor/releases` and activated through the atomic
+  `/opt/upcode-harbor/current` symlink.
 - API, frontend, job worker, health monitoring, and update execution now run in
   separate systemd services with dedicated service identities.
 - The update path accepts only a versioned archive with a matching SHA-256 file
@@ -46,7 +46,7 @@ validated App Store templates, and safer network and reverse-proxy management.
 #### Linux Accounts, Sessions, and Permissions
 
 - Upcode Harbor no longer creates application login accounts. Existing Linux users
-  authenticate through `/etc/pam.d/upservx` using a root-owned, allowlisted PAM
+  authenticate through `/etc/pam.d/upcode-harbor` using a root-owned, allowlisted PAM
   broker that receives the password only through standard input.
 - Browser sessions are signed, expiring, and revocable through hashed
   server-side session records. Password changes and relevant 2FA operations
@@ -93,7 +93,7 @@ validated App Store templates, and safer network and reverse-proxy management.
   required variables, generated secrets, unsafe credentials, image tags,
   managed paths, and port declarations.
 - Mutable templates, Compose projects, and application data live below
-  `/var/lib/upservx` rather than inside immutable releases.
+  `/var/lib/upcode-harbor` rather than inside immutable releases.
 
 #### Network, Reverse Proxy, and UI Improvements
 
@@ -115,49 +115,55 @@ validated App Store templates, and safer network and reverse-proxy management.
 
 ### Upgrade Notes
 
-1. **Use the signed updater when update trust is already installed.** Stage the
-   following root-owned files under `/var/lib/upservx/updates/0.7.0/`:
+1. **Version 0.7.0 is a clean-install boundary.** Its complete technical rename
+   is intentionally incompatible with the 0.6.x deployment namespace and
+   updater. Back up any existing host separately, stop its services, and deploy
+   0.7.0 from a clean checkout or on a clean host. No automatic in-place state
+   migration is provided.
 
-   - `upservx-0.7.0.tar.gz`
-   - `upservx-0.7.0.sha256`
-   - `upservx-0.7.0.sig`
+2. **Signed updates start with the new deployment contract.** After 0.7.0 is
+   installed with its release public key, stage future root-owned update files
+   under `/var/lib/upcode-harbor/updates/VERSION/` using these names:
 
-   Then write `0.7.0` to `/var/lib/upservx/updates/latest` and start the update
-   through Settings or `sudo ./update.sh 0.7.0`.
+   - `upcode-harbor-VERSION.tar.gz`
+   - `upcode-harbor-VERSION.sha256`
+   - `upcode-harbor-VERSION.sig`
 
-2. **Legacy or broken installations without the signed deployment contract**
-   should run `sudo ./install.sh --reinstall` from a separate 0.7.0 source
-   checkout. The previous release, configuration, state, logs, and system
-   integration files are moved below `/var/backups/upservx/` and remain
-   recoverable.
+   Then write `VERSION` to `/var/lib/upcode-harbor/updates/latest` and start the
+   update through Settings or `sudo ./update.sh VERSION`.
 
-3. **Login uses Linux accounts only.** Ensure the intended Linux administrator
+3. **Recover a broken 0.7.0 installation with `--reinstall`.** Run
+   `sudo ./install.sh --reinstall` from a separate 0.7.0 source checkout. The
+   current Upcode Harbor release, configuration, state, logs, and system files
+   are moved below `/var/backups/upcode-harbor/` before a clean installation.
+
+4. **Login uses Linux accounts only.** Ensure the intended Linux administrator
    belongs to `sudo` or `wheel` and has an unlocked PAM password. An account
    configured exclusively for SSH-key login needs a Linux password before it
    can use the web login.
 
-4. **Use the printed HTTPS URL.** Ports 9200 and 9500 are loopback-only
+5. **Use the printed HTTPS URL.** Ports 9200 and 9500 are loopback-only
    upstreams. Remote browser access terminates at nginx on port 443. The
    automatically generated certificate may require initial browser approval.
 
-5. **Legacy API keys migrate automatically** to a hashed, revocable admin token
+6. **Legacy API keys migrate automatically** to a hashed, revocable admin token
    and are removed from `settings.json`. Create narrower scoped tokens for new
    automation.
 
-6. **Upgrade cluster nodes as one maintenance operation.** Verify peer
+7. **Upgrade cluster nodes as one maintenance operation.** Verify peer
    certificates and connectivity on port 9501 after the update. The custom HA
    implementation does not provide quorum fencing/STONITH and should not be
    treated as a complete split-brain guarantee.
 
-7. **No manual database migration is required.** Persistent job and backup
+8. **No manual database migration is required.** Persistent job and backup
    schemas are initialized or upgraded automatically. The updater creates a
    configuration backup before switching releases.
 
-8. **Optional host components are installation choices.** A signed application
+9. **Optional host components are installation choices.** A signed application
    update does not install Docker, K3s, LXC/LXD, libvirt, or ZFS packages that
    were not selected during host installation.
 
-9. **Update webhook receivers for the new brand header.** Configured webhook
+10. **Update webhook receivers for the new brand header.** Configured webhook
    secrets are sent as `X-Upcode-Harbor-Secret`, and the user agent is
    `Upcode Harbor/1.0`.
 
@@ -167,10 +173,10 @@ The signed release bundle must be created outside the repository with the
 offline private key:
 
 ```bash
-deploy/build-release-artifact 0.7.0 /secure/release-private.pem /tmp/upservx-0.7.0
+deploy/build-release-artifact 0.7.0 /secure/release-private.pem /tmp/upcode-harbor-0.7.0
 ```
 
 The private key is intentionally not part of the source tree. The resulting
-archive contains `.upservx-release.json` with format `1` and version `0.7.0`;
+archive contains `.upcode-harbor-release.json` with format `1` and version `0.7.0`;
 the updater rejects artifacts whose manifest, checksum, or signature does not
 match.

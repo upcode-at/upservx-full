@@ -17,25 +17,25 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/zigbee2mqtt",
+      "host": "/opt/upcode-harbor/data/zigbee2mqtt",
       "container": "/app/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mosquitto/config",
+      "host": "/opt/upcode-harbor/data/mosquitto/config",
       "container": "/mosquitto/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mosquitto/data",
+      "host": "/opt/upcode-harbor/data/mosquitto/data",
       "container": "/mosquitto/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/mosquitto/log",
+      "host": "/opt/upcode-harbor/data/mosquitto/log",
       "container": "/mosquitto/log",
       "mode": "rw",
       "description": ""

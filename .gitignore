@@ -11,13 +11,13 @@ venv/
 htmlcov/
 
 # Frontend
-upservx/node_modules/
-upservx/.next/
-upservx/tsconfig.tsbuildinfo
+upcode-harbor/node_modules/
+upcode-harbor/.next/
+upcode-harbor/tsconfig.tsbuildinfo
 
 # Local service runtime data
-upservx-service/ssh_keys/
-upservx-service/authorized_keys/
+upcode-harbor-service/ssh_keys/
+upcode-harbor-service/authorized_keys/
 
 # Backup files
 backup_key

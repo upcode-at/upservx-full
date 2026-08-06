@@ -29,37 +29,37 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/jitsi/web",
+      "host": "/opt/upcode-harbor/data/jitsi/web",
       "container": "/config/web",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jitsi/transcripts",
+      "host": "/opt/upcode-harbor/data/jitsi/transcripts",
       "container": "/usr/share/jitsi-meet/transcripts",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jitsi/prosody/config",
+      "host": "/opt/upcode-harbor/data/jitsi/prosody/config",
       "container": "/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jitsi/prosody/prosody-plugins-custom",
+      "host": "/opt/upcode-harbor/data/jitsi/prosody/prosody-plugins-custom",
       "container": "/prosody-plugins-custom",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jitsi/jicofo",
+      "host": "/opt/upcode-harbor/data/jitsi/jicofo",
       "container": "/config",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/jitsi/jvb",
+      "host": "/opt/upcode-harbor/data/jitsi/jvb",
       "container": "/config",
       "mode": "rw",
       "description": ""

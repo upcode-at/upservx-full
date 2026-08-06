@@ -1,7 +1,7 @@
 # Upcode Harbor - Server Management Platform
 
 <p align="center">
-  <img src="upservx/public/logo.png" alt="Upcode Harbor Logo" width="400">
+  <img src="upcode-harbor/public/logo.png" alt="Upcode Harbor Logo" width="400">
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -34,6 +34,7 @@ Upcode Harbor includes 62 pre-configured app templates for quick deployments:
 - Jellyfin, Emby, Plex
 
 **Development:**
+
 - Gitea, n8n
 
 **Databases:**
@@ -55,7 +56,7 @@ Run the same mandatory checks used by CI from a clean checkout:
 make test
 ```
 
-The command uses Python 3.11 to match CI (set `UPSERVX_TEST_PYTHON` to an
+The command uses Python 3.11 to match CI (set `UPCODE_HARBOR_TEST_PYTHON` to an
 explicit compatible interpreter), and requires Node.js 20+, npm, and Docker
 Compose. It
 creates an isolated temporary Python virtual environment from the locked
@@ -93,7 +94,7 @@ sudo ./install.sh --profile full \
   --update-public-key /secure/release-public.pem
 ```
 
-The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
+The installer creates dedicated `upcode-harbor` and `upcode-harbor-web` accounts, immutable
 versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
 entry point, and a post-install privilege/health smoke test. With no component
 options it opens a terminal checklist for Docker, K3s/kubectl, LXC/LXD, and
@@ -108,17 +109,17 @@ the signed update workflow.
 
 After installation, use the printed `https://SERVER-IP/` URL. Ports `9200` and
 `9500` are intentionally loopback-only internal services. Sign in with an
-existing Linux/PAM user through the dedicated `upservx` PAM service; the
+existing Linux/PAM user through the dedicated `upcode-harbor` PAM service; the
 installer does not create application login users.
 
-### Technical compatibility identifiers
+### Complete technical rename in 0.7.0
 
-Starting with version 0.7.0, the product name is exclusively **Upcode Harbor**.
-The lowercase identifier `upservx` remains in service accounts, systemd units,
-filesystem paths, environment variables, the compatibility CLI command, and
-0.7.0 update artifact filenames. These identifiers are retained so existing
-0.6.x installations can upgrade without breaking their deployment contract;
-they are not the product name.
+Version 0.7.0 uses `upcode-harbor` consistently for source directories,
+service accounts, systemd units, PAM, filesystem paths, helper binaries, the
+CLI command, environment variables, release manifests, and signed artifacts.
+No compatibility aliases for the previous technical namespace are installed.
+Consequently, 0.7.0 requires a clean installation instead of an in-place
+update from 0.6.x or older.
 
 
 ## 💝 Support

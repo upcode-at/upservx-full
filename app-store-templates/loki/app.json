@@ -17,13 +17,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/loki/data",
+      "host": "/opt/upcode-harbor/data/loki/data",
       "container": "/loki",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/loki/config",
+      "host": "/opt/upcode-harbor/data/loki/config",
       "container": "/etc/loki",
       "mode": "rw",
       "description": ""

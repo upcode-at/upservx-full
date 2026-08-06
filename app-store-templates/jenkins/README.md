@@ -26,7 +26,7 @@ The leading open source automation server. Jenkins provides hundreds of plugins 
 
 - **Web Port**: 8080
 - **Agent Port**: 50000 (for build agents)
-- **Data Directory**: /opt/upservx/data/jenkins
+- **Data Directory**: /opt/upcode-harbor/data/jenkins
 - **Docker Socket**: Mounted for Docker-in-Docker builds
 
 ## Important Notes

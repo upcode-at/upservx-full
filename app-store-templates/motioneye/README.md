@@ -63,7 +63,7 @@ Configure per camera via ⚙️ → **Motion Detection**:
 
 ## Recording & Storage
 
-Recordings and snapshots are saved to `/var/lib/motioneye` inside the container, which maps to `/opt/upservx/data/motioneye/media` on the host.
+Recordings and snapshots are saved to `/var/lib/motioneye` inside the container, which maps to `/opt/upcode-harbor/data/motioneye/media` on the host.
 
 Configure storage per camera via ⚙️ → **File Storage**:
 
@@ -110,8 +110,8 @@ labels:
 
 ## Notes
 
-- All configuration is persisted in `/opt/upservx/data/motioneye/config/`
-- All recordings and snapshots are stored in `/opt/upservx/data/motioneye/media/`
+- All configuration is persisted in `/opt/upcode-harbor/data/motioneye/config/`
+- All recordings and snapshots are stored in `/opt/upcode-harbor/data/motioneye/media/`
 - USB cameras must be passed through via the `devices` key in `docker-compose.yml`
 - Set `TZ` to your local timezone to ensure correct timestamps on recordings
 - MotionEye pairs well with Home Assistant (motion trigger webhooks) and n8n (automation workflows)

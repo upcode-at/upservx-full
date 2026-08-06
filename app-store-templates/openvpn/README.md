@@ -16,8 +16,8 @@ The container requires a one-time initialization before starting. Run the follow
 
 **1. Initialize the PKI and generate server config:**
 ```bash
-docker run --rm -v /opt/upservx/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_genconfig -u udp://<YOUR_SERVER_IP>
-docker run --rm -it -v /opt/upservx/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_initpki
+docker run --rm -v /opt/upcode-harbor/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_genconfig -u udp://<YOUR_SERVER_IP>
+docker run --rm -it -v /opt/upcode-harbor/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_initpki
 ```
 
 **2. Start the container:**
@@ -29,23 +29,23 @@ docker compose up -d
 
 ```bash
 # Generate a client certificate (with passphrase)
-docker run --rm -it -v /opt/upservx/data/openvpn:/etc/openvpn kylemanna/openvpn easyrsa build-client-full <CLIENTNAME>
+docker run --rm -it -v /opt/upcode-harbor/data/openvpn:/etc/openvpn kylemanna/openvpn easyrsa build-client-full <CLIENTNAME>
 
 # Export the client .ovpn profile
-docker run --rm -v /opt/upservx/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_getclient <CLIENTNAME> > <CLIENTNAME>.ovpn
+docker run --rm -v /opt/upcode-harbor/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_getclient <CLIENTNAME> > <CLIENTNAME>.ovpn
 ```
 
 ## Revoking a Client
 
 ```bash
-docker run --rm -it -v /opt/upservx/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_revokeclient <CLIENTNAME>
+docker run --rm -it -v /opt/upcode-harbor/data/openvpn:/etc/openvpn kylemanna/openvpn ovpn_revokeclient <CLIENTNAME>
 ```
 
 ## Data & Persistence
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/openvpn` | PKI, server config, CRL, client certificates |
+| `/opt/upcode-harbor/data/openvpn` | PKI, server config, CRL, client certificates |
 
 ## Default Port
 

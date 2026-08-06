@@ -26,13 +26,13 @@ Matrix Synapse is the reference homeserver implementation for the Matrix open st
 docker run --rm \
   -e SYNAPSE_SERVER_NAME=your-domain.com \
   -e SYNAPSE_REPORT_STATS=no \
-  -v /opt/upservx/data/synapse:/data \
+  -v /opt/upcode-harbor/data/synapse:/data \
   matrixdotorg/synapse:latest generate
 ```
 
 **2. Configure PostgreSQL in `homeserver.yaml`:**
 
-Edit `/opt/upservx/data/synapse/homeserver.yaml` and replace the default SQLite database section with:
+Edit `/opt/upcode-harbor/data/synapse/homeserver.yaml` and replace the default SQLite database section with:
 
 ```yaml
 database:
@@ -48,8 +48,8 @@ database:
 
 **3. Create the Element config:**
 ```bash
-mkdir -p /opt/upservx/data/element
-cat > /opt/upservx/data/element/config.json << 'EOF'
+mkdir -p /opt/upcode-harbor/data/element
+cat > /opt/upcode-harbor/data/element/config.json << 'EOF'
 {
   "default_server_config": {
     "m.homeserver": {
@@ -115,9 +115,9 @@ federation_domain_whitelist: []
 
 | Path | Description |
 |---|---|
-| `/opt/upservx/data/synapse` | Synapse config, media store, signing keys |
-| `/opt/upservx/data/synapse-db` | PostgreSQL database |
-| `/opt/upservx/data/element/config.json` | Element web client configuration |
+| `/opt/upcode-harbor/data/synapse` | Synapse config, media store, signing keys |
+| `/opt/upcode-harbor/data/synapse-db` | PostgreSQL database |
+| `/opt/upcode-harbor/data/element/config.json` | Element web client configuration |
 
 ## Ports
 

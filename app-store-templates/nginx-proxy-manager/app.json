@@ -29,13 +29,13 @@
   ],
   "volumes": [
     {
-      "host": "/opt/upservx/data/nginx-proxy-manager/data",
+      "host": "/opt/upcode-harbor/data/nginx-proxy-manager/data",
       "container": "/data",
       "mode": "rw",
       "description": ""
     },
     {
-      "host": "/opt/upservx/data/nginx-proxy-manager/letsencrypt",
+      "host": "/opt/upcode-harbor/data/nginx-proxy-manager/letsencrypt",
       "container": "/etc/letsencrypt",
       "mode": "rw",
       "description": ""
