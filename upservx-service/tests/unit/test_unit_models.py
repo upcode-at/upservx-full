@@ -27,10 +27,19 @@ from lib.models import (
     BackupServerCreate,
     BackupJobCreate,
     FirewallRuleCreate,
+    ProxyAdvancedConfigUpdate,
     ProxyConfigCreate,
     NotificationConfig,
     NetworkSettingsModel,
 )
+
+
+def test_advanced_proxy_config_has_bounded_non_empty_content():
+    assert ProxyAdvancedConfigUpdate(config="server {}\n").config == "server {}\n"
+    with pytest.raises(ValidationError):
+        ProxyAdvancedConfigUpdate(config="")
+    with pytest.raises(ValidationError):
+        ProxyAdvancedConfigUpdate(config="x" * 256_001)
 
 
 # ---------------------------------------------------------------------------

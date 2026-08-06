@@ -92,6 +92,25 @@ def test_expired_and_malformed_token_records_fail_closed(token_store, monkeypatc
         api_tokens.verify_api_token(token)
 
 
+@pytest.mark.parametrize("method", ["GET", "PUT"])
+def test_api_tokens_cannot_access_raw_host_configuration(method):
+    principal = api_tokens.ApiTokenPrincipal(
+        token_id="test",
+        name="admin automation",
+        role="admin",
+        scopes=frozenset({"*"}),
+        expires_at=None,
+    )
+    assert (
+        check_api_token_permission(
+            principal,
+            "/proxy/configs/example.com/advanced",
+            method,
+        )
+        is False
+    )
+
+
 def test_legacy_global_key_is_hashed_and_removed_from_settings(token_store, tmp_path):
     settings = tmp_path / "settings.json"
     settings.write_text(json.dumps({"api_key": "legacy-secret", "monitoring": True}))

@@ -390,6 +390,9 @@ class ProxyConfigCreate(BaseModel):
     ssl_enabled: bool = False
     force_ssl: bool = False
 
+class ProxyAdvancedConfigUpdate(BaseModel):
+    config: str = Field(min_length=1, max_length=256_000)
+
 class CertificateRequest(BaseModel):
     domain: str
     email: str

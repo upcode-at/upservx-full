@@ -5,7 +5,9 @@ Reverse Proxy and SSL Certificate Management using Nginx and Certbot.
 import os
 import json
 import re
+import stat
 import subprocess
+import tempfile
 from typing import List, Optional, Dict
 from pathlib import Path
 from lib.logger import log_proxy
@@ -18,6 +20,7 @@ NGINX_SITES_ENABLED = "/etc/nginx/sites-enabled"
 NGINX_CONFIG_DIR = "/etc/nginx"
 PROXY_CONFIG_FILE = "/etc/upservx/proxy_config.json"
 CERTBOT_DIR = "/etc/letsencrypt"
+MAX_ADVANCED_CONFIG_BYTES = 256_000
 
 
 class ReverseProxyManager:
@@ -247,6 +250,90 @@ class ReverseProxyManager:
             })
         
         return result
+
+    def _managed_nginx_config_path(self, domain: str) -> Path:
+        """Return the derived Nginx path for an existing managed domain."""
+        self._validate_domain(domain)
+        if domain not in self._load_config():
+            raise FileNotFoundError(f"No managed proxy configuration exists for {domain}")
+        return Path(NGINX_SITES_AVAILABLE) / f"upservx_{domain.replace('.', '_')}"
+
+    def get_advanced_proxy_config(self, domain: str) -> str:
+        """Read one managed site configuration without following symlinks."""
+        config_path = self._managed_nginx_config_path(domain)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(config_path, flags)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError("Managed Nginx configuration is not a regular file")
+            if info.st_size > MAX_ADVANCED_CONFIG_BYTES:
+                raise ValueError("Managed Nginx configuration exceeds the editor size limit")
+            with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                data = handle.read(MAX_ADVANCED_CONFIG_BYTES + 1)
+        finally:
+            os.close(descriptor)
+        if len(data) > MAX_ADVANCED_CONFIG_BYTES:
+            raise ValueError("Managed Nginx configuration exceeds the editor size limit")
+        return data.decode("utf-8")
+
+    def update_advanced_proxy_config(self, domain: str, content: str) -> Dict:
+        """Validate and atomically replace one managed Nginx site configuration."""
+        self._managed_nginx_config_path(domain)
+        if "\x00" in content:
+            raise ValueError("Nginx configuration must not contain NUL bytes")
+        if not content.endswith("\n"):
+            content += "\n"
+        data = content.encode("utf-8")
+        if not data or len(data) > MAX_ADVANCED_CONFIG_BYTES:
+            raise ValueError("Nginx configuration must be between 1 and 256000 bytes")
+
+        staged_path = ""
+        metadata = self._load_config()
+        previous_settings = dict(metadata[domain])
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                prefix="upservx-nginx-",
+                suffix=".conf",
+                delete=False,
+            ) as staged:
+                staged.write(content)
+                staged_path = staged.name
+            os.chmod(staged_path, 0o600)
+
+            metadata[domain] = {**previous_settings, "advanced_override": True}
+            self._save_config(metadata)
+            try:
+                require_privileged(
+                    "replace-nginx-config",
+                    domain,
+                    staged_path,
+                    timeout=60,
+                )
+            except Exception:
+                metadata[domain] = previous_settings
+                self._save_config(metadata)
+                raise
+
+            log_proxy(f"Updated advanced proxy config for [{domain}]")
+            return {
+                "success": True,
+                "message": "Advanced proxy configuration updated successfully",
+            }
+        except Exception as error:
+            log_proxy(
+                f"Failed to update advanced proxy config for [{domain}]: {error}",
+                error=True,
+            )
+            raise
+        finally:
+            if staged_path:
+                try:
+                    os.unlink(staged_path)
+                except FileNotFoundError:
+                    pass
     
     def obtain_certificate(self, domain: str, email: str, webroot: bool = False) -> Dict:
         """Obtain Let's Encrypt SSL certificate for domain."""

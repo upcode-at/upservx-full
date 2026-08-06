@@ -2,7 +2,11 @@
 
 from fastapi import APIRouter, HTTPException
 
-from lib.models import ProxyConfigCreate, CertificateRequest
+from lib.models import (
+    CertificateRequest,
+    ProxyAdvancedConfigUpdate,
+    ProxyConfigCreate,
+)
 from lib.logger import log_proxy
 from handlers.reverse_proxy import reverse_proxy_manager
 
@@ -47,6 +51,31 @@ def api_create_proxy_config(payload: ProxyConfigCreate):
         raise
     except Exception as e:
         log_proxy(f"Failed to create proxy config for [{payload.domain}]: {e}", error=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/proxy/configs/{domain}/advanced")
+def api_get_advanced_proxy_config(domain: str):
+    """Return the editable Nginx site configuration for a managed domain."""
+    try:
+        return {
+            "domain": domain,
+            "config": reverse_proxy_manager.get_advanced_proxy_config(domain),
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (OSError, UnicodeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/proxy/configs/{domain}/advanced")
+def api_update_advanced_proxy_config(domain: str, payload: ProxyAdvancedConfigUpdate):
+    """Validate, replace, and reload one managed Nginx site configuration."""
+    try:
+        return reverse_proxy_manager.update_advanced_proxy_config(domain, payload.config)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (OSError, UnicodeError, ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

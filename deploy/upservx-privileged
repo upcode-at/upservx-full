@@ -24,6 +24,8 @@ from pathlib import Path
 SERVICE_USER = "upservx"
 WEB_USER = "upservx-web"
 HELPER_DIR = Path("/usr/local/libexec/upservx-bin")
+NGINX_SITES_AVAILABLE = Path("/etc/nginx/sites-available")
+NGINX_SITES_ENABLED = Path("/etc/nginx/sites-enabled")
 UPDATE_UNIT_PREFIX = "upservx-update@"
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 NAME_RE = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$", re.IGNORECASE)
@@ -474,8 +476,8 @@ def configure_nginx(args: list[str]) -> int:
             "}",
         ])
     name = f"upservx_{domain.replace('.', '_')}"
-    available = Path("/etc/nginx/sites-available") / name
-    enabled = Path("/etc/nginx/sites-enabled") / name
+    available = NGINX_SITES_AVAILABLE / name
+    enabled = NGINX_SITES_ENABLED / name
     old_data = available.read_bytes() if available.is_file() and not available.is_symlink() else None
     old_enabled = enabled.is_symlink()
     _atomic_write(available, ("\n".join(lines) + "\n").encode(), 0o644)
@@ -498,8 +500,8 @@ def delete_nginx(domain: str) -> int:
     if not DOMAIN_RE.fullmatch(domain):
         raise PolicyError("invalid proxy domain")
     name = f"upservx_{domain.replace('.', '_')}"
-    available = Path("/etc/nginx/sites-available") / name
-    enabled = Path("/etc/nginx/sites-enabled") / name
+    available = NGINX_SITES_AVAILABLE / name
+    enabled = NGINX_SITES_ENABLED / name
     enabled.unlink(missing_ok=True)
     available.unlink(missing_ok=True)
     test = subprocess.run([_absolute_command("nginx"), "-t"], capture_output=True, text=True, check=False)
@@ -518,6 +520,65 @@ def _read_service_file(path_value: str, maximum: int = 1_000_000) -> bytes:
         raise PolicyError("staged input has unsafe permissions or size")
     with path.open("rb") as handle:
         return handle.read(maximum + 1)
+
+
+def replace_nginx_config(domain: str, source: str) -> int:
+    """Atomically replace one managed site and roll back failed validation/reload."""
+    if not DOMAIN_RE.fullmatch(domain):
+        raise PolicyError("invalid proxy domain")
+    data = _read_service_file(source, 256_000)
+    if not data or len(data) > 256_000:
+        raise PolicyError("staged Nginx configuration has an invalid size")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise PolicyError("staged Nginx configuration must be UTF-8") from error
+    if "\x00" in text:
+        raise PolicyError("staged Nginx configuration contains a NUL byte")
+
+    name = f"upservx_{domain.replace('.', '_')}"
+    available = NGINX_SITES_AVAILABLE / name
+    enabled = NGINX_SITES_ENABLED / name
+    if not available.is_file() or available.is_symlink():
+        raise PolicyError("managed Nginx configuration does not exist")
+    if not enabled.is_symlink() or enabled.resolve(strict=False) != available.resolve():
+        raise PolicyError("managed Nginx configuration is not enabled")
+
+    old_data = available.read_bytes()
+    _atomic_write(available, data, 0o644)
+    test = subprocess.run(
+        [_absolute_command("nginx"), "-t"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if test.returncode != 0:
+        _atomic_write(available, old_data, 0o644)
+        raise PolicyError(f"nginx configuration test failed: {test.stderr.strip()}")
+
+    reload_result = subprocess.run(
+        [_absolute_command("systemctl"), "reload", "nginx.service"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if reload_result.returncode != 0:
+        _atomic_write(available, old_data, 0o644)
+        subprocess.run(
+            [_absolute_command("nginx"), "-t"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        subprocess.run(
+            [_absolute_command("systemctl"), "reload", "nginx.service"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        detail = (reload_result.stderr or reload_result.stdout).strip()
+        raise PolicyError(f"nginx reload failed; previous configuration restored: {detail}")
+    return 0
 
 
 def install_cron(source: str) -> int:
@@ -713,6 +774,8 @@ def main(argv: list[str]) -> int:
             return configure_nginx(args)
         if action == "delete-nginx" and len(args) == 1:
             return delete_nginx(args[0])
+        if action == "replace-nginx-config" and len(args) == 2:
+            return replace_nginx_config(args[0], args[1])
         if action in {"fstab-add", "fstab-remove"}:
             return update_fstab(action, args)
         if action == "request-update" and len(args) == 1:

@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { apiUrl } from "@/lib/api"
-import { Shield, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { Shield, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, AlertCircle, Code2, Save } from "lucide-react"
 
 interface ProxyConfig {
   domain: string
@@ -20,6 +20,7 @@ interface ProxyConfig {
   ssl_enabled: boolean
   force_ssl: boolean
   config_file?: string
+  advanced_override?: boolean
 }
 
 interface Certificate {
@@ -45,6 +46,11 @@ export default function ReverseProxyManagement() {
   const [loading, setLoading] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCertDialog, setShowCertDialog] = useState(false)
+  const [showAdvancedDialog, setShowAdvancedDialog] = useState(false)
+  const [advancedDomain, setAdvancedDomain] = useState("")
+  const [advancedConfig, setAdvancedConfig] = useState("")
+  const [advancedLoading, setAdvancedLoading] = useState(false)
+  const [advancedSaving, setAdvancedSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -165,6 +171,56 @@ export default function ReverseProxyManagement() {
       setError("Failed to delete configuration")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openAdvancedSettings = async (domain: string) => {
+    setAdvancedDomain(domain)
+    setAdvancedConfig("")
+    setAdvancedLoading(true)
+    setShowAdvancedDialog(true)
+    try {
+      const res = await fetch(apiUrl(`/proxy/configs/${encodeURIComponent(domain)}/advanced`))
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to load the Nginx configuration")
+      }
+      setAdvancedConfig(data.config || "")
+    } catch (err) {
+      setShowAdvancedDialog(false)
+      setError(err instanceof Error ? err.message : "Failed to load the Nginx configuration")
+    } finally {
+      setAdvancedLoading(false)
+    }
+  }
+
+  const saveAdvancedSettings = async () => {
+    if (!advancedDomain || !advancedConfig.trim()) {
+      setError("The Nginx configuration cannot be empty")
+      return
+    }
+
+    setAdvancedSaving(true)
+    try {
+      const res = await fetch(
+        apiUrl(`/proxy/configs/${encodeURIComponent(advancedDomain)}/advanced`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: advancedConfig })
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.message || "Failed to save the Nginx configuration")
+      }
+      setMessage(`Advanced configuration for ${advancedDomain} saved and Nginx reloaded.`)
+      setShowAdvancedDialog(false)
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save the Nginx configuration")
+    } finally {
+      setAdvancedSaving(false)
     }
   }
 
@@ -323,6 +379,48 @@ export default function ReverseProxyManagement() {
           {message}
         </div>
       )}
+
+      <Dialog open={showAdvancedDialog} onOpenChange={setShowAdvancedDialog}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Advanced Settings</DialogTitle>
+            <DialogDescription>
+              Edit the managed Nginx configuration for {advancedDomain} directly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Saving runs <code>nginx -t</code> first. Invalid configurations are rejected and the previous file remains active.
+              </p>
+            </div>
+            {advancedLoading ? (
+              <div className="flex min-h-80 items-center justify-center text-sm text-muted-foreground">
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Loading configuration…
+              </div>
+            ) : (
+              <textarea
+                aria-label={`Nginx configuration for ${advancedDomain}`}
+                className="min-h-[55vh] w-full resize-y rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm leading-6 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={advancedConfig}
+                onChange={(event) => setAdvancedConfig(event.target.value)}
+                spellCheck={false}
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAdvancedDialog(false)} disabled={advancedSaving}>
+              Cancel
+            </Button>
+            <Button onClick={saveAdvancedSettings} disabled={advancedLoading || advancedSaving || !advancedConfig.trim()}>
+              <Save className="mr-2 h-4 w-4" />
+              {advancedSaving ? "Validating and saving…" : "Validate and Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Status Card */}
       <Card>
@@ -495,7 +593,12 @@ export default function ReverseProxyManagement() {
               ) : (
                 proxyConfigs.map((config) => (
                   <TableRow key={config.domain}>
-                    <TableCell className="font-medium">{config.domain}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {config.domain}
+                        {config.advanced_override && <Badge variant="outline">Advanced</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{config.backend_port}</TableCell>
                     <TableCell>{config.frontend_port}</TableCell>
                     <TableCell>
@@ -506,14 +609,28 @@ export default function ReverseProxyManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteProxyConfig(config.domain)}
-                        disabled={loading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openAdvancedSettings(config.domain)}
+                          disabled={loading || advancedLoading}
+                          title="Advanced Settings"
+                          aria-label={`Edit advanced settings for ${config.domain}`}
+                        >
+                          <Code2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteProxyConfig(config.domain)}
+                          disabled={loading}
+                          title="Delete configuration"
+                          aria-label={`Delete configuration for ${config.domain}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -607,7 +724,12 @@ export default function ReverseProxyManagement() {
               ) : (
                 proxyConfigs.map((config) => (
                   <TableRow key={config.domain}>
-                    <TableCell className="font-medium">{config.domain}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {config.domain}
+                        {config.advanced_override && <Badge variant="outline">Advanced</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{config.backend_port}</TableCell>
                     <TableCell>
                       {config.ssl_enabled ? (
@@ -617,14 +739,28 @@ export default function ReverseProxyManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteProxyConfig(config.domain)}
-                        disabled={loading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openAdvancedSettings(config.domain)}
+                          disabled={loading || advancedLoading}
+                          title="Advanced Settings"
+                          aria-label={`Edit advanced settings for ${config.domain}`}
+                        >
+                          <Code2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteProxyConfig(config.domain)}
+                          disabled={loading}
+                          title="Delete configuration"
+                          aria-label={`Delete configuration for ${config.domain}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

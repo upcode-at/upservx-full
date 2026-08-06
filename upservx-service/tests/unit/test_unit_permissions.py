@@ -121,6 +121,14 @@ class TestRoutePolicy:
         )
         assert get_route_action("GET", "/jobs/job-id") == PermissionAction.ADMIN_READ
         assert (
+            get_route_action("GET", "/proxy/configs/example.com/advanced")
+            == PermissionAction.HOST_CONFIG_READ
+        )
+        assert (
+            get_route_action("PUT", "/proxy/configs/example.com/advanced")
+            == PermissionAction.HOST_CONFIG_WRITE
+        )
+        assert (
             get_route_action("POST", "/jobs/job-id/cancel")
             == PermissionAction.ADMIN_WRITE
         )
@@ -245,6 +253,12 @@ class TestDenyByDefault:
     def test_tty_role_does_not_inherit_unregistered_shell_or_admin_routes(self):
         assert check_path_permission("shell", {"tty"}, "/system/shell", "POST") is False
         assert check_path_permission("shell", {"tty"}, "/security/packages", "GET") is False
+
+    @pytest.mark.parametrize("method", ["GET", "PUT"])
+    def test_only_linux_admins_can_edit_managed_nginx_files(self, method):
+        path = "/proxy/configs/example.com/advanced"
+        assert check_path_permission("administrator", {"sudo"}, path, method) is True
+        assert check_path_permission("operator", {"docker"}, path, method) is False
 
 
 class TestSystemPrincipals:

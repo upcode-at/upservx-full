@@ -104,3 +104,53 @@ def test_pam_broker_rejects_malformed_password_input(helper, monkeypatch, passwo
     monkeypatch.setattr(helper.sys, "stdin", stdin)
     with pytest.raises(helper.PolicyError, match="invalid PAM password input"):
         helper.authenticate_pam_user("alice")
+
+
+def _prepare_managed_nginx_site(helper, monkeypatch, tmp_path):
+    available_dir = tmp_path / "sites-available"
+    enabled_dir = tmp_path / "sites-enabled"
+    available_dir.mkdir()
+    enabled_dir.mkdir()
+    monkeypatch.setattr(helper, "NGINX_SITES_AVAILABLE", available_dir)
+    monkeypatch.setattr(helper, "NGINX_SITES_ENABLED", enabled_dir)
+    monkeypatch.setattr(
+        helper.pwd,
+        "getpwnam",
+        lambda _name: SimpleNamespace(pw_uid=helper.os.getuid()),
+    )
+    available = available_dir / "upservx_example_com"
+    available.write_text("server { listen 80; }\n")
+    (enabled_dir / available.name).symlink_to(available)
+    staged = tmp_path / "staged.conf"
+    staged.write_text("server { listen 8080; }\n")
+    staged.chmod(0o600)
+    return available, staged
+
+
+def test_advanced_nginx_config_is_validated_and_reloaded(helper, monkeypatch, tmp_path):
+    available, staged = _prepare_managed_nginx_site(helper, monkeypatch, tmp_path)
+    completed = SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    with (
+        patch.object(helper, "_absolute_command", side_effect=lambda name: f"/usr/sbin/{name}"),
+        patch.object(helper.subprocess, "run", return_value=completed) as run,
+    ):
+        assert helper.replace_nginx_config("example.com", str(staged)) == 0
+
+    assert available.read_text() == "server { listen 8080; }\n"
+    assert run.call_args_list[0].args[0][-1] == "-t"
+    assert run.call_args_list[1].args[0][-2:] == ["reload", "nginx.service"]
+
+
+def test_invalid_advanced_nginx_config_restores_previous_file(helper, monkeypatch, tmp_path):
+    available, staged = _prepare_managed_nginx_site(helper, monkeypatch, tmp_path)
+    invalid = SimpleNamespace(returncode=1, stdout="", stderr="syntax error")
+
+    with (
+        patch.object(helper, "_absolute_command", return_value="/usr/sbin/nginx"),
+        patch.object(helper.subprocess, "run", return_value=invalid),
+        pytest.raises(helper.PolicyError, match="configuration test failed"),
+    ):
+        helper.replace_nginx_config("example.com", str(staged))
+
+    assert available.read_text() == "server { listen 80; }\n"

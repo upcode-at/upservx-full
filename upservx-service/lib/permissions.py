@@ -65,6 +65,8 @@ class PermissionAction(str, Enum):
     LOG_READ = "logs:read"
     ADMIN_READ = "admin:read"
     ADMIN_WRITE = "admin:write"
+    HOST_CONFIG_READ = "host-config:read"
+    HOST_CONFIG_WRITE = "host-config:write"
     CLUSTER_READ = "cluster:read"
     CLUSTER_WRITE = "cluster:write"
     CLUSTER_INFO_READ = "cluster:info"
@@ -357,6 +359,16 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/groups/{name}",
         "/backup/servers/{server_id}",
         "/backup/jobs/{job_id}",
+    )
+    add(
+        PermissionAction.HOST_CONFIG_READ,
+        "GET",
+        "/proxy/configs/{domain}/advanced",
+    )
+    add(
+        PermissionAction.HOST_CONFIG_WRITE,
+        "PUT",
+        "/proxy/configs/{domain}/advanced",
     )
     add(
         PermissionAction.ADMIN_WRITE,
@@ -691,6 +703,8 @@ def check_api_token_permission(token, path: str, method: str = "GET") -> bool:
     if action in {
         PermissionAction.CLUSTER_INTERNAL_READ,
         PermissionAction.CLUSTER_INTERNAL_WRITE,
+        PermissionAction.HOST_CONFIG_READ,
+        PermissionAction.HOST_CONFIG_WRITE,
     }:
         return False
     role = getattr(token, "role", "")
