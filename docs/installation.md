@@ -38,12 +38,21 @@ loopback intentionally and are only nginx upstreams; they are not remote access
 URLs. nginx accepts remote HTTPS connections on port `443`.
 
 UpservX never creates application login users or assigns their passwords. Sign
-in with an existing Linux username and its PAM password. UpservX permissions
+in with an existing Linux username and its PAM password. The installer creates
+the dedicated `/etc/pam.d/upservx` service policy, which delegates password and
+account checks to Debian's managed `common-auth` and `common-account` stacks.
+UpservX permissions
 derive from Linux groups such as `sudo`, `docker`, `libvirt`, and `adm`. On a
 host configured exclusively for SSH-key authentication, assign a password to
 the existing Linux user if that account should also authenticate through the
 web login. The `upservx` and `upservx-web` accounts created by the installer are
 non-login service identities and cannot be used for the web login.
+
+A `401` response from `GET /api/auth/me` before a session exists is expected.
+If `POST /api/auth/login` also returns `401`, PAM rejected the Linux account or
+password. Confirm that the user exists and has an unlocked password, then check
+the PAM code and reason in `/var/log/upservx/activity.log`. UpservX never sends
+that diagnostic detail to the browser.
 
 If a run was interrupted after the immutable release was created, rebuild its
 configuration and finish the remaining initialization without reinstalling

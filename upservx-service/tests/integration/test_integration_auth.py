@@ -69,9 +69,15 @@ class TestAuthLogin:
 
     def test_successful_login_returns_200(self):
         app, pam_inst = _make_auth_app(pam_ok=True)
-        with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.post("/auth/login", json={"username": "alice", "password": "pw"})
+        with patch("api.auth.pam_auth", pam_inst):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                resp = client.post("/auth/login", json={"username": "alice", "password": "pw"})
         assert resp.status_code == 200
+        pam_inst.authenticate.assert_called_once_with(
+            "alice",
+            "pw",
+            service="upservx",
+        )
 
     def test_successful_login_sets_cookie(self):
         app, _ = _make_auth_app(pam_ok=True)
@@ -104,10 +110,20 @@ class TestAuthLogin:
         app, pam_inst = _make_auth_app(pam_ok=True)
         # Authenticate returns False for this specific call
         pam_inst.authenticate.return_value = False
-        with patch("api.auth.pam_auth", pam_inst):
+        pam_inst.code = 7
+        pam_inst.reason = "Authentication failure"
+        with (
+            patch("api.auth.pam_auth", pam_inst),
+            patch("api.auth.log_auth") as auth_log,
+        ):
             with TestClient(app, raise_server_exceptions=False) as client:
                 resp = client.post("/auth/login", json={"username": "alice", "password": "wrong"})
         assert resp.status_code == 401
+        assert any(
+            "PAM service [upservx], code [7], reason [Authentication failure]"
+            in call.args[0]
+            for call in auth_log.call_args_list
+        )
 
     def test_missing_username_returns_400(self):
         app, _ = _make_auth_app(pam_ok=True)

@@ -12,7 +12,11 @@
 | Cluster signature | HMAC signature headers over the complete request | Internal node-to-node routes on the dedicated TLS listener |
 
 Passwords are accepted only by `POST /auth/login` and verified with Linux PAM.
-They are never placed in cookies or session files. If 2FA is enabled, the
+All password checks explicitly use the `/etc/pam.d/upservx` service, which the
+installer configures to include Debian's `common-auth` and `common-account`
+policies. PAM failures are logged server-side with their code and reason, while
+the API returns only a generic credential error. Passwords are never placed in
+cookies, session files, or diagnostic logs. If 2FA is enabled, the
 short-lived first-factor record contains only the username, timestamps, an
 attempt counter, and a hash of the random login token.
 

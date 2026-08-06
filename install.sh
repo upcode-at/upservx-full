@@ -147,6 +147,7 @@ backup_broken_installation() {
     /usr/local/bin/upservx
     /etc/sudoers.d/upservx
     /etc/tmpfiles.d/upservx.conf
+    /etc/pam.d/upservx
     /etc/nginx/sites-enabled/upservx
     /etc/nginx/sites-available/upservx
     /etc/systemd/system/upservx-api.service
@@ -161,7 +162,7 @@ backup_broken_installation() {
   local -a labels=(
     app-root config state web-state logs update-trust command-links
     privileged-helper command-helper updater health-check post-install-smoke
-    cli-launcher sudoers tmpfiles nginx-enabled nginx-available
+    cli-launcher sudoers tmpfiles pam-service nginx-enabled nginx-available
     systemd-api systemd-health-recover systemd-health systemd-health-timer
     systemd-update systemd-web systemd-worker systemd-target
   )
@@ -522,6 +523,7 @@ step_install_privilege_boundary() {
   visudo -cf /etc/sudoers.d/upservx
   install -o root -g root -m 0644 "$RELEASE_DIR/deploy/tmpfiles/upservx.conf" /etc/tmpfiles.d/upservx.conf
   systemd-tmpfiles --create /etc/tmpfiles.d/upservx.conf
+  install -o root -g root -m 0644 "$RELEASE_DIR/deploy/pam/upservx" /etc/pam.d/upservx
 }
 
 step_install_systemd_units() {

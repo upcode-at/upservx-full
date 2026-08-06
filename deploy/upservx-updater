@@ -80,6 +80,33 @@ def _state(version: str, status: str, **extra: object) -> None:
     )
 
 
+def _atomic_write(path: Path, content: bytes, mode: int) -> None:
+    """Atomically replace a root-owned deployment asset."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_value = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_value)
+    fd_is_open = True
+    try:
+        os.fchmod(fd, mode)
+        os.fchown(fd, 0, 0)
+        with os.fdopen(fd, "wb") as handle:
+            fd_is_open = False
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if fd_is_open:
+            os.close(fd)
+        temporary.unlink(missing_ok=True)
+
+
 def _run(command: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subprocess.CompletedProcess[str]:
     _check_cancelled()
     started = time.monotonic()
@@ -330,9 +357,13 @@ def _install_deployment_assets(release: Path) -> None:
         raise UpdateError("release is missing systemd units")
     sudoers_source = deploy / "sudoers/upservx"
     tmpfiles_source = deploy / "tmpfiles/upservx.conf"
+    pam_source = deploy / "pam/upservx"
     nginx_source = deploy / "nginx/upservx.conf"
-    if not sudoers_source.is_file() or not tmpfiles_source.is_file() or not nginx_source.is_file():
-        raise UpdateError("release is missing privilege or tmpfiles policy")
+    if not all(
+        source.is_file()
+        for source in (sudoers_source, tmpfiles_source, pam_source, nginx_source)
+    ):
+        raise UpdateError("release is missing a managed system policy")
 
     _run(["/usr/bin/bash", "-n", str(deploy / "upservx-command")])
     _run(["/usr/bin/bash", "-n", str(deploy / "upservx-post-install-smoke")])
@@ -380,6 +411,7 @@ def _install_deployment_assets(release: Path) -> None:
     shutil.copyfile(tmpfiles_source, "/etc/tmpfiles.d/upservx.conf")
     os.chown("/etc/tmpfiles.d/upservx.conf", 0, 0)
     os.chmod("/etc/tmpfiles.d/upservx.conf", 0o644)
+    _atomic_write(Path("/etc/pam.d/upservx"), pam_source.read_bytes(), 0o644)
     nginx_destination = Path("/etc/nginx/sites-available/upservx")
     previous_nginx = nginx_destination.read_bytes() if nginx_destination.is_file() else None
     _atomic_write(nginx_destination, nginx_source.read_bytes(), 0o644)

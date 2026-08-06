@@ -13,6 +13,8 @@ The installed process and privilege model is intentionally fixed:
   `/opt/upservx/releases`; `/opt/upservx/current` is switched atomically.
 - Mutable data lives below `/var/lib/upservx`; secrets live below
   `/etc/upservx`; logs live below `/var/log/upservx`.
+- Existing Linux users authenticate through the dedicated `/etc/pam.d/upservx`
+  policy; UpservX does not create or store application login accounts.
 - The installer binds the API and frontend to loopback and exposes them through
   an HTTPS-only nginx proxy. A local certificate is generated for the first
   boot; replace `/etc/upservx/tls/server.crt` and `server.key` with a trusted

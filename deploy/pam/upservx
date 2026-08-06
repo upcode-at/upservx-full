@@ -1,0 +1,5 @@
+#%PAM-1.0
+
+# Authenticate existing Linux accounts with the distribution-managed policy.
+@include common-auth
+@include common-account

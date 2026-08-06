@@ -35,6 +35,7 @@ import lib.totp as totp_lib
 router = APIRouter()
 
 pam_auth = pam.pam()
+PAM_SERVICE = "upservx"
 SESSION_TTL_SECONDS = int(os.getenv("UPSERVX_SESSION_TTL_SECONDS", "3600"))
 if not 300 <= SESSION_TTL_SECONDS <= 86_400:
     raise RuntimeError("UPSERVX_SESSION_TTL_SECONDS must be between 300 and 86400")
@@ -51,6 +52,25 @@ if COOKIE_SAMESITE not in {"strict", "lax", "none"}:
     raise RuntimeError("UPSERVX_COOKIE_SAMESITE must be strict, lax, or none")
 if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
     raise RuntimeError("SameSite=None requires a Secure session cookie")
+
+
+def _authenticate_linux_user(authenticator, username: str, password: str) -> bool:
+    """Authenticate an existing Linux account through UpservX's PAM stack."""
+
+    return authenticator.authenticate(
+        username,
+        password,
+        service=PAM_SERVICE,
+    )
+
+
+def _pam_failure_details(authenticator) -> str:
+    """Return bounded PAM diagnostics for server logs without credentials."""
+
+    code = getattr(authenticator, "code", "unknown")
+    reason = str(getattr(authenticator, "reason", "unknown"))
+    reason = " ".join(reason.split())[:240] or "unknown"
+    return f"PAM service [{PAM_SERVICE}], code [{code}], reason [{reason}]"
 
 
 def _session_response(username: str) -> JSONResponse:
@@ -141,7 +161,7 @@ async def auth_login(payload: dict, request: Request):
         raise HTTPException(status_code=403, detail="root login is disabled")
 
     try:
-        if pam_auth.authenticate(username, password):
+        if _authenticate_linux_user(pam_auth, username, password):
             # Check if 2FA is enabled for this user
             if totp_lib.is_enabled(username):
                 login_token = totp_lib.create_login_token(username)
@@ -155,12 +175,21 @@ async def auth_login(payload: dict, request: Request):
             log_auth(f"Login successful for user [{username}] from {client_ip}")
             return resp
         else:
-            log_auth(f"Login failed for user [{username}] from {client_ip}", error=True)
+            details = _pam_failure_details(pam_auth)
+            log_auth(
+                f"Login failed for user [{username}] from {client_ip}: {details}",
+                error=True,
+            )
             raise HTTPException(status_code=401, detail="invalid credentials")
     except HTTPException:
         raise
-    except Exception:
-        log_auth(f"Login error for user [{username}] from {client_ip}", error=True)
+    except Exception as error:
+        error_name = type(error).__name__
+        log_auth(
+            f"Login error for user [{username}] from {client_ip}: "
+            f"PAM service [{PAM_SERVICE}] raised [{error_name}]",
+            error=True,
+        )
         raise HTTPException(status_code=401, detail="invalid credentials")
 
 
@@ -276,7 +305,7 @@ def auth_2fa_disable(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail="password and code required")
     # Verify password
     _pam = pam.pam()
-    if not _pam.authenticate(username, password):
+    if not _authenticate_linux_user(_pam, username, password):
         raise HTTPException(status_code=401, detail="password is incorrect")
     # Verify current TOTP code
     if not totp_lib.verify_code(username, code):
@@ -307,7 +336,7 @@ async def change_password(payload: dict, request: Request):
 
     # Verify current password via PAM
     _pam = pam.pam()
-    if not _pam.authenticate(username, current_password):
+    if not _authenticate_linux_user(_pam, username, current_password):
         log_auth(f"Password change failed (wrong current password) for user [{username}]", error=True)
         raise HTTPException(status_code=401, detail="current password is incorrect")
 

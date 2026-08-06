@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_installer_is_profile_based_and_does_not_edit_pam_or_pull_git():
+def test_installer_is_profile_based_and_does_not_patch_distribution_pam_or_pull_git():
     installer = (ROOT / "install.sh").read_text()
     assert "pam_lastlog" not in installer
     assert "git pull" not in installer
@@ -20,6 +20,23 @@ def test_installer_is_profile_based_and_does_not_edit_pam_or_pull_git():
     assert "NODESOURCE_KEY_SHA256" in installer
     assert "K3S_INSTALL_SHA256" in installer
     assert "DOCKER_GPG_SHA256" in installer
+
+
+def test_linux_login_uses_a_dedicated_managed_pam_service():
+    installer = (ROOT / "install.sh").read_text()
+    auth = (ROOT / "upservx-service/api/auth.py").read_text()
+    updater = (ROOT / "deploy/upservx-updater").read_text()
+    pam_policy = (ROOT / "deploy/pam/upservx").read_text()
+
+    assert (
+        'install -o root -g root -m 0644 '
+        '"$RELEASE_DIR/deploy/pam/upservx" /etc/pam.d/upservx'
+    ) in installer
+    assert "/etc/pam.d/upservx" in updater
+    assert 'PAM_SERVICE = "upservx"' in auth
+    assert "service=PAM_SERVICE" in auth
+    assert "@include common-auth" in pam_policy
+    assert "@include common-account" in pam_policy
 
 
 def test_installer_defaults_to_keyless_installation():
