@@ -104,6 +104,11 @@ print_access_information() {
   fi
   printf 'Ports 9200 and 9500 are internal loopback services; remote access uses nginx on HTTPS port 443.\n'
   printf 'The browser may require confirmation of the automatically generated certificate.\n'
+  if [[ -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
+    printf 'Login with an existing Linux/PAM account, for example: %s\n' "$SUDO_USER"
+  else
+    printf 'Login with an existing Linux/PAM username and password.\n'
+  fi
 }
 
 backup_broken_installation() {
@@ -614,6 +619,7 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
   printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
   exit 0
 fi
+TOTAL_STEPS=14
 run_step 'Validate locked source and noVNC submodule' step_validate_source
 if [[ $REINSTALL == 1 ]]; then
   backup_broken_installation

@@ -37,6 +37,14 @@ one-time browser confirmation. Ports `9200` (frontend) and `9500` (API) bind to
 loopback intentionally and are only nginx upstreams; they are not remote access
 URLs. nginx accepts remote HTTPS connections on port `443`.
 
+UpservX never creates application login users or assigns their passwords. Sign
+in with an existing Linux username and its PAM password. UpservX permissions
+derive from Linux groups such as `sudo`, `docker`, `libvirt`, and `adm`. On a
+host configured exclusively for SSH-key authentication, assign a password to
+the existing Linux user if that account should also authenticate through the
+web login. The `upservx` and `upservx-web` accounts created by the installer are
+non-login service identities and cannot be used for the web login.
+
 If a run was interrupted after the immutable release was created, rebuild its
 configuration and finish the remaining initialization without reinstalling
 packages or overwriting the release:

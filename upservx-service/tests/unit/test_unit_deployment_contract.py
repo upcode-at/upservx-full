@@ -70,6 +70,15 @@ def test_installer_can_recoverably_reinstall_a_broken_installation():
     assert "Previous installation backup" in installer
 
 
+def test_installer_does_not_create_application_login_users():
+    installer = (ROOT / "install.sh").read_text()
+    assert "upservx-admin" not in installer
+    assert "--reset-admin" not in installer
+    assert "INITIAL_ADMIN_PASSWORD" not in installer
+    assert "Login with an existing Linux/PAM" in installer
+    assert "TOTAL_STEPS=14" in installer
+
+
 def test_frontend_api_worker_and_update_have_separate_units():
     units = ROOT / "deploy" / "systemd"
     api = (units / "upservx-api.service").read_text()

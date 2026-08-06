@@ -99,7 +99,8 @@ environment variables can additionally pin remote installation material. See
 the signed update workflow.
 
 After installation, use the printed `https://SERVER-IP/` URL. Ports `9200` and
-`9500` are intentionally loopback-only internal services.
+`9500` are intentionally loopback-only internal services. Sign in with an
+existing Linux/PAM user; the installer does not create application login users.
 
 
 ## 💝 Support

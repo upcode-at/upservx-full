@@ -165,7 +165,7 @@ export default function LoginPage() {
               <>
                 <div className="text-center mb-8">
                   <h2 className="text-3xl font-bold text-white mb-2">Sign In</h2>
-                  <p className="text-muted-foreground">Access your server dashboard</p>
+                  <p className="text-muted-foreground">Sign in with an existing Linux account</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
@@ -174,7 +174,7 @@ export default function LoginPage() {
                       className="w-full h-12 px-4 border border-border/50 bg-background/80 backdrop-blur-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Enter your username"
+                      placeholder="Linux username"
                       autoComplete="username"
                     />
                   </div>
