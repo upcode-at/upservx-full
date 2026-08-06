@@ -79,6 +79,33 @@ enable_profile() {
   esac
 }
 
+primary_server_ip() {
+  local address
+  address=$(ip -4 route get 1.1.1.1 2>/dev/null \
+    | awk '{for (index = 1; index <= NF; index++) if ($index == "src") {print $(index + 1); exit}}' \
+    || true)
+  if [[ $address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ && $address != 127.* ]]; then
+    printf '%s\n' "$address"
+    return
+  fi
+  hostname -I 2>/dev/null \
+    | awk '{for (index = 1; index <= NF; index++) if ($index ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $index !~ /^127\./) {print $index; exit}}' \
+    || true
+}
+
+print_access_information() {
+  local server_ip server_name
+  server_ip=$(primary_server_ip)
+  if [[ -n $server_ip ]]; then
+    printf 'Open UpservX: https://%s/\n' "$server_ip"
+  else
+    server_name=$(hostname -f 2>/dev/null || hostname)
+    printf 'Open UpservX: https://%s/\n' "$server_name"
+  fi
+  printf 'Ports 9200 and 9500 are internal loopback services; remote access uses nginx on HTTPS port 443.\n'
+  printf 'The browser may require confirmation of the automatically generated certificate.\n'
+}
+
 backup_broken_installation() {
   [[ $SCRIPT_DIR != "$APP_ROOT" && $SCRIPT_DIR != "$APP_ROOT"/* ]] || {
     printf 'Run --reinstall from a separate source checkout, not from %s.\n' "$APP_ROOT" >&2
@@ -515,7 +542,7 @@ step_configure_https() {
     local common_name server_ip san
     common_name=$(hostname -f 2>/dev/null || hostname)
     [[ $common_name =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$ ]] || common_name=localhost
-    server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    server_ip=$(primary_server_ip)
     san="DNS:${common_name},DNS:localhost,IP:127.0.0.1"
     [[ $server_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && san="$san,IP:$server_ip"
     openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 397 \
@@ -582,6 +609,7 @@ if [[ $RESUME_INSTALLATION == 1 ]]; then
   run_step 'Start services and run the post-install smoke test' step_start_and_verify
   trap - EXIT
   printf 'Installation resumed successfully. Release: %s\n' "$RELEASE_VERSION"
+  print_access_information
   printf 'Status: systemctl status upservx.target\n'
   printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'
   exit 0
@@ -607,5 +635,6 @@ run_step 'Start services and run the post-install smoke test' step_start_and_ver
 trap - EXIT
 printf 'Installation complete. Release: %s\n' "$RELEASE_VERSION"
 [[ -z $REINSTALL_BACKUP_DIR ]] || printf 'Previous installation backup: %s\n' "$REINSTALL_BACKUP_DIR"
+print_access_information
 printf 'Status: systemctl status upservx.target\n'
 printf 'Smoke test: sudo /usr/local/libexec/upservx-post-install-smoke\n'

@@ -31,6 +31,12 @@ The `install.sh` script handles:
 - Exposing loopback-only application ports through an HTTPS nginx proxy
 - Running the post-install privilege and health smoke test
 
+After a successful installation, open the URL printed by the installer, usually
+`https://SERVER-IP/`. The automatically generated certificate may require a
+one-time browser confirmation. Ports `9200` (frontend) and `9500` (API) bind to
+loopback intentionally and are only nginx upstreams; they are not remote access
+URLs. nginx accepts remote HTTPS connections on port `443`.
+
 If a run was interrupted after the immutable release was created, rebuild its
 configuration and finish the remaining initialization without reinstalling
 packages or overwriting the release:

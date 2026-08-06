@@ -98,6 +98,9 @@ environment variables can additionally pin remote installation material. See
 [`docs/installation.md`](docs/installation.md) for optional checksum pinning and
 the signed update workflow.
 
+After installation, use the printed `https://SERVER-IP/` URL. Ports `9200` and
+`9500` are intentionally loopback-only internal services.
+
 
 ## 💝 Support
 

@@ -85,6 +85,17 @@ def test_frontend_api_worker_and_update_have_separate_units():
     assert "upservx-health-check wait-web" in web
 
 
+def test_public_access_uses_nginx_https_instead_of_internal_ports():
+    installer = (ROOT / "install.sh").read_text()
+    web = (ROOT / "deploy/systemd/upservx-web.service").read_text()
+    nginx = (ROOT / "deploy/nginx/upservx.conf").read_text()
+    assert "--hostname 127.0.0.1" in web
+    assert "listen 443 ssl default_server" in nginx
+    assert "proxy_pass http://127.0.0.1:9200" in nginx
+    assert "Open UpservX: https://%s/" in installer
+    assert "remote access uses nginx on HTTPS port 443" in installer
+
+
 def test_python_lock_files_pin_every_distribution_exactly():
     for relative in (
         "upservx-service/requirements.lock",
