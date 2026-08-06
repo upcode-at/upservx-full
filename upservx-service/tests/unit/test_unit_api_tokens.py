@@ -62,6 +62,7 @@ def test_token_verification_roles_scopes_and_revocation(token_store):
         ("read-only", {"containers:*"}, "GET", "/containers", True),
         ("read-only", {"containers:*"}, "POST", "/containers", False),
         ("read-only", {"cluster:read"}, "GET", "/cluster/health", True),
+        ("read-only", {"cluster:*"}, "GET", "/cluster/info", True),
         ("read-only", {"cluster:write"}, "POST", "/cluster/create", False),
         ("admin", {"*"}, "POST", "/cluster/ha/heartbeat", False),
     ],

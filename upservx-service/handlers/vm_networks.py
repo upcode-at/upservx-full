@@ -1,6 +1,7 @@
 """Libvirt virtual network management for internal VM networks."""
 
 import os
+import shutil
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -10,6 +11,8 @@ from lib.logger import log_vm
 
 
 def _virsh(*args) -> subprocess.CompletedProcess:
+    if shutil.which("virsh") is None:
+        raise RuntimeError("libvirt is not installed")
     return subprocess.run(["virsh", *args], capture_output=True, text=True)
 
 
@@ -19,9 +22,14 @@ def _virsh(*args) -> subprocess.CompletedProcess:
 
 def list_vm_networks() -> List[dict]:
     """Return all libvirt networks (active and inactive)."""
+    if shutil.which("virsh") is None:
+        return []
+
     result = _virsh("net-list", "--all")
     if result.returncode != 0:
-        raise Exception(result.stderr.strip() or "virsh net-list failed")
+        reason = result.stderr.strip() or "virsh net-list failed"
+        log_vm(f"VM network listing unavailable: {reason}", error=True)
+        return []
 
     networks = []
     lines = result.stdout.strip().splitlines()

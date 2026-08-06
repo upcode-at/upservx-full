@@ -115,6 +115,10 @@ class TestRoutePolicy:
             get_route_action("POST", "/cluster/keys/update")
             == PermissionAction.CLUSTER_INTERNAL_WRITE
         )
+        assert (
+            get_route_action("GET", "/cluster/info")
+            == PermissionAction.CLUSTER_INFO_READ
+        )
         assert get_route_action("GET", "/jobs/job-id") == PermissionAction.ADMIN_READ
         assert (
             get_route_action("POST", "/jobs/job-id/cancel")
@@ -244,6 +248,24 @@ class TestDenyByDefault:
 
 
 class TestSystemPrincipals:
+    @pytest.mark.parametrize(
+        ("username", "groups", "allowed"),
+        [
+            ("administrator", {"sudo"}, True),
+            ("cluster-node", set(), True),
+            ("cluster-master", set(), True),
+            ("vm-operator", {"libvirt"}, False),
+        ],
+    )
+    def test_cluster_info_is_shared_only_with_admins_and_cluster_principals(
+        self,
+        username,
+        groups,
+        allowed,
+    ):
+        with patch("lib.permissions.pwd.getpwnam", side_effect=KeyError):
+            assert check_path_permission(username, groups, "/cluster/info", "GET") is allowed
+
     @pytest.mark.parametrize(
         ("method", "path"),
         [

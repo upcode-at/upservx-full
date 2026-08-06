@@ -67,6 +67,7 @@ class PermissionAction(str, Enum):
     ADMIN_WRITE = "admin:write"
     CLUSTER_READ = "cluster:read"
     CLUSTER_WRITE = "cluster:write"
+    CLUSTER_INFO_READ = "cluster:info"
     CLUSTER_INTERNAL_READ = "cluster-internal:read"
     CLUSTER_INTERNAL_WRITE = "cluster-internal:write"
 
@@ -374,6 +375,9 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         "/proxy/certificates/{domain}",
     )
 
+    # Cluster information is shared by administrators and authenticated peers.
+    add(PermissionAction.CLUSTER_INFO_READ, "GET", "/cluster/info")
+
     # Cluster routes used by authenticated administrators.
     add(
         PermissionAction.CLUSTER_READ,
@@ -433,7 +437,6 @@ def _build_route_policies() -> Mapping[tuple[str, str], PermissionAction]:
         PermissionAction.CLUSTER_INTERNAL_READ,
         "GET",
         "/cluster/node/metrics",
-        "/cluster/info",
         "/cluster/download/{filename}",
         "/cluster/ha/vote",
         "/cluster/ha/config",
@@ -596,6 +599,9 @@ def check_path_permission(
     }:
         return username in CLUSTER_PRINCIPALS
 
+    if action == PermissionAction.CLUSTER_INFO_READ:
+        return is_admin(username, groups) or username in CLUSTER_PRINCIPALS
+
     if is_admin(username, groups):
         return True
 
@@ -663,6 +669,7 @@ _TOKEN_READ_ONLY_ACTIONS = {
     PermissionAction.LOG_READ,
     PermissionAction.ADMIN_READ,
     PermissionAction.CLUSTER_READ,
+    PermissionAction.CLUSTER_INFO_READ,
 }
 
 
