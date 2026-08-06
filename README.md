@@ -69,7 +69,7 @@ then runs the frontend ESLint and production build gates.
 - **Operating System**: Linux Debian
 - **Python**: 3.11 or higher
 - **Node.js**: 20 or higher
-- **Docker/K3s/LXC/ZFS**: Selected interactively; automation profiles remain available
+- **Docker/K3s/LXC/ZFS**: Selected in an interactive checklist; automation profiles remain available
 - **OpenSSH server**: Always installed and enabled
 - **Root Access**: Required only to run the installer and signed updater
 
@@ -96,8 +96,9 @@ sudo ./install.sh --profile full \
 The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
 versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
 entry point, and a post-install privilege/health smoke test. With no component
-options it asks whether Docker, K3s/kubectl, LXC/LXD, and ZFS should be
-installed. The SSH server is always installed and enabled. `--profile core`
+options it opens a terminal checklist for Docker, K3s/kubectl, LXC/LXD, and
+ZFS. Navigate with the arrow keys, toggle entries with Space, and confirm with
+Tab/Enter. The SSH server is always installed and enabled. `--profile core`
 provides a non-interactive minimal deployment, while `--profile full` selects
 all supported components. Without
 `--update-public-key`, the update facility stays disabled. Optional SHA-256

@@ -30,7 +30,7 @@ CORE_PACKAGES=(
   build-essential gcc g++ make python3 python3-pip python3-venv python3-dev
   libpq-dev libpam-modules libpam-modules-bin libpam-runtime pamtester
   nginx certbot python3-certbot python3-certbot-nginx
-  git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo debian-archive-keyring
+  git lshw openssl gawk coreutils curl jq ca-certificates gnupg sudo whiptail debian-archive-keyring
   nftables fail2ban cron openssh-client openssh-server iproute2 isc-dhcp-client util-linux
   e2fsprogs xfsprogs btrfs-progs dosfstools exfatprogs ntfs-3g parted
 )
@@ -39,8 +39,8 @@ usage() {
   cat <<'EOF'
 Usage: sudo ./install.sh [OPTIONS]
 
-Without component options, the installer interactively asks whether Docker,
-K3s, LXC/LXD, and ZFS should be installed. OpenSSH is always installed.
+Without component options, an interactive checklist selects Docker, K3s,
+LXC/LXD, and ZFS. OpenSSH is always installed.
 
 Profiles:
   --profile core             No optional platform components
@@ -90,29 +90,14 @@ enable_profile() {
   INSTALL_SELECTION_MADE=1
 }
 
-prompt_component() {
-  local label=$1
-  local variable=$2
-  local answer
+ensure_checklist_tool() {
+  command -v whiptail >/dev/null 2>&1 && return
 
-  while true; do
-    printf 'Install %s? [y/N] ' "$label"
-    if ! IFS= read -r answer; then
-      printf '\nUnable to read component selection.\n' >&2
-      return 1
-    fi
-    case "$answer" in
-      y|Y|yes|YES|j|J|ja|JA)
-        printf -v "$variable" '%s' 1
-        return
-        ;;
-      ''|n|N|no|NO|nein|NEIN)
-        printf -v "$variable" '%s' 0
-        return
-        ;;
-      *) printf 'Please answer yes or no.\n' >&2 ;;
-    esac
-  done
+  printf 'Installing the terminal checklist dependency (whiptail)...\n'
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y whiptail
+  command -v whiptail >/dev/null 2>&1
 }
 
 select_optional_components() {
@@ -121,13 +106,40 @@ select_optional_components() {
     return 2
   }
 
-  printf '%s\n' \
-    'Optional component selection' \
-    'OpenSSH server is always installed and enabled.'
-  prompt_component 'Docker' WITH_DOCKER
-  prompt_component 'K3s (Kubernetes)' WITH_K3S
-  prompt_component 'LXC/LXD' WITH_LXD
-  prompt_component 'ZFS' WITH_ZFS
+  ensure_checklist_tool
+
+  local selection component
+  if ! selection=$(whiptail \
+    --title 'UpservX-Installation' \
+    --ok-button 'Weiter' \
+    --cancel-button 'Abbrechen' \
+    --separate-output \
+    --checklist $'Optionale Komponenten auswählen.\n\nPfeiltasten: Navigation | Leertaste: Auswahl | Tab: Schaltfläche\n\nOpenSSH wird immer installiert und kann nicht abgewählt werden.' \
+    20 82 8 \
+    docker 'Docker Container Runtime' OFF \
+    k3s 'K3s Kubernetes' OFF \
+    lxc 'LXC/LXD Systemcontainer' OFF \
+    zfs 'ZFS Storage' OFF \
+    3>&1 1>&2 2>&3); then
+    printf 'Component selection cancelled.\n' >&2
+    return 2
+  fi
+
+  WITH_DOCKER=0
+  WITH_K3S=0
+  WITH_LXD=0
+  WITH_ZFS=0
+  while IFS= read -r component; do
+    component=${component//\"/}
+    case "$component" in
+      docker) WITH_DOCKER=1 ;;
+      k3s) WITH_K3S=1 ;;
+      lxc) WITH_LXD=1 ;;
+      zfs) WITH_ZFS=1 ;;
+      '') ;;
+      *) printf 'Invalid component returned by checklist: %s\n' "$component" >&2; return 2 ;;
+    esac
+  done <<<"$selection"
   INSTALL_SELECTION_MADE=1
 
   printf 'Selected optional components:'

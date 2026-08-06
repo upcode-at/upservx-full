@@ -57,16 +57,20 @@ def test_installer_defaults_to_keyless_installation():
     assert 'command -v kubectl' in installer
 
 
-def test_installer_prompts_for_optional_components_and_always_installs_ssh():
+def test_installer_has_space_toggle_checklist_and_always_installs_ssh():
     installer = (ROOT / "install.sh").read_text()
     smoke = (ROOT / "deploy/upservx-post-install-smoke").read_text()
 
     assert "INSTALL_SELECTION_MADE=0" in installer
     assert "if [[ $INSTALL_SELECTION_MADE == 0 ]]; then\n  select_optional_components" in installer
-    assert "prompt_component 'Docker' WITH_DOCKER" in installer
-    assert "prompt_component 'K3s (Kubernetes)' WITH_K3S" in installer
-    assert "prompt_component 'LXC/LXD' WITH_LXD" in installer
-    assert "prompt_component 'ZFS' WITH_ZFS" in installer
+    assert "apt-get install -y whiptail" in installer
+    assert "--separate-output" in installer
+    assert "--checklist" in installer
+    assert "Leertaste: Auswahl" in installer
+    assert "docker 'Docker Container Runtime' OFF" in installer
+    assert "k3s 'K3s Kubernetes' OFF" in installer
+    assert "lxc 'LXC/LXD Systemcontainer' OFF" in installer
+    assert "zfs 'ZFS Storage' OFF" in installer
     assert "--with-lxc|--with-lxd) WITH_LXD=1" in installer
     assert "Select components with --profile or --with-* options" in installer
     assert "openssh-client openssh-server" in installer

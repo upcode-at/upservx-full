@@ -7,7 +7,7 @@
 | Operating System | Linux Debian |
 | Python | 3.11 or higher |
 | Node.js | 20 or higher |
-| Docker, K3s, LXC/LXD, ZFS | Selected interactively or with installer options |
+| Docker, K3s, LXC/LXD, ZFS | Selected in an interactive checklist or with installer options |
 | OpenSSH server | Always installed and enabled |
 | Root Access | Required to run the installer and signed updater |
 
@@ -23,7 +23,7 @@ sudo ./install.sh
 
 The `install.sh` script handles:
 
-- Interactively selecting Docker, K3s, LXC/LXD, and ZFS
+- Selecting Docker, K3s, LXC/LXD, and ZFS in a terminal checklist
 - Always installing and enabling the OpenSSH server
 - Creating dedicated `upservx` backend/worker and `upservx-web` accounts
 - Installing an immutable root-owned release below `/opt/upservx/releases`
@@ -98,8 +98,10 @@ sudo ./install.sh --profile full \
   --update-public-key /secure/release-public.pem
 ```
 
-With no component options, an interactive terminal asks separately about
-Docker, K3s, LXC/LXD, and ZFS. Available automation profiles are `full`, `core`,
+With no component options, an interactive terminal checklist shows Docker,
+K3s, LXC/LXD, and ZFS. Use the arrow keys to move, Space to toggle an entry, and
+Tab/Enter to confirm. The installer adds `whiptail` automatically if the
+checklist program is missing. Available automation profiles are `full`, `core`,
 `containers`, `virtualization`, and `cluster`. Individual `--with-*` flags are
 listed by `./install.sh --help`; a non-interactive run must use one of those
 options. OpenSSH is part of the core package set and cannot be deselected. No
