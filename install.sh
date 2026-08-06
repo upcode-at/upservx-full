@@ -39,19 +39,19 @@ usage() {
   cat <<'EOF'
 Usage: sudo ./install.sh [OPTIONS]
 
-The default full profile installs every supported UpservX platform component.
-Use --profile core only for an explicitly minimal installation.
+Without component options, the installer interactively asks whether Docker,
+K3s, LXC/LXD, and ZFS should be installed. OpenSSH is always installed.
 
 Profiles:
   --profile core             No optional platform components
   --profile containers       Docker and LXD
   --profile virtualization   libvirt/KVM and websockify
   --profile cluster          Docker and K3s/kubectl
-  --profile full             All supported components (default)
+  --profile full             All supported components
 
 Individual options:
-  --with-docker --with-lxd --with-libvirt --with-k3s
-  --with-postgresql --with-ftp --with-openvpn --with-zfs
+  --with-docker --with-k3s --with-lxc/--with-lxd --with-zfs
+  --with-libvirt --with-postgresql --with-ftp --with-openvpn
   --update-public-key PATH   Enable signed updates with this public key
   --disable-updates          Install without the update facility (default)
   --resume                   Rebuild configuration and finish an interrupted install
@@ -88,6 +88,56 @@ enable_profile() {
     *) printf 'Unknown profile: %s\n' "$1" >&2; exit 2 ;;
   esac
   INSTALL_SELECTION_MADE=1
+}
+
+prompt_component() {
+  local label=$1
+  local variable=$2
+  local answer
+
+  while true; do
+    printf 'Install %s? [y/N] ' "$label"
+    if ! IFS= read -r answer; then
+      printf '\nUnable to read component selection.\n' >&2
+      return 1
+    fi
+    case "$answer" in
+      y|Y|yes|YES|j|J|ja|JA)
+        printf -v "$variable" '%s' 1
+        return
+        ;;
+      ''|n|N|no|NO|nein|NEIN)
+        printf -v "$variable" '%s' 0
+        return
+        ;;
+      *) printf 'Please answer yes or no.\n' >&2 ;;
+    esac
+  done
+}
+
+select_optional_components() {
+  [[ -t 0 && -t 1 ]] || {
+    printf '%s\n' 'No interactive terminal is available. Select components with --profile or --with-* options.' >&2
+    return 2
+  }
+
+  printf '%s\n' \
+    'Optional component selection' \
+    'OpenSSH server is always installed and enabled.'
+  prompt_component 'Docker' WITH_DOCKER
+  prompt_component 'K3s (Kubernetes)' WITH_K3S
+  prompt_component 'LXC/LXD' WITH_LXD
+  prompt_component 'ZFS' WITH_ZFS
+  INSTALL_SELECTION_MADE=1
+
+  printf 'Selected optional components:'
+  local selected=0
+  if [[ $WITH_DOCKER == 1 ]]; then printf ' Docker'; selected=1; fi
+  if [[ $WITH_K3S == 1 ]]; then printf ' K3s'; selected=1; fi
+  if [[ $WITH_LXD == 1 ]]; then printf ' LXC/LXD'; selected=1; fi
+  if [[ $WITH_ZFS == 1 ]]; then printf ' ZFS'; selected=1; fi
+  [[ $selected == 1 ]] || printf ' none'
+  printf ' (OpenSSH is always included)\n'
 }
 
 primary_server_ip() {
@@ -220,7 +270,7 @@ while (($#)); do
   case "$1" in
     --profile) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; enable_profile "$2"; shift 2 ;;
     --with-docker) WITH_DOCKER=1; INSTALL_SELECTION_MADE=1; shift ;;
-    --with-lxd) WITH_LXD=1; INSTALL_SELECTION_MADE=1; shift ;;
+    --with-lxc|--with-lxd) WITH_LXD=1; INSTALL_SELECTION_MADE=1; shift ;;
     --with-libvirt) WITH_LIBVIRT=1; INSTALL_SELECTION_MADE=1; shift ;;
     --with-k3s) WITH_K3S=1; INSTALL_SELECTION_MADE=1; shift ;;
     --with-postgresql) WITH_POSTGRESQL=1; INSTALL_SELECTION_MADE=1; shift ;;
@@ -237,16 +287,6 @@ while (($#)); do
   esac
 done
 
-if [[ $RESUME_INSTALLATION == 1 && $INSTALL_SELECTION_MADE == 0 ]]; then
-  load_recorded_profile || status=$?
-  if [[ ${status:-0} == 2 ]]; then
-    exit 2
-  fi
-fi
-if [[ $INSTALL_SELECTION_MADE == 0 ]]; then
-  enable_profile full
-fi
-
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   printf 'This installer must run as root. Use sudo ./install.sh.\n' >&2
   exit 1
@@ -255,6 +295,17 @@ if [[ $RESUME_INSTALLATION == 1 && $REINSTALL == 1 ]]; then
   printf '%s\n' '--resume and --reinstall cannot be used together.' >&2
   exit 2
 fi
+
+if [[ $RESUME_INSTALLATION == 1 && $INSTALL_SELECTION_MADE == 0 ]]; then
+  load_recorded_profile || status=$?
+  if [[ ${status:-0} == 2 ]]; then
+    exit 2
+  fi
+fi
+if [[ $INSTALL_SELECTION_MADE == 0 ]]; then
+  select_optional_components
+fi
+
 if [[ $UPDATES_ENABLED == 1 ]]; then
   [[ -n $UPDATE_PUBLIC_KEY && -f $UPDATE_PUBLIC_KEY ]] || {
     printf '%s\n' '--update-public-key must reference a readable public-key file.' >&2

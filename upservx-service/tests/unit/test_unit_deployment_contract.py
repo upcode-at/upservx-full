@@ -57,12 +57,18 @@ def test_installer_defaults_to_keyless_installation():
     assert 'command -v kubectl' in installer
 
 
-def test_installer_defaults_to_all_supported_platform_components():
+def test_installer_prompts_for_optional_components_and_always_installs_ssh():
     installer = (ROOT / "install.sh").read_text()
     smoke = (ROOT / "deploy/upservx-post-install-smoke").read_text()
 
     assert "INSTALL_SELECTION_MADE=0" in installer
-    assert "if [[ $INSTALL_SELECTION_MADE == 0 ]]; then\n  enable_profile full" in installer
+    assert "if [[ $INSTALL_SELECTION_MADE == 0 ]]; then\n  select_optional_components" in installer
+    assert "prompt_component 'Docker' WITH_DOCKER" in installer
+    assert "prompt_component 'K3s (Kubernetes)' WITH_K3S" in installer
+    assert "prompt_component 'LXC/LXD' WITH_LXD" in installer
+    assert "prompt_component 'ZFS' WITH_ZFS" in installer
+    assert "--with-lxc|--with-lxd) WITH_LXD=1" in installer
+    assert "Select components with --profile or --with-* options" in installer
     assert "openssh-client openssh-server" in installer
     assert "systemctl enable --now ssh.service" in installer
     assert "upservx-zfs.sources" in installer

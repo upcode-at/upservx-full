@@ -7,7 +7,8 @@
 | Operating System | Linux Debian |
 | Python | 3.11 or higher |
 | Node.js | 20 or higher |
-| Docker, LXD, libvirt/KVM, K3s, ZFS | Installed by default; optional minimal profiles |
+| Docker, K3s, LXC/LXD, ZFS | Selected interactively or with installer options |
+| OpenSSH server | Always installed and enabled |
 | Root Access | Required to run the installer and signed updater |
 
 ---
@@ -22,7 +23,8 @@ sudo ./install.sh
 
 The `install.sh` script handles:
 
-- Installing the full supported platform stack by default, or an explicit smaller profile
+- Interactively selecting Docker, K3s, LXC/LXD, and ZFS
+- Always installing and enabling the OpenSSH server
 - Creating dedicated `upservx` backend/worker and `upservx-web` accounts
 - Installing an immutable root-owned release below `/opt/upservx/releases`
 - Installing locked dependencies with `npm ci` and `requirements.lock`
@@ -88,16 +90,20 @@ sudo ./install.sh --reinstall
 Run this command from a separate source checkout. It is intentionally rejected
 when `install.sh` itself is located below `/opt/upservx`.
 
-To enable signed updates, supply the release public key:
+To enable signed updates non-interactively, select a profile and supply the
+release public key:
 
 ```bash
-sudo ./install.sh \
+sudo ./install.sh --profile full \
   --update-public-key /secure/release-public.pem
 ```
 
-Available profiles are `full` (the default), `core`, `containers`,
-`virtualization`, and `cluster`. Individual `--with-*` flags are listed by
-`./install.sh --help`. No keys or checksum environment variables are required.
+With no component options, an interactive terminal asks separately about
+Docker, K3s, LXC/LXD, and ZFS. Available automation profiles are `full`, `core`,
+`containers`, `virtualization`, and `cluster`. Individual `--with-*` flags are
+listed by `./install.sh --help`; a non-interactive run must use one of those
+options. OpenSSH is part of the core package set and cannot be deselected. No
+keys or checksum environment variables are required.
 Without `--update-public-key`, the update facility stays disabled. NodeSource,
 Docker, and K3s use their official HTTPS sources by default; optional SHA-256
 environment variables add explicit pinning. K3s installs its compatible

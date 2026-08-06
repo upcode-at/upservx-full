@@ -69,7 +69,8 @@ then runs the frontend ESLint and production build gates.
 - **Operating System**: Linux Debian
 - **Python**: 3.11 or higher
 - **Node.js**: 20 or higher
-- **Docker/LXD/libvirt/K3s/ZFS**: Installed by default; minimal profiles remain available
+- **Docker/K3s/LXC/ZFS**: Selected interactively; automation profiles remain available
+- **OpenSSH server**: Always installed and enabled
 - **Root Access**: Required only to run the installer and signed updater
 
 ## ⚡ Installation
@@ -81,22 +82,24 @@ then runs the frontend ESLint and production build gates.
 git clone --recurse-submodules https://github.com/upcode-at/upservx.git
 cd upservx
 
-# Full install (no keys required)
+# Interactive selection (no keys required)
 sudo ./install.sh
 
 # Explicit minimal install
 sudo ./install.sh --profile core
 
-# Full install with signed updates
-sudo ./install.sh \
+# Non-interactive full install with signed updates
+sudo ./install.sh --profile full \
   --update-public-key /secure/release-public.pem
 ```
 
 The installer creates dedicated `upservx` and `upservx-web` accounts, immutable
 versioned releases, separate API/frontend/worker systemd units, an HTTPS nginx
-entry point, and a post-install privilege/health smoke test. Docker, LXD,
-libvirt/KVM, K3s/kubectl, ZFS, and the SSH server are included by default;
-`--profile core` opts into a minimal deployment. Without
+entry point, and a post-install privilege/health smoke test. With no component
+options it asks whether Docker, K3s/kubectl, LXC/LXD, and ZFS should be
+installed. The SSH server is always installed and enabled. `--profile core`
+provides a non-interactive minimal deployment, while `--profile full` selects
+all supported components. Without
 `--update-public-key`, the update facility stays disabled. Optional SHA-256
 environment variables can additionally pin remote installation material. See
 [`docs/installation.md`](docs/installation.md) for optional checksum pinning and
