@@ -87,7 +87,7 @@ def api_delete_proxy_config(domain: str):
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
         log_proxy(f"Deleted proxy config for [{domain}]")
-        return {"detail": "deleted"}
+        return result
     except HTTPException:
         raise
     except Exception as e:

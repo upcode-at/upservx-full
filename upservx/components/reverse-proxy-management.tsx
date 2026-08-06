@@ -155,14 +155,14 @@ export default function ReverseProxyManagement() {
 
     setLoading(true)
     try {
-      const res = await fetch(apiUrl(`/proxy/configs/${domain}`), { method: "DELETE" })
-      const data = await res.json()
+      const res = await fetch(apiUrl(`/proxy/configs/${encodeURIComponent(domain)}`), { method: "DELETE" })
+      const data = await res.json().catch(() => ({}))
       
-      if (data.success) {
+      if (res.ok) {
         setMessage("Configuration deleted successfully!")
         await loadData()
       } else {
-        const errorMsg = `Failed to delete: ${data.message}`
+        const errorMsg = `Failed to delete: ${data.detail || data.message || `HTTP ${res.status}`}`
         console.error(errorMsg)
         setError(errorMsg)
       }
