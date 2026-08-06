@@ -1,5 +1,5 @@
 [Unit]
-Description=UpservX persistent job worker
+Description=Upcode Harbor persistent job worker
 After=network-online.target upservx-api.service
 Wants=network-online.target
 PartOf=upservx.target

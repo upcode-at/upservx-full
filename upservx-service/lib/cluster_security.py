@@ -5,7 +5,7 @@ body digest, sender identity, key identifier, timestamp, and a unique nonce.
 Verified nonces are persisted under a file lock so replay protection works
 across all Uvicorn worker processes.
 
-Inter-node HTTP clients accept HTTPS URLs only. Each UpservX node owns a local
+Inter-node HTTP clients accept HTTPS URLs only. Each Upcode Harbor node owns a local
 certificate authority and a server certificate. Peers obtain and pin that CA
 through a one-time HTTPS bootstrap response whose contents are authenticated by
 the cluster enrollment key.
@@ -60,12 +60,12 @@ DEFAULT_KEY_OVERLAP_SECONDS = int(
     os.getenv("UPSERVX_CLUSTER_KEY_OVERLAP_SECONDS", "86400")
 )
 
-HEADER_VERSION = "X-UpservX-Signature-Version"
-HEADER_KEY_ID = "X-UpservX-Key-Id"
-HEADER_TIMESTAMP = "X-UpservX-Timestamp"
-HEADER_NONCE = "X-UpservX-Nonce"
-HEADER_NODE = "X-UpservX-Node"
-HEADER_SIGNATURE = "X-UpservX-Signature"
+HEADER_VERSION = "X-Upcode-Harbor-Signature-Version"
+HEADER_KEY_ID = "X-Upcode-Harbor-Key-Id"
+HEADER_TIMESTAMP = "X-Upcode-Harbor-Timestamp"
+HEADER_NONCE = "X-Upcode-Harbor-Nonce"
+HEADER_NODE = "X-Upcode-Harbor-Node"
+HEADER_SIGNATURE = "X-Upcode-Harbor-Signature"
 
 _NONCE_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 _NODE_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$")
@@ -865,10 +865,10 @@ def ensure_node_tls() -> NodeTLSMaterial:
         ca_key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
         ca_name = x509.Name(
             [
-                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UpservX"),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Upcode Harbor"),
                 x509.NameAttribute(
                     NameOID.COMMON_NAME,
-                    f"UpservX node CA {socket.gethostname()}",
+                    f"Upcode Harbor node CA {socket.gethostname()}",
                 ),
             ]
         )
@@ -926,7 +926,7 @@ def ensure_node_tls() -> NodeTLSMaterial:
         hostname = socket.gethostname()
         subject = x509.Name(
             [
-                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "UpservX"),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Upcode Harbor"),
                 x509.NameAttribute(NameOID.COMMON_NAME, hostname),
             ]
         )

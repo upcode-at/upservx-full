@@ -388,7 +388,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                 ? "/logo_light.png"
                 : "/logo.png"
             }
-            alt="UpServX Logo"
+            alt="Upcode Harbor Logo"
             className="h-16 w-auto object-contain"
           />
         </div>

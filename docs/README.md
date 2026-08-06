@@ -1,6 +1,6 @@
-# UpservX – Documentation
+# Upcode Harbor – Documentation
 
-Welcome to the complete technical documentation for the **UpservX** project.
+Welcome to the complete technical documentation for the **Upcode Harbor** project.
 
 ---
 

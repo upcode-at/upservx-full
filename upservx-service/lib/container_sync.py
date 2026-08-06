@@ -1,5 +1,5 @@
 """
-Container Synchronization Module for UpservX Cluster Management
+Container Synchronization Module for Upcode Harbor Cluster Management
 
 Handles container state synchronization across cluster nodes.
 """

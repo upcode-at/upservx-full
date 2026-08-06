@@ -1,4 +1,4 @@
-"""Client for the fixed, root-owned UpservX privilege helper."""
+"""Client for the fixed, root-owned Upcode Harbor privilege helper."""
 
 from __future__ import annotations
 

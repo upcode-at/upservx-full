@@ -1,5 +1,5 @@
 """
-Pydantic models for the UpservX API.
+Pydantic models for the Upcode Harbor API.
 """
 
 from pydantic import BaseModel, Field

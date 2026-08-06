@@ -1,17 +1,17 @@
-# Contributing to UpservX
+# Contributing to Upcode Harbor
 
-First off, thank you for considering contributing to UpservX! It's people like you that make UpservX such a great tool.
+First off, thank you for considering contributing to Upcode Harbor! It's people like you that make Upcode Harbor such a great tool.
 
 ## 🎯 Ways to Contribute
 
-There are many ways you can contribute to UpservX:
+There are many ways you can contribute to Upcode Harbor:
 
 - 🐛 **Report Bugs** - Help us identify and fix issues
 - 💡 **Suggest Features** - Share ideas for new features
 - 📝 **Improve Documentation** - Help make our docs better
 - 🔧 **Submit Pull Requests** - Fix bugs or add features
 - 🏪 **Add App Templates** - Contribute new app store templates
-- 🌍 **Translations** - Help translate UpservX to other languages
+- 🌍 **Translations** - Help translate Upcode Harbor to other languages
 
 ## 📋 Code of Conduct
 
@@ -75,8 +75,8 @@ Feature suggestions are welcome! Please provide:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/upcode-at/upservx.git
-   cd upservx
+   git clone https://github.com/upcode-at/upcode-harbor.git
+   cd upcode-harbor
    ```
 
 3. **Create a new branch** for your feature or bugfix:
@@ -274,7 +274,7 @@ When adding features, update:
 
 ## 📦 Release Management & Documentation
 
-UpservX uses a structured approach for tracking versions, releases, and changes. Understanding this system helps maintain clear project history.
+Upcode Harbor uses a structured approach for tracking versions, releases, and changes. Understanding this system helps maintain clear project history.
 
 ### Documentation Files Overview
 
@@ -355,7 +355,7 @@ When preparing a new release (done by maintainers):
 ```markdown
 # Changelog
 
-All notable changes to UpservX will be documented here.
+All notable changes to Upcode Harbor will be documented here.
 
 ## Unreleased
 
@@ -415,7 +415,7 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ## 🙏 Thank You!
 
-Your contributions make UpservX better for everyone. We appreciate your time and effort!
+Your contributions make Upcode Harbor better for everyone. We appreciate your time and effort!
 
 ---
 

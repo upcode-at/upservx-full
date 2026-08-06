@@ -1,5 +1,5 @@
 [Unit]
-Description=Restart unhealthy UpservX public services
+Description=Restart unhealthy Upcode Harbor public services
 
 [Service]
 Type=oneshot

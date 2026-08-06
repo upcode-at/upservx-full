@@ -20,7 +20,7 @@ from cli.output import error, header, info, kv, ok, warn
 
 
 def cmd_login(args) -> int:
-    header("UpservX Login")
+    header("Upcode Harbor Login")
 
     cfg = load_config()
 

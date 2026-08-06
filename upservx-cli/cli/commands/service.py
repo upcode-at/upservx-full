@@ -1,5 +1,5 @@
 """
-upservx service – manage the UpservX systemd service.
+upservx service – manage the Upcode Harbor systemd service.
 
 Commands:
   upservx service status
@@ -25,14 +25,14 @@ def _systemctl(action: str) -> tuple[int, str]:
 
 
 def cmd_status(args) -> int:
-    header("UpservX Service Status")
+    header("Upcode Harbor Service Status")
     rc, out = _systemctl("status")
     print(out)
     return 0
 
 
 def cmd_start(args) -> int:
-    info("Starting UpservX service...")
+    info("Starting Upcode Harbor service...")
     rc, out = _systemctl("start")
     if rc == 0:
         ok("Service started.")
@@ -43,7 +43,7 @@ def cmd_start(args) -> int:
 
 
 def cmd_stop(args) -> int:
-    info("Stopping UpservX service...")
+    info("Stopping Upcode Harbor service...")
     rc, out = _systemctl("stop")
     if rc == 0:
         ok("Service stopped.")
@@ -54,7 +54,7 @@ def cmd_stop(args) -> int:
 
 
 def cmd_restart(args) -> int:
-    info("Restarting UpservX service...")
+    info("Restarting Upcode Harbor service...")
     rc, out = _systemctl("restart")
     if rc == 0:
         ok("Service restarted.")
@@ -65,7 +65,7 @@ def cmd_restart(args) -> int:
 
 
 def register(subparsers):
-    p = subparsers.add_parser("service", help="Manage the UpservX system service")
+    p = subparsers.add_parser("service", help="Manage the Upcode Harbor system service")
     sp = p.add_subparsers(dest="service_cmd", metavar="<action>")
     sp.required = True
 

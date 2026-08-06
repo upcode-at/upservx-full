@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Root-owned privilege boundary for the unprivileged UpservX backend.
+"""Root-owned privilege boundary for the unprivileged Upcode Harbor backend.
 
 This helper intentionally uses only the Python standard library.  The sudoers
 policy permits the dedicated ``upservx`` account to invoke this file and
@@ -56,7 +56,7 @@ def _validate_invoker() -> None:
         raise PolicyError("the privileged helper must run as root")
     sudo_user = os.environ.get("SUDO_USER")
     if sudo_user and sudo_user != SERVICE_USER:
-        raise PolicyError("caller is not the UpservX service account")
+        raise PolicyError("caller is not the Upcode Harbor service account")
 
 
 def _absolute_command(name: str) -> str:
@@ -232,7 +232,7 @@ def _validate_nft(args: list[str]) -> None:
     if not filtered or filtered[0] not in {"add", "insert", "delete", "flush"}:
         raise PolicyError("unsupported nftables operation")
     if not any(name in filtered for name in {"upservx_filter", "upservx_nat"}):
-        raise PolicyError("nftables writes are limited to UpservX tables")
+        raise PolicyError("nftables writes are limited to Upcode Harbor tables")
 
 
 def _validate_exec(command: str, args: list[str]) -> None:

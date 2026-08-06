@@ -13,7 +13,7 @@ interface CustomizationData {
 }
 
 const DEFAULT_CUSTOMIZATION: CustomizationData = {
-  banner_title: "Welcome to UpServX",
+  banner_title: "Welcome to Upcode Harbor",
   banner_subtitle: "Professional Server Management Platform",
   has_logo: false,
   has_banner: false,
@@ -149,7 +149,7 @@ export default function LoginPage() {
                 />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src="/logo.png" alt="UpServX Logo" className="h-24 w-auto object-contain" />
+                <img src="/logo.png" alt="Upcode Harbor Logo" className="h-24 w-auto object-contain" />
               )}
             </div>
             <h1 className="text-4xl font-bold mb-4">{customization.banner_title}</h1>

@@ -1,4 +1,4 @@
-"""Cross-process locks for shared UpservX state files."""
+"""Cross-process locks for shared Upcode Harbor state files."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from lib.secure_store import CONFIG_FILE_MODE, ensure_config_directory
 class InterProcessFileLock:
     """A thread-safe, re-entrant advisory lock backed by ``flock``.
 
-    ``threading.Lock`` only protects one interpreter.  UpservX state is also
+    ``threading.Lock`` only protects one interpreter.  Upcode Harbor state is also
     touched by the API, scheduler scripts, and the persistent job worker, so
     every read/modify/write section must use a kernel-visible lock.
     """

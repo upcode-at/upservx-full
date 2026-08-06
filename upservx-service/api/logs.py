@@ -19,7 +19,7 @@ def api_activity_log(
     lines: int = Query(100, ge=0),
     fmt: str = Query("text", alias="format", pattern="^(text|json)$"),
 ):
-    """Read the UpservX activity log from /var/log/upservx/activity.log."""
+    """Read the Upcode Harbor activity log from /var/log/upservx/activity.log."""
     try:
         content = read_log_file(ACTIVITY_LOG_FILE, lines=lines)
         if fmt == "json":

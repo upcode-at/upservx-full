@@ -2133,7 +2133,7 @@ async def execute_replication(replication: dict, progress_callback=None):
             content=archive_data,
             headers={
                 "Content-Type": "application/gzip",
-                "X-UpservX-Filename": f"{resource_name}.tar.gz",
+                "X-Upcode-Harbor-Filename": f"{resource_name}.tar.gz",
             },
             timeout=300.0,
         )
@@ -2553,7 +2553,7 @@ async def upload_archive(request: Request):
     try:
         os.makedirs(TEMP_EXPORT_DIR, exist_ok=True)
 
-        filename = request.headers.get("X-UpservX-Filename", "")
+        filename = request.headers.get("X-Upcode-Harbor-Filename", "")
         if (
             not filename
             or filename in {".", ".."}

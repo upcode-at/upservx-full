@@ -9,7 +9,7 @@
 
 ## Overview
 
-UpservX manages virtual machines via `libvirt`/`virsh`. Both QEMU/KVM and other hypervisors supported by libvirt can be managed.
+Upcode Harbor manages virtual machines via `libvirt`/`virsh`. Both QEMU/KVM and other hypervisors supported by libvirt can be managed.
 
 ---
 
@@ -88,7 +88,7 @@ ISOs are stored in `/var/lib/libvirt/images/` by default.
 | Component | Description |
 |---|---|
 | VNC port | Determined via `virsh dumpxml` → `<graphics type='vnc' port='...'/>` |
-| WS Proxy | UpservX acts as a WebSocket proxy to the local VNC port |
+| WS Proxy | Upcode Harbor acts as a WebSocket proxy to the local VNC port |
 | Token | WS ticket required before connection |
 
 VNC sessions are proxied through the backend. The raw VNC port is not exposed directly.

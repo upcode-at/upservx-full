@@ -9,7 +9,7 @@
 
 ## Overview
 
-UpservX manages firewall rules via **nftables** and/or **iptables**, depending on which tool is active on the system.
+Upcode Harbor manages firewall rules via **nftables** and/or **iptables**, depending on which tool is active on the system.
 
 ---
 

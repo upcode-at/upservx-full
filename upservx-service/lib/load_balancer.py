@@ -1,5 +1,5 @@
 """
-Load Balancer Module for UpservX Cluster Management
+Load Balancer Module for Upcode Harbor Cluster Management
 
 Handles workload distribution across cluster nodes using various strategies.
 """

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -28,6 +29,41 @@ def test_release_version_is_consistent_across_all_shipped_surfaces():
     assert (ROOT / f"releases/{version}.md").is_file()
     assert f"## [{version}]" in (ROOT / "CHANGELOG.md").read_text()
     assert f"Release v{version}" in (ROOT / "RELEASE.md").read_text()
+
+
+def test_release_uses_upcode_harbor_as_its_only_product_name():
+    package = json.loads((ROOT / "upservx/package.json").read_text())
+    package_lock = json.loads((ROOT / "upservx/package-lock.json").read_text())
+    api = (ROOT / "upservx-service/main.py").read_text()
+    cli = (ROOT / "upservx-cli/cli/main.py").read_text()
+    installer = (ROOT / "install.sh").read_text()
+    layout = (ROOT / "upservx/app/layout.tsx").read_text()
+
+    assert package["name"] == "upcode-harbor"
+    assert package_lock["name"] == "upcode-harbor"
+    assert package_lock["packages"][""]["name"] == "upcode-harbor"
+    assert 'title="Upcode Harbor API"' in api
+    assert 'version=f"Upcode Harbor {VERSION}"' in cli
+    assert "Open Upcode Harbor: https://%s/" in installer
+    assert 'title: "Upcode Harbor"' in layout
+
+    shipped_paths = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=ROOT,
+    ).split(b"\0")
+    forbidden_names = (b"Upserv" + b"X", b"UpServ" + b"X")
+    offenders = []
+    for raw_path in shipped_paths:
+        if not raw_path:
+            continue
+        path = ROOT / raw_path.decode()
+        if not path.is_file():
+            continue
+        content = path.read_bytes()
+        if any(name in content for name in forbidden_names):
+            offenders.append(str(path.relative_to(ROOT)))
+
+    assert not offenders, f"legacy product name remains in: {offenders}"
 
 
 def test_installer_is_profile_based_and_does_not_patch_distribution_pam_or_pull_git():
@@ -182,7 +218,7 @@ def test_public_access_uses_nginx_https_instead_of_internal_ports():
     assert "--hostname 127.0.0.1" in web
     assert "listen 443 ssl default_server" in nginx
     assert "proxy_pass http://127.0.0.1:9200" in nginx
-    assert "Open UpservX: https://%s/" in installer
+    assert "Open Upcode Harbor: https://%s/" in installer
     assert "remote access uses nginx on HTTPS port 443" in installer
 
 

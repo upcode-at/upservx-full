@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://upservx.dev/schemas/app-store-template-v1.json",
-  "title": "UpservX App Store template",
+  "title": "Upcode Harbor App Store template",
   "type": "object",
   "additionalProperties": false,
   "required": [

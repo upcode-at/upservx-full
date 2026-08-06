@@ -4,7 +4,7 @@ import { AuthProvider } from "@/components/auth-provider"
 import "./globals.css"
 
 export const metadata = {
-  title: "UpServX",
+  title: "Upcode Harbor",
   description: "Comprehensive server management dashboard",
 }
 

@@ -191,7 +191,7 @@ async def test_invalid_signature_fails_closed_even_with_valid_api_key(
 ):
     headers = {
         **api_key_headers,
-        "X-UpservX-Signature": "invalid",
+        "X-Upcode-Harbor-Signature": "invalid",
     }
     response = await _request(
         app,
@@ -231,7 +231,7 @@ async def test_signed_cluster_transport_is_rejected_on_plain_http(app):
             app,
             "GET",
             "/cluster/ha/vote",
-            headers={"X-UpservX-Signature": "would-otherwise-be-valid"},
+            headers={"X-Upcode-Harbor-Signature": "would-otherwise-be-valid"},
         )
 
     assert response.status_code == 400
@@ -246,7 +246,7 @@ async def test_signed_cluster_principal_cannot_call_admin_or_management_routes(a
         timestamp=1_700_000_000,
         nonce="nonce_value_1234567890",
     )
-    signature_headers = {"X-UpservX-Signature": "verified-by-test-double"}
+    signature_headers = {"X-Upcode-Harbor-Signature": "verified-by-test-double"}
     with patch("main.verify_cluster_signature", return_value=verified):
         security_response = await _request(
             app,
@@ -300,7 +300,7 @@ async def test_signed_cluster_principal_can_reach_only_internal_routes(app):
             "GET",
             "/cluster/ha/vote",
             base_url="https://testserver:9501",
-            headers={"X-UpservX-Signature": "verified-by-test-double"},
+            headers={"X-Upcode-Harbor-Signature": "verified-by-test-double"},
         )
 
     assert response.status_code == 200

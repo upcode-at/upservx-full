@@ -1,4 +1,4 @@
-"""Unprivileged client for UpservX's root-owned PAM authentication broker."""
+"""Unprivileged client for Upcode Harbor's root-owned PAM authentication broker."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# TODO – UpservX
+# TODO – Upcode Harbor
 
 This file contains only work that is still open based on the current
 repository state. Concrete defects, security gaps, and missing quality gates
@@ -120,7 +120,7 @@ use, P2 = next feature phase, P3 = long-term/enterprise roadmap
 - [ ] Support retention rules based on count, age, and storage budget, as well
   as immutable and off-site targets.
 - [ ] Document and automatically test a complete disaster recovery procedure
-  for UpservX configuration, users, clusters, apps, containers, and VMs.
+  for Upcode Harbor configuration, users, clusters, apps, containers, and VMs.
 
 ### Networking, storage, and platform
 

@@ -1,4 +1,9 @@
-# UpservX deployment contract
+# Upcode Harbor deployment contract
+
+`upservx` remains the stable lowercase deployment identifier for system users,
+units, paths, environment variables, helper binaries, and signed update files.
+Keeping it unchanged is part of the 0.7.0 compatibility contract for existing
+installations; the product name shown to users is **Upcode Harbor**.
 
 The installed process and privilege model is intentionally fixed:
 
@@ -14,7 +19,7 @@ The installed process and privilege model is intentionally fixed:
 - Mutable data lives below `/var/lib/upservx`; secrets live below
   `/etc/upservx`; logs live below `/var/log/upservx`.
 - Existing Linux users authenticate through the dedicated `/etc/pam.d/upservx`
-  policy; UpservX does not create or store application login accounts.
+  policy; Upcode Harbor does not create or store application login accounts.
 - The installer binds the API and frontend to loopback and exposes them through
   an HTTPS-only nginx proxy. A local certificate is generated for the first
   boot; replace `/etc/upservx/tls/server.crt` and `server.key` with a trusted

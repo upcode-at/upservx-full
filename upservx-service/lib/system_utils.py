@@ -1,5 +1,5 @@
 """
-System information utilities for the UpservX API.
+System information utilities for the Upcode Harbor API.
 """
 
 import platform

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate a valid encryption key for UpservX.
+Generate a valid encryption key for Upcode Harbor.
 This script creates a new Fernet encryption key and saves it to /etc/upservx/encryption.key
 """
 
@@ -16,7 +16,7 @@ KEY_DIR = "/etc/upservx"
 def generate_key():
     """Generate and save a new encryption key."""
     print("=" * 60)
-    print("UpservX Encryption Key Generator")
+    print("Upcode Harbor Encryption Key Generator")
     print("=" * 60)
     
     # Ensure directory exists

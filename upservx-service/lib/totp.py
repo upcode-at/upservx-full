@@ -81,7 +81,7 @@ def create_pending_setup(username: str) -> tuple[str, str]:
 
     totp = pyotp.TOTP(secret)
     hostname = os.uname().nodename
-    uri = totp.provisioning_uri(name=username, issuer_name=f"UpservX ({hostname})")
+    uri = totp.provisioning_uri(name=username, issuer_name=f"Upcode Harbor ({hostname})")
     return token, uri
 
 

@@ -1,5 +1,5 @@
 """
-UpservX - Server Management API
+Upcode Harbor - Server Management API
 
 A comprehensive server management API built with FastAPI providing
 container management, system monitoring, and server administration.
@@ -133,7 +133,7 @@ def _wait_for_cluster_listener(process: subprocess.Popen, timeout: float = 10.0)
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="UpservX API",
+    title="Upcode Harbor API",
     description="Server Management API",
     version="0.7.0",
 )
@@ -181,7 +181,7 @@ def release_process_lock() -> None:
     if not PASSIVE_PROCESS:
         release_web_process_lock()
 
-log_system("UpservX API starting up")
+log_system("Upcode Harbor API starting up")
 
 # Configure CORS. For development/production, set FRONTEND_ORIGINS env to a
 # comma-separated list (e.g. "http://localhost:9200,http://127.0.0.1:9200").

@@ -1,7 +1,7 @@
-# UpservX - Server Management Platform
+# Upcode Harbor - Server Management Platform
 
 <p align="center">
-  <img src="upservx/public/logo.png" alt="UpServX Logo" width="400">
+  <img src="upservx/public/logo.png" alt="Upcode Harbor Logo" width="400">
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,7 +9,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.x-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128.x-009688.svg)](https://fastapi.tiangolo.com/)
 
-A comprehensive web-based server management platform with Docker container management, integrated app store, backup system, and system monitoring. UpservX simplifies managing your server infrastructure with a modern, user-friendly interface.
+A comprehensive web-based server management platform with Docker container management, integrated app store, backup system, and system monitoring. Upcode Harbor simplifies managing your server infrastructure with a modern, user-friendly interface.
 
 ## 🚀 Features
 
@@ -25,7 +25,7 @@ A comprehensive web-based server management platform with Docker container manag
 
 ## 📦 App Store Templates
 
-UpservX includes 62 pre-configured app templates for quick deployments:
+Upcode Harbor includes 62 pre-configured app templates for quick deployments:
 
 **CMS & Web:**
 - WordPress, TYPO3, Nextcloud, Jitsi
@@ -79,8 +79,8 @@ then runs the frontend ESLint and production build gates.
 
 ```bash
 # Clone repository
-git clone --recurse-submodules https://github.com/upcode-at/upservx.git
-cd upservx
+git clone --recurse-submodules https://github.com/upcode-at/upcode-harbor.git
+cd upcode-harbor
 
 # Interactive selection (no keys required)
 sudo ./install.sh
@@ -111,16 +111,25 @@ After installation, use the printed `https://SERVER-IP/` URL. Ports `9200` and
 existing Linux/PAM user through the dedicated `upservx` PAM service; the
 installer does not create application login users.
 
+### Technical compatibility identifiers
+
+Starting with version 0.7.0, the product name is exclusively **Upcode Harbor**.
+The lowercase identifier `upservx` remains in service accounts, systemd units,
+filesystem paths, environment variables, the compatibility CLI command, and
+0.7.0 update artifact filenames. These identifiers are retained so existing
+0.6.x installations can upgrade without breaking their deployment contract;
+they are not the product name.
+
 
 ## 💝 Support
 
 Want to support the project? Here are some ways to help:
 
 ### ⭐ GitHub Star
-Give the project a star on [GitHub](https://github.com/upcode-at/upservx) - it helps others discover it!
+Give the project a star on [GitHub](https://github.com/upcode-at/upcode-harbor) - it helps others discover it!
 
 ### 🐛 Issues & Feedback
-- Report bugs via [GitHub Issues](https://github.com/upcode-at/upservx/issues)
+- Report bugs via [GitHub Issues](https://github.com/upcode-at/upcode-harbor/issues)
 - Share feature requests and suggestions
 - Help improve the documentation
 
@@ -140,7 +149,7 @@ Support development financially:
 - Write a blog post about it
 - Recommend it to friends and colleagues
 
-Every contribution helps make UpservX better! 🙏
+Every contribution helps make Upcode Harbor better! 🙏
 
 ## 📄 License
 
@@ -148,10 +157,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact & Community
 
-- **GitHub**: [upcode-at/upservx](https://github.com/upcode-at/upservx)
-- **Issues**: [Bug Reports & Feature Requests](https://github.com/upcode-at/upservx/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/upcode-at/upservx/discussions)
+- **GitHub**: [upcode-at/upcode-harbor](https://github.com/upcode-at/upcode-harbor)
+- **Issues**: [Bug Reports & Feature Requests](https://github.com/upcode-at/upcode-harbor/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/upcode-at/upcode-harbor/discussions)
 
 ---
 
-**UpservX** - Server management made easy 🚀
+**Upcode Harbor** - Server management made easy 🚀

@@ -1,18 +1,18 @@
 # upservx-cli
 
-Command-line interface for [UpservX](https://github.com/upcode-at/upservx).  
+Command-line interface for [Upcode Harbor](https://github.com/upcode-at/upcode-harbor).
 After installation the `upservx` command is available system-wide.
 
 ## Requirements
 
 - Python 3.8+
-- UpservX service running (default: `http://127.0.0.1:9500`)
+- Upcode Harbor service running (default: `http://127.0.0.1:9500`)
 
 Dependencies are managed via a dedicated virtualenv that `install.sh` creates automatically at `upservx-cli/venv/`.
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `requests` | 2.32.x | HTTP client for the UpservX API |
+| `requests` | 2.32.x | HTTP client for the Upcode Harbor API |
 | `rich` | 13.9.x | Colored terminal output and tables |
 
 ## Usage
@@ -25,9 +25,9 @@ upservx <command> <action> [options]
 
 ```bash
 upservx service status       # Show systemd service status
-upservx service start        # Start the UpservX service
-upservx service stop         # Stop the UpservX service
-upservx service restart      # Restart the UpservX service
+upservx service start        # Start the Upcode Harbor service
+upservx service stop         # Stop the Upcode Harbor service
+upservx service restart      # Restart the Upcode Harbor service
 ```
 
 ### Container Management

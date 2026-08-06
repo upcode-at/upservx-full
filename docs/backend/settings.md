@@ -9,7 +9,7 @@
 
 ## Overview
 
-The settings module manages the globally configurable options of UpservX. Settings are stored in a JSON file at `/etc/upservx/settings.json`.
+The settings module manages the globally configurable options of Upcode Harbor. Settings are stored in a JSON file at `/etc/upservx/settings.json`.
 
 VPN/OpenVPN profiles uploaded via the Settings API are stored in `/etc/upservx/vpn` (for example `/etc/upservx/vpn/client.ovpn`).
 
@@ -54,7 +54,7 @@ class Settings(BaseModel):
 ```json
 // /etc/upservx/settings.json
 {
-  "instance_name": "UpservX",
+  "instance_name": "Upcode Harbor",
   "theme": "dark",
   "metrics_interval_seconds": 60,
   "alert_cpu_percent": 90,
@@ -107,4 +107,4 @@ and revocation metadata. The raw token is shown exactly once at creation. See
 | `POST` | `/settings/api-tokens` | Create a scoped API token |
 | `DELETE` | `/settings/api-tokens/{token_id}` | Revoke an API token |
 | `POST` | `/settings/test-notification` | Send test notification |
-| `GET` | `/settings/version` | UpservX version info |
+| `GET` | `/settings/version` | Upcode Harbor version info |

@@ -54,7 +54,7 @@ if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
 
 
 def _authenticate_linux_user(authenticator, username: str, password: str) -> bool:
-    """Authenticate an existing Linux account through UpservX's PAM stack."""
+    """Authenticate an existing Linux account through Upcode Harbor's PAM stack."""
 
     return authenticator.authenticate(
         username,

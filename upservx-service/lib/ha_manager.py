@@ -1,5 +1,5 @@
 """
-High Availability Manager for UpservX Cluster.
+High Availability Manager for Upcode Harbor Cluster.
 
 Handles:
 - Heartbeat tracking from all nodes

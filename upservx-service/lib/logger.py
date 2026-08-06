@@ -1,5 +1,5 @@
 """
-UpservX Structured Activity Logger
+Upcode Harbor Structured Activity Logger
 
 Writes human-readable activity entries to /var/log/upservx/activity.log
 in the format:

@@ -8,7 +8,7 @@
 
 ## Overview
 
-UpservX uses two parallel logging systems:
+Upcode Harbor uses two parallel logging systems:
 
 1. **Activity Log** — Structured JSON log of user actions
 2. **System Log** — stdout/stderr of the backend process
@@ -40,7 +40,7 @@ All user actions are logged as structured JSON entries:
 ## Logger Implementation
 
 ```python
-class UpservXLogger:
+class UpcodeHarborLogger:
     def __init__(self, log_file: str):
         self.log_file = log_file
         self._lock = asyncio.Lock()

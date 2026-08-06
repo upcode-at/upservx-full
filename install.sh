@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reproducible, profile-based UpservX installer.
+# Reproducible, profile-based Upcode Harbor installer.
 set -euo pipefail
 
 APP_ROOT=/opt/upservx
@@ -110,7 +110,7 @@ select_optional_components() {
 
   local selection component
   if ! selection=$(whiptail \
-    --title 'UpservX-Installation' \
+    --title 'Upcode Harbor Installation' \
     --ok-button 'Continue' \
     --cancel-button 'Cancel' \
     --separate-output \
@@ -170,10 +170,10 @@ print_access_information() {
   local server_ip server_name
   server_ip=$(primary_server_ip)
   if [[ -n $server_ip ]]; then
-    printf 'Open UpservX: https://%s/\n' "$server_ip"
+    printf 'Open Upcode Harbor: https://%s/\n' "$server_ip"
   else
     server_name=$(hostname -f 2>/dev/null || hostname)
-    printf 'Open UpservX: https://%s/\n' "$server_name"
+    printf 'Open Upcode Harbor: https://%s/\n' "$server_name"
   fi
   printf 'Ports 9200 and 9500 are internal loopback services; remote access uses nginx on HTTPS port 443.\n'
   printf 'The browser may require confirmation of the automatically generated certificate.\n'
@@ -249,10 +249,10 @@ backup_broken_installation() {
   done
 
   [[ $backed_up == 1 ]] || {
-    printf 'No existing UpservX installation was found to reinstall.\n' >&2
+    printf 'No existing Upcode Harbor installation was found to reinstall.\n' >&2
     return 1
   }
-  printf 'Existing UpservX installation backed up to: %s\n' "$REINSTALL_BACKUP_DIR"
+  printf 'Existing Upcode Harbor installation backed up to: %s\n' "$REINSTALL_BACKUP_DIR"
 }
 
 load_recorded_profile() {
@@ -338,26 +338,26 @@ RELEASE_DIR="$APP_ROOT/releases/$RELEASE_VERSION"
 RELEASE_STAGING="$APP_ROOT/releases/.${RELEASE_VERSION}.$$"
 if [[ $RESUME_INSTALLATION == 1 ]]; then
   [[ -L $APP_ROOT/current ]] || {
-    printf 'No interrupted UpservX installation is available to resume.\n' >&2
+    printf 'No interrupted Upcode Harbor installation is available to resume.\n' >&2
     exit 1
   }
   RELEASE_DIR=$(readlink -f "$APP_ROOT/current")
   [[ ${RELEASE_DIR%/*} == "$APP_ROOT/releases" && -d $RELEASE_DIR ]] || {
-    printf 'The current UpservX release link is invalid; refusing to resume.\n' >&2
+    printf 'The current Upcode Harbor release link is invalid; refusing to resume.\n' >&2
     exit 1
   }
   RELEASE_VERSION=${RELEASE_DIR##*/}
   [[ $RELEASE_VERSION =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
-    printf 'The current UpservX release version is invalid; refusing to resume.\n' >&2
+    printf 'The current Upcode Harbor release version is invalid; refusing to resume.\n' >&2
     exit 1
   }
   [[ -x $RELEASE_DIR/upservx-service/venv/bin/python3 ]] || {
-    printf 'The current UpservX backend environment is incomplete; refusing to resume.\n' >&2
+    printf 'The current Upcode Harbor backend environment is incomplete; refusing to resume.\n' >&2
     exit 1
   }
   RELEASE_STAGING=
 elif [[ $REINSTALL == 0 && ( -e $APP_ROOT/current || -L $APP_ROOT/current ) ]]; then
-  printf 'An UpservX installation already exists. Use the signed updater, or --resume if installation stopped after release creation.\n' >&2
+  printf 'An Upcode Harbor installation already exists. Use the signed updater, or --resume if installation stopped after release creation.\n' >&2
   exit 1
 elif [[ $REINSTALL == 0 && ( -e $RELEASE_DIR || -e $RELEASE_STAGING ) ]]; then
   printf 'Release already exists: %s\n' "$RELEASE_DIR" >&2
@@ -746,7 +746,7 @@ step_start_and_verify() {
 }
 
 : >"$LOG_FILE"
-printf 'UpservX installer log: %s\n' "$LOG_FILE"
+printf 'Upcode Harbor installer log: %s\n' "$LOG_FILE"
 if [[ $RESUME_INSTALLATION == 1 ]]; then
   TOTAL_STEPS=7
   run_step 'Configure mutable state and update trust' step_configure_mutable_state

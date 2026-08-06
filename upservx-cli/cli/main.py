@@ -12,11 +12,11 @@ from cli.commands import apps, auth, backup, containers, logs, service, system
 VERSION = "0.7.0"
 
 BANNER = r"""
-  _   _       __                     __  __
- | | | |_ __ / _\ ___ _ ____   ____  \ \/ /
- | | | | '_ \\ \ / _ \ '__\ \ / / \ \/\/ /
- | |_| | |_) |\ \  __/ |   \ V /   >  <
-  \___/| .__/ \__/\___|_|    \_/   /_/\_\
+  _   _                           _   _            _
+ | | | |_ __   ___ ___   __| | ___  | | | | __ _ _ __| |__   ___  _ __
+ | | | | '_ \ / __/ _ \ / _` |/ _ \ | |_| |/ _` | '__| '_ \ / _ \| '__|
+ | |_| | |_) | (_| (_) | (_| |  __/ |  _  | (_| | |  | |_) | (_) | |
+  \___/| .__/ \___\___/ \__,_|\___| |_| |_|\__,_|_|  |_.__/ \___/|_|
        |_|
 """
 
@@ -24,7 +24,7 @@ BANNER = r"""
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="upservx",
-        description="UpservX CLI – manage your server from the terminal.",
+        description="Upcode Harbor CLI – manage your server from the terminal.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -45,7 +45,7 @@ Examples:
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version=f"upservx {VERSION}",
+        version=f"Upcode Harbor {VERSION}",
     )
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")

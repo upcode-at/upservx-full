@@ -51,7 +51,7 @@ def test_incomplete_signed_release_is_rejected(tmp_path):
     updater = _load_updater()
     (tmp_path / "upservx").mkdir()
     (tmp_path / "upservx" / "package-lock.json").write_text("{}")
-    with pytest.raises(updater.UpdateError, match="complete UpservX release"):
+    with pytest.raises(updater.UpdateError, match="complete Upcode Harbor release"):
         updater._find_release_root(tmp_path)
 
 

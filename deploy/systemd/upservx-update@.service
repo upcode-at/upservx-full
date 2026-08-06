@@ -1,5 +1,5 @@
 [Unit]
-Description=Install signed UpservX release %i
+Description=Install signed Upcode Harbor release %i
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/usr/share/upservx/update-public.pem

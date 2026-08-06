@@ -1,5 +1,5 @@
 """
-Functional tests for UpservX backend workflows
+Functional tests for Upcode Harbor backend workflows
 ===============================================
 Tests complete user scenarios spanning multiple components:
 

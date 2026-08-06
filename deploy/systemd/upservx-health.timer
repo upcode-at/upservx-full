@@ -1,5 +1,5 @@
 [Unit]
-Description=Run UpservX liveness probes
+Description=Run Upcode Harbor liveness probes
 
 [Timer]
 OnBootSec=2min

@@ -1,4 +1,4 @@
-"""Centralized secure persistence for files under the UpservX config root."""
+"""Centralized secure persistence for files under the Upcode Harbor config root."""
 
 from __future__ import annotations
 

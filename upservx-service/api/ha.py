@@ -1,5 +1,5 @@
 """
-High Availability API endpoints for UpservX Cluster.
+High Availability API endpoints for Upcode Harbor Cluster.
 
 Endpoints:
   GET  /cluster/ha              - Get HA config + status

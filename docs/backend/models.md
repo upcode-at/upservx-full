@@ -6,7 +6,7 @@
 
 ## Overview
 
-The `models.py` file defines all **Pydantic v2 models** for request validation and response serialization in the UpservX backend.
+The `models.py` file defines all **Pydantic v2 models** for request validation and response serialization in the Upcode Harbor backend.
 
 ---
 

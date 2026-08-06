@@ -1,4 +1,4 @@
-"""Method- and route-based authorization for UpservX.
+"""Method- and route-based authorization for Upcode Harbor.
 
 Every HTTP endpoint must be present in ROUTE_POLICIES. Requests that do not
 match a registered method/path pair are denied, including requests made by

@@ -2,7 +2,7 @@
 
 ## Overview
 
-UpservX is a two-part web application:
+Upcode Harbor is a two-part web application:
 
 ```
 ┌─────────────────────────────┐         ┌─────────────────────────────────┐

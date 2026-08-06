@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-upservx – UpservX CLI entry point.
+upservx – Upcode Harbor CLI entry point.
 
 This file is called by /usr/local/bin/upservx via the CLI venv Python.
 The venv is located at /opt/upservx/upservx-cli/venv.

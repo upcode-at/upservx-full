@@ -31,7 +31,7 @@ docker run --rm guacamole/guacamole:latest /opt/guacamole/bin/initdb.sh --postgr
   > /opt/upservx/data/apache-guacamole/init/initdb.sql
 ```
 
-**Step 3 – Install the app via the UpServX App Store**, then start the containers. PostgreSQL will automatically execute `initdb.sql` on first run.
+**Step 3 – Install the app via the Upcode Harbor App Store**, then start the containers. PostgreSQL will automatically execute `initdb.sql` on first run.
 
 ## Accessing Guacamole
 

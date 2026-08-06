@@ -78,4 +78,4 @@ if (( failures > 0 )); then
   printf '%d post-install smoke check(s) failed.\n' "$failures" >&2
   exit 1
 fi
-printf 'All UpservX post-install smoke checks passed.\n'
+printf 'All Upcode Harbor post-install smoke checks passed.\n'

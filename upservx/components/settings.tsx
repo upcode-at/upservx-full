@@ -134,7 +134,7 @@ export function Settings() {
   const [apiTokenExpiryDays, setApiTokenExpiryDays] = useState("")
 
   // Customization
-  const [customBannerTitle, setCustomBannerTitle] = useState("Welcome to UpServX")
+  const [customBannerTitle, setCustomBannerTitle] = useState("Welcome to Upcode Harbor")
   const [customBannerSubtitle, setCustomBannerSubtitle] = useState("Professional Server Management Platform")
   const [hasCustomLogo, setHasCustomLogo] = useState(false)
   const [hasCustomBanner, setHasCustomBanner] = useState(false)
@@ -686,11 +686,11 @@ export function Settings() {
           <Card>
             <CardHeader>
               <CardTitle>System Update</CardTitle>
-              <CardDescription>Update UpservX to the latest version</CardDescription>
+              <CardDescription>Update Upcode Harbor to the latest version</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                This will run the update.sh script to update UpservX to the latest version from the repository.
+                This will run the update.sh script to update Upcode Harbor to the latest version from the repository.
               </p>
               <Button onClick={handleUpdate} disabled={isUpdating}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
@@ -968,7 +968,7 @@ export function Settings() {
                     id="banner-title"
                     value={customBannerTitle}
                     onChange={(e) => setCustomBannerTitle(e.target.value)}
-                    placeholder="Welcome to UpServX"
+                    placeholder="Welcome to Upcode Harbor"
                   />
                 </div>
                 <div className="space-y-2">

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dedicated supervisor for persistent UpservX jobs."""
+"""Dedicated supervisor for persistent Upcode Harbor jobs."""
 
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ def _acquire_singleton_lock() -> int:
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         os.close(descriptor)
-        raise RuntimeError("Another UpservX job worker is already running")
+        raise RuntimeError("Another Upcode Harbor job worker is already running")
     return descriptor
 
 

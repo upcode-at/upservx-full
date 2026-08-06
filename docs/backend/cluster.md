@@ -8,7 +8,7 @@
 
 ## Overview
 
-UpservX supports a **master-child cluster** architecture. One instance acts as **master**, others as **child nodes**. The master manages all child nodes, aggregates their resources, and enables central management.
+Upcode Harbor supports a **master-child cluster** architecture. One instance acts as **master**, others as **child nodes**. The master manages all child nodes, aggregates their resources, and enables central management.
 
 ---
 

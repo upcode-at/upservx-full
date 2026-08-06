@@ -1,5 +1,5 @@
 """
-upservx backup – manage backups via the UpservX API.
+upservx backup – manage backups via the Upcode Harbor API.
 
 Commands:
   upservx backup list

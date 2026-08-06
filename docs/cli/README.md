@@ -1,6 +1,6 @@
-# UpservX CLI
+# Upcode Harbor CLI
 
-The UpservX CLI (`upservx`) lets you manage your server directly from any terminal — without opening the web interface.
+The Upcode Harbor CLI (`upservx`) lets you manage your server directly from any terminal — without opening the web interface.
 
 ---
 
@@ -25,7 +25,7 @@ The UpservX CLI (`upservx`) lets you manage your server directly from any termin
 
 ## Installation
 
-The CLI is installed automatically by `install.sh` as part of the standard UpservX setup.
+The CLI is installed automatically by `install.sh` as part of the standard Upcode Harbor setup.
 
 ```bash
 sudo ./install.sh
@@ -57,7 +57,7 @@ python3 upservx --help
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `requests` | 2.33.x | HTTP client for the UpservX API |
+| `requests` | 2.33.x | HTTP client for the Upcode Harbor API |
 | `rich` | 13.9.x | Colored terminal output and tables |
 
 ---
@@ -77,7 +77,7 @@ The user file takes precedence. Environment variables override everything.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `api_url` | `http://127.0.0.1:9500` | UpservX backend URL |
+| `api_url` | `http://127.0.0.1:9500` | Upcode Harbor backend URL |
 | `username` | *(empty)* | Last logged-in username (display only) |
 | `token` | *(empty)* | Session or revocable API Bearer token |
 
@@ -102,7 +102,7 @@ The user file takes precedence. Environment variables override everything.
 
 ## Authentication
 
-The UpservX backend requires authentication on every request. The CLI supports two methods:
+The Upcode Harbor backend requires authentication on every request. The CLI supports two methods:
 
 | Method | How |
 |--------|-----|
@@ -136,12 +136,12 @@ upservx <command> <action> [options]
 | Command | Alias | Description |
 |---------|-------|-------------|
 | `auth` | — | Login, logout, session management |
-| `service` | — | Manage the UpservX systemd service |
+| `service` | — | Manage the Upcode Harbor systemd service |
 | `containers` | `c` | Manage Docker containers |
 | `system` | `sys` | System information and monitoring |
 | `apps` | — | App Store — browse and install apps |
 | `backup` | — | Backup jobs and instances |
-| `logs` | — | View the UpservX activity log |
+| `logs` | — | View the Upcode Harbor activity log |
 
 ---
 
@@ -189,7 +189,7 @@ upservx auth logout
 
 ### service
 
-Manage the UpservX systemd service (`upservx.service`).
+Manage the Upcode Harbor systemd service (`upservx.service`).
 
 ```
 upservx service <action>
@@ -215,7 +215,7 @@ upservx service restart
 
 ### containers
 
-Manage Docker containers through the UpservX API.
+Manage Docker containers through the Upcode Harbor API.
 
 ```
 upservx containers <action> [name] [options]
@@ -369,7 +369,7 @@ upservx backup status
 
 ### logs
 
-View the UpservX activity log at `/var/log/upservx/activity.log`.
+View the Upcode Harbor activity log at `/var/log/upservx/activity.log`.
 
 ```
 upservx logs <action> [options]

@@ -1,5 +1,5 @@
 """
-Notification system for UpservX.
+Notification system for Upcode Harbor.
 
 Handles email (SMTP) and webhook notifications.
 Notification configuration is persisted to notifications.json.
@@ -175,7 +175,7 @@ def send_email(cfg: NotificationEmailConfig, subject: str, body: str) -> None:
 def test_email(cfg: NotificationEmailConfig) -> dict:
     """Send a test email. Returns {'ok': True} or {'ok': False, 'error': str}."""
     try:
-        send_email(cfg, "UpservX – Test Notification", "This is a test notification from UpservX.")
+        send_email(cfg, "Upcode Harbor – Test Notification", "This is a test notification from Upcode Harbor.")
         log_system("Notification test email sent successfully")
         return {"ok": True}
     except Exception as e:
@@ -194,7 +194,7 @@ def _build_webhook_payload(url: str, event: str, message: str) -> bytes:
     if "discord.com/api/webhooks" in url_lower or "discordapp.com/api/webhooks" in url_lower:
         # Discord expects {"content": "..."} or embeds
         data = {
-            "username": "UpservX",
+            "username": "Upcode Harbor",
             "embeds": [{
                 "title": event.replace("_", " ").title(),
                 "description": message,
@@ -220,9 +220,9 @@ def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> No
         raise ValueError("Webhook URL is not configured")
 
     payload = _build_webhook_payload(cfg.url, event, message)
-    headers = {"Content-Type": "application/json", "User-Agent": "UpservX/1.0"}
+    headers = {"Content-Type": "application/json", "User-Agent": "Upcode Harbor/1.0"}
     if cfg.secret:
-        headers["X-UpservX-Secret"] = cfg.secret
+        headers["X-Upcode-Harbor-Secret"] = cfg.secret
 
     req = urllib.request.Request(cfg.url, data=payload, headers=headers, method="POST")
     try:
@@ -241,7 +241,7 @@ def send_webhook(cfg: NotificationWebhookConfig, event: str, message: str) -> No
 def test_webhook(cfg: NotificationWebhookConfig) -> dict:
     """Send a test webhook payload. Returns {'ok': True} or {'ok': False, 'error': str}."""
     try:
-        send_webhook(cfg, "test", "This is a test notification from UpservX.")
+        send_webhook(cfg, "test", "This is a test notification from Upcode Harbor.")
         log_system("Notification test webhook sent successfully")
         return {"ok": True}
     except Exception as e:
@@ -289,7 +289,7 @@ def notify(event: str, message: str) -> None:
             return
 
         log_system(f"Dispatching notification: event={event} – {full_message}")
-        subject = f"[{node}] UpservX – {event.replace('_', ' ').title()}"
+        subject = f"[{node}] Upcode Harbor – {event.replace('_', ' ').title()}"
 
         if config.email.enabled:
             try:

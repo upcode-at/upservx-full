@@ -1347,7 +1347,7 @@ export default function ClusterManagement() {
               <Card className="bg-muted/30">
                 <CardContent className="pt-6">
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground">How High Availability works in UpservX:</p>
+                    <p className="font-medium text-foreground">How High Availability works in Upcode Harbor:</p>
                     <ul className="space-y-1 list-disc list-inside">
                       <li>Each node periodically sends a <strong>heartbeat</strong> to the master.</li>
                       <li>If the master misses <strong>N consecutive heartbeats</strong>, child nodes initiate an election.</li>

@@ -42,7 +42,7 @@ def main(target: str) -> int:
                     time.sleep(1)
         raise last_error or RuntimeError("health check failed")
     except Exception as error:
-        print(f"UpservX {target} health check failed: {error}", file=sys.stderr)
+        print(f"Upcode Harbor {target} health check failed: {error}", file=sys.stderr)
         return 1
 
 

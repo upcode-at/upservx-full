@@ -1,5 +1,5 @@
 """
-HTTP client for the UpservX API – uses requests.
+HTTP client for the Upcode Harbor API – uses requests.
 
 Auth priority:
     1. UPSERVX_TOKEN env / config token  → Bearer <token>

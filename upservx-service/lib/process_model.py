@@ -43,7 +43,7 @@ def acquire_web_process_lock() -> None:
     except BlockingIOError as error:
         os.close(descriptor)
         raise RuntimeError(
-            "UpservX supports exactly one browser-facing API worker"
+            "Upcode Harbor supports exactly one browser-facing API worker"
         ) from error
     _web_lock_descriptor = descriptor
     _web_lock_pid = current_pid

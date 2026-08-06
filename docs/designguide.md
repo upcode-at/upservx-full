@@ -1,6 +1,6 @@
-# UpServX Design Guide
+# Upcode Harbor Design Guide
 
-> Reference for all design decisions, colors, typography, and UI patterns in the UpServX project.
+> Reference for all design decisions, colors, typography, and UI patterns in the Upcode Harbor project.
 
 ---
 

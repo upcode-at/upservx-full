@@ -8,7 +8,7 @@
 
 ## Overview
 
-UpservX can send notifications to external services. Each notification has a **type** and a **payload**.
+Upcode Harbor can send notifications to external services. Each notification has a **type** and a **payload**.
 
 ---
 
@@ -59,6 +59,10 @@ class NotificationChannel(BaseModel):
 ## Channel Configuration Examples
 
 ### Webhook
+
+Upcode Harbor sends `User-Agent: Upcode Harbor/1.0`. When a webhook secret is
+configured, it is transmitted in the `X-Upcode-Harbor-Secret` header.
+
 ```json
 {
   "url": "https://example.com/hook",

@@ -9,7 +9,7 @@
 
 ## Overview
 
-The UpservX frontend is a **Single Page Application (SPA)** built with Next.js. Despite using Next.js, the dashboard operates as a client-side SPA — all navigation happens via React state without page reloads.
+The Upcode Harbor frontend is a **Single Page Application (SPA)** built with Next.js. Despite using Next.js, the dashboard operates as a client-side SPA — all navigation happens via React state without page reloads.
 
 ---
 

@@ -1,5 +1,5 @@
 """
-upservx containers – manage Docker containers via the UpservX API.
+upservx containers – manage Docker containers via the Upcode Harbor API.
 
 Commands:
   upservx containers list

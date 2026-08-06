@@ -1,5 +1,5 @@
 """
-Enhanced Metrics and Monitoring Module for UpservX Cluster Management
+Enhanced Metrics and Monitoring Module for Upcode Harbor Cluster Management
 
 Provides advanced metrics collection, historical data tracking, and alerting.
 """

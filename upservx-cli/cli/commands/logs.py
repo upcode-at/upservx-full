@@ -1,5 +1,5 @@
 """
-upservx logs – view UpservX platform logs.
+upservx logs – view Upcode Harbor platform logs.
 
 Commands:
   upservx logs show [--lines N] [--raw]
@@ -57,7 +57,7 @@ def _format_log_line(line: str, raw: bool = False) -> str:
 
 
 def cmd_show(args) -> int:
-    header(f"UpservX Logs (last {args.lines} lines)")
+    header(f"Upcode Harbor Logs (last {args.lines} lines)")
     try:
         result = subprocess.run(
             ["tail", "-n", str(args.lines), LOG_FILE],
@@ -107,7 +107,7 @@ def cmd_follow(args) -> int:
 
 
 def register(subparsers):
-    p = subparsers.add_parser("logs", help="View UpservX logs")
+    p = subparsers.add_parser("logs", help="View Upcode Harbor logs")
     sp = p.add_subparsers(dest="logs_cmd", metavar="<action>")
     sp.required = True
 

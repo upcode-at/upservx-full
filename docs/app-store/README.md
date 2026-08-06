@@ -1,6 +1,6 @@
 # App Store templates
 
-UpservX ships 62 schema-versioned Docker Compose templates in
+Upcode Harbor ships 62 schema-versioned Docker Compose templates in
 `app-store-templates/`. `app-store-templates/app.schema.json` is the canonical
 manifest contract. A template is eligible for listing or installation only
 when both its `app.json` and `docker-compose.yml` pass validation.

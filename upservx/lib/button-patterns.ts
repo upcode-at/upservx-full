@@ -1,5 +1,5 @@
 /**
- * Standardized Button Patterns for UpservX
+ * Standardized Button Patterns for Upcode Harbor
  * 
  * This file defines consistent button configurations for common actions
  * across the application. Use these patterns to ensure UI consistency.

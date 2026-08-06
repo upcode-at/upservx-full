@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install a signed UpservX release atomically from a staged artifact."""
+"""Install a signed Upcode Harbor release atomically from a staged artifact."""
 
 from __future__ import annotations
 
@@ -254,7 +254,7 @@ def _find_release_root(staging: Path, expected_version: str | None = None) -> Pa
         root / "upservx" / "public" / "novnc" / "vnc.html",
     )
     if not all(path.is_file() for path in required):
-        raise UpdateError("signed artifact does not contain a complete UpservX release")
+        raise UpdateError("signed artifact does not contain a complete Upcode Harbor release")
     if expected_version is not None:
         manifest_path = root / ".upservx-release.json"
         try:

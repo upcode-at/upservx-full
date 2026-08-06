@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to UpservX will be documented in this file.
+All notable changes to Upcode Harbor will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Advanced reverse proxy editor**: Each managed proxy entry exposes its Nginx site configuration to Linux administrators; saves are size-limited, tested with `nginx -t`, atomically applied, and rolled back on validation or reload failure
 
 ### Changed
+- **Product rename**: Version 0.7.0 introduces the **Upcode Harbor** name across
+  the UI, installer, API metadata, CLI output, logs, documentation, and release
+  material. The lowercase `upservx` deployment identifiers remain only where
+  required for compatibility with existing installations and the signed 0.7.0
+  update path.
+- **Branded integration headers**: Signed cluster transport uses
+  `X-Upcode-Harbor-*`; outbound webhooks identify as `Upcode Harbor/1.0` and
+  send configured secrets through `X-Upcode-Harbor-Secret`.
 - **Deny-by-default authorization**: Every HTTP method and route has an explicit permission action; Linux groups, API-token roles/scopes, and cluster principals are evaluated separately, and unclassified routes fail closed
 - **Hardened sessions and secrets**: Browser sessions are revocable server-side records, legacy plaintext API keys migrate to hashed tokens, sensitive files use owner-only atomic storage, and unsafe symlinked configuration paths are rejected
 - **Keyless installation default**: Node-local encryption, session, cluster, and TLS keys are generated automatically; signed updates remain disabled unless the matching external public key is supplied
@@ -44,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Direct-IP development access**: CORS and Next.js development-origin handling support server IP access without hard-coded browser origins
 
 ### Security
-- **Privilege boundary**: The backend service may invoke only the root-owned UpservX helper, whose operations and arguments are independently allowlisted and tested
+- **Privilege boundary**: The backend service may invoke only the root-owned Upcode Harbor helper, whose operations and arguments are independently allowlisted and tested
 - **Host configuration protection**: Raw Nginx configuration access is limited to Linux administrators; API tokens and cluster principals cannot read or write it
 - **Cluster endpoint isolation**: Browser sessions and even admin API tokens cannot access internal cluster routes; those routes require verified cluster identity on the TLS listener
 - **App Store secret safety**: Floating image tags and known default credentials are rejected, generated secrets are never written back to manifests, and installed project state lives outside immutable releases
@@ -193,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - OVA archives are extracted safely (path-traversal check); OVF directories are read directly
   - OVF descriptor is parsed to extract CPU count, RAM size and disk file references
   - VMDK disks are converted to qcow2 via `qemu-img convert`; source format is auto-detected via `qemu-img info`
-  - VM is registered with libvirt via `virt-install --import` and added to the UpservX registry in stopped state
+  - VM is registered with libvirt via `virt-install --import` and added to the Upcode Harbor registry in stopped state
   - Import button added to the Virtual Machines header
   - Import dialog: file picker (`.ova`/`.ovf`), VM name (pre-filled from filename), network mode, optional bridge interface, optional storage target, autostart toggle
 - **App Store Pagination**: Configurable pagination for the App Store UI
@@ -271,12 +279,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notification System**: New push notification system that alerts on container, VM and backup events via Email (SMTP) and Webhook
   - Configuration persisted to `/etc/upservx/notifications.json`
   - **Email**: SMTP with STARTTLS (port 587) or SSL (port 465), multiple recipients, configurable From address, test button
-  - **Webhook**: HTTP POST to any URL with optional `X-UpservX-Secret` header; auto-detects endpoint type:
+  - **Webhook**: HTTP POST to any URL with optional `X-Upcode-Harbor-Secret` header; auto-detects endpoint type:
     - Discord → rich Embed with title, description and colour coding (green = success, red = failure/delete)
     - Slack → Incoming Webhook `{"text": "..."}` format
     - Custom / generic → `{"event": ..., "message": ..., "source": "upservx"}`
   - **Node prefix**: every notification includes the originating node hostname (`[Node: hostname]`) in both subject and body
-  - **Email subject** format: `[hostname] UpservX – Event Name`
+  - **Email subject** format: `[hostname] Upcode Harbor – Event Name`
   - **12 per-event toggles** (all enabled by default): Container create/start/stop/crash/delete, VM create/start/stop/delete, Backup success/failure, System alert
   - **Event integration**: `notify()` fires after the action is committed in all relevant modules — `api/containers.py` (Docker/LXC), `vms.py`, `execute_backup.py` (cron), `main.py` (manual trigger)
   - **Rich context per event**:

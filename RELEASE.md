@@ -2,9 +2,9 @@
 
 **Release Date:** 2026-08-06
 
-### What's New in UpservX v0.7.0
+### What's New in Upcode Harbor v0.7.0
 
-UpservX 0.7.0 is a major operational and security release. It introduces a
+Upcode Harbor 0.7.0 is a major operational and security release. It introduces a
 fixed privilege boundary, immutable signed updates, recoverable installation,
 Linux/PAM-only login, durable background jobs, authenticated cluster transport,
 validated App Store templates, and safer network and reverse-proxy management.
@@ -12,6 +12,16 @@ validated App Store templates, and safer network and reverse-proxy management.
 ---
 
 ### Highlights
+
+#### Upcode Harbor Name
+
+- Version 0.7.0 is the first release under the **Upcode Harbor** name. The new
+  name is used throughout the UI, installer, API metadata, CLI output, logs,
+  documentation, and release communication.
+- Lowercase `upservx` identifiers are retained only for upgrade compatibility:
+  existing systemd units, service accounts, paths, environment variables, the
+  CLI command, and 0.7.0 artifact filenames continue to use them so 0.6.x
+  installations can consume this release safely.
 
 #### Recoverable Installation and Signed Updates
 
@@ -35,7 +45,7 @@ validated App Store templates, and safer network and reverse-proxy management.
 
 #### Linux Accounts, Sessions, and Permissions
 
-- UpservX no longer creates application login accounts. Existing Linux users
+- Upcode Harbor no longer creates application login accounts. Existing Linux users
   authenticate through `/etc/pam.d/upservx` using a root-owned, allowlisted PAM
   broker that receives the password only through standard input.
 - Browser sessions are signed, expiring, and revocable through hashed
@@ -146,6 +156,10 @@ validated App Store templates, and safer network and reverse-proxy management.
 8. **Optional host components are installation choices.** A signed application
    update does not install Docker, K3s, LXC/LXD, libvirt, or ZFS packages that
    were not selected during host installation.
+
+9. **Update webhook receivers for the new brand header.** Configured webhook
+   secrets are sent as `X-Upcode-Harbor-Secret`, and the user agent is
+   `Upcode Harbor/1.0`.
 
 ### Release Artifact
 

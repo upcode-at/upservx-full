@@ -9,7 +9,7 @@
 
 ## Overview
 
-UpservX manages **Linux system users** on the host. There is no separate user database — all users are actual Linux users, managed via standard Linux tools:
+Upcode Harbor manages **Linux system users** on the host. There is no separate user database — all users are actual Linux users, managed via standard Linux tools:
 
 - `useradd` / `usermod` / `userdel`
 - `passwd` / `chpasswd`

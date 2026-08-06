@@ -26,7 +26,7 @@ SUPPORTED_IMAGE_TYPES = {
 }
 
 DEFAULT_CONFIG = {
-    "banner_title": "Welcome to UpServX",
+    "banner_title": "Welcome to Upcode Harbor",
     "banner_subtitle": "Professional Server Management Platform",
     "logo_file": None,
     "banner_file": None,

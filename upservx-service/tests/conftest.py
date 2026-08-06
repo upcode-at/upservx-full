@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for the UpservX backend test stack.
+Shared pytest fixtures for the Upcode Harbor backend test stack.
 
 Structure
 ---------
