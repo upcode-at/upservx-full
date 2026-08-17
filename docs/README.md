@@ -9,6 +9,7 @@ Welcome to the complete technical documentation for the **Upcode Harbor** projec
 ### General
 - [Architecture](./architecture.md)
 - [Installation & Deployment](./installation.md)
+- [Upcode Product Design Guide](./designguide.md)
 
 ### Backend (`upcode-harbor-service/`)
 | Document | Description |

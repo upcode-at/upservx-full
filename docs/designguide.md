@@ -1,439 +1,679 @@
-# Upcode Harbor Design Guide
+# Upcode Product Design Guide
 
-> Reference for all design decisions, colors, typography, and UI patterns in the Upcode Harbor project.
+> Shared design standards for every Upcode product and customer-facing surface.
+
+**Scope:** web applications, mobile and desktop interfaces, product websites, command-line tools, and transactional communication<br>
+**Version:** 1.0<br>
+**Last updated:** 2026-08-17
+
+This guide defines the common Upcode experience. It is intentionally independent of a specific product, framework, or component library. A product may extend the system where its domain requires it, but must not silently redefine shared semantics.
+
+Until a shared token and component package is available, this document is the normative source. Every product must maintain a short implementation profile that maps its technology to this guide and records approved exceptions.
 
 ---
 
-## 1. Color System
+## 1. Goals and principles
 
-The color system is based on CSS Custom Properties and supports Light and Dark mode. All colors are mapped via Tailwind CSS variables.
+### One family, distinct products
 
-### 1.1 Light Mode (`:root`)
+Every product should be recognizable as Upcode without becoming visually indistinguishable from the rest of the portfolio. Typography, interaction, accessibility, spacing, and semantic color meaning are shared. Product identity comes from its name, icon, approved imagery, and an optional accent color.
 
-| Token | CSS Variable | Hex Value | Usage |
-|---|---|---|---|
-| background | `--background` | `#fafbfc` | Page background |
-| foreground | `--foreground` | `#0f172a` | Primary text |
-| card | `--card` | `#ffffff` | Card background |
-| card-foreground | `--card-foreground` | `#1e293b` | Text on cards |
-| popover | `--popover` | `#ffffff` | Popover background |
-| popover-foreground | `--popover-foreground` | `#1e293b` | Text in popovers |
-| **primary** | `--primary` | `#ef4444` | Brand color (Red) |
-| primary-foreground | `--primary-foreground` | `#ffffff` | Text on primary |
-| secondary | `--secondary` | `#f1f5f9` | Secondary surfaces |
-| secondary-foreground | `--secondary-foreground` | `#334155` | Text on secondary |
-| muted | `--muted` | `#f8fafc` | Muted surfaces |
-| muted-foreground | `--muted-foreground` | `#64748b` | Muted text, labels |
-| **accent** | `--accent` | `#6366f1` | Accent color (Indigo) |
-| accent-foreground | `--accent-foreground` | `#4338ca` | Text on accent |
-| destructive | `--destructive` | `#ef4444` | Delete / error actions |
-| border | `--border` | `#e2e8f0` | Borders |
-| input | `--input` | `#f1f5f9` | Input field background |
-| ring | `--ring` | `#ef4444` | Focus ring |
+### Clarity before decoration
 
-**Sidebar (Light):**
+The current state, primary task, and consequence of an action must be clear at a glance. Decoration must never compete with content or system feedback.
 
-| Token | CSS Variable | Hex-Wert |
+### Consistent semantics
+
+The same color, icon, component variant, and phrase must retain the same meaning across products. “Destructive”, “warning”, and “success” are system meanings, not local styling choices.
+
+### Safe and reversible
+
+Products should prevent accidental loss, explain consequences before irreversible actions, and offer undo or recovery where technically possible.
+
+### Inclusive by default
+
+Accessibility, keyboard use, localization, reduced motion, and narrow layouts are design inputs from the beginning rather than final checks.
+
+### Progressive complexity
+
+Show the information needed for the current task first. Advanced configuration remains discoverable without overwhelming common workflows.
+
+---
+
+## 2. System architecture
+
+The design system has four layers. A lower layer may extend a higher layer, but must preserve its meaning.
+
+| Layer | Owns | Examples |
 |---|---|---|
-| sidebar | `--sidebar` | `#ffffff` |
-| sidebar-foreground | `--sidebar-foreground` | `#1e293b` |
-| sidebar-primary | `--sidebar-primary` | `#ef4444` |
-| sidebar-primary-foreground | `--sidebar-primary-foreground` | `#ffffff` |
-| sidebar-accent | `--sidebar-accent` | `#f8fafc` |
-| sidebar-accent-foreground | `--sidebar-accent-foreground` | `#4338ca` |
-| sidebar-border | `--sidebar-border` | `#e2e8f0` |
-| sidebar-ring | `--sidebar-ring` | `#ef4444` |
+| Upcode foundation | Brand, typography, spacing, accessibility, semantic colors | Focus behavior, danger meaning, type scale |
+| Platform | Conventions required by an interaction environment | Web navigation, mobile touch targets, CLI output |
+| Product | Product identity and domain-specific patterns | Product icon, optional accent, infrastructure status |
+| Feature | Local composition of existing patterns | Backup form, billing table, onboarding step |
+
+### 2.1 Decision precedence
+
+When rules appear to conflict, apply them in this order:
+
+1. Accessibility and user safety
+2. Upcode foundation
+3. Platform convention
+4. Product profile
+5. Feature preference
+
+A product exception must include a reason, owner, affected surfaces, and review date. A feature-level exception must not become an undocumented parallel design system.
+
+### 2.2 Token model
+
+Use four token levels rather than copying raw values into components:
+
+```text
+Primitive value → semantic token → component token → product override
+#ef4444        → brand          → button-primary → optional product mapping
+#dc2626        → danger         → alert-error     → no semantic override
+```
+
+- Primitive values define the palette and scale.
+- Semantic tokens describe meaning: `background`, `foreground`, `brand`, `danger`.
+- Component tokens describe a role: `button-primary-background`, `field-border-focus`.
+- Product overrides may change identity tokens, never status meaning or accessibility behavior.
+
+Implementations may adapt naming to their platform, but the semantic mapping must be documented in the product profile.
 
 ---
 
-### 1.2 Dark Mode (`.dark`)
+## 3. Brand architecture
 
-| Token | CSS Variable | Hex Value | Usage |
-|---|---|---|---|
-| background | `--background` | `#0f172a` | Slate-900 |
-| foreground | `--foreground` | `#f8fafc` | Near white |
-| card | `--card` | `#1e293b` | Slate-800 |
-| card-foreground | `--card-foreground` | `#f1f5f9` | |
-| popover | `--popover` | `#1e293b` | |
-| popover-foreground | `--popover-foreground` | `#f1f5f9` | |
-| **primary** | `--primary` | `#f87171` | Red-400 (lighter) |
-| primary-foreground | `--primary-foreground` | `#1e1b4b` | Indigo-950 |
-| secondary | `--secondary` | `#334155` | Slate-700 |
-| secondary-foreground | `--secondary-foreground` | `#e2e8f0` | |
-| muted | `--muted` | `#334155` | |
-| muted-foreground | `--muted-foreground` | `#94a3b8` | Slate-400 |
-| **accent** | `--accent` | `#818cf8` | Indigo-400 |
-| accent-foreground | `--accent-foreground` | `#1e1b4b` | |
-| destructive | `--destructive` | `#f87171` | |
-| border | `--border` | `#334155` | |
-| input | `--input` | `#475569` | Slate-600 |
-| ring | `--ring` | `#f87171` | |
+### 3.1 Naming
 
-**Sidebar (Dark):**
+- Use **Upcode** as the master brand.
+- Use the approved product name consistently in navigation, metadata, installation flows, and support content.
+- On first reference, prefer “Upcode [Product]”. A shortened product name may be used afterward when context is unambiguous.
+- Feature names are descriptive and sentence case. Avoid inventing sub-brands for ordinary features.
 
-| Token | CSS Variable | Hex-Wert |
+### 3.2 Product identity
+
+Each product identity consists of:
+
+- the Upcode master brand;
+- an approved product name and short description;
+- a product icon or mark;
+- optional approved product imagery;
+- one optional accent color that does not change semantic status colors.
+
+Identity must not depend on color alone. A product must remain identifiable in monochrome, high-contrast, print, and favicon-sized contexts.
+
+### 3.3 Logos and marks
+
+- Use approved source assets; do not redraw, stretch, rotate, outline, or add effects to a logo.
+- Preserve the asset's aspect ratio and built-in padding.
+- Use the light mark on dark or photographic surfaces and the dark mark on light surfaces.
+- Keep a clear area around the mark of at least the height of its main symbol.
+- Pair multiple Upcode product marks only when the relationship between the products is relevant.
+- Product icons must remain legible at 16, 24, 32, and 48px.
+- Alternative customer branding must follow the customization rules in section 13.
+
+### 3.4 Voice
+
+Upcode products are direct, calm, capable, and respectful. They explain what happened without blame or unnecessary enthusiasm. Technical language is appropriate where it improves precision, but should not be used to make an interface sound more advanced.
+
+---
+
+## 4. Color system
+
+### 4.1 Shared foundation
+
+These values form the common Upcode baseline. Platform implementations must expose equivalent semantic tokens.
+
+| Semantic token | Light | Dark | Purpose |
+|---|---:|---:|---|
+| `background` | `#fafbfc` | `#0f172a` | Application or page canvas |
+| `foreground` | `#0f172a` | `#f8fafc` | Primary content |
+| `surface` | `#ffffff` | `#1e293b` | Cards, panels, and controls |
+| `surface-foreground` | `#1e293b` | `#f1f5f9` | Content on surfaces |
+| `surface-subtle` | `#f8fafc` | `#334155` | Quiet grouping and selected rows |
+| `muted-foreground` | `#64748b` | `#94a3b8` | Supporting content |
+| `border` | `#e2e8f0` | `#334155` | Dividers and control borders |
+| `input` | `#f1f5f9` | `#475569` | Input and unchecked-control surface |
+| `brand` | `#ef4444` | `#f87171` | Upcode identity; not a text background |
+| `primary` | `#dc2626` | `#f87171` | Primary action background |
+| `on-primary` | `#ffffff` | `#1e1b4b` | Content on primary-action surfaces |
+| `accent` | `#4f46e5` | `#818cf8` | Secondary emphasis and optional product identity |
+| `on-accent` | `#ffffff` | `#1e1b4b` | Content on accent surfaces |
+| `focus` | `#dc2626` | `#f87171` | Keyboard focus indication |
+
+Products may map existing token names such as `card`, `popover`, `primary`, or `ring` to these roles. They must not make consuming components depend directly on hex values.
+
+### 4.2 Semantic status colors
+
+Status colors retain the same meaning in every product.
+
+| Meaning | Light foreground | Dark foreground | Subtle surface |
+|---|---:|---:|---:|
+| Success / healthy / completed | `#15803d` | `#4ade80` | `currentColor` at 10% opacity |
+| Warning / degraded / attention | `#b45309` | `#fbbf24` | `currentColor` at 10% opacity |
+| Danger / failed / destructive | `#b91c1c` | `#f87171` | `currentColor` at 10% opacity |
+| Information / running | `#1d4ed8` | `#60a5fa` | `currentColor` at 10% opacity |
+| Inactive / unknown | `#64748b` | `#94a3b8` | Muted surface |
+
+Rules:
+
+- Pair status color with text and, where helpful, an icon or shape.
+- Never use success green for a generic primary action.
+- Never use warning or danger colors as a product accent.
+- Brand red and danger red may be visually related, so destructive controls must also use explicit labels, a suitable icon, and confirmation when risk is material.
+- Reserve pulsing indicators for genuinely live or changing state.
+
+### 4.3 Product accent
+
+An accent is optional. It may distinguish a product in illustrations, selected navigation, charts, or low-risk emphasis.
+
+An accent must:
+
+- have documented light and dark values;
+- meet the required contrast in every intended foreground/background pairing;
+- remain distinct from success, warning, danger, and information states;
+- never replace focus indication or the Upcode master-brand mark;
+- have a neutral fallback for monochrome and high-contrast contexts.
+
+### 4.4 Data visualization
+
+Use the shared series order for non-semantic categorical data:
+
+| Series | Light | Dark |
+|---|---:|---:|
+| `data-1` | `#3b82f6` | `#60a5fa` |
+| `data-2` | `#10b981` | `#34d399` |
+| `data-3` | `#f59e0b` | `#fbbf24` |
+| `data-4` | `#8b5cf6` | `#a78bfa` |
+| `data-5` | `#ef4444` | `#f87171` |
+
+- Use status colors only when the data actually carries that status meaning.
+- Provide labels, legends, tooltips, or direct values; color alone is insufficient.
+- Avoid more than five simultaneous categorical series without an alternate grouping strategy.
+- Use a consistent scale and make zero, targets, and exceptional values explicit.
+
+---
+
+## 5. Typography
+
+### 5.1 Families
+
+| Role | Preferred stack | Use |
 |---|---|---|
-| sidebar | `--sidebar` | `#1e293b` |
-| sidebar-foreground | `--sidebar-foreground` | `#f1f5f9` |
-| sidebar-primary | `--sidebar-primary` | `#f87171` |
-| sidebar-primary-foreground | `--sidebar-primary-foreground` | `#1e1b4b` |
-| sidebar-accent | `--sidebar-accent` | `#818cf8` |
-| sidebar-accent-foreground | `--sidebar-accent-foreground` | `#1e1b4b` |
-| sidebar-border | `--sidebar-border` | `#334155` |
-| sidebar-ring | `--sidebar-ring` | `#f87171` |
+| Interface | `Inter, ui-sans-serif, system-ui, -apple-system, sans-serif` | Product UI and websites |
+| Monospace | `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | Code, IDs, paths, logs, tokens, and CLI |
+
+Products may use the platform system font when loading Inter would harm performance, privacy, offline use, or native consistency. Do not introduce a different display font without brand approval.
+
+### 5.2 Scale
+
+| Role | Size | Weight | Line height |
+|---|---:|---:|---:|
+| Display | 36px | 700 | 1.15 |
+| Page title | 30px | 700 | 1.2 |
+| Section title | 20px | 600 | 1.3 |
+| Card title | 18px | 600–700 | 1.3 |
+| Body | 16px | 400 | 1.5 |
+| UI / control | 14px | 500–600 | 1.4 |
+| Metadata | 12px | 400–600 | 1.4 |
+
+Native platforms may map the scale to their nearest standard text styles. Preserve hierarchy and readable line length rather than forcing a pixel value.
+
+### 5.3 Usage
+
+- Keep a logical heading order independent of visual size.
+- Use no more than one page title per view.
+- Use `muted-foreground` for supporting copy, not for essential instructions.
+- Keep body text near 45–80 characters per line where content width is controllable.
+- Use tabular numerals for changing metrics and aligned numeric tables when supported.
+- Use monospace only for content whose structure benefits from fixed-width glyphs.
 
 ---
 
-### 1.3 Chart Colors
+## 6. Spacing, shape, and elevation
 
-Used in charts and data visualizations.
+### 6.1 Spacing scale
 
-| Token | Light | Dark | Meaning |
-|---|---|---|---|
-| chart-1 | `#3b82f6` | `#60a5fa` | Blue – primary data series |
-| chart-2 | `#10b981` | `#34d399` | Green – positive / online |
-| chart-3 | `#f59e0b` | `#fbbf24` | Yellow – warning / medium |
-| chart-4 | `#8b5cf6` | `#a78bfa` | Purple – fourth data series |
-| chart-5 | `#ef4444` | `#f87171` | Red – critical / primary |
+The base unit is 4px.
 
----
+| Token | Value | Common use |
+|---|---:|---|
+| `space-1` | 4px | Tight icon or metadata spacing |
+| `space-2` | 8px | Related controls, label to field |
+| `space-3` | 12px | Compact groups |
+| `space-4` | 16px | Standard component gap |
+| `space-6` | 24px | Card padding and section gap |
+| `space-8` | 32px | Large section or desktop page padding |
+| `space-12` | 48px | Marketing and onboarding sections |
+| `space-16` | 64px | Large editorial separation |
 
-### 1.4 Semantic Status Colors
+The parent owns layout spacing. Reusable components should not add unexplained external margins.
 
-Used in badges, icons, and status indicators (Tailwind classes):
+### 6.2 Radius
 
-| Status | Tailwind Class | Hex (Light) |
-|---|---|---|
-| Online / Active | `bg-green-500` | `#22c55e` |
-| Warning | `bg-yellow-500` | `#eab308` |
-| Error / Critical | `bg-red-500` | `#ef4444` |
-| Inactive / Stopped | `bg-gray-400` | `#9ca3af` |
-| Info | `bg-blue-500` | `#3b82f6` |
+| Token | Value | Use |
+|---|---:|---|
+| `radius-sm` | 8px | Compact items and badges |
+| `radius-md` | 12px | Fields, menus, alerts, dialogs |
+| `radius-lg` | 16px | Cards and prominent controls |
+| `radius-xl` | 20px | Large feature surfaces |
+| `radius-full` | 9999px | Avatars, status dots, switches |
 
----
+Product personality should not be created by arbitrary per-feature radii. A platform may use its native radius where that improves consistency.
 
-## 2. Typography
+### 6.3 Elevation
 
-### 2.1 Fonts
-
-| Role | Font | Integration |
-|---|---|---|
-| Sans-serif (UI) | Inter | `next/font/google` |
-| Monospace (Code, Terminal) | Geist Mono | CSS variable `--font-geist-mono` |
-
-**Font Feature Settings (Body):**
-```css
-font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-```
-
-### 2.2 Type Scale (Tailwind)
-
-| Class | Size | Usage |
-|---|---|---|
-| `text-xs` | 12px | Labels, badges, timestamps |
-| `text-sm` | 14px | Sidebar items, table content |
-| `text-base` | 16px | Default body text |
-| `text-lg` | 18px | Card titles |
-| `text-xl` | 20px | Page headings |
-| `text-2xl` | 24px | Dashboard metrics |
-| `text-3xl` | 30px | Hero numbers |
-
-### 2.3 Font Weights
-
-| Class | Usage |
+| Level | Purpose |
 |---|---|
-| `font-normal` | Body text, table content |
-| `font-medium` | Sidebar items, button labels |
-| `font-semibold` | Card headings |
-| `font-bold` | Page titles, category labels |
-| `font-mono` | Version numbers, code, API keys |
+| 0 | Canvas and inline content |
+| 1 | Cards and persistent panels |
+| 2 | Menus, sticky controls, and hover elevation |
+| 3 | Dialogs and critical overlays |
+
+- Use borders for grouping before adding stronger shadows.
+- Use translucency only when content remains readable over every possible background.
+- Do not stack several glass or blurred surfaces.
+- Elevation communicates hierarchy, not product identity.
 
 ---
 
-## 3. Border Radius
+## 7. Layout and responsive behavior
 
-Defined via `--radius: 0.875rem`:
+### 7.1 Grid
 
-| Token | Value | Tailwind Equivalent |
-|---|---|---|
-| `--radius-sm` | `calc(0.875rem - 4px)` = ~0.625rem | `rounded-sm` |
-| `--radius-md` | `calc(0.875rem - 2px)` = ~0.75rem | `rounded-md` |
-| `--radius-lg` | `0.875rem` | `rounded-lg` |
-| `--radius-xl` | `calc(0.875rem + 4px)` = ~1.125rem | `rounded-xl` |
+Use a 12-column desktop grid, an 8-column tablet grid, and a 4-column compact grid when a formal grid is needed. Ordinary application layouts may use simpler one-to-four-column compositions aligned to the same spacing scale.
 
-> **Note:** Sidebar buttons explicitly use `rounded-none` for a flat, edge-aligned design.
+Recommended web breakpoints:
 
----
+| Name | Minimum width | Typical behavior |
+|---|---:|---|
+| Compact | 0 | One column, touch-safe actions |
+| Small | 640px | Wider dialogs and paired controls |
+| Medium | 768px | Two-column content, optional persistent navigation |
+| Large | 1024px | Desktop shell and multi-column dashboards |
+| Extra large | 1280px | Dense operational or analytical layouts |
 
-## 4. Custom CSS Classes
+Breakpoints describe available space, not a device model.
 
-These classes are defined in `app/globals.css` under `@layer components`.
+### 7.2 Page composition
 
-### `.upcode-harbor-gradient`
-Primary red gradient for accent elements.
-```css
-background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-```
+A standard product view contains:
 
-### `.upcode-harbor-card`
-Subtle card styling with a glassmorphism approach.
-```css
-/* Tailwind */
-bg-card border border-border/50 backdrop-blur-sm
+1. Context: breadcrumb or parent destination when needed
+2. Page title and concise description
+3. Primary action and relevant utilities
+4. Status or summary information
+5. Main task content
+6. Secondary or advanced content
 
-/* Box-Shadow */
-0 1px 3px 0 rgb(0 0 0 / 0.1),
-0 1px 2px -1px rgb(0 0 0 / 0.1),
-0 0 0 1px rgb(255 255 255 / 0.05) inset
+Rules:
 
-/* Gradient */
-linear-gradient(to bottom right, hsl(--card) 0%, hsl(--card / 0.8) 100%)
-```
+- Start compact layouts with one column and add columns only when content benefits.
+- Let action groups wrap; do not shrink labels into ambiguity.
+- Keep primary content reachable when navigation collapses or becomes a drawer.
+- Preserve horizontal scrolling for data that cannot be safely reformatted.
+- Keep terminals, editors, maps, and log viewers edge-to-edge when their task benefits from maximum space.
+- Test long names, localized copy, zoom at 200%, empty states, and validation messages.
 
-### `.upcode-harbor-glass`
-Full glassmorphism effect.
-```css
-/* Tailwind */
-bg-background/60 backdrop-blur-md border border-border/30
+### 7.3 Navigation
 
-/* Box-Shadow */
-0 8px 32px 0 rgba(31, 38, 135, 0.37),
-0 0 0 1px rgba(255, 255, 255, 0.18) inset
-```
-
-### `.upcode-harbor-button-primary`
-Custom primary button with hover-lift effect.
-```css
-background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-box-shadow:
-  0 4px 14px 0 rgba(239, 68, 68, 0.35),
-  0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-/* On Hover */
-transform: translateY(-1px);
-box-shadow:
-  0 8px 25px 0 rgba(239, 68, 68, 0.4),
-  0 0 0 1px rgba(255, 255, 255, 0.3) inset;
-```
-
-### `.upcode-harbor-sidebar`
-Sidebar container with backdrop blur.
-```css
-/* Tailwind */
-bg-sidebar/95 backdrop-blur-sm border-r border-sidebar-border/50
-
-/* Gradient */
-linear-gradient(to bottom, hsl(--sidebar) 0%, hsl(--sidebar / 0.95) 100%)
-```
+- Use destination nouns in navigation and action verbs in controls.
+- Keep top-level choices stable and group them by user goal rather than internal architecture.
+- Show the current location through more than color alone.
+- Hide destinations the user cannot access when their existence is irrelevant; show disabled controls only when explaining the requirement helps the user.
+- Use drawers, bottom navigation, or platform-native patterns on compact surfaces instead of squeezing a desktop sidebar.
+- Preserve user context when moving between related destinations.
 
 ---
 
-## 5. Button Patterns
+## 8. Core component behavior
 
-Standardized in `lib/button-patterns.ts`. All buttons use the Radix UI / shadcn `<Button>` component.
+The visual implementation may differ by platform, but behavior and semantics remain shared.
 
-### 5.1 Variants
+### 8.1 Buttons and actions
 
-| Variant | Usage |
+| Variant | Meaning |
 |---|---|
-| `default` | Primary actions (create, start, save) |
-| `outline` | Secondary actions (edit, cancel, export) |
-| `destructive` | Dangerous actions (delete, stop) |
-| `ghost` | Utility actions (search, filter, refresh) |
+| Primary | Main action in the current context; normally one per action group |
+| Secondary | Valid alternative action with lower emphasis |
+| Outline | Neutral utility or cancel action |
+| Ghost | Compact navigation or low-emphasis utility |
+| Success | Explicit positive operation when success itself is the meaning |
+| Destructive | Delete, revoke, stop, disconnect, or another dangerous operation |
+| Link | Navigation embedded in text or low-emphasis content |
 
-### 5.2 Button Pattern Overview
+Standard control heights are 32px compact, 40px default, and 48px prominent or touch-focused.
 
-| Pattern | Variante | Icon | Loading-Text |
-|---|---|---|---|
-| `create` | default | Plus | "Creating..." |
-| `add` | default | Plus | "Adding..." |
-| `save` | default | Save | "Saving..." |
-| `edit` | outline | Edit | – |
-| `cancel` | outline | X | – |
-| `delete` | destructive | Trash2 | "Deleting..." |
-| `remove` | destructive | Trash2 | "Removing..." |
-| `download` | outline | Download | "Downloading..." |
-| `upload` | outline | Upload | "Uploading..." |
-| `export` | outline | Download | – |
-| `import` | outline | Upload | – |
-| `start` | default | Play | "Starting..." |
-| `stop` | destructive | Square | "Stopping..." |
-| `pause` | outline | Pause | – |
-| `restart` | outline | RotateCw | "Restarting..." |
-| `power` | outline | Power | – |
-| `search` | ghost | Search | – |
-| `filter` | ghost | Filter | – |
-| `settings` | ghost | Settings | – |
-| `refresh` | ghost | RefreshCw | – |
+- Use specific verb-first labels: “Create workspace”, “Save changes”, “Restart service”.
+- Use one primary action per group; a page may have separate groups with separate context.
+- Keep async controls stable in width, indicate progress, and prevent duplicate activation.
+- Icon-only actions need an accessible name and should be limited to universally understood or repeatedly learned actions.
+- Cancellation is neutral, not destructive.
+- Destructive actions name the affected resource and explain irreversible consequences.
 
-### 5.3 Button Sizes
+### 8.2 Forms
 
-| Key | Size |
+- Every field has a persistent label; placeholders provide examples, not names.
+- Put help and validation beside the relevant field.
+- Validate format as the user works and validate business rules at submission.
+- Preserve entered values after recoverable errors.
+- Mark optional fields instead of marking every required field where most are required.
+- Group fields by task and use progressive disclosure for advanced settings.
+- A switch is for an immediate binary setting. Use a checkbox or explicit Save flow for staged changes.
+- Sensitive values are masked by default and are never echoed into logs or notifications.
+
+### 8.3 Cards and panels
+
+- Use a card for meaningful grouping, selection, or elevation, not for every block of content.
+- A card may have a title, description, compact action, content, and footer.
+- Keep card action placement consistent within a product.
+- Avoid nested cards. Use sections, dividers, or subtle surfaces inside a card.
+- Entire-card click targets must still expose a clear accessible name and visible focus.
+
+### 8.4 Status, badges, and progress
+
+- Badges contain short, stable state labels.
+- Success, warning, danger, information, and inactive states follow the shared semantic colors.
+- Show progress as determinate when a reliable value exists; otherwise use an indeterminate indicator and status text.
+- Explain long-running background tasks and allow the user to leave the view safely.
+- Do not show “100%” before work is actually complete.
+
+### 8.5 Alerts and notifications
+
+- Success feedback confirms the result without interrupting the next task.
+- Warning feedback explains risk before the user commits.
+- Error feedback says what failed, what remains unchanged, and what the user can do next.
+- Information feedback is neutral and actionable when an action is available.
+- Persistent context belongs inline; transient operation feedback may use a toast or banner.
+- Critical feedback must not disappear before it can be understood.
+- Never expose stack traces, internal identifiers, or secrets in general user-facing feedback.
+
+### 8.6 Dialogs
+
+- Use dialogs for focused, interruptible decisions or short forms.
+- Always provide a title and an accessible description when the purpose is not self-evident.
+- Put the primary action last in left-to-right layouts.
+- Stack footer actions on narrow screens.
+- Do not use a dialog for a long, multi-stage workflow that needs navigation, history, or persistent context.
+- Confirmation copy states the action, target, consequence, and recovery option.
+
+### 8.7 Tabs
+
+Tabs switch between peer views in the same context. They are not progress steps or global navigation. Keep labels short, preserve keyboard behavior, and allow scrolling or a different pattern when tabs do not fit.
+
+### 8.8 Tables and collections
+
+- Use tables for comparison across consistent attributes.
+- Align numbers and units; put row actions in a predictable final column.
+- Provide sorting or filtering only when it supports a real task.
+- Show loading skeletons, useful empty states, and recoverable errors.
+- Preserve horizontal scrolling or switch to an intentional list/card representation on narrow screens.
+- Bulk selection states the number selected and keeps the scope visible.
+
+### 8.9 Empty, loading, and error states
+
+Every data-driven surface defines:
+
+- first-use empty state with a primary next step;
+- no-results state that preserves filters and offers a way back;
+- initial loading state that reflects the eventual layout;
+- background refresh state that does not erase existing content;
+- partial failure state when some information remains usable;
+- permission state that explains how access is obtained when appropriate.
+
+---
+
+## 9. Icons, illustration, and imagery
+
+### 9.1 Icons
+
+Lucide is the preferred interface icon family for web products. Other platforms may use an equivalent outline family or native system icons.
+
+- Default UI icon: 16px.
+- Touch or standalone action: 20–24px.
+- Empty state or feature illustration: 24–48px when appropriate.
+- Use a consistent stroke style in one context.
+- Reuse the same icon for the same concept across products.
+- Icons supplement unfamiliar labels; they do not replace them.
+- Do not use emoji as structural interface icons.
+
+### 9.2 Imagery
+
+- Use imagery to explain a product, represent content, or establish tone—not to fill empty space.
+- Apply one coherent illustration and photography style within the Upcode portfolio.
+- Provide useful alternative text when an image conveys information; use empty alt text for decoration.
+- Avoid screenshots containing real credentials, personal data, customer infrastructure, or unlicensed content.
+- Optimize assets for the delivery context and avoid text baked into images.
+
+---
+
+## 10. Motion and feedback
+
+Motion explains change, hierarchy, or direct manipulation.
+
+| Motion | Duration | Use |
+|---|---:|---|
+| Immediate | 100–150ms | Hover, press, small color change |
+| Standard | 200–250ms | Menus, tabs, compact layout transitions |
+| Emphasized | 300–400ms | Dialogs or meaningful spatial transitions |
+
+- Prefer opacity and transform over layout-heavy animation.
+- Do not animate static status merely to attract attention.
+- Keep repeated spinning and pulsing to active processes.
+- Respect `prefers-reduced-motion` and native reduced-motion settings.
+- A reduced-motion experience must retain all state information.
+- Never delay a critical action solely to complete an animation.
+
+---
+
+## 11. Platform adaptations
+
+### 11.1 Web applications
+
+- Support keyboard, pointer, touch, browser zoom, and responsive reflow.
+- Use semantic HTML and proven accessible primitives.
+- Preserve URLs and browser history for destinations and shareable state where appropriate.
+- Do not assume hover is available.
+
+### 11.2 Mobile and touch
+
+- Important touch targets are at least 44×44px.
+- Use native gestures only when an equivalent visible control exists.
+- Keep destructive actions away from common navigation targets.
+- Respect safe areas, virtual keyboards, and platform back behavior.
+- Prefer bottom sheets or full-screen flows over cramped desktop dialogs.
+
+### 11.3 Desktop applications
+
+- Respect platform menus, window behavior, shortcuts, and focus conventions.
+- Persist window and panel state only when it improves return workflows.
+- Do not reproduce browser chrome inside a native shell without a task need.
+
+### 11.4 Product and marketing websites
+
+- The product value and primary next step should be clear in the first meaningful viewport.
+- Marketing hierarchy may use the display scale and more generous spacing, but shares brand, accessibility, and content rules.
+- Claims, pricing, compatibility, and availability must be precise and current.
+- Product screenshots must match a real or clearly labeled conceptual interface.
+
+### 11.5 Command-line interfaces
+
+- Plain text is the baseline; color and symbols add meaning but never carry it alone.
+- Use stable exit codes, actionable errors, and predictable `--help` output.
+- Send machine-readable results to stdout and diagnostics to stderr where applicable.
+- Support `NO_COLOR`, non-interactive environments, and structured output when automation is expected.
+- Never print secrets by default.
+
+### 11.6 Transactional email and notifications
+
+- Lead with the event, affected product/resource, and required action.
+- Keep brand treatment secondary to the message.
+- Include a plain-text alternative and a destination that remains understandable without imagery.
+- Do not include credentials or unnecessarily sensitive operational data.
+
+---
+
+## 12. Accessibility
+
+Upcode targets WCAG 2.2 AA for digital product interfaces.
+
+All new and updated experiences must:
+
+- support keyboard navigation and visible focus;
+- use native semantics before adding custom roles;
+- provide accessible names for icon-only controls;
+- associate labels, help, and errors with form controls;
+- preserve a logical heading and reading order;
+- maintain at least 4.5:1 contrast for normal text and 3:1 for large text and essential UI boundaries;
+- avoid relying on color, position, sound, or animation alone;
+- support 200% zoom without loss of content or function;
+- reflow at narrow widths without forcing two-dimensional scrolling except for inherently two-dimensional content;
+- provide reduced-motion behavior;
+- expose asynchronous status through an appropriate live-region or platform announcement;
+- keep time limits adjustable unless they are essential;
+- provide text alternatives for meaningful non-text content.
+
+Automated checks are necessary but not sufficient. Test keyboard flow, screen-reader naming, zoom/reflow, contrast, reduced motion, and error recovery manually for every major workflow.
+
+---
+
+## 13. Themes, branding, and customization
+
+### 13.1 Theme support
+
+- Products should support light, dark, and system themes when their platform supports them.
+- Themes preserve hierarchy and semantic meaning; they are not independent visual identities.
+- Avoid theme transitions that flash, disorient, or expose an unreadable intermediate state.
+- Store user preference without overriding an explicit system-accessibility requirement.
+
+### 13.2 Customer branding
+
+Products that allow customer branding must define controlled slots rather than exposing arbitrary CSS.
+
+Allowed slots may include:
+
+- organization name;
+- approved logo formats;
+- login or landing illustration;
+- constrained accent color;
+- support link and contact text.
+
+Customization must not:
+
+- remove legally or contractually required Upcode attribution;
+- change success, warning, danger, information, focus, or permission semantics;
+- reduce contrast below the accessibility target;
+- inject executable markup or remote code;
+- break product identification in support, security, or consent contexts.
+
+Always provide a safe fallback when a customer asset is missing, invalid, unreadable, or unavailable.
+
+---
+
+## 14. Content and localization
+
+### 14.1 Product language
+
+- Use sentence case for headings, labels, and actions.
+- Use nouns for destinations and verb-first phrases for actions.
+- Prefer the user's goal over the implementation detail.
+- State what happened before giving technical detail.
+- Avoid blame, filler, idioms, and jokes in errors or critical workflows.
+- Use an ellipsis only when an action opens another step before taking effect.
+- Use the exact same term for the same concept across products.
+
+Examples:
+
+| Avoid | Prefer |
 |---|---|
-| `sm` | Small |
-| `default` | Default |
-| `lg` | Large |
-| `icon` | Square (icon only) |
+| `Submit` | `Create workspace` |
+| `Invalid input` | `Enter a hostname without spaces.` |
+| `Delete?` | `Delete “web-01”? This cannot be undone.` |
+| `Something went wrong` | `The service could not be restarted. Check its logs and try again.` |
 
-### 5.4 Button Group Spacing
+### 14.2 Localization
 
-```tsx
-// Standard spacing between buttons in a group
-className="space-x-2"
-```
+- Do not concatenate translated sentence fragments.
+- Allow labels and controls to grow; do not assume English length.
+- Use locale-aware dates, times, numbers, pluralization, and sorting.
+- Store machine values independently from localized display values.
+- Do not embed interface text in images.
+- Specify the language of a page, document, or message for assistive technology.
+- Product profiles list supported locales and the fallback locale.
 
----
+### 14.3 Sensitive content
 
-## 6. Sidebar Design
-
-- **Width:** `w-64` (256px), fixed – no collapse
-- **Buttons:** `rounded-none`, `h-11` for top-level items; `h-9 text-sm` for sub-items
-- **Active state:** `bg-primary/70 text-white` + white dot indicator on the right
-- **Hover state:** `hover:bg-primary/50 hover:border-l-4 hover:border-primary hover:text-white`
-- **Categories:** Uppercase labels, `text-xs font-bold tracking-wide`
-- **Icon size:** `h-4 w-4`, `mr-3`
-- **Chevron:** `ChevronRight` / `ChevronDown` for expandable sub-menus
+Format code, IDs, paths, versions, and logs with the monospace family. Never place secrets in URLs, notifications, screenshots, analytics labels, clipboard previews, or persistent activity text.
 
 ---
 
-## 7. Layout Structure
+## 15. Product implementation profile
 
-```
-┌─────────────────────────────────────────────┐
-│  Sidebar (w-64, fixed)  │  Header (h-auto)  │
-│                         ├───────────────────│
-│  Logo + Hostname        │  Main Content     │
-│  Navigation             │  (flex-1,         │
-│  User Info + Logout     │   overflow-auto,  │
-│                         │   p-4/6/8)        │
-└─────────────────────────────────────────────┘
+Every product keeps a profile beside its product documentation. Use this template:
+
+```md
+# [Product] design implementation profile
+
+- Product owner:
+- Design/engineering owner:
+- Supported platforms:
+- Supported themes:
+- Supported locales and fallback:
+- Foundation version:
+- Component library or native toolkit:
+- Token mapping location:
+- Approved logo/icon assets:
+- Optional product accent (light/dark):
+- Primary navigation pattern:
+- Domain-specific status vocabulary:
+- Accessibility test workflow:
+- Documented exceptions, owners, and review dates:
+- Migration status and known legacy patterns:
 ```
 
-- Root: `flex h-screen bg-background`
-- Content wrapper: `flex-1 flex flex-col overflow-hidden`
-- Main: `flex-1 overflow-auto p-4 md:p-6 lg:p-8`
+Product profiles document implementation; they do not duplicate the foundation. Domain-specific components should reference the shared behavior they extend.
+
+### 15.1 Adding a shared pattern
+
+A pattern belongs in the Upcode foundation when it:
+
+- appears or is planned in at least two products;
+- carries a shared semantic meaning;
+- solves a common accessibility or interaction problem; or
+- would otherwise create visible portfolio inconsistency.
+
+Before adding it, define its purpose, anatomy, states, keyboard/touch behavior, responsive behavior, content guidance, accessibility requirements, and token dependencies.
+
+### 15.2 Changing the foundation
+
+Foundation changes require:
+
+1. A documented user or consistency problem
+2. Review of impact across existing products and platforms
+3. Accessible light/dark and responsive specifications
+4. A versioned migration path
+5. Updates to examples, profiles, and automated checks where applicable
+
+Do not remove or silently redefine a token or pattern while a supported product still depends on it.
 
 ---
 
-## 8. Icon Library
+## 16. Cross-product review checklist
 
-**Lucide React** (`lucide-react`) – the only icon source in the project.
+Before releasing a new or substantially changed interface, verify:
 
-Default icon size: `h-4 w-4` (16px)
-
-Commonly used icons:
-
-| Icon | Usage |
-|---|---|
-| `BarChart3` | Dashboard |
-| `Terminal` | Shell |
-| `Server` | Virtual Machines |
-| `Container` | Docker Container |
-| `FileText` | Compose, Logs |
-| `HardDrive` | Storage |
-| `Network` | Network |
-| `Shield` | Firewall, Backup |
-| `Users` | User Management |
-| `Store` | App Store |
-| `Settings` | Settings |
-| `GitBranch` | Cluster |
-| `LogOut` | Logout |
-| `User` | User avatar |
-
----
-
-## 9. Animations & Transitions
-
-| Element | Transition |
-|---|---|
-| Sidebar buttons | `transition-all duration-200` |
-| Primary button hover | `transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)` |
-| Status indicator (green) | `animate-pulse` |
-| tw-animate-css | Globally imported for extended animations |
-
----
-
-## 10. shadcn/ui Configuration
-
-```json
-{
-  "style": "new-york",
-  "tailwind": {
-    "cssVariables": true,
-    "baseColor": "neutral"
-  },
-  "iconLibrary": "lucide"
-}
-```
-
-**Available UI primitives** (`components/ui/`):
-
-| Component | Radix Base |
-|---|---|
-| `alert.tsx` | – |
-| `badge.tsx` | – |
-| `button.tsx` | `@radix-ui/react-slot` |
-| `card.tsx` | – |
-| `dialog.tsx` | `@radix-ui/react-dialog` |
-| `dropdown-menu.tsx` | `@radix-ui/react-dropdown-menu` |
-| `input.tsx` | – |
-| `label.tsx` | `@radix-ui/react-label` |
-| `notification.tsx` | – |
-| `progress.tsx` | `@radix-ui/react-progress` |
-| `scroll-area.tsx` | `@radix-ui/react-scroll-area` |
-| `select.tsx` | `@radix-ui/react-select` |
-| `switch.tsx` | `@radix-ui/react-switch` |
-| `table.tsx` | – |
-| `tabs.tsx` | `@radix-ui/react-tabs` |
-
----
-
-## 11. Theme System
-
-- Provider: `next-themes`
-- Default: `system` (follows OS preference)
-- Attribute: `class` (`.dark` on `<html>`)
-- `suppressHydrationWarning` set on `<html>`
-
-```tsx
-<ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-```
-
----
-
-## 12. Color Palette Quick Reference
-
-```
-PRIMARY (Red)
-  Light:  #ef4444  (red-500)
-  Dark:   #f87171  (red-400)
-
-ACCENT (Indigo)
-  Light:  #6366f1  (indigo-500)
-  Dark:   #818cf8  (indigo-400)
-
-BACKGROUND
-  Light:  #fafbfc
-  Dark:   #0f172a  (slate-900)
-
-SURFACE / CARD
-  Light:  #ffffff
-  Dark:   #1e293b  (slate-800)
-
-SIDEBAR
-  Light:  #ffffff
-  Dark:   #1e293b  (slate-800)
-
-TEXT PRIMARY
-  Light:  #0f172a  (slate-900)
-  Dark:   #f8fafc  (slate-50)
-
-TEXT MUTED
-  Light:  #64748b  (slate-500)
-  Dark:   #94a3b8  (slate-400)
-
-BORDER
-  Light:  #e2e8f0  (slate-200)
-  Dark:   #334155  (slate-700)
-```
+- [ ] The product follows the Upcode foundation and has a current implementation profile.
+- [ ] Product identity remains recognizable without relying on color alone.
+- [ ] Product accent and customization preserve semantic status meaning.
+- [ ] Light, dark, system, monochrome, and high-contrast contexts remain understandable where supported.
+- [ ] Typography, spacing, radii, elevation, and icons follow the shared system.
+- [ ] Primary, secondary, success, warning, and destructive actions are semantically correct.
+- [ ] Loading, empty, no-results, partial-error, permission, disabled, and success states are designed.
+- [ ] Forms preserve input, explain errors, and protect sensitive data.
+- [ ] Navigation works for keyboard, pointer, touch, narrow layouts, and browser/platform history as applicable.
+- [ ] The experience works with long content, localization, and 200% zoom.
+- [ ] Focus, contrast, semantics, announcements, and reduced motion were manually tested.
+- [ ] Destructive actions state the target, consequence, and recovery option.
+- [ ] Product claims, screenshots, links, support information, and compatibility details are current.
+- [ ] Any exception has a reason, owner, scope, and review date.
